@@ -1,0 +1,13 @@
+{
+  "methodology_id": "RISK_TRADEOFF",
+  "name": "风险权衡方法论",
+  "role": "sales",
+  "dimensions": [
+    {"dim_key":"R","label":"风险等级 Risk Level","weight":1.0,"required":true,"desc":"客户信用/付款/交付/合规风险等级，R 越高收益要求越高"},
+    {"dim_key":"B","label":"收益预期 Expected Benefit","weight":1.0,"required":true,"desc":"金额/利润/战略价值预期，用于与风险对比求比值"},
+    {"dim_key":"RD","label":"红线 Red Line","weight":1.0,"required":true,"desc":"合规/信用/交付能力的硬性否决项，触碰即一票否决"},
+    {"dim_key":"M","label":"缓解措施 Mitigation","weight":0.8,"required":true,"desc":"每项风险是否有可落地的抵消动作（预付/担保/分期/合同条款）"}
+  ],
+  "priority_rule": "红线优先于一切：RD 触碰即否决；有缓解才谈推进；风险不可控触发止损视角（对齐 method-stop-loss）",
+  "gate_rule": "RD（红线）触碰 → 一票否决；R 高且 M（缓解）缺失 → 禁止推进，先补缓解措施"
+}

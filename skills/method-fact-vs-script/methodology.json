@@ -1,0 +1,12 @@
+{
+  "methodology_id": "FACT_VS_SCRIPT",
+  "name": "事实vs话术方法论",
+  "role": "sales",
+  "dimensions": [
+    {"dim_key":"F","label":"事实 Fact","weight":1.0,"required":true,"desc":"可验证（书面/实测/第三方）且无歧义的事实陈述，作为商机判断的唯一支撑"},
+    {"dim_key":"S","label":"话术 Script","weight":0.8,"required":true,"desc":"口头表述/宣传用语/无佐证承诺，识别为待验证线索而非事实"},
+    {"dim_key":"E","label":"证据等级 Evidence","weight":0.9,"required":true,"desc":"证据来源等级（书面-实测-第三方-POC-口头），决定事实的可信权重"}
+  ],
+  "priority_rule": "事实优先于话术：事实（F）是决策依据，话术（S）仅作跟进线索；无证据的陈述一律降级为话术",
+  "gate_rule": "判断依赖的事实必须有证据等级支撑（E≥0.8）；纯话术（无任何证据）禁止支撑推进决策"
+}

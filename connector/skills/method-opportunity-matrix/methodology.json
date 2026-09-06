@@ -1,0 +1,12 @@
+{
+  "methodology_id": "OPPORTUNITY_MATRIX",
+  "name": "机会矩阵方法论",
+  "role": "sales",
+  "dimensions": [
+    {"dim_key":"V1","label":"商业价值 Business Value","weight":1.0,"required":true,"desc":"商机金额/战略意义/可复制性，价值高低决定投入上限"},
+    {"dim_key":"F1","label":"可行性 Feasibility","weight":1.0,"required":true,"desc":"决策链/预算/产品匹配是否齐备，可行性高低决定成交概率"},
+    {"dim_key":"P1","label":"竞争定位 Competitive Position","weight":0.6,"required":false,"desc":"相对竞品领先/并列/落后，以及差异化证据"}
+  ],
+  "priority_rule": "价值×可行双维度驱动：高价值高可行主攻、高价值低可行培育、低价值高可行收割、低价值低可行暂缓",
+  "gate_rule": "低价值×低可行（PARK）→ 禁止继续投入资源；高价值×高可行（PRIMARY）→ 优先推进"
+}

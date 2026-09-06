@@ -1,0 +1,12 @@
+{
+  "name": "method-role-map",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "客户角色地图方法论——识别决策链/影响者/使用者/利益相关方四类角色，绘制拓扑并标注立场，门控售前方案推动路径",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "ROLE_MAP",
+  "dimensions": ["D","I","U","S"],
+  "rbac_roles": ["presales","sales"],
+  "enabled": true
+}

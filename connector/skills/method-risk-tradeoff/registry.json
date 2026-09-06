@@ -1,0 +1,12 @@
+{
+  "name": "method-risk-tradeoff",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "风险权衡方法论（风险×收益/红线/缓解）——量化商机风险收益比，触碰红线一票否决，有缓解才可推进",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "RISK_TRADEOFF",
+  "dimensions": ["R","B","RD","M"],
+  "rbac_roles": ["sales","manager"],
+  "enabled": true
+}

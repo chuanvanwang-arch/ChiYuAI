@@ -1,0 +1,36 @@
+{
+  "name": "crm-ai-native",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/http/server.js",
+    "start": "node src/http/server.js",
+    "migrate": "node db/migrate.js",
+    "seed": "node db/migrate.js --seed",
+    "backfill:ai": "node scripts/backfill-ai.js",
+    "seed:test": "node scripts/seed-test-config.mjs",
+    "pretest": "node scripts/seed-test-config.mjs && node scripts/test-isolation-audit.mjs --strict",
+    "test": "node node_modules/vitest/vitest.mjs run",
+    "test:e2e": "node node_modules/vitest/vitest.mjs run test/e2e.test.js",
+    "audit:isolation": "node scripts/test-isolation-audit.mjs",
+    "mcp": "node src/mcp/server.js",
+    "mcp:stdio": "node src/mcp/server.js --stdio",
+    "mcp:http": "node src/mcp/server.js --http",
+    "buddy:e2e": "node scripts/buddy-e2e-suite.mjs",
+    "buddy:ui-e2e": "node scripts/buddy-ui-e2e.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^6.10.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8.11.10",
+    "playwright": "^1.63.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

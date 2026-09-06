@@ -1,0 +1,29 @@
+name: Buddy 应用 · 胶囊绑定静态契约回归
+
+# 触发：影响胶囊→method-* 绑定契约的源码/脚本/依赖变更时必跑
+# 特性：零基础设施依赖（不连 PG / 不起服务），纯逻辑校验，稳定可重复
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'scripts/buddy-capsule-binding-check.mjs'
+      - 'package.json'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/buddy-capsule-binding-check.mjs'
+      - 'package.json'
+
+jobs:
+  static-contract:
+    name: 胶囊→method-* 绑定契约校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: 运行静态契约校验（routeThroughIntake 确定性保留 + 工具名在 MCP 暴露集）
+        run: node scripts/buddy-capsule-binding-check.mjs

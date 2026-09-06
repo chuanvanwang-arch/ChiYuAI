@@ -17,7 +17,7 @@
 ## 专家包引入（从仓库副本拷贝）
 
 - 位置：`D:\system\CRM-ai-native\plugin\`（本体，含 `agents/`、`skills/`、`openclaw.plugin.json`）
-- 平台管理插件（可选）：`D:\system\CRM-ai-native\plugin-platform-admin\`（RBAC / 行业上线 / 系统引导，**仅 sys-admin 角色**可用）
+- 平台管理插件（可选）：`D:\system\CRM-ai-native\plugin-platform-admin\`（RBAC / 行业上线 / 系统引导，**仅 sysadmin 角色**可用）
 - 引入后：添加「专家」时应能识别 `openclaw.plugin.json` 中的 skills 清单（crm-native、crm-query、crm-risk、method-* 等 16 个）
 - 注意：本项目 git 由用户本地提交；沙箱无凭证，AI 不执行 commit。
 

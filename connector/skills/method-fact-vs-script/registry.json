@@ -1,0 +1,12 @@
+{
+  "name": "method-fact-vs-script",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "事实vs话术方法论——区分客户沟通中的事实（可验证证据）与话术（口头表述），以事实为决策依据，话术仅作跟进线索",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "FACT_VS_SCRIPT",
+  "dimensions": ["F","S","E"],
+  "rbac_roles": ["sales","presales"],
+  "enabled": true
+}

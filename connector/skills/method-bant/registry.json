@@ -1,0 +1,12 @@
+{
+  "name": "method-bant",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "BANT 预算-权限-需求-时间线销售资质方法论——四维逐项评估商机资质，门控商机是否值得推进，缺任一硬维度禁止升级阶段",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "BANT",
+  "dimensions": ["B","A","N","T"],
+  "rbac_roles": ["sales"],
+  "enabled": true
+}

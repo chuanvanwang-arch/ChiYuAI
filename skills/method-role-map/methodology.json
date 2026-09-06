@@ -1,0 +1,13 @@
+{
+  "methodology_id": "ROLE_MAP",
+  "name": "客户角色地图方法论",
+  "role": "presales",
+  "dimensions": [
+    {"dim_key":"D","label":"决策者 Decision Maker","weight":1.0,"required":true,"desc":"最终拍板人是谁/几人、由谁推荐、预算审批链"},
+    {"dim_key":"I","label":"影响者 Influencer","weight":0.8,"required":true,"desc":"技术/财务/法务等影响决策的角色，其意见权重"},
+    {"dim_key":"U","label":"使用者 User","weight":0.7,"required":true,"desc":"每天使用系统的角色，其痛点代言人与体验诉求"},
+    {"dim_key":"S","label":"利益相关方 Stakeholder","weight":0.5,"required":false,"desc":"合规/运维/采购等受方案波及的角色，其关切点"}
+  ],
+  "priority_rule": "决策者优先：先打通 D（决策者）与 I（影响者），U 的痛点用于制造支持声音，S 的关切用于预防否决",
+  "gate_rule": "D/I 任一未识别或存在未转化的反对立场 → 禁止乐观推进，先补齐地图或转化反对者"
+}

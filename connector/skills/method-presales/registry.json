@@ -1,0 +1,19 @@
+{
+  "name": "method-presales",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "售前解决方案设计方法论——方案契合/技术可行/价值量化/风险异议/差异化/交付可信六维评估，门控商机推进报价",
+  "environment": {
+    "required": [],
+    "optional": []
+  },
+  "security": {
+    "requiresSecrets": false,
+    "sensitiveEnvironment": false,
+    "externalNetworkAccess": false
+  },
+  "methodology_id": "PRESALES_SOLUTION",
+  "dimensions": ["S1","S2","S3","S4","S5","S6"],
+  "rbac_roles": ["presales"],
+  "enabled": true
+}

@@ -1,0 +1,12 @@
+{
+  "name": "crm-native",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "CRM 智能体包编排入口——意图路由→技能分发（query/write/risk + 7 method-*），惰性编排，角色自适应",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "crm-native",
+  "sub_skills": ["crm-query", "crm-write", "crm-risk", "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map", "method-risk-tradeoff", "method-stop-loss", "method-fact-vs-script"],
+  "rbac_roles": ["sales", "manager", "presales", "exec", "finance"],
+  "enabled": true
+}

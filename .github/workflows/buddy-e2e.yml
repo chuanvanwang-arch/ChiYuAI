@@ -1,0 +1,108 @@
+name: Buddy 应用 · 运行态端到端联调
+
+# 双触发：
+#   - 定时（cron）：每日北京时间 02:00（UTC 18:00）自动跑「胶囊→对话区→dispatch→MCP 真机派发」全链路夜间回归。
+#   - 手动（workflow_dispatch）：发布前人工验证，可勾选注入 LLM_API_KEY 走深链路推理。
+# 不纳入 push/PR 必跑门禁 —— 运行态依赖 PG 容器与可选 LLM，避免 flaky 误判回归（见项目铁律）。
+on:
+  schedule:
+    # 北京时间 02:00 = UTC 18:00（GitHub cron 使用 UTC；存在调度延迟，接近凌晨即可）
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      inject_llm_key:
+        description: '是否从仓库 secret LLM_API_KEY 注入大模型密钥（method-* 内部推理可能需要）'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: buddy-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime-e2e:
+    name: 三层验证回归套件（真机）
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: agent2b
+          POSTGRES_PASSWORD: agent2b
+          POSTGRES_DB: crm_native
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agent2b -d crm_native"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: agent2b
+      PGPASSWORD: agent2b
+      PGDATABASE: crm_native
+      PGSCHEMA: crm
+      PORT: '3000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: 等待 Postgres 就绪
+        shell: bash
+        run: |
+          for i in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/localhost/5432) 2>/dev/null; then exec 3>&-; echo "PG ready"; break; fi
+            sleep 2
+          done
+
+      - name: 数据库迁移（schema + 配置面 + 增量幂等）
+        run: npm run migrate
+
+      - name: 种子数据（用户 alice/sales + 配置；seed.sql 缺失时友好跳过）
+        run: npm run seed
+
+      - name: 启动主应用(3000)与 MCP(3001) 后台进程
+        run: |
+          node src/http/server.js > /tmp/app.log 2>&1 &
+          echo $! > /tmp/app.pid
+          node src/mcp/server.js > /tmp/mcp.log 2>&1 &
+          echo $! > /tmp/mcp.pid
+
+      - name: 等待服务端口就绪
+        shell: bash
+        run: |
+          for p in 3000 3001; do
+            for i in $(seq 1 30); do
+              if (exec 3<>/dev/tcp/localhost/$p) 2>/dev/null; then exec 3>&-; echo "port $p ready"; break; fi
+              sleep 2
+            done
+          done
+
+      - name: 运行三层验证回归套件（静态契约 + MCP 真机派发 + HTTP→DB 透传）
+        env:
+          # 定时触发时 github.event.inputs 为 undefined，需短路保护，避免表达式求值为空密钥导致误注入。
+          LLM_API_KEY: ${{ (github.event.inputs && github.event.inputs.inject_llm_key == 'true' && secrets.LLM_API_KEY) || '' }}
+        run: |
+          set -o pipefail
+          npm run buddy:e2e | tee /tmp/buddy-e2e.log
+
+      - name: 上传回归日志（便于夜间失败回溯）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buddy-e2e-${{ github.run_id }}
+          path: /tmp/buddy-e2e.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: 收尾关闭后台进程
+        if: always()
+        run: |
+          [ -f /tmp/app.pid ] && kill "$(cat /tmp/app.pid)" 2>/dev/null || true
+          [ -f /tmp/mcp.pid ] && kill "$(cat /tmp/mcp.pid)" 2>/dev/null || true

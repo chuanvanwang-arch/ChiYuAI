@@ -1,0 +1,26 @@
+{
+  "title": "CRM 接入配置",
+  "title_en": "CRM Connection",
+  "description": "连接你的 AI 原生 CRM。凭证仅保存在本机 ~/.workbuddy 目录下，不经过云端。",
+  "description_en": "Connect your AI-native CRM. Credentials are stored locally on your machine only.",
+  "fields": [
+    {
+      "key": "CRM_MCP_URL",
+      "label": "MCP 服务地址",
+      "label_en": "MCP Server URL",
+      "type": "text",
+      "required": true,
+      "defaultValue": "https://www.chiyuai.com/mcp",
+      "description": "CRM 的 MCP 端点。私有部署或本地联调可改为 http://localhost:3001/mcp。"
+    },
+    {
+      "key": "CRM_API_TOKEN",
+      "label": "接入 Token",
+      "label_en": "Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "通过 crm_login 领取",
+      "description": "用于访问 CRM 的个人访问令牌，请勿分享。当前实现有效期 8 小时，过期后需重新领取。"
+    }
+  ]
+}

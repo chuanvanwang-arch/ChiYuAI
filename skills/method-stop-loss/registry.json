@@ -1,0 +1,12 @@
+{
+  "name": "method-stop-loss",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "止损点方法论（负净值/投入预算/退出门）——预设止损阈值并触发退出门，防止沉没成本绑架决策",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "STOP_LOSS",
+  "dimensions": ["NV","CB","EG"],
+  "rbac_roles": ["exec","manager"],
+  "enabled": true
+}

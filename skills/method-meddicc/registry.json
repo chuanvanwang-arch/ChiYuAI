@@ -1,0 +1,12 @@
+{
+  "name": "method-meddicc",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "MEDDICC 销售方法论（Metrics/Economic Buyer/Decision Criteria/Decision Process/Identify Pain/Champion）——七维可加权校验的复杂商机评估与赢单概率判断",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "MEDDICC",
+  "dimensions": ["M1","E1","D1","D2","I1","C1","C2"],
+  "rbac_roles": ["sales", "manager"],
+  "enabled": true
+}

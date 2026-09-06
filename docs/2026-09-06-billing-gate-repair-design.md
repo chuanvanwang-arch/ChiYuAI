@@ -104,7 +104,7 @@
 | `mcp_access` | MCP 通道整体（在 gateway 层校验，不逐 Action 声明） |
 | `industry_config` | admin-param-diagnosis（配置面，RBAC 已控，可不声明） |
 | data-particle-* | 不加（substrate 基础能力） |
-| admin-* | 不加（sys-admin RBAC 已控） |
+| admin-* | 不加（sysadmin RBAC 已控） |
 
 同步：`src/billing/planSchema.js` `KNOWN_ENTITLEMENTS` 与守护测试 `test/billing/planSchema.test.js`（解析 seed-actions 防漂移）需同步。
 

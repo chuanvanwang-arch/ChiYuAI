@@ -1,0 +1,8 @@
+{
+  "id": "platform-ops-insight",
+  "name": "platform-ops-insight",
+  "type": "domain",
+  "immutable_baseline": true,
+  "rbac_roles": ["sysadmin"],
+  "description": "平台运营洞察 Runbook：租户经营/智能体汇总/决策健康/参数诊断/待办审批。双闸：登录验证+sysadmin"
+}

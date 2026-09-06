@@ -69,7 +69,7 @@
 2. **写操作决策第 0 闸**：写类 MCP 工具（如 `crm-asset-attach`）触发 `DECISION_NEEDED`，须经决策/审批流（已真机验证）。
 3. **重大商机闸门**：`routes.dispatch` 保留 `classifyRequirement` 的 intent/level，重大商机强制 `review-gate`。
 4. **报价红线**：系统无报价基线 + 折扣超权限时，必须走 `CRM_APPROVAL_FLOW` + `decision_id`（参照 B 新能源口头预算教训）。
-5. **多租户隔离**：`tenant_id` 全程透传（system 租户豁免）；平台管理类动作仅 sys-admin 角色。
+5. **多租户隔离**：`tenant_id` 全程透传（system 租户豁免）；平台管理类动作仅 sysadmin 角色。
 6. **财务 Tab 角色闸门**：财务 Tab 经 `/api/auth/me` 按角色隐藏（仅 finance/admin/sysadmin 可见），写操作仍以 `requiresEntitlement(advanced_reporting)` 等下游闸门兜底（防御纵深）。
 
 ---

@@ -1,0 +1,12 @@
+{
+  "name": "method-behavior-standard",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "销售行为合格线（21 条 BH-01~07 有/无检查）+ TAORAN 六要素拜访记录规范",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "BEHAVIOR_STANDARD",
+  "dimensions": ["BH-01", "BH-02", "BH-03", "BH-04", "BH-05", "BH-06", "BH-07"],
+  "rbac_roles": ["sales", "manager"],
+  "enabled": true
+}

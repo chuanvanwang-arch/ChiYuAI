@@ -1,0 +1,15 @@
+{
+  "methodology_id": "PRESALES_SOLUTION",
+  "name": "售前解决方案设计方法论",
+  "role": "presales",
+  "dimensions": [
+    {"dim_key":"S1","label":"方案契合度 Solution Fit","weight":1.0,"required":true,"desc":"方案对客户痛点/业务场景的覆盖程度，是否对症下药"},
+    {"dim_key":"S2","label":"技术可行性 Technical Feasibility","weight":1.0,"required":true,"desc":"技术架构/集成/性能是否在能力边界内，有无硬伤"},
+    {"dim_key":"S3","label":"价值量化 Value Quantification","weight":1.0,"required":true,"desc":"ROI/效率提升/成本节约是否量化，能否被经济决策者认可"},
+    {"dim_key":"S4","label":"风险与异议 Risk & Objection","weight":0.9,"required":true,"desc":"技术风险/安全合规/客户已知异议是否识别并有应对"},
+    {"dim_key":"S5","label":"差异化竞争力 Competitive Edge","weight":0.6,"required":false,"desc":"相对竞品的独特优势是否清晰"},
+    {"dim_key":"S6","label":"交付可信度 Delivery Confidence","weight":0.8,"required":true,"desc":"POC/DEMO/参考案例是否验证，交付把握"}
+  ],
+  "priority_rule": "事实优先于话术：客户口头意向低于 POC/DEMO 实测证据；技术硬伤（S2 不达标）一票否决推进",
+  "gate_rule": "required 维度任一未达标 → 禁止推进至报价/合同，先补齐方案"
+}

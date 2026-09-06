@@ -1,0 +1,12 @@
+{
+  "name": "method-opportunity-matrix",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "机会矩阵方法论（商业价值×可行性×竞争定位）——商机组合优先级排序，高价值高可行主攻、低价值低可行暂缓",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "OPPORTUNITY_MATRIX",
+  "dimensions": ["V1","F1","P1"],
+  "rbac_roles": ["sales","manager"],
+  "enabled": true
+}

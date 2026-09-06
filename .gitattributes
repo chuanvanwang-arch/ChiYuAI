@@ -1,0 +1,4 @@
+# 跨平台换行符统一：仓库内以 LF 存储与检出
+# 消除 Windows core.autocrlf=true 下 "LF will be replaced by CRLF" 的非阻断提示
+# 与 Write/Edit 工具实际产出（LF）保持一致，避免无谓的 CRLF 转换噪声
+* text=auto eol=lf

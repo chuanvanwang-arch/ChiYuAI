@@ -1,0 +1,89 @@
+name: Buddy 应用 · 浏览器端到端联调（Playwright）
+
+# 手动触发（workflow_dispatch）：运行态 UI 全链路回归，覆盖此前 0% 自动化的盲区：
+#   6 Tab 渲染 + 24 胶囊「点击→对话区注入预填」+ 单点闭环（胶囊→提交→dispatch→DB skill_slug 保留）。
+# 不纳入 push/PR 必跑门禁 —— 依赖 Chromium 与运行态服务，避免 flaky 误判回归（见项目铁律）。
+on:
+  workflow_dispatch:
+    inputs:
+      inject_llm_key:
+        description: '是否从仓库 secret LLM_API_KEY 注入大模型密钥（影响派发后推理，不影响闭环断言）'
+        required: false
+        default: 'false'
+
+jobs:
+  ui-e2e:
+    name: 浏览器 UI 回归（Playwright）
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: agent2b
+          POSTGRES_PASSWORD: agent2b
+          POSTGRES_DB: crm_native
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agent2b -d crm_native"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: agent2b
+      PGPASSWORD: agent2b
+      PGDATABASE: crm_native
+      PGSCHEMA: crm
+      PORT: '3000'
+      BASE_URL: 'http://127.0.0.1:3000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: 安装 Playwright Chromium（含系统依赖）
+        run: npx playwright install --with-deps chromium
+
+      - name: 等待 Postgres 就绪
+        shell: bash
+        run: |
+          for i in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/localhost/5432) 2>/dev/null; then exec 3>&-; echo "PG ready"; break; fi
+            sleep 2
+          done
+
+      - name: 数据库迁移 + 种子
+        run: npm run migrate && npm run seed
+
+      - name: 启动主应用(3000)与 MCP(3001) 后台进程
+        run: |
+          node src/http/server.js > /tmp/app.log 2>&1 &
+          echo $! > /tmp/app.pid
+          node src/mcp/server.js > /tmp/mcp.log 2>&1 &
+          echo $! > /tmp/mcp.pid
+
+      - name: 等待服务端口就绪
+        shell: bash
+        run: |
+          for p in 3000 3001; do
+            for i in $(seq 1 30); do
+              if (exec 3<>/dev/tcp/localhost/$p) 2>/dev/null; then exec 3>&-; echo "port $p ready"; break; fi
+              sleep 2
+            done
+          done
+
+      - name: 运行浏览器 UI 回归套件
+        env:
+          LLM_API_KEY: ${{ (github.event.inputs && github.event.inputs.inject_llm_key == 'true' && secrets.LLM_API_KEY) || '' }}
+        run: npm run buddy:ui-e2e
+
+      - name: 收尾关闭后台进程
+        if: always()
+        run: |
+          [ -f /tmp/app.pid ] && kill "$(cat /tmp/app.pid)" 2>/dev/null || true
+          [ -f /tmp/mcp.pid ] && kill "$(cat /tmp/mcp.pid)" 2>/dev/null || true

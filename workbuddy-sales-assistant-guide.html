@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorkBuddy · AI 原生销售助手上手指南</title>
+  <style>
+    :root {
+      --brand: #4f46e5;
+      --brand-2: #7c3aed;
+      --brand-soft: #eef2ff;
+      --ink: #1f2937;
+      --ink-2: #4b5563;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --ok: #16a34a;
+      --warn: #d97706;
+      --shadow: 0 10px 30px rgba(31, 41, 55, .08);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--brand); }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    /* Nav */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(255,255,255,.85); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
+    .logo .dot { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); }
+    .nav-links { display: flex; gap: 22px; font-size: 14px; }
+    .nav-links a { color: var(--ink-2); text-decoration: none; }
+    .nav-links a:hover { color: var(--brand); }
+    .nav-cta {
+      background: var(--brand); color: #fff; padding: 9px 16px; border-radius: 10px;
+      text-decoration: none; font-size: 14px; font-weight: 600;
+    }
+
+    /* Hero */
+    .hero {
+      background: radial-gradient(1200px 400px at 80% -10%, #e0e7ff 0%, transparent 60%),
+                  radial-gradient(900px 400px at 0% 0%, #f3e8ff 0%, transparent 55%);
+      padding: 72px 0 56px;
+    }
+    .hero h1 { font-size: 40px; line-height: 1.2; margin: 0 0 16px; letter-spacing: -0.5px; }
+    .hero h1 .grad { background: linear-gradient(135deg, var(--brand), var(--brand-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p { font-size: 18px; color: var(--ink-2); max-width: 640px; margin: 0 0 28px; }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 22px; border-radius: 12px; font-weight: 600; font-size: 15px;
+      text-decoration: none; cursor: pointer; border: 1px solid transparent;
+      transition: transform .08s ease, box-shadow .2s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--brand); color: #fff; box-shadow: 0 8px 20px rgba(79,70,229,.25); }
+    .btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+    .pill { display: inline-flex; align-items: center; gap: 6px; background: var(--brand-soft); color: var(--brand); padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 18px; }
+
+    /* Sections */
+    section { padding: 56px 0; }
+    .section-title { font-size: 28px; margin: 0 0 8px; letter-spacing: -.3px; }
+    .section-sub { color: var(--muted); margin: 0 0 32px; font-size: 16px; }
+
+    /* Steps */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .step {
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 24px; box-shadow: var(--shadow);
+    }
+    .step .num {
+      width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; font-weight: 800; margin-bottom: 14px;
+    }
+    .step h3 { margin: 0 0 8px; font-size: 18px; }
+    .step p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+
+    /* Features */
+    .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .feature { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+    .feature .ico { font-size: 22px; }
+    .feature h3 { margin: 10px 0 6px; font-size: 17px; }
+    .feature p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+
+    /* Onboarding widget */
+    .obo {
+      background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+      box-shadow: var(--shadow); overflow: hidden; display: grid; grid-template-columns: 1.1fr 1fr;
+    }
+    .obo-aside { background: linear-gradient(160deg, #eef2ff, #f5f3ff); padding: 34px; }
+    .obo-aside h3 { margin: 0 0 10px; font-size: 20px; }
+    .obo-aside p { color: var(--ink-2); font-size: 14.5px; margin: 0 0 18px; }
+    .obo-steps { list-style: none; padding: 0; margin: 0; }
+    .obo-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; font-size: 14.5px; color: var(--ink-2); }
+    .obo-steps .s {
+      flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+      font-size: 12px; font-weight: 700; background: #fff; border: 1px solid var(--line); color: var(--muted);
+    }
+    .obo-steps li.active .s { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .obo-steps li.done .s { background: var(--ok); color: #fff; border-color: var(--ok); }
+    .obo-steps li.active { color: var(--ink); font-weight: 600; }
+
+    .obo-main { padding: 34px; min-height: 360px; display: flex; flex-direction: column; }
+    .obo-screen { flex: 1; }
+    .screen { display: none; }
+    .screen.show { display: block; animation: fade .3s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .screen h4 { margin: 0 0 6px; font-size: 19px; }
+    .screen .desc { color: var(--ink-2); font-size: 14.5px; margin: 0 0 20px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+    .field input {
+      width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+      font-size: 15px; outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+    .notice {
+      display: flex; gap: 10px; padding: 14px 16px; border-radius: 12px;
+      background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 14px; margin-bottom: 18px;
+    }
+    .notice.success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .obo-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+    .linkbtn { background: none; border: none; color: var(--brand); cursor: pointer; font-size: 14px; padding: 6px 0; }
+    .logged { text-align: center; padding: 18px 0; }
+    .avatar { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 14px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); display: grid; place-items: center; color: #fff; font-size: 26px; font-weight: 800; }
+    .demofoot { display: flex; justify-content: space-between; align-items: center; padding: 14px 34px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); background: #fafbff; }
+    .toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+      background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 14px;
+      opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* FAQ */
+    .faq { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .faq details { border-bottom: 1px solid var(--line); }
+    .faq details:last-child { border-bottom: none; }
+    .faq summary { cursor: pointer; padding: 18px 22px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+    .faq details[open] summary::after { content: "−"; }
+    .faq .ans { padding: 0 22px 18px; color: var(--ink-2); font-size: 14.5px; }
+
+    footer { padding: 40px 0; color: var(--muted); font-size: 13px; text-align: center; }
+    .config-note { background: #fafbff; border: 1px dashed var(--line); border-radius: 12px; padding: 14px 16px; font-size: 13px; color: var(--ink-2); margin-top: 22px; }
+    .config-note code { background: #eef2ff; padding: 2px 6px; border-radius: 6px; color: var(--brand); }
+
+    /* Screenshot showcase */
+    .shot-wrap {
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; position: relative;
+    }
+    .shot-wrap .bar {
+      display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+      border-bottom: 1px solid var(--line); background: #f8fafc;
+    }
+    .shot-wrap .bar i {
+      width: 11px; height: 11px; border-radius: 50%; background: #ef4444; display: inline-block;
+    }
+    .shot-wrap .bar i:nth-child(2) { background: #f59e0b; }
+    .shot-wrap .bar i:nth-child(3) { background: #10b981; }
+    .shot-wrap .bar span { margin-left: 8px; font-size: 13px; color: var(--muted); }
+    .shot-img { display: block; width: 100%; height: auto; }
+    .shot-anno {
+      position: absolute; left: 50%; top: 36%; transform: translate(-50%, -100%);
+      background: rgba(79,70,229,.95); color: #fff; padding: 8px 14px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; box-shadow: 0 6px 18px rgba(79,70,229,.25); white-space: nowrap;
+    }
+    .shot-anno::before {
+      content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 60px;
+      background: linear-gradient(180deg, rgba(79,70,229,.95), transparent); transform: translateX(-50%);
+    }
+    .shot-cap {
+      margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-size: 14px; color: var(--ink-2);
+    }
+    .shot-cap .num { width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+
+    @media (max-width: 860px) {
+      .steps, .features { grid-template-columns: 1fr; }
+      .obo { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 32px; }
+      .shot-anno { font-size: 11px; padding: 5px 9px; white-space: normal; max-width: 70%; text-align: center; }
+      .shot-anno::before { height: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="wrap">
+      <div class="logo"><span class="dot"></span> WorkBuddy</div>
+      <div class="nav-links">
+        <a href="#how">如何使用</a>
+        <a href="#assistant">销售助手</a>
+        <a href="#onboard">首次登录</a>
+        <a href="#faq">常见问题</a>
+      </div>
+      <a class="nav-cta" href="#onboard">开始使用</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="wrap">
+      <span class="pill">AI 原生销售管理 · 一站式上手</span>
+      <h1>用 <span class="grad">WorkBuddy</span><br/>唤醒你的 AI 原生销售助手</h1>
+      <p>把客户、商机、报价与决策闭环交给智能体。本指南带你三步上手，并完成首次注册与登录。</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#how">查看使用步骤 →</a>
+        <a class="btn btn-ghost" href="#onboard">我是新用户，去注册</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- REAL SHOT -->
+  <section style="padding-top:8px;">
+    <div class="wrap">
+      <div class="shot-wrap">
+        <div class="bar"><i></i><i></i><i></i><span>WorkBuddy · 专家·技能·连接器</span></div>
+        <div style="position:relative;">
+          <img class="shot-img" src="workbuddy-sales-assistant-guide-expert.png" alt="WorkBuddy 中搜索 CRM 平台管理助手，选择 AI 原生销售平台管理助手" />
+          <div class="shot-anno">👆 点这张卡片启用助手</div>
+        </div>
+      </div>
+      <div class="shot-cap"><span class="num">1</span> 在左侧「专家·技能·连接器」中搜索「CRM 平台管理助手」<span style="color:var(--line)">|</span>选中「AI 原生销售平台管理助手」卡片即可启用助手</div>
+    </div>
+  </section>
+
+  <!-- HOW TO USE -->
+  <section id="how">
+    <div class="wrap">
+      <h2 class="section-title">如何使用 WorkBuddy</h2>
+      <p class="section-sub">三个步骤，从打开应用到让 AI 销售助手替你工作。</p>
+      <div class="steps">
+        <div class="step">
+          <div class="num">1</div>
+          <h3>打开 WorkBuddy 工作台</h3>
+          <p>在统一入口登录后，进入「AI 原生销售管理助手」插件面板，所有销售动作都从这里发起。</p>
+        </div>
+        <div class="step">
+          <div class="num">2</div>
+          <h3>用自然语言下达任务</h3>
+          <p>“推进 XX 制造商机到 S2”“生成客户 360 洞察”“这笔报价走审批”——助手自动路由到对应能力。</p>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <h3>让决策闭环自动沉淀</h3>
+          <p>报价、折扣、审批全程留痕上链，助手在后台持续学习你的销售策略，越用越懂你。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ASSISTANT -->
+  <section id="assistant" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);">
+    <div class="wrap">
+      <h2 class="section-title">认识「AI 原生销售助手」</h2>
+      <p class="section-sub">它不是 CRM 的菜单，而是一个会思考、会执行、会决策的智能体。</p>
+      <div class="features">
+        <div class="feature"><div class="ico">🧭</div><h3>客户 360 洞察</h3><p>自动聚合客户画像、商机时间线、历史决策，一句话生成可发送的客户洞察。</p></div>
+        <div class="feature"><div class="ico">📈</div><h3>商机推进引擎</h3><p>按 S1–S6 阶段模型推进商机，自动提醒跟进、补录关键动作，杜绝漏跟。</p></div>
+        <div class="feature"><div class="ico">💰</div><h3>报价与折扣审批</h3><p>无报价基线或超权限折扣，系统强制走 CRM_APPROVAL_FLOW，杜绝私下报价治理缺口。</p></div>
+        <div class="feature"><div class="ico">⚖️</div><h3>决策闭环</h3><p>每一次写操作绑定 decision_id，哈希上链、可追溯、可复盘，口头批准不再算数。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ONBOARDING -->
+  <section id="onboard">
+    <div class="wrap">
+      <h2 class="section-title">首次使用：注册 → 登录</h2>
+      <p class="section-sub">第一次使用助手时，会引导你前往官网完成注册；注册成功后回到本页登录即可。</p>
+
+      <div class="obo">
+        <aside class="obo-aside">
+          <h3>引导流程</h3>
+          <p>下方是可交互的真实流程演示。首次进入会检测到“未注册”，引导你去网站注册，注册后再回到登录页。</p>
+          <ul class="obo-steps" id="oboSteps">
+            <li data-step="register"><span class="s">1</span> 首次使用 · 引导注册</li>
+            <li data-step="login"><span class="s">2</span> 回到本页 · 账号登录</li>
+            <li data-step="done"><span class="s">3</span> 登录成功 · 进入助手</li>
+          </ul>
+        </aside>
+
+        <div class="obo-main">
+          <div class="obo-screen">
+            <!-- Screen: not registered -->
+            <div class="screen" id="screen-register">
+              <h4>检测到你是首次使用 👋</h4>
+              <p class="desc">AI 原生销售助手需要先在你的企业租户下完成账号注册。请先前往官网注册，注册成功后再回到本页登录。</p>
+              <div class="notice">
+                <span>⚠️</span>
+                <span>未注册账号无法使用助手。注册免费，约 1 分钟完成。</span>
+              </div>
+              <div class="obo-actions">
+                <button class="btn btn-primary" id="goRegister">前往网站注册</button>
+                <button class="linkbtn" id="alreadyReg">我已注册，去登录 →</button>
+              </div>
+            </div>
+
+            <!-- Screen: login -->
+            <div class="screen" id="screen-login">
+              <h4>欢迎回来，请登录</h4>
+              <p class="desc">使用你在官网注册的账号登录，即可进入 AI 原生销售助手。</p>
+              <div class="field">
+                <label for="acc">账号 / 手机号</label>
+                <input id="acc" type="text" placeholder="例如 13800000000 或 you@company.com" />
+              </div>
+              <div class="field">
+                <label for="pwd">密码</label>
+                <input id="pwd" type="password" placeholder="请输入注册时设置的密码" />
+              </div>
+              <div class="obo-actions">
+                <button class="btn btn-primary" id="doLogin">登录</button>
+                <button class="linkbtn" id="backReg">← 还没注册？去注册</button>
+              </div>
+            </div>
+
+            <!-- Screen: logged in -->
+            <div class="screen" id="screen-done">
+              <div class="logged">
+                <div class="avatar" id="avatar">U</div>
+                <h4 style="margin:0 0 6px;">登录成功 🎉</h4>
+                <p class="desc" id="welcome" style="margin-bottom:18px;">正在为你加载 AI 原生销售助手…</p>
+                <div class="obo-actions" style="justify-content:center;">
+                  <a class="btn btn-primary" href="#assistant">进入销售助手</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demofoot">
+        <span id="stateLabel">当前状态：未注册</span>
+        <button class="linkbtn" id="resetDemo">重置演示</button>
+      </div>
+
+      <div class="config-note">
+        接入说明：把页面里的注册网址改成你自己的即可。在文件底部 <code>&lt;script&gt;</code> 中修改 <code>REGISTER_URL</code> 常量（默认指向 <code>http://localhost:3000/register</code>）。
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" style="background:#fff;border-top:1px solid var(--line);">
+    <div class="wrap">
+      <h2 class="section-title">常见问题</h2>
+      <p class="section-sub">关于注册、登录与助手使用的高频疑问。</p>
+      <div class="faq">
+        <details open>
+          <summary>第一次用为什么要先去网站注册？</summary>
+          <div class="ans">AI 原生销售助手按企业租户隔离数据。首次使用需在官网创建/加入你的企业租户账号，助手才能绑定正确的客户与商机数据，并保证写入走零信任 HITL 审批。</div>
+        </details>
+        <details>
+          <summary>注册和登录是同一个页面吗？</summary>
+          <div class="ans">不是。注册在官网完成（创建账号 + 激活租户）；本助手页面只负责登录。注册成功后会自动回到本页进入登录流程，体验连贯。</div>
+        </details>
+        <details>
+          <summary>忘记密码怎么办？</summary>
+          <div class="ans">在登录页点击“忘记密码”，系统会引导你到官网通过手机号/邮箱重置。重置完成后回到本页重新登录即可。</div>
+        </details>
+        <details>
+          <summary>助手能直接替我发报价给客户吗？</summary>
+          <div class="ans">不能私下发送。凡涉及报价、折扣且超出权限的，助手强制走 CRM_APPROVAL_FLOW 审批，并绑定 decision_id 上链留痕，确保治理合规。</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">WorkBuddy · AI 原生销售助手上手指南 ｜ 演示页，注册地址请在脚本中配置为你的官网</div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ===== 配置：把你自己的注册官网地址填到这里 =====
+    const REGISTER_URL = "http://localhost:3000/register";
+    // ===============================================
+
+    const KEY = "wb_sales_onboard_state";
+    const $ = (id) => document.getElementById(id);
+
+    const screens = { register: "screen-register", login: "screen-login", done: "screen-done" };
+    const stepMeta = {
+      register: { label: "当前状态：未注册（待引导注册）", active: "register" },
+      login:    { label: "当前状态：已注册（待登录）",     active: "login" },
+      done:     { label: "当前状态：已登录",               active: "done" },
+    };
+
+    function showToast(msg) {
+      const t = $("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2600);
+    }
+
+    function render(step) {
+      // screens
+      Object.values(screens).forEach((s) => $(s).classList.remove("show"));
+      $(screens[step]).classList.add("show");
+      // steps
+      const order = ["register", "login", "done"];
+      const activeIdx = order.indexOf(stepMeta[step].active);
+      document.querySelectorAll("#oboSteps li").forEach((li) => {
+        const idx = order.indexOf(li.dataset.step);
+        li.classList.remove("active", "done");
+        if (idx < activeIdx) li.classList.add("done");
+        else if (idx === activeIdx) li.classList.add("active");
+      });
+      $("stateLabel").textContent = stepMeta[step].label;
+      try { localStorage.setItem(KEY, step); } catch (e) {}
+    }
+
+    function getState() {
+      try { return localStorage.getItem(KEY) || "register"; } catch (e) { return "register"; }
+    }
+
+    // events
+    $("goRegister").addEventListener("click", () => {
+      showToast("已在新标签页打开注册网站，完成后点“我已注册，去登录”");
+      window.open(REGISTER_URL, "_blank", "noopener");
+    });
+    $("alreadyReg").addEventListener("click", () => render("login"));
+    $("backReg").addEventListener("click", () => render("register"));
+    $("doLogin").addEventListener("click", () => {
+      const acc = $("acc").value.trim();
+      const pwd = $("pwd").value;
+      if (!acc || !pwd) { showToast("请输入账号和密码"); return; }
+      $("avatar").textContent = (acc[0] || "U").toUpperCase();
+      $("welcome").textContent = "欢迎，" + acc + "，正在为你加载 AI 原生销售助手…";
+      render("done");
+      showToast("登录成功，已进入助手");
+    });
+    $("resetDemo").addEventListener("click", () => {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      $("acc").value = ""; $("pwd").value = "";
+      render("register");
+      showToast("演示已重置");
+    });
+
+    // init
+    render(getState());
+  </script>
+</body>
+</html>

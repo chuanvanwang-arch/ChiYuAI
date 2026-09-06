@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 原生销售管理平台 · 六大亮点（业务 3 + 技术 3）</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary:#0c0e14; --bg-secondary:#13161e; --bg-card:#1a1e2a; --bg-card-hover:#1f2435;
+    --border:#252a3a; --border-light:#2e3445;
+    --text-primary:#e8eaed; --text-secondary:#9aa0b0; --text-tertiary:#5c6278;
+    --accent-cyan:#22d3ee; --accent-cyan-dim:#0891b2;
+    --accent-amber:#fbbf24; --accent-amber-dim:#d97706;
+    --accent-green:#34d399; --accent-red:#f87171; --accent-purple:#a78bfa; --accent-blue:#60a5fa;
+    --shadow:0 4px 24px rgba(0,0,0,.4); --radius:12px; --radius-sm:8px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Noto Sans SC',-apple-system,sans-serif; background:var(--bg-primary); color:var(--text-primary); }
+  .wrap { max-width:1120px; margin:0 auto; padding:32px 24px 64px; }
+
+  .hero { text-align:center; padding:28px 0 8px; }
+  .hero .kicker { font-size:12px; letter-spacing:3px; color:var(--accent-cyan); font-weight:500; }
+  .hero h1 { font-size:32px; font-weight:700; margin-top:8px; }
+  .hero p { color:var(--text-secondary); margin-top:10px; font-size:14.5px; line-height:1.7; }
+  .hero .chips { margin-top:18px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .hero .chip { font-size:12px; padding:7px 15px; border-radius:999px; border:1px solid var(--border-light);
+                background:var(--bg-card); color:var(--text-secondary); font-weight:600; }
+  .hero .chip.b { color:var(--accent-cyan); border-color:rgba(34,211,238,.35); }
+  .hero .chip.t { color:var(--accent-purple); border-color:rgba(167,139,250,.35); }
+
+  /* 六幕导航 */
+  .acts { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:26px 0 20px; }
+  .act { padding:10px 18px; border-radius:999px; border:1px solid var(--border-light);
+         background:var(--bg-card); color:var(--text-secondary); font-size:14px; font-weight:500;
+         cursor:pointer; transition:all .2s; }
+  .act:hover { border-color:var(--accent-cyan); color:var(--text-primary); }
+  .act.active { background:var(--accent-cyan); color:#000; border-color:var(--accent-cyan); }
+
+  .panel { display:none; }
+  .panel.active { display:block; animation:fadeIn .3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+  .panel-head { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+  .panel-head .num { width:44px; height:44px; border-radius:10px; background:var(--bg-card);
+                     border:1px solid var(--border-light); display:flex; align-items:center; justify-content:center;
+                     font-size:20px; font-weight:700; color:var(--accent-cyan); }
+  .panel-head .num.t { color:var(--accent-purple); }
+  .panel-head .who { font-size:11px; color:var(--text-tertiary); letter-spacing:1px; margin-bottom:2px; }
+  .panel-head h2 { font-size:21px; font-weight:600; }
+  .panel-head .sub { font-size:13px; color:var(--text-tertiary); margin-top:3px; }
+
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .grid2 { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  .feat { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+          padding:16px; cursor:pointer; transition:all .2s; position:relative; overflow:hidden; }
+  .feat:hover { border-color:var(--border-light); transform:translateY(-2px); box-shadow:var(--shadow); }
+  .feat.sel { border-color:var(--accent-cyan); box-shadow:0 0 0 1px var(--accent-cyan); }
+  .feat .tag { font-size:10.5px; font-weight:600; letter-spacing:1px; margin-bottom:6px; }
+  .feat h3 { font-size:14.5px; font-weight:600; margin-bottom:5px; line-height:1.4; }
+  .feat p { font-size:11.5px; color:var(--text-secondary); line-height:1.55; }
+  .feat .badge { position:absolute; top:12px; right:12px; font-size:9.5px; padding:2px 7px;
+                 border-radius:4px; font-weight:600; }
+  .feat .v { font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--text-tertiary); margin-top:6px; }
+
+  .c-cyan{color:var(--accent-cyan)} .c-amber{color:var(--accent-amber)}
+  .c-green{color:var(--accent-green)} .c-red{color:var(--accent-red)}
+  .c-purple{color:var(--accent-purple)} .c-blue{color:var(--accent-blue)}
+
+  .stage { background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius);
+           padding:18px; min-height:260px; margin-top:16px; }
+  .stage .hint { color:var(--text-tertiary); font-size:13px; text-align:center; padding-top:80px; line-height:1.8; }
+  .stage .hint b { color:var(--accent-cyan); font-weight:600; }
+
+  /* WorkBuddy 对话窗 */
+  .wb { border:1px solid var(--border-light); border-radius:var(--radius); background:var(--bg-card); overflow:hidden; }
+  .wb .wb-bar { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border);
+                background:var(--bg-secondary); font-size:12px; color:var(--text-secondary); }
+  .wb .wb-bar .dot { width:9px; height:9px; border-radius:50%; background:var(--accent-cyan); }
+  .wb .wb-bar b { color:var(--text-primary); font-weight:600; }
+  .chat { display:flex; flex-direction:column; gap:10px; padding:14px; max-height:360px; overflow-y:auto; }
+  .msg { max-width:92%; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.55; }
+  .msg.user { align-self:flex-end; background:var(--accent-cyan); color:#000; max-width:80%; }
+  .msg.ai { align-self:flex-start; background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.25); }
+  .msg.sys { align-self:center; background:var(--bg-secondary); border:1px dashed var(--border-light);
+             font-size:11.5px; color:var(--text-secondary); padding:6px 12px; max-width:96%; }
+  .msg.warn { align-self:flex-start; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.35);
+              font-size:12.5px; }
+  .msg.good { align-self:flex-start; background:rgba(52,211,153,.1); border:1px solid rgba(52,211,153,.35); }
+  .msg.review { align-self:flex-start; background:rgba(167,139,250,.1); border:1px solid rgba(167,139,250,.35); }
+  .msg .who { font-size:10px; font-weight:600; margin-bottom:3px; }
+  .msg.ai .who { color:var(--accent-cyan); }
+  .msg.warn .who { color:var(--accent-red); }
+  .msg.good .who { color:var(--accent-green); }
+  .msg.review .who { color:var(--accent-purple); }
+  .msg.sys .who { color:var(--text-tertiary); }
+  .msg .meth { display:inline-block; font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:4px;
+                margin-right:6px; }
+  .meth.bant{background:rgba(34,211,238,.15);color:var(--accent-cyan)}
+  .meth.medd{background:rgba(167,139,250,.15);color:var(--accent-purple)}
+  .meth.mtx {background:rgba(96,165,250,.15);color:var(--accent-blue)}
+  .meth.role{background:rgba(251,191,36,.15);color:var(--accent-amber)}
+  .meth.tier{background:rgba(52,211,153,.15);color:var(--accent-green)}
+  .meth.risk{background:rgba(248,113,113,.15);color:var(--accent-red)}
+  .meth.hold{background:rgba(251,191,36,.15);color:var(--accent-amber)}
+  .meth.sales {background:rgba(52,211,153,.15);color:var(--accent-green)}
+  .meth.ltc {background:rgba(96,165,250,.15);color:var(--accent-blue)}
+  .meth.retro{background:rgba(167,139,250,.15);color:var(--accent-purple)}
+
+  .chain { display:flex; align-items:stretch; gap:8px; flex-wrap:wrap; }
+  .node { flex:1; min-width:150px; background:var(--bg-card); border:1px solid var(--border);
+          border-radius:10px; padding:12px; font-size:12px; }
+  .node .k { font-size:10px; color:var(--text-tertiary); margin-bottom:4px; letter-spacing:1px; }
+  .arrow { display:flex; align-items:center; color:var(--accent-cyan); font-size:16px; }
+
+  .cmdline { background:#0a0c12; border:1px solid var(--border); border-radius:8px;
+             padding:14px; font-family:'JetBrains Mono',monospace; font-size:12px;
+             color:var(--accent-green); white-space:pre-wrap; line-height:1.7; }
+  .cmdline .dim { color:var(--text-tertiary); }
+  .cmdline .cyan { color:var(--accent-cyan); }
+  .cmdline .red { color:var(--accent-red); }
+
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 20px; border-radius:8px;
+         border:1px solid var(--accent-cyan); color:var(--accent-cyan); background:transparent;
+         font-size:13px; font-weight:600; cursor:pointer; transition:all .2s; margin-top:6px; }
+  .btn:hover { background:var(--accent-cyan); color:#000; }
+  .btn.reset { border-color:var(--border-light); color:var(--text-tertiary); }
+  .btn.reset:hover { background:var(--bg-card); color:var(--text-primary); }
+
+  .foot { text-align:center; color:var(--text-tertiary); font-size:12px; margin-top:44px; line-height:1.8; }
+  .foot b { color:var(--accent-cyan); font-weight:600; }
+
+  @media (max-width:820px) {
+    .grid4 { grid-template-columns:repeat(2,1fr); }
+    .grid3,.grid2 { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="kicker">AI-NATIVE SALES PLATFORM · WORKBUDDY · 2026-09 版</div>
+    <h1>AI 原生销售管理平台 · 能力全景</h1>
+    <p>业务侧：把销售最值钱的<b>方法论、行为习惯、LTC 流程</b>装进系统；<br>
+    技术侧：用<b>上下文记忆、认知决策引擎、每日复盘</b>让这套能力越用越强；<br>
+    平台侧：<b>一份租户配置画像</b>即可零代码上线一个新行业。案例全部来自真实 B2B 销售业务。</p>
+    <div class="chips">
+      <span class="chip b">业务 ① 成熟方法论集成</span>
+      <span class="chip b">业务 ② 销售人员行为习惯植入</span>
+      <span class="chip b">业务 ③ LTC 流程内嵌</span>
+      <span class="chip t">技术 ① 上下文图谱客户记忆</span>
+      <span class="chip t">技术 ② 认知决策引擎 · 全程留痕</span>
+      <span class="chip t">技术 ③ 复盘智能体每日复盘</span>
+      <span class="chip b">平台 ① 认知驱动决策引擎 K-M-D</span>
+      <span class="chip b">平台 ② 多行业零代码配置上线</span>
+    </div>
+  </div>
+
+  <div class="acts" id="acts">
+    <button class="act active" data-act="1">① 业务 · 成熟方法论集成</button>
+    <button class="act" data-act="2">② 业务 · 销售人员行为习惯植入</button>
+    <button class="act" data-act="3">③ 业务 · LTC 流程内嵌</button>
+    <button class="act" data-act="4">④ 技术 · 上下文图谱客户记忆</button>
+    <button class="act" data-act="5">⑤ 技术 · 认知决策引擎 · 全程留痕</button>
+    <button class="act" data-act="6">⑥ 技术 · 复盘智能体每日复盘</button>
+    <button class="act" data-act="7">⑦ 平台 · 认知驱动决策引擎 K-M-D</button>
+    <button class="act" data-act="8">⑧ 平台 · 多行业零代码配置上线</button>
+  </div>
+
+  <!-- ================= 第一幕：业务亮点① 集成大量销售成熟方法论 ================= -->
+  <section class="panel active" id="panel1">
+    <div class="panel-head">
+      <div class="num">①</div>
+      <div>
+        <div class="who">业务亮点 ① · MATURE METHODOLOGIES</div>
+        <h2>集成大量销售成熟方法论：判断不再拍脑袋</h2>
+        <div class="sub">15 个方法论独立 SKILL（method-*），覆盖线索到成交的每一步决策</div>
+      </div>
+    </div>
+    <div class="grid4" id="decisions">
+      <div class="feat sel" data-d="d1"><div class="tag c-cyan">线索阶段</div><h3>这条线索要不要跟？</h3>
+        <p>升级为机会 / 放弃 / 培育池</p><span class="badge c-cyan" style="background:rgba(34,211,238,.12)">BANT</span>
+        <div class="v">输入：行业·规模·预算·痛点·对接人级别</div></div>
+      <div class="feat" data-d="d2"><div class="tag c-purple">机会评估</div><h3>真机会还是陪标？</h3>
+        <p>要不要加大售前/高层资源</p><span class="badge c-purple" style="background:rgba(167,139,250,.12)">MEDDICC</span>
+        <div class="v">输入：痛点来源·预算·决策链·竞争·赢率</div></div>
+      <div class="feat" data-d="d3"><div class="tag c-amber">方案构建</div><h3>方案做什么？哪些必须满足？</h3>
+        <p>刚需必做 / 期望可选 / 过度定制不接</p><span class="badge c-amber" style="background:rgba(251,191,36,.12)">分层</span>
+        <div class="v">输入：选型评分表·功能边界·成本毛利</div></div>
+      <div class="feat" data-d="d4"><div class="tag c-red">商务报价</div><h3>报价定多少？底线在哪？</h3>
+        <p>开盘价→目标价→底价三档，折扣换条件</p><span class="badge c-red" style="background:rgba(248,113,113,.12)">三级报价</span>
+        <div class="v">输入：成本·价格政策·竞品·战略价值</div></div>
+      <div class="feat" data-d="d5"><div class="tag c-blue">签单风险</div><h3>风险可控吗？要不要签？</h3>
+        <p>风险过高宁可放弃，避免烂尾</p><span class="badge c-blue" style="background:rgba(96,165,250,.12)">风险清单</span>
+        <div class="v">输入：反对者·验收标准·交付能力·预算</div></div>
+      <div class="feat" data-d="d6"><div class="tag c-green">交付回款</div><h3>变更答应吗？回款怎么追？</h3>
+        <p>合同外增补走单 / 差异化催收</p><span class="badge c-green" style="background:rgba(52,211,153,.12)">回款策略</span>
+        <div class="v">输入：合同范围·交付负荷·逾期原因</div></div>
+      <div class="feat" data-d="d7"><div class="tag c-amber">丢单复盘</div><h3>放弃还是长期孵化？</h3>
+        <p>保留 Coach 定期触达 / 果断止损</p><span class="badge c-amber" style="background:rgba(251,191,36,.12)">止损点</span>
+        <div class="v">输入：未来预算·痛点持续·内部支持</div></div>
+      <div class="feat" data-d="d0"><div class="tag c-purple">方法论全景</div><h3>15 个 method-* SKILL</h3>
+        <p>接诊/报价/行为/漏斗/阶段推进/评审闸门…</p><span class="badge c-purple" style="background:rgba(167,139,250,.12)">全量</span>
+        <div class="v">每个决策「问什么 / 输入什么 / 用什么方法」</div></div>
+    </div>
+    <div class="stage" id="stage1">
+      <div class="hint">点击上方任一决策，看专家怎么把这一步「想清楚」 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 第二幕：业务亮点② 植入销售人员行为习惯 ================= -->
+  <section class="panel" id="panel2">
+    <div class="panel-head">
+      <div class="num" style="color:var(--accent-green)">②</div>
+      <div>
+        <div class="who">业务亮点 ② · SALES BEHAVIOR STANDARDS</div>
+        <h2>植入销售人员行为习惯：好销售不是天赋，是可执行的标准</h2>
+        <div class="sub">销售管理体系行为标准 SKILL 化，21 条可测、可查、可复盘</div>
+      </div>
+    </div>
+    <div class="grid3" id="behaviors">
+      <div class="feat sel" data-b="b1"><div class="tag c-green">21 条行为标准</div><h3>每条都可测评</h3>
+        <p>按销售任务分类，逐条打分、逐条达标检查</p><span class="badge c-green" style="background:rgba(52,211,153,.12)">标准</span></div>
+      <div class="feat" data-b="b2"><div class="tag c-cyan">拜访活动管理</div><h3>拜访闭环留痕</h3>
+        <p>拜访前准备 → 拜访中记录 → 拜访后复盘</p><span class="badge c-cyan" style="background:rgba(34,211,238,.12)">闭环</span></div>
+      <div class="feat" data-b="b3"><div class="tag c-blue">商机阶段动作</div><h3>每阶段有标尺</h3>
+        <p>该做什么、做到什么算达标，阶段停留超阈值自动预警</p><span class="badge c-blue" style="background:rgba(96,165,250,.12)">标尺</span></div>
+    </div>
+    <div class="stage" id="stage2">
+      <div class="hint">点击上方任一行为标准，看系统如何把「习惯」变成可执行检查 <b>▶</b></div>
+    </div>
+    <div class="panel-head" style="margin-top:28px">
+      <div class="num" style="color:var(--accent-amber)">行为看板</div>
+      <div>
+        <div class="who">MY BEHAVIOR · 达标看板</div>
+        <h2>「我的行为」实时可见：销售自驱改进</h2>
+        <div class="sub">拜访频次 / 阶段停留 / 合格线达成，对照行为标准逐条亮灯</div>
+      </div>
+    </div>
+    <div class="stage" id="stage2b">
+      <div class="hint">点击下方按钮，看行为达标看板如何实时对照标准 <b>▶</b></div>
+      <div style="text-align:center"><button class="btn" onclick="playBehaviorBoard()">查看行为达标看板</button></div>
+    </div>
+  </section>
+
+  <!-- ================= 第三幕：业务亮点③ LTC 流程内嵌 ================= -->
+  <section class="panel" id="panel3">
+    <div class="panel-head">
+      <div class="num" style="color:var(--accent-blue)">③</div>
+      <div>
+        <div class="who">业务亮点 ③ · LTC EMBEDDED</div>
+        <h2>LTC 流程内嵌化：全链路一条轨道，不再人肉接力</h2>
+        <div class="sub">线索 → 商机 → 方案 → 报价 → 合同 → 交付 → 回款 → 复盘，环节断裂自动预警</div>
+      </div>
+    </div>
+    <div class="chain">
+      <div class="node"><div class="k c-cyan">L1 线索</div>培育 · 初筛 · 升级</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-blue">L2 商机</div>MEDDICC · 分级 · 阶段推进</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-purple">L3 方案</div>需求补全 · 分层 · 对齐</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-red">L4 报价</div>三级报价 · 成本透视</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-red">L5 合同</div>评审闸门 · 风险权衡</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-amber">L6 交付</div>实施排期 · 链断裂预警</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-green">L7 回款</div>逾期分级 · 差异化催收</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-amber">L8 复盘</div>订单复盘 · 复购转化</div>
+    </div>
+    <div class="grid3" id="ltcs">
+      <div class="feat sel" data-lt="t1"><div class="tag c-red">链路断裂预警</div><h3>商机 30 天无方案 → 预警</h3>
+        <p>机会阶段缺技术方案超阈值，自动探测并推送</p><span class="badge c-red" style="background:rgba(248,113,113,.12)">预警</span></div>
+      <div class="feat" data-lt="t2"><div class="tag c-green">回款逾期分级</div><h3>逾期 → 分级催收</h3>
+        <p>按金额与账期定催收优先级，差异化跟催</p><span class="badge c-green" style="background:rgba(52,211,153,.12)">催收</span></div>
+      <div class="feat" data-lt="t3"><div class="tag c-amber">阶段只进不退</div><h3>阶段异常自动探测</h3>
+        <p>阶段回退/停留异常，SSE 推送提醒</p><span class="badge c-amber" style="background:rgba(251,191,36,.12)">探测</span></div>
+    </div>
+    <div class="stage" id="stage3">
+      <div class="hint">点击上方任一链路节点或预警，看 LTC 内嵌后流程如何不断裂 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 第四幕：技术亮点① 上下文图谱构建客户记忆系统 ================= -->
+  <section class="panel" id="panel4">
+    <div class="panel-head">
+      <div class="num t">④</div>
+      <div>
+        <div class="who">技术亮点 ① · CONTEXT GRAPH MEMORY</div>
+        <h2>上下文图谱构建客户记忆系统：从「数据库」到「记忆系统」</h2>
+        <div class="sub">知识图谱 + 向量 + 决策事件，客户全景可追溯，写库即构建</div>
+      </div>
+    </div>
+    <div class="grid2" id="memories">
+      <div class="feat sel" id="m1">
+        <div class="tag c-purple">上下文图谱</div><h3>客户/商机/报价/合同/回款连成知识网</h3>
+        <p>数据写入的同时生成本体关系与向量索引，不再是孤立表格，天然可关联、可追溯。</p>
+        <span class="badge c-purple" style="background:rgba(167,139,250,.12)">KG+向量</span></div>
+      <div class="feat" id="m2">
+        <div class="tag c-blue">五类高频记忆</div><h3>决策依赖的输入自动沉淀</h3>
+        <p>客户业务 / 组织决策链 / 竞争情报 / 我方内部 / 风险——这五类就是系统必须自动沉淀的客户记忆。</p>
+        <span class="badge c-blue" style="background:rgba(96,165,250,.12)">auto</span></div>
+      <div class="feat" id="m3">
+        <div class="tag c-amber">语义检索</div><h3>「上次那套系统再来一套」→ 秒级命中</h3>
+        <p>零填表，需求/承诺/偏好自动入库；老客户复购调记忆直接出单。</p>
+        <span class="badge c-amber" style="background:rgba(251,191,36,.12)">语义</span></div>
+      <div class="feat" id="m4">
+        <div class="tag c-green">客户 360 追溯</div><h3>正向追溯 + 反向溯源</h3>
+        <p>一笔报价可追到成本结构与同类先例；一个人可看全客户全景。</p>
+        <span class="badge c-green" style="background:rgba(52,211,153,.12)">360</span></div>
+      <div class="feat" id="m5">
+        <div class="tag c-cyan">租户级 Knowledge</div><h3>行业 Know-How 显式沉淀</h3>
+        <p>ICP画像 / 竞品对比 / 客户异议 / 买家语言四类知识，按租户独立沉淀，经「决策第 0 闸 + 人工确认」写入，按需注入智能体上下文。</p>
+        <span class="badge c-cyan" style="background:rgba(34,211,238,.12)">Know-How</span></div>
+      <div class="feat" id="m6">
+        <div class="tag c-amber">知识回写闭环</div><h3>赢输单原话自动变知识</h3>
+        <p>复盘回路把成交话术与丢单异议自动回写进知识库，下次同类客户自动调用——不用反复解释同一段背景。</p>
+        <span class="badge c-amber" style="background:rgba(251,191,36,.12)">回写</span></div>
+    </div>
+    <div class="stage" id="stage4">
+      <div class="hint">点击上方任一记忆能力，看「会记忆的平台」怎么工作 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 第五幕：技术亮点② 销售决策模型可跟踪每个智能体任务 ================= -->
+  <section class="panel" id="panel5">
+    <div class="panel-head">
+      <div class="num t" style="color:var(--accent-blue)">⑤</div>
+      <div>
+        <div class="who">技术亮点 ② · DECISION TRACEABILITY</div>
+        <h2>销售决策模型可跟踪每个智能体任务：每一步都有据可查</h2>
+        <div class="sub">决策事件为主轴：智能体 → 任务 → 决策 → 结果 → 回流，全程留痕</div>
+      </div>
+    </div>
+    <div class="grid3" id="traces">
+      <div class="feat sel" id="tr1">
+        <div class="tag c-blue">决策第 0 闸</div><h3>写操作必经决策闸门</h3>
+        <p>先决策、后写入：每个写操作携带决策 ID，可溯源到「谁/何时/结论/理由」。</p>
+        <span class="badge c-blue" style="background:rgba(96,165,250,.12)">闸门</span></div>
+      <div class="feat" id="tr2">
+        <div class="tag c-purple">决策留痕</div><h3>七类决策边可复盘</h3>
+        <p>针对/参考先例/异常触发/确立标杆/推翻/直接引发/间接影响——决策如何发生全部可追。</p>
+        <span class="badge c-purple" style="background:rgba(167,139,250,.12)">PROV-O</span></div>
+      <div class="feat" id="tr3">
+        <div class="tag c-cyan">智能体任务可跟踪</div><h3>接诊/报价/跟进/评审各有专职</h3>
+        <p>谁在干活、卡在哪、哪个任务缺决策依据，一目了然；商机分级自动派活。</p>
+        <span class="badge c-cyan" style="background:rgba(34,211,238,.12)">可跟踪</span></div>
+      <div class="feat" id="tr4">
+        <div class="tag c-amber">事件驱动派发</div><h3>业务一动，智能体自动接手</h3>
+        <p>商机创建、阶段推进、报价提交等事件自动触发对应智能体，不再依赖人去点按钮召唤 AI。</p>
+        <span class="badge c-amber" style="background:rgba(251,191,36,.12)">事件驱动</span></div>
+      <div class="feat" id="tr5">
+        <div class="tag c-green">决策链与先例</div><h3>客户 360 里能翻出当年为什么这么定</h3>
+        <p>决策不再只是留痕：可检索、可比对本客户历史决策链与同类先例，新销售接手 10 秒看懂前因后果。</p>
+        <span class="badge c-green" style="background:rgba(52,211,153,.12)">先例</span></div>
+    </div>
+    <div class="stage" id="stage5">
+      <div class="hint">点击上方任一跟踪能力，看决策如何穿透每个智能体任务 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 第六幕：技术亮点③ 复盘智能体每日自动复盘 ================= -->
+  <section class="panel" id="panel6">
+    <div class="panel-head">
+      <div class="num t" style="color:var(--accent-green)">⑥</div>
+      <div>
+        <div class="who">技术亮点 ③ · RETRO AGENT</div>
+        <h2>复盘智能体每日自动复盘：经验每天被沉淀，不等月底</h2>
+        <div class="sub">每日全量扫描 + LLM 深度归因 + 可审查的复盘报告（retro 引擎）</div>
+      </div>
+    </div>
+    <div class="grid3" id="retros">
+      <div class="feat sel" id="rt1">
+        <div class="tag c-purple">每日自动复盘</div><h3>夜间批量扫描当日决策</h3>
+        <p>自动归因、自动产出复盘报告；绝不自批自方，处方草稿需审批后生效。</p>
+        <span class="badge c-purple" style="background:rgba(167,139,250,.12)">retro</span></div>
+      <div class="feat" id="rt2">
+        <div class="tag c-amber">七类根因分类</div><h3>复盘不是走过场，是归因</h3>
+        <p>字段错配 / 信息不全 / 输入不及时 / 维度缺失 / 边缺失 / 次序不当 / 先例污染。</p>
+        <span class="badge c-amber" style="background:rgba(251,191,36,.12)">根因</span></div>
+      <div class="feat" id="rt3">
+        <div class="tag c-green">复盘闭环飞轮</div><h3>教训变 SOP，成交变锚点</h3>
+        <p>复盘报告进入决策记忆，下次同类判断自动调用——越复盘越准。</p>
+        <span class="badge c-green" style="background:rgba(52,211,153,.12)">飞轮</span></div>
+    </div>
+    <div class="stage" id="stage6">
+      <div class="hint">点击上方任一复盘能力，看每日自动复盘如何沉淀经验 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 第七幕：平台① 认知驱动决策引擎 K-M-D ================= -->
+  <section class="panel" id="panel7">
+    <div class="panel-head">
+      <div class="num t" style="color:var(--accent-cyan)">⑦</div>
+      <div>
+        <div class="who">平台亮点 ① · K-M-D COGNITIVE DECISION ENGINE</div>
+        <h2>认知驱动决策引擎：每一次判断，都走完「知识 → 方法 → 校验」</h2>
+        <div class="sub">K 知识层 · M 方法层 · D 决策层，三层管道把「拍脑袋」变成可解释、可复现的判断</div>
+      </div>
+    </div>
+    <div class="chain">
+      <div class="node"><div class="k c-cyan">K 知识层</div>客户记忆 · 租户 Know-How · 历史先例</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-purple">M 方法层</div>15 个方法论 SKILL · 行为标准装配</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-amber">D 决策层</div>九尺子校验 · 结论+理由+风险</div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="k c-green">回流</div>结果校准 · 复盘沉淀 · 知识回写</div>
+    </div>
+    <div class="grid4" id="engines">
+      <div class="feat sel" id="e1">
+        <div class="tag c-cyan">K 层 · 知识供给</div><h3>决策前先把上下文喂饱</h3>
+        <p>五类客户记忆 + 租户级 Know-How（ICP/竞品/异议/买家语言）自动装配，不再让决策在信息真空里做。</p>
+        <span class="badge c-cyan" style="background:rgba(34,211,238,.12)">Knowledge</span></div>
+      <div class="feat" id="e2">
+        <div class="tag c-purple">M 层 · 方法装配</div><h3>用什么方法，先说清楚</h3>
+        <p>按场景装载对应方法论 SKILL 与行为标准，每条方法论带权重与必填维度，不是笼统提示词。</p>
+        <span class="badge c-purple" style="background:rgba(167,139,250,.12)">Method</span></div>
+      <div class="feat" id="e3">
+        <div class="tag c-amber">D 层 · 九尺子校验</div><h3>8 项确定性判定 + 1 项可选 LLM</h3>
+        <p>清晰性 / 准确性 / 精确性 / 相关性 / 深度 / 广度 / 逻辑性 / 重要性 / 公平性：0–4 分制，8 项走代码判定（同一输入必得同一分，可复现）；仅「清晰性」允许 LLM 精评且默认关闭，无证据计 0 分、不假填充。</p>
+        <span class="badge c-amber" style="background:rgba(251,191,36,.12)">0–4 分</span></div>
+      <div class="feat" id="e4">
+        <div class="tag c-green">可解释输出</div><h3>九列决策记录，一路追回依据</h3>
+        <p>intent（目的+问题）/ assumptions / inference / viewpoints / implications / risk_register / stop_loss / concept_refs / rubric —— 审计时能从结论追回每条假设的证据与概念引用。</p>
+        <span class="badge c-green" style="background:rgba(52,211,153,.12)">9 列</span></div>
+    </div>
+    <div class="stage" id="stage7">
+      <div class="hint">点击上方任一层，看 K-M-D 引擎怎么把一次报价决策「想清楚」 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 第八幕：平台② 多行业零代码配置上线 ================= -->
+  <section class="panel" id="panel8">
+    <div class="panel-head">
+      <div class="num t" style="color:var(--accent-green)">⑧</div>
+      <div>
+        <div class="who">平台亮点 ② · CONFIG-DRIVEN MULTI-INDUSTRY</div>
+        <h2>多行业零代码配置上线：换行业不改代码，只换一份配置画像</h2>
+        <div class="sub">实体 · 阶段 · 审批 · 关系 · 领域计算全部配置化，培训中介、家电、新能源按同一底座各自成型</div>
+      </div>
+    </div>
+    <div class="grid4" id="industries">
+      <div class="feat sel" id="i1">
+        <div class="tag c-cyan">配置画像</div><h3>一个行业 = 一份租户配置</h3>
+        <p>粒子类型、属性、阶段流水线、审批域、领域计算全部由配置画像声明，新增行业不新增代码、不加字面上限。</p>
+        <span class="badge c-cyan" style="background:rgba(34,211,238,.12)">零代码</span></div>
+      <div class="feat" id="i2">
+        <div class="tag c-amber">阶段与审批可配</div><h3>不再被固定的 S1–S8 绑死</h3>
+        <p>阶段名称、数量、停留阈值、审批域按行业自定义；销售阈值同样配置化，杜绝硬编码。</p>
+        <span class="badge c-amber" style="background:rgba(251,191,36,.12)">可配</span></div>
+      <div class="feat" id="i3">
+        <div class="tag c-purple">领域计算引擎</div><h3>行业自己的算法，配置进去</h3>
+        <p>价格链路、毛利红线、分级规则等由公式引擎承载（L2 配置层），行业差异不污染内核代码。</p>
+        <span class="badge c-purple" style="background:rgba(167,139,250,.12)">公式引擎</span></div>
+      <div class="feat" id="i4">
+        <div class="tag c-green">租户隔离</div><h3>数据与知识每租户自有</h3>
+        <p>粒子、配置、Knowledge 全部按租户隔离，租户用户只见本租户；开通即播种行业主数据，停用只改状态不删数据。</p>
+        <span class="badge c-green" style="background:rgba(52,211,153,.12)">隔离</span></div>
+    </div>
+    <div class="stage" id="stage8">
+      <div class="hint">点击上方任一能力，看一个新行业如何「配置即上线」 <b>▶</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 收尾：六点合成飞轮 ================= -->
+  <div class="panel-head" style="margin-top:36px">
+    <div class="num" style="color:var(--accent-green)">飞轮</div>
+    <div>
+      <div class="who">WHY THIS TIME IT WORKS</div>
+      <h2>能力全景合成一个飞轮</h2>
+      <p class="sub">方法论 → 行为 → 流程 → 记忆 → 决策 → 复盘 → 知识回写，环环咬合，越干越好</p>
+    </div>
+  </div>
+  <div class="chain">
+    <div class="node"><div class="k c-cyan">业务 ①</div>方法论集成<br>判断有方法</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-green">业务 ②</div>行为习惯植入<br>动作有标尺</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-amber">业务 ③</div>LTC 流程内嵌<br>流程不脱节</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-purple">技术 ①</div>上下文记忆<br>客户不丢失</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-cyan">平台 ①</div>认知决策引擎<br>判断可解释</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-blue">技术 ②</div>事件驱动留痕<br>判断可溯源</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-green">技术 ③</div>每日复盘<br>经验被沉淀</div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k c-amber">平台 ②</div>多行业配置<br>行业零代码</div>
+  </div>
+
+  <div class="foot">AI 原生销售管理平台 —— 能力全景：<b>方法论集成 · 行为习惯植入 · LTC 内嵌 · 上下文记忆 · 认知决策引擎 · 事件驱动决策留痕 · 每日复盘 · 多行业零代码配置</b>。<br>
+  真实案例来自 docs/ 业务文档（系统报价单 · CRM 需求 · 交付复盘 · 订单开发话术）；对应模块：method-* 15 个方法论 SKILL + sales 行为标准 + LTC 阶段推进 + src/（ontology · memory · decision · K-M-D 三层管道 · retro · agentLoop · kanban · alerts · configStore · tenantSeed）</div>
+</div>
+
+<script>
+/* ============ Act 切换 ============ */
+const acts = document.getElementById('acts');
+acts.querySelectorAll('.act').forEach(a => {
+  a.addEventListener('click', () => {
+    acts.querySelectorAll('.act').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel' + a.dataset.act).classList.add('active');
+  });
+});
+
+/* ============ 通用：渲染 WorkBuddy 对话 ============ */
+function wbHTML(msgs){
+  const bar = '<div class="wb-bar"><span class="dot"></span><b>WorkBuddy</b> · 销售专家对话窗</div>';
+  const chat = '<div class="chat">' + msgs.map(m => {
+      const cls = m[0], who = m[0]==='user' ? '你（销售）' : m[0]==='sys' ? '系统' :
+                  m[0]==='warn' ? '⚠ 预警' : m[0]==='good' ? '✓ 专家' :
+                  m[0]==='review' ? '复盘智能体' : '销售专家';
+      return '<div class="msg ' + cls + '"><div class="who">' + who + '</div>' + m[1] + '</div>';
+    }).join('') + '</div>';
+  return '<div class="wb">' + bar + chat + '</div>';
+}
+function playChat(stageId, msgs){
+  const st = document.getElementById(stageId);
+  st.style.minHeight = '0';
+  st.innerHTML = wbHTML(msgs);
+  const c = st.querySelector('.chat'); if (c) c.scrollTop = c.scrollHeight;
+}
+
+/* ============ 第一幕：集成大量销售成熟方法论（真实业务演示） ============ */
+const DECISIONS = {
+  d1: [
+    ['user','帮我看看这条新询盘（CRM 系统）要不要跟？'],
+    ['sys','已加载 method-bant（BANT 初筛）'],
+    ['ai','<span class="meth bant">BANT</span>预算（有年度 IT 预算）<b>✓</b> 权限（采购对接人）<b>✓</b> 需求（真实：CRM 几十人）<b>✓</b> 时间（下月要用）<b>✓</b> → 打分 82，达标<b>升级为机会</b>；建议首次沟通主攻有预算决策权的人。'],
+    ['sys','低于阈值 → 自动放入培育池，不投入高成本'],
+  ],
+  d2: [
+    ['user','这个年度系统项目是真机会吗？要加大投入吗？'],
+    ['sys','已加载 method-meddicc + method-opportunity-matrix'],
+    ['ai','<span class="meth medd">MEDDICC</span>痛点真实（成本压力）<b>✓</b> 经济决策者（采购总监已确认）<b>✓</b> 决策流程清晰 <b>✓</b> 竞争（1 家对手，我方方案优势）<b>✓</b> → <span class="meth mtx">机会矩阵</span>价值高 × 赢率高 = <b>全力投入</b>：派专家出定制方案。'],
+    ['ai','陪标信号检测：客户肯介绍决策人且愿谈预算 → 非陪标；若内定对手只走流程 → 果断控制投入。'],
+  ],
+  d3: [
+    ['user','这套系统方案做什么？哪些必须满足？'],
+    ['sys','已加载 方案分层 方法论（刚需/期望/锦上添花 + 选型对齐）'],
+    ['ai','<span class="meth tier">分层</span>刚需（50 节点 · 公有云 · 实施）<b>必须满足</b>；期望（培训+报表）<b>可选报价</b>；锦上添花（定制开发+API）<b>暂不承诺</b>。'],
+    ['ai','定制开发 ¥8,000 > 项目毛利 ¥5,200 → <b>不接过度定制</b>；方案已对齐客户选型评分表（功能 40 / 价格 30 / 交付 20 / 服务 10）。'],
+  ],
+  d4: [
+    ['user','这套系统 50 节点怎么报？底线在哪？'],
+    ['sys','已加载 三级报价 方法论（开盘价/目标价/底价 + 折扣换条件）'],
+    ['ai','<span class="meth tier">三级报价</span>开盘 ¥3.4 万/节点（方案 B）→ 目标成交 ¥2.8 万（方案 A）→ <b>底价 ¥2.6 万（绝不外泄）</b>。'],
+    ['ai','折扣必须换对等条件：降到 ¥1.57 的前提 = 客户签年度框架或授权公开案例；战略样板客户可放宽，但<b>必须拿到案例授权作交换</b>。'],
+  ],
+  d5: [
+    ['user','这个单马上要签了，风险可控吗？'],
+    ['sys','已加载 风险权衡 方法论（风险清单盘点）'],
+    ['ai','<span class="meth risk">风险盘点</span>验收标准模糊（未定义功能验收口径）<b>⚠</b> 客户内部有反对者（成本中心）<b>⚠</b> 交付资源充足 <b>✓</b> 预算已审批 <b>✓</b>。'],
+    ['ai','处置：验收标准<b>量化</b>写入合同；反对者安排高层对撞。风险可收敛 → <b>建议签</b>；若验收模糊 + 内部分歧巨大 → <b>宁可放弃</b>。'],
+  ],
+  d6: [
+    ['user','客户要求免费加一个设计改版，答应吗？还有一笔回款逾期了怎么办？'],
+    ['sys','已加载 范围判断 + 差异化催收 方法论'],
+    ['ai','<span class="meth role">范围判断</span>设计改版属<b>合同外新增</b>→ 走增补订单或礼貌拒绝；<b>避免人情式免费加需求</b>。'],
+    ['ai','<span class="meth risk">回款策略</span>逾期 25 天，原因=客户内部流程问题 → 沟通催办即可；若资金风险客户 → 升级风控、提高预付款比例。'],
+  ],
+  d7: [
+    ['user','这个单丢了，彻底放弃还是继续养着？'],
+    ['sys','已加载 止损点 + 孵化判断 方法论'],
+    ['ai','<span class="meth hold">复盘</span>丢单原因=预算被砍（非方案问题）→ 痛点仍持续、保留 Coach 内线 → <b>长期孵化</b>。'],
+    ['ai','已设止损点：6 个月关键节点无法推进 → <b>果断止损退出</b>。教训入决策记忆 → 下次提前识别「预算不稳」信号。'],
+  ],
+  d0: [
+    ['sys','15 个 method-* 方法论 SKILL 全景'],
+    ['ai','<b>判断类</b>：BANT / MEDDICC / 机会矩阵 / 角色地图 / 风险权衡 / 止损点 / 事实vs话术<br><b>流程类</b>：接诊分流 / 漏斗分类 / 阶段推进 / 评审闸门 / 跟进引擎<br><b>标准类</b>：行为标准 / 三级报价 / 报价引擎 / 售前'],
+    ['ai','每个决策「问什么 / 要什么输入 / 用什么方法 / 结论留痕」——方法论不再是墙上的字，而是每一次判断的默认动作。'],
+  ],
+};
+document.querySelectorAll('#decisions .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#decisions .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage1', DECISIONS[f.dataset.d]);
+  });
+});
+
+/* ============ 第二幕：植入销售人员行为习惯 ============ */
+const BEHAVIORS = {
+  b1: [
+    ['sys','已加载 method-behavior-standard（行为标准）'],
+    ['ai','<span class="meth sales">21 条行为标准</span>本月已执行 36 条行动，对照 21 条标准逐条检查：<br><b>达标 19 条</b> · 未达标 2 条（其中 1 条接近合格线）<br>① 商机 P2 阶段要求「高层拜访 2 次/月」——本月 1 次 <b>⚠</b><br>② 跟进频率要求「接触窗口内响应」——1 次延误 <b>⚠</b>'],
+    ['ai','建议：补 1 次高层拜访（已在排期）；延误跟进已触发系统提醒。<b>行为标准可自调</b>（后台配置），但当前为出厂建议值。'],
+    ['good','已生成《行为达标月度报告》→ 销售自驱改进。'],
+  ],
+  b2: [
+    ['sys','已加载 拜访活动管理（拜访闭环）'],
+    ['ai','<span class="meth sales">拜访闭环</span><b>拜访前</b>：目标确认、客户背景调出（上次沟通纪要 + 决策链）→ 已准备 3 个议题。<br><b>拜访中</b>：关键承诺、异议现场记录 → 自动沉淀进客户记忆。<br><b>拜访后</b>：24 小时内复盘 → 跟进任务自动排入队列。'],
+    ['good','拜访记录已入库 → 关联商机 → 成为下次拜访的上下文。'],
+  ],
+  b3: [
+    ['sys','已加载 method-stage-progression（阶段推进 + 停留阈值）'],
+    ['ai','<span class="meth ltc">阶段标尺</span>商机「生产管理系统」当前 P2：<br>应完成：技术方案 <b>✓</b> · 高层拜访 <b>⚠ 缺 1 次</b> · 预算确认 <b>✓</b><br>阶段停留 31 天 > 阈值 30 天 → <b>自动预警</b>：建议补高层拜访后推进 P3。'],
+    ['ai','每一阶段「该做什么 / 做到什么算达标 / 停留多久预警」——商机推进不再凭感觉。'],
+  ],
+};
+document.querySelectorAll('#behaviors .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#behaviors .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage2', BEHAVIORS[f.dataset.b]);
+  });
+});
+function playBehaviorBoard(){
+  const st = document.getElementById('stage2b');
+  st.style.minHeight = '0';
+  st.innerHTML = wbHTML([
+    ['sys','「我的行为」达标看板 · 对照 method-behavior-standard'],
+    ['ai','<span class="meth sales">行为看板</span>本月行为达标率 <b>82%</b>（19/21 条）<br>拜访频次：周拜访 4 次（标准 ≥3 次/周）<b>✓</b><br>商机覆盖：P1-P3 商机高层拜访 1/2 家 <b>⚠</b><br>跟进时效：接触窗口内响应率 96% <b>✓</b><br>阶段停留：1 条商机超 30 天 <b>⚠ 已预警</b>'],
+    ['good','行为看板实时亮灯 —— 习惯不再是口号，而是逐条可测量、可检查、可复盘。'],
+  ]);
+  st.insertAdjacentHTML('beforeend', '<div style="text-align:center;margin-top:14px"><button class="btn reset" onclick="playBehaviorBoard()">重新查看</button></div>');
+}
+
+/* ============ 第三幕：LTC 流程内嵌 ============ */
+const LTCS = {
+  t1: [
+    ['sys','⚠ <span class="meth ltc">LTC 链路断裂探测（SSE 推送）</span>'],
+    ['warn','「3 条商机缺技术方案已超 30 天」——L3 方案环节断裂'],
+    ['user','什么情况？详细说下。'],
+    ['ai','商机 A：进入机会阶段 32 天无方案 → 方案缺口。<br>商机 B：赢单前无方案证据 → 赢单风险。<br>建议：补方案 → 否则该商机不满足 P2 达标线，不能推进 P3。'],
+    ['good','先于提问发现链路断裂 → 已生成处置建议。'],
+  ],
+  t2: [
+    ['sys','⚠ <span class="meth ltc">回款逾期探测</span>'],
+    ['warn','「2 笔回款逾期：A 客户 ¥12 万（45 天）/ B 客户 ¥6.6 万（25 天）」'],
+    ['ai','<span class="meth risk">分级催收</span>A 客户：金额大 + 账期长 → 升级催收（经理介入 + 停发新报价）<br>B 客户：金额中 + 账期短 → 正常催办（原因=内部流程问题）'],
+    ['good','催收优先级已生成并推送给负责人。'],
+  ],
+  t3: [
+    ['sys','⚠ <span class="meth ltc">阶段异常探测</span>'],
+    ['warn','「商机 C 阶段从 P3 回退到 P2」——阶段只进不退规则被触发'],
+    ['ai','回退原因：技术方案被客户打回（验收未对齐）。<br>处置：调取 P2 达标标准 → 补齐「功能验收清单」→ 锁死验收口径再推进。'],
+    ['good','阶段异常已探测并归因 —— LTC 流程内嵌后，断裂/回退不再静默发生。'],
+  ],
+};
+document.querySelectorAll('#ltcs .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#ltcs .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage3', LTCS[f.dataset.lt]);
+  });
+});
+
+/* ============ 第四幕：上下文图谱构建客户记忆系统 ============ */
+const MEMORIES = {
+  m1: [
+    ['user','看一下 XX 食品公司的全景（客户 360）'],
+    ['sys','已加载 上下文图谱（KG + 向量）'],
+    ['ai','<span class="meth medd">图谱</span>商机 5 条（2 赢/1 进行/2 丢）→ 合同 2 份 → 订单 3 笔 → 回款 ¥38 万。<br>正向追溯全链路可视；反向溯源：当前 ¥15.8 万报价 → 成本结构（¥11 万）→ 同类先例 3 笔。'],
+    ['good','客户全景连成知识网 —— 不再是一张张孤立表单。'],
+  ],
+  m2: [
+    ['sys','已自动沉淀五类高频记忆'],
+    ['ai','<b>① 客户业务</b>：行业/KPI/痛点/预算/采购时间<br><b>② 组织决策链</b>：架构/角色立场/否决点/内线情报<br><b>③ 竞争情报</b>：对手方案/报价/进展<br><b>④ 我方内部</b>：产品能力/成本/毛利红线/样板诉求<br><b>⑤ 风险</b>：经营/合同/交付/回款风险'],
+    ['sys','对话即捕获 → 决策时自动调出 → 这就是「记忆系统」而非「数据库」'],
+  ],
+  m3: [
+    ['user','上次那套系统再来一套'],
+    ['ai','<span class="meth bant">记忆调用</span>已命中历史记忆：50 节点 / 公有云 / 上次成交 ¥2.8 万（方案 A）→ 直接出单，无需重述。'],
+    ['sys','零填表 · 需求/承诺/偏好自动沉淀 → 人走经验不走'],
+  ],
+  m4: [
+    ['user','看 XX 食品公司全面情况（客户 360）'],
+    ['ai','<span class="meth ltc">正向追溯</span>商机 5 条 → 合同 2 份 → 订单 3 笔 → 回款 ¥38 万<br><span class="meth medd">反向溯源</span>系统报价 ¥15.8 万的决策依据（成本结构 + 先例 3 笔）'],
+    ['good','任何人接手客户，都能在 10 秒内看到完整上下文 —— 离职带不走客户。'],
+  ],
+  m5: [
+    ['user','把我们这个行业常见的客户异议和买家说法沉淀下来，下次别再从头教 AI。'],
+    ['sys','crm-knowledge-upsert · 决策第 0 闸已生成待确认草稿（HITL）'],
+    ['ai','<span class="meth medd">Knowledge 四类</span>已整理待确认：<br>① <b>ICP 画像</b>：年营收区间 · 离散制造 · 已有 MES/ERP<br>② <b>竞品对比</b>：对手强项在报表、弱项在实施周期<br>③ <b>客户异议</b>：价格高 / 上线周期长 / 担心数据迁移<br>④ <b>买家语言</b>：客户说「先跑通一条线」= 试点意图'],
+    ['user','确认写入。'],
+    ['good','已写入租户知识库（按租户隔离）→ 同类客户自动注入上下文，不再重复解释同一段背景。'],
+  ],
+  m6: [
+    ['sys','🌙 复盘回路 · 知识自动回写（submitRetro 通道）'],
+    ['review','<span class="meth retro">知识回写</span>本周 3 单自动回写：<br>· 赢单 1 笔 → 客户原话「先跑通一条线再推广」沉淀为<b>买家语言</b><br>· 丢单 2 笔 → 「预算被砍」「担心数据迁移」沉淀为<b>标准异议</b> + 应对要点'],
+    ['good','知识随业务自动生长：人不必手工维护话术库，复盘本身就是知识更新。'],
+  ],
+};
+document.querySelectorAll('#memories .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#memories .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage4', MEMORIES[f.id]);
+  });
+});
+
+/* ============ 第五幕：销售决策模型可跟踪每个智能体任务 ============ */
+const TRACES = {
+  tr1: [
+    ['user','记一条：新客户「小王科技」新增商机「生产管理系统 50 节点」100 万。'],
+    ['sys','crm-write · 第 0 闸：已生成 decision_id = d_20260830_0042'],
+    ['ai','已确认写入意图。请确认以下信息：<br>商机名称：生产管理系统 50 节点（小王科技）<br>金额：¥200,000（预算）<br>负责人：当前用户（销售）<br><b>确认后我将执行写入（两阶段）。</b>'],
+    ['user','确认。'],
+    ['ai','写入完成（decision_id 已留痕）：可随时追溯本条商机的创建人/时间/理由。'],
+    ['good','写操作必经决策第 0 闸 —— 每一次写入都可溯源。'],
+  ],
+  tr2: [
+    ['sys','决策留痕 · 七类决策边'],
+    ['ai','本单「是否值得跟」决策：<br><span class="meth medd">参考先例</span> → 3 笔相似项目（毛利率 25% 达标）<br><span class="meth mtx">确立标杆</span> → 报价策略升级为年度框架<br><span class="meth risk">由异常触发</span> → 商机停留超 30 天触发复核'],
+    ['ai','谁/何时/结论/理由 全程留痕 → 决策如何发生全部可追。'],
+  ],
+  tr3: [
+    ['sys','智能体任务跟踪看板'],
+    ['ai','<span class="meth ltc">接诊分流</span>今日 47 单 · 平均 1.2min 响应 · 100% 无漏接<br><span class="meth tier">报价测算</span>今日 31 次 · 平均 42s 出价 · 0 漏项<br><span class="meth risk">跟进催办</span>自动跟进 58 次 · 超时 3（已预警转人工）<br><span class="meth role">评审把关</span>重大单 5 单 · 双闸门全通过'],
+    ['good','谁在干活、卡在哪、哪个任务缺决策依据 —— 一目了然。'],
+  ],
+  tr4: [
+    ['sys','⚡ 事件触发：deal.stage_advanced（某商机推进至方案阶段）'],
+    ['ai','已自动派发专职智能体：<br><span class="meth ltc">decision-enrich</span> 补充决策上下文（客户记忆 + 同类先例 3 笔 + 租户知识）<br><span class="meth risk">decision-execute</span> 生成方案要点与风险清单草稿'],
+    ['ai','链路无需人工召唤：业务事件 → 决策闸 → 智能体派发 → 决策记录，全程留痕。'],
+    ['good','以前要人记得去点 AI，现在业务一动 AI 自动接手。'],
+  ],
+  tr5: [
+    ['user','这个客户上次为什么报那个价？我刚接手，看不懂。'],
+    ['sys','客户 360 · 决策链与先例检索'],
+    ['ai','<span class="meth medd">决策链</span>上次报价 ¥15.8 万 → 依据：成本结构 ¥11 万 + 同类先例 3 笔 + 样板客户授权作为交换条件<br><span class="meth mtx">先例比对</span>同类 3 笔毛利率 24%–27%，本单 25.5% 位于区间中位'],
+    ['good','新销售 10 秒看懂前因后果 —— 决策不只是留痕，还能被检索、被比对、被复用。'],
+  ],
+};
+document.querySelectorAll('#traces .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#traces .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage5', TRACES[f.id]);
+  });
+});
+
+/* ============ 第六幕：复盘智能体每日自动复盘 ============ */
+const RETROS = {
+  rt1: [
+    ['sys','🌙 复盘智能体 · 夜间批量扫描（retro 引擎）'],
+    ['review','<span class="meth retro">每日复盘</span>今日决策集群 23 条已扫描：<br>· 已执行 19 条 → 结果回流比对<br>· 其中 2 条被结果验证为偏乐观 → 已下调后续建议置信度<br>· 产出 3 份复盘报告（draft 待审批，非自动应用）'],
+    ['good','经验每天被沉淀 —— 不等月底，不做表面功夫。'],
+  ],
+  rt2: [
+    ['sys','🌙 复盘智能体 · 七类根因归因'],
+    ['review','<span class="meth retro">根因分析</span>本周失单 2 笔：<br>① 商机 A 丢单（预算被砍）→ 根因：<b>输入不及时</b>（预算风险未提前捕获）<br>② 商机 B 丢单（客户内部变动）→ 根因：<b>维度缺失</b>（决策链未完整录入）'],
+    ['review','处方草稿（待审批）：① 线索阶段把「预算稳定性」纳入 BANT 评分 ② 商机阶段强制录入完整决策链'],
+    ['good','复盘不是走过场，是归因 —— 根因找到，处方才有效。'],
+  ],
+  rt3: [
+    ['sys','🌙 复盘智能体 · 订单复盘闭环'],
+    ['review','<span class="meth retro">订单复盘</span>年度系统采购 · 成交 <b>¥12.6 万</b> · 客户满意 + 有复购意向<br>根因：需求变更 3 次（未设闸门）+ 联调返工 1 次（验收未书面锁死）<br>处方（已审批沉淀）：<b>变更免费 1-2 次、第 3 次起收费</b>；<b>验收即锁</b>'],
+    ['review','复购转化自动排程：3 天感谢预告 → 7 天翻单价 → 30 天推增值模块'],
+    ['good','教训变 SOP，成交变锚点 —— 复盘报告进入决策记忆，下次同类判断自动调用。'],
+  ],
+};
+document.querySelectorAll('#retros .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#retros .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage6', RETROS[f.id]);
+  });
+});
+
+/* ============ 第七幕：认知驱动决策引擎 K-M-D ============ */
+const ENGINES = {
+  e1: [
+    ['user','帮我判断这个商机值不值得加大投入。'],
+    ['sys','K 层 · 知识供给（装配器自动装载）'],
+    ['ai','<span class="meth medd">已装配</span>① 客户业务记忆：行业/KPI/痛点/预算区间<br>② 组织决策链：3 人（经济买家已确认）<br>③ 同类先例 3 笔（毛利率 24%–27%）<br>④ 租户知识：本行业常见异议 3 条'],
+    ['ai','缺项提示：<b>竞争情报为空</b> → 供给项与必填维度命中率下降，「相关性」尺子直接扣分，不静默放行。'],
+    ['good','决策前先把上下文喂饱 —— 没有知识的判断只是猜测。'],
+  ],
+  e2: [
+    ['sys','M 层 · 方法装配（按场景装载，带权重与必填维度）'],
+    ['ai','<span class="meth mtx">已装载</span>method-meddicc（机会评估，权重 0.4）+ method-opportunity-matrix（价值×赢率，权重 0.3）+ 行为标准 2 条<br>必填维度：痛点来源 / 预算 / 决策链 / 竞争 / 赢率'],
+    ['ai','每条方法论的权重与必填维度均参与判定 —— 不是把方法论名字写进提示词就算用上了。'],
+    ['good','用什么方法、要什么输入、缺什么就报什么，判断过程可审计。'],
+  ],
+  e3: [
+    ['user','这个评估结论，凭什么这么判？'],
+    ['sys','D 层 · 九尺子校验（0–4 分制，及格线走配置，非硬编码）'],
+    ['ai','<span class="meth mtx">九尺子</span>清晰性 3 · 准确性 2 · <b>精确性 1 ⚠</b> · 相关性 3 · 深度 3 · <b>广度 1 ⚠</b> · 逻辑性 4 · 重要性 3 · 公平性 2'],
+    ['ai','8 项由确定性规则判定（同一输入必得同一分，可复现）；仅「清晰性」1 项允许 LLM 精评，且<b>默认关闭</b>——关闭时走确定性代理并标记 degraded，绝不假填充。'],
+    ['ai','扣分归因：精确性低 = 预算只有「还可以」没有具体区间；广度低 = 立场只录到 1 个、缺反方视角。→ <b>补齐后复核</b>，不放行。'],
+    ['good','判断质量可量化、可追问、可复现 —— 无证据计 0 分，不是模型一句「我觉得机会不错」。'],
+  ],
+  e4: [
+    ['sys','决策记录 · 可解释输出（9 列 + 概念引用）'],
+    ['ai','<span class="meth ltc">决策记录</span>场景 / 结论 / 置信度 / 依据 / 风险 / 使用的概念 / <b>concept_refs</b> / 决策时间 / 决策人<br>本单：结论=加大投入 · 置信度 0.72 · 风险=预算区间未锁定'],
+    ['ai','审计时可从结论一路追回：用了哪个概念、引用了哪条知识、依据哪笔先例。'],
+    ['good','黑箱变白箱：AI 给的不只是答案，还有能被质询的依据链。'],
+  ],
+};
+document.querySelectorAll('#engines .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#engines .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage7', ENGINES[f.id]);
+  });
+});
+
+/* ============ 第八幕：多行业零代码配置上线 ============ */
+const INDUSTRIES = {
+  i1: [
+    ['user','我们想上一个新行业（非制造），要改多少代码？'],
+    ['sys','配置画像 · 租户级 industry profile'],
+    ['ai','<span class="meth ltc">零代码</span>新行业 = 一份配置画像，声明：<br>· 实体类型与属性（动态注册，非代码字面量）<br>· 阶段流水线与停留阈值<br>· 审批域与审批链<br>· 关系拓扑（关系表本身行业无关，无需改造）<br>· 领域计算公式'],
+    ['good','新增行业不新增代码、不改内核、不污染其他租户。'],
+  ],
+  i2: [
+    ['user','我们的销售阶段跟系统默认的 S1–S8 不一样，怎么办？'],
+    ['sys','阶段流水线配置化 · 销售阈值配置化'],
+    ['ai','<span class="meth mtx">已配置</span>阶段改为 <b>线索 → 试听 → 报课 → 签约 → 复购</b> 五段；每段停留阈值、必做动作、达标线均按行业设定；审批域不再写死 5 个。'],
+    ['ai','所有阈值走配置读取（租户优先、平台回退），后续调整无需发版。'],
+    ['good','行业差异留在配置里，不留在代码里。'],
+  ],
+  i3: [
+    ['sys','领域计算引擎（公式层）'],
+    ['ai','<span class="meth tier">公式引擎</span>价格链路、毛利红线、分级规则由配置承载：<br>· 某行业：报价 = 基础价 × 规模系数 − 阶梯折扣<br>· 另一行业：报价 = 课时单价 × 课时 + 服务费'],
+    ['ai','同一套内核，不同行业的算法并行存在，互不干扰。'],
+    ['good','行业专属算法不再成为内核里的硬编码分支。'],
+  ],
+  i4: [
+    ['user','两个行业客户的数据会不会互相看见？'],
+    ['sys','租户隔离 · 每租户自有数据'],
+    ['ai','<span class="meth risk">隔离</span>粒子、配置、Knowledge 全部按租户隔离：<br>· 租户用户只见本租户数据<br>· 配置读取「租户优先 → 平台回退」<br>· 新租户开通即播种行业主数据；停用只改状态，<b>不删数据</b>'],
+    ['good','一套平台承载多行业，每个行业只看见自己的世界。'],
+  ],
+};
+document.querySelectorAll('#industries .feat').forEach(f => {
+  f.addEventListener('click', () => {
+    document.querySelectorAll('#industries .feat').forEach(x => x.classList.remove('sel'));
+    f.classList.add('sel');
+    playChat('stage8', INDUSTRIES[f.id]);
+  });
+});
+</script>
+</body>
+</html>

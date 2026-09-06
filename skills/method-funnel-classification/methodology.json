@@ -1,0 +1,20 @@
+{
+  "methodology_id": "FUNNEL_CLASSIFICATION",
+  "name": "大漏斗客户分类",
+  "role": "sales",
+  "segments": [
+    {"segment_key":"opportunity","label":"商机客户","behavior":"已行动","recognized":true,"rhythm":"按需","rhythm_note":"按商机阶段推进需要","desc":"客户有需求且已识别（S1-S6 任阶段）"},
+    {"segment_key":"target","label":"目标客户","behavior":"已行动或已识别","recognized":true,"rhythm":"monthly","rhythm_note":"每月 ≥1 次（出厂默认建议；具体次数与窗口由配置中心 id30「每档拜访频率」决定，本文件不写死）","desc":"客户已行动或我们已识别其潜在需求，但尚未形成商机"},
+    {"segment_key":"potential","label":"潜力客户","behavior":"未行动","recognized":false,"rhythm":"quarterly","rhythm_note":"每季 ≥1 次（出厂默认建议；具体次数与窗口由配置中心 id30「每档拜访频率」决定，本文件不写死）","desc":"客户未行动且我们未识别明确需求，保持温养"}
+  ],
+  "priority_rule": "分类以客户行为×销售感知两问判定（四象限），不以金额大小或关系好坏判定",
+  "gate_rule": "有商机但销售未识别 → 目标客户（先识别别当潜力温养）；有商机且已识别 → 商机客户（按需推进别按固定节奏）；无需求且未识别 → 潜力客户（按配置节奏温养别高频打扰）",
+  "thresholds_ref": {
+    "_policy": "本 SKILL 只定义分类逻辑与节奏语义（monthly/quarterly 为枚举，非数值），不承载可调业务数值；次数与窗口天数一律由 config_store['named-account-targets']（配置中心 id30）提供",
+    "keys": [
+      {"key":"window_days.month","used_by":"目标客户接触窗口","source":"id30"},
+      {"key":"window_days.quarter","used_by":"潜力客户接触窗口","source":"id30"},
+      {"key":"tiers[].visit_freq.times","used_by":"每档应拜访次数","source":"id30"}
+    ]
+  }
+}

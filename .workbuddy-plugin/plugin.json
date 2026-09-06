@@ -1,0 +1,79 @@
+{
+  "name": "crm-native",
+  "version": "1.5.0",
+  "description": "AI 原生 CRM 智能体包——角色自适应、管道原生、跨模块推理查询、两阶段对话式写入、链断裂主动预警。覆盖线索到现金（L2C）全链路，可经 MCP Server 接入任意办公智能体（首次须 crm_login 用户名密码验证）。",
+  "author": {
+    "name": "CRM-ai-native",
+    "email": "chuan.van.wang@gmail.com"
+  },
+  "agents": [
+    "./agents/crm-native.md"
+  ],
+  "skills": [
+    "./skills/crm-native",
+    "./skills/crm-query",
+    "./skills/crm-write",
+    "./skills/crm-risk",
+    "./skills/decision-retrospective",
+    "./skills/method-bant",
+    "./skills/method-meddicc",
+    "./skills/method-opportunity-matrix",
+    "./skills/method-role-map",
+    "./skills/method-risk-tradeoff",
+    "./skills/method-stop-loss",
+    "./skills/method-fact-vs-script",
+    "./skills/method-presales",
+    "./skills/method-behavior-standard",
+    "./skills/method-funnel-classification",
+    "./skills/method-stage-progression"
+  ],
+  "expertType": "agent",
+  "agentName": "crm-native",
+  "displayName": {
+    "en": "CRM Native Agent",
+    "zh": "CRM 原生智能体"
+  },
+  "profession": {
+    "en": "AI-Native Sales Management Agent",
+    "zh": "AI 原生销售管理助手"
+  },
+  "displayDescription": {
+    "en": "Role-adaptive CRM assistant for the full Lead-to-Cash pipeline. One-sentence query, two-phase conversational write, and proactive chain-break alerts. Accessible to office agents via MCP Server (first login via crm_login).",
+    "zh": "角色自适应的 CRM 原生销售助手：一句话查询、两阶段对话式写入、链断裂主动预警。"
+  },
+  "avatar": "avatars/crm-native.png",
+  "categoryId": "07-SalesCommerce",
+  "defaultInitPrompt": {
+    "zh": "帮我看看今天有什么要跟的",
+    "en": "What should I follow up on today?"
+  },
+  "plugin": "crm-native",
+  "tags": [
+    {
+      "en": "CRM Pipeline",
+      "zh": "CRM管道"
+    },
+    {
+      "en": "L2C Tracking",
+      "zh": "L2C追踪"
+    },
+    {
+      "en": "Sales Intelligence",
+      "zh": "销售智能"
+    }
+  ],
+  "quickPrompts": [
+    {
+      "en": "What should I follow up on today?",
+      "zh": "帮我看看今天有什么要跟的"
+    },
+    {
+      "en": "How's my team doing this week?",
+      "zh": "这周团队情况怎么样"
+    },
+    {
+      "en": "Check the overdue payments",
+      "zh": "看看有哪些逾期回款"
+    }
+  ]
+}

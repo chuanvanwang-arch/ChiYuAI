@@ -1,0 +1,15 @@
+{
+  "methodology_id": "STAGE_PROGRESSION",
+  "name": "商机阶段推进 S1-S6",
+  "role": "sales",
+  "stages": [
+    {"stage_key":"S1","label":"线索发掘","customer_behavior":"客户开始寻找供应商/评估需求","visit_objective":"发掘线索、确认需求存在","lose_condition":"无可跟进线索/需求不成立","advance_gate":"存在客户需求描述（现场6问 needs 有实质内容）"},
+    {"stage_key":"S2","label":"需求确认","customer_behavior":"客户明确需求与痛点","visit_objective":"与客户确认需求细节","lose_condition":"需求不成立/无预算","advance_gate":"方案验证拜访被质检判有价值"},
+    {"stage_key":"S3","label":"方案匹配","customer_behavior":"客户评估方案匹配度","visit_objective":"提供匹配方案并获得认可","lose_condition":"方案不匹配/被竞品替代","advance_gate":"BANTCC 无硬缺口 + 报价已出"},
+    {"stage_key":"S4","label":"报价谈判","customer_behavior":"客户评估商务条款与报价","visit_objective":"报价并谈判达成一致","lose_condition":"价格谈不拢/商务条款不认可","advance_gate":"review-gate 双闸门通过"},
+    {"stage_key":"S5","label":"合同确认","customer_behavior":"客户内部审批合同","visit_objective":"合同条款达成一致并签署","lose_condition":"合同条款未达成一致","advance_gate":"合同签署事实"},
+    {"stage_key":"S6","label":"赢单移交","customer_behavior":"客户验收付款完成、项目移交","visit_objective":"确保验收付款、顺利移交","lose_condition":null,"advance_gate":null}
+  ],
+  "priority_rule": "阶段判定以客户行为为准（客户评估→客户认可→客户评估商务→客户内部审批→客户接受交付→客户验收付款），不以内部状态为准",
+  "gate_rule": "S1/S2/S3/S4 输单条件触发 → 对接 method-stop-loss（止损，不空耗）；S2→S3 复用两关闸、S3→S4 复用 BANT 资质闸（不重复建闸）"
+}

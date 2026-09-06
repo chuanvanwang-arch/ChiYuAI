@@ -1,0 +1,16 @@
+{
+  "methodology_id": "MEDDICC",
+  "name": "MEDDICC 复杂商机赢单方法论",
+  "role": "sales",
+  "dimensions": [
+    {"dim_key":"M1","label":"指标 Metrics","weight":0.8,"required":false,"desc":"客户已定义的成功指标（营收/成本/效率）与基线数据，可否量化评估"},
+    {"dim_key":"E1","label":"经济买家 Economic Buyer","weight":1.0,"required":true,"desc":"掌握预算审批权的人是否已识别并触达，无 E1 则任何推进都是空谈"},
+    {"dim_key":"D1","label":"决策标准 Decision Criteria","weight":0.9,"required":true,"desc":"客户选型按什么标准（功能/价格/服务/案例），我方方案覆盖几条标准"},
+    {"dim_key":"D2","label":"决策流程 Decision Process","weight":0.9,"required":true,"desc":"客户内部选型流程（RFI/RFP/POC/招标）几步、谁参与、下一步是什么"},
+    {"dim_key":"I1","label":"识破痛苦 Identify Pain","weight":1.0,"required":true,"desc":"痛点真实、可单句陈述且有量化影响，无真实痛苦则无成交基础"},
+    {"dim_key":"C1","label":"冠军 Champion","weight":0.8,"required":false,"desc":"内部支持者存在且能影响决策/提供情报，champion_strength ≥3 视为有效"},
+    {"dim_key":"C2","label":"竞争 Competition","weight":0.6,"required":false,"desc":"竞品格局与相对位置（领先/并列/落后），以及我方差异化依据"}
+  ],
+  "priority_rule": "决策链优于产品力：先打通 E1/D1/D2（决策链与流程），再补 M1/C1/C2（指标与支持）；事实优先于口头意向",
+  "gate_rule": "任一 required 维度评分 <0.6 → 禁止乐观推进（禁止 win 判断/报价推进前先补决策链证据）"
+}

@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 原生 CRM · 第一次交流（本质差异与信息收集）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0c0e14;
+    --bg-secondary: #13161e;
+    --bg-card: #1a1e2a;
+    --bg-card-hover: #1f2435;
+    --bg-input: #0c0e14;
+    --border: #252a3a;
+    --border-light: #2e3445;
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa0b0;
+    --text-tertiary: #5c6278;
+    --accent-cyan: #22d3ee;
+    --accent-cyan-dim: #0891b2;
+    --accent-amber: #fbbf24;
+    --accent-amber-dim: #d97706;
+    --accent-green: #34d399;
+    --accent-red: #f87171;
+    --accent-purple: #a78bfa;
+    --accent-blue: #60a5fa;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ========== Sidebar ========== */
+  .sidebar {
+    width: 280px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-header { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
+  .sidebar-header h1 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .sidebar-header .badge { font-size: 10px; font-weight: 500; background: var(--accent-cyan); color: #000; padding: 1px 7px; border-radius: 4px; }
+  .sidebar-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; line-height: 1.5; }
+
+  .nav-section { padding: 12px 18px 4px; font-size: 11px; color: var(--text-tertiary); font-weight: 500; letter-spacing: 1px; }
+  .nav-list { flex: 1; overflow-y: auto; padding: 4px 10px; }
+  .nav-item {
+    padding: 11px 12px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+    cursor: pointer; transition: all 0.15s; margin-bottom: 4px; display: flex; align-items: center; gap: 9px; border: 1px solid transparent;
+  }
+  .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+  .nav-item.active { background: var(--bg-card); color: var(--text-primary); border-left: 2px solid var(--accent-cyan); }
+  .nav-item .icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+  .nav-item .txt { flex: 1; font-weight: 500; }
+  .nav-item .sub { display: block; font-size: 10px; color: var(--text-tertiary); margin-top: 1px; font-weight: 400; }
+
+  .sidebar-footer { padding: 12px 18px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-tertiary); display: flex; justify-content: space-between; }
+
+  /* ========== Main ========== */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .chat-header { padding: 14px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); gap: 12px; }
+  .chat-header .title { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+  .chat-header .title b { color: var(--accent-cyan); }
+  .chat-header .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent-green); white-space: nowrap; }
+  .chat-header .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .messages { flex: 1; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .msg { display: flex; gap: 12px; max-width: 880px; animation: fade-in 0.35s ease; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.bot { align-self: flex-start; }
+  .msg-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+  .msg.user .msg-avatar { background: var(--accent-cyan-dim); color: #fff; }
+  .msg.bot .msg-avatar { background: var(--bg-card); color: var(--accent-cyan); border: 1px solid var(--border); }
+  .msg-body { background: var(--bg-card); padding: 14px 18px; border-radius: var(--radius); line-height: 1.7; font-size: 14px; min-width: 0; }
+  .msg.user .msg-body { background: var(--accent-cyan-dim); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot .msg-body { border-bottom-left-radius: 4px; }
+  .msg-body .text { white-space: pre-wrap; word-break: break-word; }
+  .msg-body .text a { color: var(--accent-cyan); text-decoration: underline; }
+
+  .replay-bar { padding: 10px 28px 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .btn-replay { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: transparent; color: var(--accent-cyan); border: 1px solid var(--accent-cyan-dim); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .btn-replay:hover { background: rgba(34,211,238,0.08); }
+  .replay-hint { font-size: 11px; color: var(--text-tertiary); }
+
+  /* ========== Components ========== */
+  .feature-banner { display: flex; align-items: center; gap: 10px; background: linear-gradient(90deg, rgba(34,211,238,0.12), rgba(34,211,238,0.02)); border: 1px solid var(--accent-cyan-dim); border-radius: var(--radius-sm); padding: 12px 16px; margin: 4px 0 12px; }
+  .feature-banner .ico { font-size: 20px; }
+  .feature-banner .txt { font-size: 14px; font-weight: 600; color: var(--accent-cyan); }
+  .feature-banner .sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+  .section-title { font-size: 15px; font-weight: 600; margin: 16px 0 8px; color: var(--accent-cyan); }
+
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+  .compare-table th { padding: 10px 12px; text-align: left; font-size: 11px; color: var(--text-tertiary); border-bottom: 1px solid var(--border); font-weight: 500; }
+  .compare-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+  .compare-table tr:last-child td { border-bottom: none; }
+
+  .tag { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 3px; margin: 2px 2px; }
+  .tag.cyan { background: rgba(34,211,238,0.15); color: var(--accent-cyan); }
+  .tag.green { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+  .tag.amber { background: rgba(251,191,36,0.15); color: var(--accent-amber); }
+  .tag.red { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+
+  .pillar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+  .pillar-card { background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; border-top: 3px solid var(--accent-cyan); }
+  .pillar-card:nth-child(2) { border-top-color: var(--accent-green); }
+  .pillar-card:nth-child(3) { border-top-color: var(--accent-amber); }
+  .pillar-card .pico { font-size: 24px; }
+  .pillar-card .ptitle { font-size: 14px; font-weight: 600; margin: 8px 0 6px; }
+  .pillar-card .pdesc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .pillar-card .pkey { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; font-style: italic; }
+
+  .highlight-box { background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; margin: 10px 0; border-left: 3px solid var(--accent-amber); }
+  .highlight-box .quote { font-size: 14px; font-style: italic; color: var(--accent-amber); line-height: 1.6; }
+  .highlight-box .source { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
+
+  .lane-flow { display: flex; align-items: stretch; gap: 0; margin: 12px 0; overflow-x: auto; padding-bottom: 4px; }
+  .lane-step { flex: 1; min-width: 100px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; position: relative; text-align: center; }
+  .lane-step + .lane-step::before { content: '→'; position: absolute; left: -9px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); font-size: 12px; z-index: 2; background: var(--bg-primary); padding: 0 2px; }
+  .lane-step .st-agent { font-size: 10px; font-weight: 700; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; }
+  .lane-step .st-name { font-size: 12px; font-weight: 600; margin: 3px 0; line-height: 1.3; }
+  .lane-step .st-detail { font-size: 10px; color: var(--text-tertiary); line-height: 1.4; }
+  .lane-step.hit { border-color: var(--accent-cyan); box-shadow: 0 0 0 1px rgba(34,211,238,0.3); }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
+  .stat-card { background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+  .stat-card .val { font-size: 20px; font-weight: 700; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; }
+  .stat-card .lbl { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+  .flow-step { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .flow-step:last-child { border-bottom: none; }
+  .flow-step .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--accent-cyan); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--accent-cyan); flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
+  .flow-step .content { flex: 1; }
+  .flow-step .content .who { font-size: 12px; font-weight: 600; color: var(--accent-amber); }
+  .flow-step .content .action { font-size: 13px; margin: 2px 0; }
+  .flow-step .content .result { font-size: 11px; color: var(--text-tertiary); }
+
+  .mini { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+  hr.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  /* ========== Collect Panel ========== */
+  #collectPanel { flex: 1; overflow-y: auto; padding: 24px 28px; display: none; }
+  #collectPanel.show { display: block; }
+  .collect-head { margin-bottom: 16px; }
+  .collect-head h2 { font-size: 17px; font-weight: 700; color: var(--accent-cyan); }
+  .collect-head p { font-size: 12px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.6; }
+
+  .cblock { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; }
+  .cblock .ctitle { font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .cblock .ctitle .num { width: 22px; height: 22px; border-radius: 6px; background: var(--accent-cyan-dim); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .cblock .csub { font-size: 11px; color: var(--text-tertiary); margin-bottom: 12px; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 500; }
+  .field .hint { font-size: 10px; color: var(--text-tertiary); font-weight: 400; }
+  .field input[type=text], .field input[type=number], .field textarea, .field select {
+    width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-primary); padding: 9px 12px; font-size: 13px; font-family: inherit; line-height: 1.5;
+  }
+  .field textarea { resize: vertical; min-height: 64px; }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent-cyan-dim); }
+  .checks { display: flex; flex-wrap: wrap; gap: 10px; }
+  .checks label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); font-weight: 400; cursor: pointer; }
+  .checks input { accent-color: var(--accent-cyan); }
+
+  .collect-actions { display: flex; gap: 12px; margin: 8px 0 16px; }
+  .btn-primary { padding: 10px 20px; background: var(--accent-cyan); color: #000; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-primary:hover { background: #34e0f5; }
+  .btn-ghost { padding: 10px 20px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; font-family: inherit; }
+  .btn-ghost:hover { color: var(--text-primary); border-color: var(--border-light); }
+
+  .summary-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap; min-height: 80px; display: none; }
+  .summary-box.show { display: block; }
+
+  @media (max-width: 900px) {
+    .sidebar { width: 220px; }
+    .pillar-grid, .stats-row { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .messages, #collectPanel { padding: 16px; }
+    .replay-bar { padding: 10px 16px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== SIDEBAR ========== -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h1>AI 原生 CRM <span class="badge">第一次交流</span></h1>
+    <div class="sidebar-sub">本质差异 · 三支柱 · 场景 · 信息收集</div>
+  </div>
+  <div class="nav-section">演示导航</div>
+  <div class="nav-list">
+    <div class="nav-item active" onclick="switchNav(this, 'essence')"><span class="icon">🔍</span><div class="txt">本质差异<div class="sub">传统 CRM vs AI 原生 CRM</div></div></div>
+    <div class="nav-item" onclick="switchNav(this, 'pillars')"><span class="icon">🧭</span><div class="txt">三大支柱<div class="sub">智能体为核心 / 越用越聪明 / 销售减负</div></div></div>
+    <div class="nav-item" onclick="switchNav(this, 'scenario')"><span class="icon">🎬</span><div class="txt">一个场景演示<div class="sub">零填表接诊 → 越用越聪明</div></div></div>
+    <div class="nav-item" onclick="switchNav(this, 'collect')"><span class="icon">📋</span><div class="txt">第一次交流 · 信息收集<div class="sub">现场填写 · 一键生成纪要</div></div></div>
+  </div>
+  <div class="sidebar-footer">
+    <span>简版 v1</span>
+    <span>CRM AI-native</span>
+  </div>
+</aside>
+
+<!-- ========== MAIN ========== -->
+<div class="main">
+  <div class="chat-header">
+    <div class="title" id="headerTitle">🔍 <b>本质差异</b> · 传统 CRM 记"发生了什么"，AI 原生 CRM 记"为什么被允许发生"</div>
+    <div class="status"><span class="status-dot"></span> 记忆系统就绪</div>
+  </div>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="replay-bar" id="replayBar">
+    <button class="btn-replay" onclick="replayCurrent()">▶ 重新播放当前演示</button>
+    <span class="replay-hint">点击左侧导航切换；本质差异与三支柱为讲解，场景演示为交互回放</span>
+  </div>
+
+  <!-- ========== Collect Panel ========== -->
+  <div id="collectPanel">
+    <div class="collect-head">
+      <h2>第一次交流 · 信息收集</h2>
+      <p>目标：在首次交流中摸清客户现状，为后续蓝图设计找缺口。四类信息请尽量现场填写；填完点「生成交流纪要」可复制给内部团队。本表对应实施方法论「阶段一 · 前期沟通」。</p>
+    </div>
+
+    <div class="cblock">
+      <div class="ctitle"><span class="num">0</span> 客户与行业背景</div>
+      <div class="csub">先定位这是哪类企业，便于后续映射业务实体</div>
+      <div class="field">
+        <label>客户名称 / 行业 <span class="hint">（如：某装备制造企业 / SaaS 服务商 / 商贸公司）</span></label>
+        <input type="text" id="c_customer" placeholder="例：XX 科技有限公司">
+      </div>
+      <div class="field">
+        <label>销售模式 <span class="hint">（直销 / 渠道 / 项目制 / 电商）</span></label>
+        <input type="text" id="c_mode" placeholder="例：直销 + 大客户项目制">
+      </div>
+    </div>
+
+    <div class="cblock">
+      <div class="ctitle"><span class="num">1</span> 业务如何分类</div>
+      <div class="csub">弄清"卖什么、卖给谁、怎么分"，是定义业务实体与商机等级的前提</div>
+      <div class="field">
+        <label>客户分类维度 <span class="hint">（按行业 / 规模 / 区域 / 战略等级？）</span></label>
+        <textarea id="c_custcat" placeholder="例：按规模分 SMB/中型/战略大客户；按行业分快消/电子/医药"></textarea>
+      </div>
+      <div class="field">
+        <label>产品 / 业务线分类 <span class="hint">（标准化品 / 非标定制 / 服务续约？）</span></label>
+        <textarea id="c_prodcat" placeholder="例：标准化产品、半标准化方案、全案非标大单"></textarea>
+      </div>
+      <div class="field">
+        <label>商机类型 <span class="hint">（可多选，决定后续分流节奏）</span></label>
+        <div class="checks">
+          <label><input type="checkbox" id="c_opp_new"> 新客开发</label>
+          <label><input type="checkbox" id="c_opp_rep"> 老客复购</label>
+          <label><input type="checkbox" id="c_opp_bid"> 投标大单</label>
+          <label><input type="checkbox" id="c_opp_svc"> 服务续约</label>
+          <label><input type="checkbox" id="c_opp_lost"> 丢单终局</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>标准化程度</label>
+        <select id="c_std">
+          <option value="">— 请选择 —</option>
+          <option>高度标准化（同品同价标准交付）</option>
+          <option>部分非标（多数标准、少数定制）</option>
+          <option>高度非标（每单配置/报价都不同）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="cblock">
+      <div class="ctitle"><span class="num">2</span> 业务体量与人员负荷</div>
+      <div class="csub">量决定了"哪些该全自动、哪些该人把关"，也决定减负空间</div>
+      <div class="field">
+        <label>月商机量 <span class="hint">（流入销售漏斗的条数）</span></label>
+        <input type="number" id="c_vol" placeholder="例：300">
+      </div>
+      <div class="field">
+        <label>销售团队人数</label>
+        <input type="number" id="c_head" placeholder="例：12">
+      </div>
+      <div class="field">
+        <label>人均日处理商机数 <span class="hint">（含跟进、报价、录入）</span></label>
+        <input type="number" id="c_perhead" placeholder="例：8">
+      </div>
+      <div class="field">
+        <label>漏接诊 / 跟进超时比例 <span class="hint">（粗略估计即可）</span></label>
+        <input type="text" id="c_leak" placeholder="例：约 20% 跟进超时、10% 微信线索漏接">
+      </div>
+      <div class="field">
+        <label>平均报价 / 跟单耗时</label>
+        <input type="text" id="c_cycle" placeholder="例：标准品报价 0.5 天、非标大单 3-5 天">
+      </div>
+      <div class="field">
+        <label>当前主要瓶颈 <span class="hint">（人不够 / 报价慢 / 易错 / 跟进断）</span></label>
+        <textarea id="c_bottleneck" placeholder="例：非标大单报价靠老人、新人不会算毛利；微信线索常漏接"></textarea>
+      </div>
+    </div>
+
+    <div class="cblock">
+      <div class="ctitle"><span class="num">3</span> 目前主要信息来源</div>
+      <div class="csub">事实住在哪里？哪些在系统、哪些在人脑/群聊——这是记忆系统的"缝隙"</div>
+      <div class="field">
+        <label>信息渠道 <span class="hint">（客户从哪来、信息经哪流动，可多选）</span></label>
+        <div class="checks">
+          <label><input type="checkbox" id="c_src_wx"> 微信</label>
+          <label><input type="checkbox" id="c_src_tel"> 电话</label>
+          <label><input type="checkbox" id="c_src_mail"> 邮件</label>
+          <label><input type="checkbox" id="c_src_mt"> 会议/拜访</label>
+          <label><input type="checkbox" id="c_src_erp"> ERP/订单系统</label>
+          <label><input type="checkbox" id="c_src_xls"> Excel 台账</label>
+          <label><input type="checkbox" id="c_src_paper"> 纸质/合同</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>信息主要存放在哪 <span class="hint">（系统 / 群聊 / 人脑 / Excel？）</span></label>
+        <textarea id="c_where" placeholder="例：报价经验在老人脑中；客户历史在 Excel；微信群聊最全但搜不到"></textarea>
+      </div>
+      <div class="field">
+        <label>关键决策靠谁提供依据 <span class="hint">（报价底线 / 交期 / 折扣谁拍板）</span></label>
+        <textarea id="c_whodecide" placeholder="例：折扣超 5% 需销售总监批；交期承诺靠生产主管口述"></textarea>
+      </div>
+    </div>
+
+    <div class="cblock">
+      <div class="ctitle"><span class="num">4</span> 现有系统使用情况</div>
+      <div class="csub">传统 CRM 为什么没用起来？这是"销售拒填表"的根</div>
+      <div class="field">
+        <label>在用系统 <span class="hint">（CRM / ERP / 其他，名字或厂商）</span></label>
+        <textarea id="c_sys" placeholder="例：用 X 管家用 CRM，Y 用友 ERP；CRM 基本只记客户名"></textarea>
+      </div>
+      <div class="field">
+        <label>使用状况</label>
+        <select id="c_sysuse">
+          <option value="">— 请选择 —</option>
+          <option>好用（销售主动用）</option>
+          <option>半用（只录入、不靠它决策）</option>
+          <option>基本不用（嫌麻烦、另用 Excel/微信）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>销售拒填情况 <span class="hint">（哪些字段没人愿意填）</span></label>
+        <textarea id="c_reject" placeholder="例：跟进记录、丢单原因几乎不填；客户偏好靠记微信"></textarea>
+      </div>
+      <div class="field">
+        <label>已结构化 vs 在人口中 <span class="hint">（哪些系统有、哪些只在人脑）</span></label>
+        <textarea id="c_struct" placeholder="例：订单/客户主数据在系统；报价理由/丢单原因/客户潜规则在人口中"></textarea>
+      </div>
+      <div class="field">
+        <label>痛点 Top 3 <span class="hint">（最想解决的 3 件事）</span></label>
+        <textarea id="c_pain" placeholder="例：1 报价慢易错 2 老客户历史查不到 3 微信线索漏接"></textarea>
+      </div>
+    </div>
+
+    <div class="collect-actions">
+      <button class="btn-primary" onclick="generateSummary()">生成交流纪要</button>
+      <button class="btn-ghost" onclick="copySummary()">复制纪要</button>
+    </div>
+    <div class="summary-box" id="summaryBox"></div>
+  </div>
+</div>
+
+<script>
+var msgContainer = document.getElementById('messages');
+var headerTitle = document.getElementById('headerTitle');
+var replayBar = document.getElementById('replayBar');
+var collectPanel = document.getElementById('collectPanel');
+var currentSection = 'essence';
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function addMessage(type, content) {
+  var div = document.createElement('div');
+  div.className = 'msg ' + type;
+  var avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = (type === 'user') ? '你' : 'AI';
+  var body = document.createElement('div');
+  body.className = 'msg-body';
+  body.innerHTML = content;
+  if (type === 'user') { div.appendChild(body); div.appendChild(avatar); }
+  else { div.appendChild(avatar); div.appendChild(body); }
+  msgContainer.appendChild(div);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+}
+
+var _timers = [];
+function clearTimers() { _timers.forEach(function(t){ clearTimeout(t); }); _timers = []; }
+function later(fn, ms) { _timers.push(setTimeout(fn, ms)); }
+function addMessages(msgs) {
+  for (var i = 0; i < msgs.length; i++) {
+    (function(m, idx) { later(function() { addMessage(m.type, m.content); }, idx * 760); })(msgs[i], i);
+  }
+}
+function clearMessages() { msgContainer.innerHTML = ''; }
+
+function switchNav(el, section) {
+  document.querySelectorAll('.nav-item').forEach(function(i) { i.classList.remove('active'); });
+  el.classList.add('active');
+  currentSection = section;
+  clearTimers();
+  if (section === 'collect') {
+    collectPanel.classList.add('show');
+    replayBar.style.display = 'none';
+    msgContainer.style.display = 'none';
+    headerTitle.innerHTML = '📋 <b>第一次交流 · 信息收集</b> · 现场填写，一键生成纪要';
+    return;
+  }
+  collectPanel.classList.remove('show');
+  replayBar.style.display = 'flex';
+  msgContainer.style.display = 'flex';
+  clearMessages();
+  var labels = {
+    essence: '🔍 <b>本质差异</b> · 传统 CRM 记"发生了什么"，AI 原生 CRM 记"为什么被允许发生"',
+    pillars: '🧭 <b>三大支柱</b> · 智能体为核心 / 越用越聪明 / 销售员减负',
+    scenario: '🎬 <b>一个场景演示</b> · 零填表接诊 → 调用记忆出单（越用越聪明）'
+  };
+  headerTitle.innerHTML = labels[section] || 'AI 原生 CRM';
+  if (section === 'essence') demoEssence();
+  else if (section === 'pillars') demoPillars();
+  else if (section === 'scenario') demoScenario();
+}
+
+function replayCurrent() {
+  clearTimers(); clearMessages();
+  if (currentSection === 'essence') demoEssence();
+  else if (currentSection === 'pillars') demoPillars();
+  else if (currentSection === 'scenario') demoScenario();
+}
+
+/* ============ 本质差异 ============ */
+function demoEssence() {
+  var steps = [
+    { type: 'bot', content: '<div class="feature-banner"><span class="ico">🔍</span><div><div class="txt">本质差异｜传统 CRM 与 AI 原生 CRM 不是"功能多少"的差别</div><div class="sub">而是"系统记什么"的根本不同——这决定了它能不能越用越聪明</div></div></div>' +
+      '<div class="text">先立一个总前提：企业 AI 的重点是<strong>记忆</strong>，不是界面。很多公司一谈 AI 就想要漂亮系统、加几个功能；真正用 AI 重塑企业的公司，想的是把 AI 当成企业的<strong>操作系统</strong>——所有工作流、决策都流经智能层，系统持续学习、自我迭代。而这个操作系统的<strong>内核是记忆系统</strong>。</div>' },
+
+    { type: 'bot', content: '<div class="text"><strong>传统系统记什么？</strong></div><div class="compare-table"><table class="compare-table">' +
+      '<tr><th>传统系统</th><th>记的是</th><th>不记的是</th></tr>' +
+      '<tr><td>日志</td><td>发生了什么（谁几点改了什么）</td><td>为什么改、合不合规</td></tr>' +
+      '<tr><td>业务系统</td><td>现在是什么（客户/订单当前状态）</td><td>这个状态怎么被允许形成的</td></tr>' +
+      '<tr><td>流程文档</td><td>规则上怎么说（标准做法）</td><td>真实业务里规则怎么被解释、被例外</td></tr>' +
+      '</table></div><div class="mini">一句话：传统系统把"结果"和"规则"记下来了，却把<strong>"判断"</strong>丢了。</div>' },
+
+    { type: 'bot', content: '<div class="text"><strong>AI 原生 CRM 记什么？</strong>它把每个重要决定当成一个完整的<strong>记忆颗粒</strong>存下来，让系统能回答"为什么"：</div><div class="compare-table"><table class="compare-table">' +
+      '<tr><th>决策事件包含的</th><th>含义</th></tr>' +
+      '<tr><td>在什么业务情境下触发</td><td>为什么会走到要拍板这一步</td></tr>' +
+      '<tr><td>涉及了谁 / 当时满足什么条件</td><td>客户、订单、政策、岗位</td></tr>' +
+      '<tr><td>当时生效的是哪一版政策</td><td>记当时的版本，不是现在的</td></tr>' +
+      '<tr><td>最终怎么处理 + 谁拍的板 + 为什么</td><td>批准/拒绝/升级/例外放行</td></tr>' +
+      '<tr><td>参考了哪些过往先例</td><td>这个决定站在哪些过去判断上</td></tr>' +
+      '</table></div>' },
+
+    { type: 'user', content: '<div class="text">📋 所以本质区别到底是什么？</div>' },
+
+    { type: 'bot', content: '<div class="highlight-box" style="border-left-color:var(--accent-cyan)"><div class="quote" style="color:var(--accent-cyan);font-style:normal">传统系统让你知道<strong>"发生了什么"</strong>；<br>AI 原生 CRM 让你知道<strong>"为什么被允许发生"</strong>，以及它如何影响以后的判断。</div><div class="source">—— 引自《把记忆当资产来治理，而不是堆成一堆乱账》</div></div>' +
+      '<div class="text" style="margin-top:10px">更关键的是：决策与决策会<strong>互相引用</strong>——这次判断引用哪次先例，这次例外成为什么依据。先例就这么长出来，企业的"判断力"变成一张越织越密的决策网。<strong>这就是"越用越聪明"的底层机制。</strong></div>' },
+
+    { type: 'bot', content: '<div class="text"><strong>落到销售场景的三个直接好处</strong>（下一页展开）：</div><div class="pillar-grid">' +
+      '<div class="pillar-card"><div class="pico">🤖</div><div class="ptitle">智能体为核心</div><div class="pdesc">系统围绕智能体构建，不是围绕表单。人从"维护系统"变"定规矩、把关口"。</div></div>' +
+      '<div class="pillar-card"><div class="pico">📈</div><div class="ptitle">越用越聪明</div><div class="pdesc">每次判断沉淀成先例，系统对边界情况越来越有把握；人离职判断也不走。</div></div>' +
+      '<div class="pillar-card"><div class="pico">🪶</div><div class="ptitle">销售员减负</div><div class="pdesc">记忆从工作流自动产生，不靠人填表；销售只做"确认发送"和"决策闸门"。</div></div>' +
+      '</div>' },
+  ];
+  addMessages(steps);
+}
+
+/* ============ 三大支柱 ============ */
+function demoPillars() {
+  var steps = [
+    { type: 'bot', content: '<div class="feature-banner"><span class="ico">🧭</span><div><div class="txt">三大支柱｜把"本质差异"翻译成销售能感知的三件事</div><div class="sub">智能体为核心 · 越用越聪明 · 销售员减负</div></div></div>' },
+
+    { type: 'bot', content: '<div class="text"><span class="tag cyan">支柱一</span> <strong>智能体为核心</strong></div><div class="flow-step"><div class="step-num">①</div><div class="content"><div class="who">传统 CRM</div><div class="action">以"表单 / 字段"为核心，人先填表系统才有数据</div><div class="result">销售 80% 精力在维护系统，而非做业务</div></div></div><div class="flow-step"><div class="step-num">②</div><div class="content"><div class="who">AI 原生 CRM</div><div class="action">以"智能体"为核心：统一对话入口接收一切商机，Agent 自动接诊、分级、建档、出单</div><div class="result">人从"维护系统"变成"定规矩、把关口"</div></div></div><div class="mini">对应机制：统一入口 + 客户记忆层 + 专家 Agent + 经理驾驶舱（HITL 决策闸门不代批）。</div>' },
+
+    { type: 'bot', content: '<div class="text"><span class="tag green">支柱二</span> <strong>越用越聪明</strong></div><div class="lane-flow">' +
+      '<div class="lane-step hit"><div class="st-agent">记忆</div><div class="st-name">捕获判断</div><div class="st-detail">自动记"为什么"</div></div>' +
+      '<div class="lane-step hit"><div class="st-agent">连接</div><div class="st-name">引用先例</div><div class="st-detail">决策成网</div></div>' +
+      '<div class="lane-step hit"><div class="st-agent">治理</div><div class="st-name">提炼经验</div><div class="st-detail">流水→先例</div></div>' +
+      '<div class="lane-step hit"><div class="st-agent">聪明</div><div class="st-name">边界更准</div><div class="st-detail">越用越有把握</div></div>' +
+      '</div><div class="text">每次判断都沉淀成新先例：这个例外为什么能被批准、当时满足什么条件、谁拍的板，下次相似情形直接参照。<strong>AI 越用越聪明，决策背景不随人走。</strong></div>' },
+
+    { type: 'bot', content: '<div class="text"><span class="tag amber">支柱三</span> <strong>销售员减负</strong></div><div class="compare-table"><table class="compare-table">' +
+      '<tr><th>环节</th><th>传统 CRM（人做）</th><th>AI 原生 CRM（Agent 做）</th></tr>' +
+      '<tr><td>建档</td><td>手动建客户、填字段</td><td>对话自动捕获建档，零填表</td></tr>' +
+      '<tr><td>跟进</td><td>自己写跟进记录</td><td>自动生成跟进提醒与草稿</td></tr>' +
+      '<tr><td>报价</td><td>翻历史、算毛利</td><td>调用记忆出单，经理抽检</td></tr>' +
+      '<tr><td>决策</td><td>全程人肉推进</td><td>人只把守"决策闸门"</td></tr>' +
+      '</table></div><div class="highlight-box" style="border-left-color:var(--accent-amber)"><div class="quote" style="color:var(--accent-amber);font-style:normal">记忆生命周期治理：记全（自动捕获、不靠人填）→ 连起来（引用关系）→ 治理（分层存放、写前过滤、定期提炼）。记忆不是越堆越多，而是越用越精。</div></div>' },
+
+    { type: 'user', content: '<div class="text">📋 一句话总结这三支柱？</div>' },
+    { type: 'bot', content: '<div class="stats-row"><div class="stat-card"><div class="val" style="font-size:14px">🤖</div><div class="lbl">智能体为核心<br>系统围着 Agent 转</div></div><div class="stat-card"><div class="val" style="font-size:14px">📈</div><div class="lbl">越用越聪明<br>判断沉淀成先例</div></div><div class="stat-card"><div class="val" style="font-size:14px">🪶</div><div class="lbl">销售员减负<br>零填表·只把关口</div></div><div class="stat-card"><div class="val" style="font-size:14px;color:var(--accent-green)">✓</div><div class="lbl">本质差异<br>记"为什么"而非"什么"</div></div></div><div class="mini">下一页用一个场景，把三支柱连起来看一次。</div>' },
+  ];
+  addMessages(steps);
+}
+
+/* ============ 一个场景演示 ============ */
+function demoScenario() {
+  var steps = [
+    { type: 'bot', content: '<div class="feature-banner"><span class="ico">🎬</span><div><div class="txt">一个场景｜新客咨询 + 老客复购，看三支柱如何落地</div><div class="sub">零填表接诊（减负）→ 调用记忆出单（越用越聪明）→ 经理只把关口</div></div></div>' },
+
+    { type: 'user', content: '<div class="text">📋 客户微信（统一对话入口）：<br>「王总，想印批宣传册，2000 本，铜版纸，A4 对折，这周能报价吗？」</div>' },
+
+    { type: 'bot', content: '<div class="text">🧠 <strong>智能体为核心</strong> · 接诊 + 建档（零填表）</div><div class="lane-flow">' +
+      '<div class="lane-step hit"><div class="st-agent">入口</div><div class="st-name">微信接入</div><div class="st-detail">原文捕获</div></div>' +
+      '<div class="lane-step hit"><div class="st-agent">接诊</div><div class="st-name">分级 minor</div><div class="st-detail">标准化咨询</div></div>' +
+      '<div class="lane-step hit"><div class="st-agent">记忆</div><div class="st-name">自动建档</div><div class="st-detail">不追问不填表</div></div>' +
+      '<div class="lane-step hit"><div class="st-agent">提醒</div><div class="st-name">待发送</div><div class="st-detail">草稿已备</div></div>' +
+      '</div><div class="mini">销售从头到尾没填一个字段——只做"确认发送"。这就是<strong>销售员减负</strong>。</div>' },
+
+    { type: 'user', content: '<div class="text">📋 一周后，同一客户（或老客户）再来：<br>「上次那套系统不错，加一套，配置不变，按上次价走。」</div>' },
+
+    { type: 'bot', content: '<div class="text">📈 <strong>越用越聪明</strong> · 调用上周记忆自动出单</div><div class="flow-step"><div class="step-num">①</div><div class="content"><div class="who">记忆层命中</div><div class="action">识别"同一客户 + 复购 + 配置不变"，自动关联上周建档的记忆颗粒</div><div class="result">无需重新问需求</div></div></div><div class="flow-step"><div class="step-num">②</div><div class="content"><div class="who">专家 Agent 出单</div><div class="action">复用历史方案与报价，仅更新数量，秒级出单</div><div class="result">经理抽检 1 道即通过</div></div></div><div class="flow-step"><div class="step-num">③</div><div class="content"><div class="who">记忆增强</div><div class="action">本次"复购成功"回灌记忆——下次更准</div><div class="result">飞轮转一圈</div></div></div>' },
+
+    { type: 'bot', content: '<div class="highlight-box" style="border-left-color:var(--accent-green)"><div class="quote" style="color:var(--accent-green);font-style:normal;font-size:13px">同一个客户第二次来，系统已经"记得"上次为什么这么报、客户要什么——这正是传统 CRM 做不到的"记为什么"。<br>一次判断沉淀成先例，飞轮转起来，<strong>越用越聪明</strong>。</div></div>' },
+
+    { type: 'user', content: '<div class="text">📋 那重大非标大单呢？</div>' },
+    { type: 'bot', content: '<div class="text">重大单（非标 / 投标 / 战略客户）走同一条链路，但节奏不同：Agent 全链执行方案与报价，<strong>经理把守两道决策闸门</strong>（方案评审 + 终审提交），AI 不代批。人只管"拍板"，系统管"记住怎么拍的"。<br><span class="mini">更深的平台机制见详版材料（AI 原生销售管理平台介绍 · PPTX）。本次交流先记住三支柱即可。</span></div>' },
+  ];
+  addMessages(steps);
+}
+
+/* ============ 信息收集 · 生成纪要 ============ */
+function generateSummary() {
+  function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
+  function chk(id) { var e = document.getElementById(id); return e && e.checked; }
+  function chkList(ids) {
+    var out = [];
+    ids.forEach(function(i){ if (chk(i.id)) out.push(i.label); });
+    return out.length ? out.join('、') : '（未选）';
+  }
+  var opp = chkList([{id:'c_opp_new',label:'新客开发'},{id:'c_opp_rep',label:'老客复购'},{id:'c_opp_bid',label:'投标大单'},{id:'c_opp_svc',label:'服务续约'},{id:'c_opp_lost',label:'丢单终局'}]);
+  var src = chkList([{id:'c_src_wx',label:'微信'},{id:'c_src_tel',label:'电话'},{id:'c_src_mail',label:'邮件'},{id:'c_src_mt',label:'会议/拜访'},{id:'c_src_erp',label:'ERP/订单'},{id:'c_src_xls',label:'Excel'},{id:'c_src_paper',label:'纸质/合同'}]);
+
+  var s = '';
+  s += '【第一次交流纪要 · AI 原生 CRM 前期沟通】\n';
+  s += '生成时间：' + new Date().toLocaleString('zh-CN') + '\n\n';
+  s += '— 0 客户与行业背景 —\n';
+  s += '客户/行业：' + (val('c_customer') || '（待填）') + '\n';
+  s += '销售模式：' + (val('c_mode') || '（待填）') + '\n\n';
+  s += '— 1 业务如何分类 —\n';
+  s += '客户分类维度：' + (val('c_custcat') || '（待填）') + '\n';
+  s += '产品/业务线：' + (val('c_prodcat') || '（待填）') + '\n';
+  s += '商机类型：' + opp + '\n';
+  s += '标准化程度：' + (val('c_std') || '（待填）') + '\n\n';
+  s += '— 2 业务体量与人员负荷 —\n';
+  s += '月商机量：' + (val('c_vol') || '（待填）') + '\n';
+  s += '销售人数：' + (val('c_head') || '（待填）') + '\n';
+  s += '人均日处理：' + (val('c_perhead') || '（待填）') + '\n';
+  s += '漏接诊/超时：' + (val('c_leak') || '（待填）') + '\n';
+  s += '报价/跟单耗时：' + (val('c_cycle') || '（待填）') + '\n';
+  s += '主要瓶颈：' + (val('c_bottleneck') || '（待填）') + '\n\n';
+  s += '— 3 目前主要信息来源 —\n';
+  s += '信息渠道：' + src + '\n';
+  s += '信息存放地：' + (val('c_where') || '（待填）') + '\n';
+  s += '关键决策依据：' + (val('c_whodecide') || '（待填）') + '\n\n';
+  s += '— 4 现有系统使用情况 —\n';
+  s += '在用系统：' + (val('c_sys') || '（待填）') + '\n';
+  s += '使用状况：' + (val('c_sysuse') || '（待填）') + '\n';
+  s += '销售拒填：' + (val('c_reject') || '（待填）') + '\n';
+  s += '已结构化 vs 人口中：' + (val('c_struct') || '（待填）') + '\n';
+  s += '痛点 Top3：' + (val('c_pain') || '（待填）') + '\n\n';
+  s += '— 初步判断（顾问填写） —\n';
+  s += '记忆缺口类型（关系缺失/语义漂移/版本失察/决策历史不可见/运行态脱节）：\n';
+  s += '七维基线初评（0-21 分）：\n';
+  s += '下一步：进入蓝图设计，定义记忆契约与自动捕获点。\n';
+
+  var box = document.getElementById('summaryBox');
+  box.textContent = s;
+  box.classList.add('show');
+}
+
+function copySummary() {
+  var box = document.getElementById('summaryBox');
+  if (!box.classList.contains('show') || !box.textContent.trim()) {
+    alert('请先点「生成交流纪要」');
+    return;
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(box.textContent).then(function(){ alert('纪要已复制到剪贴板'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = box.textContent; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); alert('纪要已复制'); } catch(e) { alert('复制失败，请手动选择'); }
+    document.body.removeChild(ta);
+  }
+}
+
+// ===================== INIT =====================
+later(function() { demoEssence(); }, 200);
+</script>
+</body>
+</html>

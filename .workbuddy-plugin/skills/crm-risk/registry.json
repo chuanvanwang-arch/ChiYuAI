@@ -1,0 +1,13 @@
+{
+  "name": "crm-risk",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "CRM 链断裂/异常检测技能——商机→技术方案>30天 / 赢单前无方案 / 回款逾期 / 阶段异常，常驻探测+SSE 主动预警",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "crm-risk",
+  "read_only": true,
+  "proactive_scan": true,
+  "rbac_roles": ["sales", "manager", "presales", "exec", "finance"],
+  "enabled": true
+}

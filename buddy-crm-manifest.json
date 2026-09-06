@@ -1,0 +1,81 @@
+{
+  "app": {
+    "appId": "<开放平台自动生成>",
+    "name": "CRM 销售智能工作台",
+    "intro": "AI 原生销售管理垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。",
+    "icon": "assets/app-icon.svg",
+    "oauth": { "scopes": [], "callback": "", "origins": ["localhost:3000"] }
+  },
+  "home": {
+    "slogan": "你的 AI 原生销售管理伙伴，打开即进入行业专属工作台",
+    "workModes": [
+      {
+        "id": "sales",
+        "name": "销售智能坐席",
+        "systemPrompt": "你是 CRM 销售智能工作台 AI，遵循 DSM 销售方法论与 K-M-D 决策架构；写操作必须走确认/审批闸门；报价必须走 CRM_APPROVAL_FLOW；off-system 私下报价红线必须主动提醒。",
+        "skills": ["crm-native", "crm-query", "crm-risk"]
+      }
+    ],
+    "capsules": {
+      "客户洞察": [
+        { "label": "360 视图", "action": "crm-account-360" },
+        { "label": "重点客户", "action": "method-funnel-classification" },
+        { "label": "客户调研", "action": "method-intake-routing" },
+        { "label": "客户任务线", "action": "crm-account-360" }
+      ],
+      "商机推进": [
+        { "label": "管道看板", "action": "crm-deal-advance" },
+        { "label": "阶段评估", "action": "method-stage-progression" },
+        { "label": "漏斗分类", "action": "method-funnel-classification" },
+        { "label": "商机复盘", "action": "decision-retrospective" }
+      ],
+      "报价折扣": [
+        { "label": "报价生成", "action": "method-quote-engine" },
+        { "label": "折扣策略", "action": "method-quote-engine" },
+        { "label": "价目表", "action": "crm-account-360" },
+        { "label": "折扣审批", "action": "method-review-gate" }
+      ],
+      "决策审批": [
+        { "label": "审批流", "action": "method-review-gate" },
+        { "label": "复核闸门", "action": "method-review-gate" },
+        { "label": "决策追溯", "action": "method-decision-enrich" },
+        { "label": "根因分析", "action": "decision-retrospective" }
+      ],
+      "业绩治理": [
+        { "label": "销售监控", "action": "method-followup-engine" },
+        { "label": "决策监控", "action": "method-decision-enrich" },
+        { "label": "校准指标", "action": "method-behavior-standard" },
+        { "label": "团队看板", "action": "crm-account-360" }
+      ],
+      "平台管理": [
+        { "label": "行业上线", "action": "method-intake-routing" },
+        { "label": "RBAC", "action": "user-rbac-admin" },
+        { "label": "计费套餐", "action": "crm-account-360" },
+        { "label": "技能开关", "action": "method-intake-routing" }
+      ]
+    },
+    "connectors": ["crm-native-mcp"]
+  },
+  "market": {
+    "experts": ["CRM 决策专家", "DSM 销售方法论专家"],
+    "skills": [
+      "crm-native", "crm-query", "crm-risk",
+      "method-stage-progression", "method-funnel-classification", "method-followup-engine",
+      "method-behavior-standard", "method-quote-engine", "method-review-gate",
+      "method-intake-routing", "method-decision-enrich", "method-decision-execute",
+      "decision-retrospective", "user-rbac-admin"
+    ],
+    "connectors": ["crm-native-mcp"],
+    "cases": ["报价审批红线", "B 新能源口头预算教训"]
+  },
+  "others": {
+    "skipBind": false,
+    "bindText": "绑定后，即可获取 CRM 销售智能工作台专业能力",
+    "placeholder": {
+      "zh": "试试：查看客户 360 视图、推进商机、生成报价，或咨询销售决策",
+      "en": "Try: view customer 360, advance a deal, generate a quote, or ask sales decisions"
+    },
+    "models": { "default": "deepseek-v3.1", "pool": ["deepseek-v3.1"] }
+  },
+  "preview": { "url": "" }
+}

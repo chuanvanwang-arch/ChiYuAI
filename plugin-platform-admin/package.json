@@ -1,0 +1,19 @@
+{
+  "name": "@chuanvanwang-arch/crm-platform-admin",
+  "version": "1.1.0",
+  "type": "module",
+  "description": "AI-native sales platform admin assistant — industry onboarding, user & RBAC provisioning, system bootstrap",
+  "author": "CRM-ai-native <chuan.van.wang@gmail.com>",
+  "license": "MIT",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24-beta.2"
+    }
+  }
+}

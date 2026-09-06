@@ -1,0 +1,13 @@
+{
+  "name": "crm-query",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "CRM 跨模块推理查询技能——粒子图/AGE多跳/pgvector语义/决策网络先例检索，一句话返回结构化商机/客户/回款结果",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "crm-query",
+  "read_only": true,
+  "channels": ["mcp-read", "api-read"],
+  "rbac_roles": ["sales", "manager", "presales", "exec", "finance"],
+  "enabled": true
+}

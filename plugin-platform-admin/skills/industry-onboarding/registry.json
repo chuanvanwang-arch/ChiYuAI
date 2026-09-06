@@ -1,0 +1,12 @@
+{
+  "name": "industry-onboarding",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "在 CRM-ai-native 平台新增一个行业租户的标准上线 Runbook：tenant-profile 配置画像 + per-tenant 隔离 + 初始销售员账号交付，零代码零污染。仅 sysadmin 角色可执。",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "industry-onboarding",
+  "sub_skills": [],
+  "rbac_roles": ["sysadmin"],
+  "enabled": true
+}

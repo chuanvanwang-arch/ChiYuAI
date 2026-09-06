@@ -1,0 +1,67 @@
+{
+  "name": "crm-platform-admin",
+  "version": "1.1.0",
+  "description": "AI 原生销售平台管理助手——面向平台管理员 / sysadmin 的治理插件。覆盖行业租户上线（tenant-profile 配置化）、用户与 RBAC 权限新增、系统初始化（数据库迁移 + 种子 + 配置引导）三大平台治理面。继承 CRM-ai-native 同一套红线：绝对禁 DELETE、写必经决策第 0 闸、per-tenant 隔离、零信任。",
+  "author": {
+    "name": "CRM-ai-native",
+    "email": "chuan.van.wang@gmail.com"
+  },
+  "agents": [
+    "./agents/platform-admin.md"
+  ],
+  "skills": [
+    "./skills/industry-onboarding",
+    "./skills/user-rbac-admin",
+    "./skills/system-bootstrap",
+    "./skills/platform-ops-insight"
+  ],
+  "expertType": "agent",
+  "agentName": "platform-admin",
+  "displayName": {
+    "en": "CRM Platform Admin",
+    "zh": "CRM 平台管理助手"
+  },
+  "profession": {
+    "en": "AI-Native Sales Platform Admin Assistant",
+    "zh": "AI 原生销售平台管理助手"
+  },
+  "displayDescription": {
+    "en": "Platform-governance assistant for CRM-ai-native: onboard new industry tenants via config profile, provision users and RBAC permissions, and bootstrap system initialization. Zero-trust, no-delete, decision-gated.",
+    "zh": "平台治理助手：配置化上线行业租户、开通用户与权限、执行系统初始化。零信任禁删、决策第 0 闸。"
+  },
+  "avatar": "avatars/platform-admin.png",
+  "categoryId": "07-SalesCommerce",
+  "defaultInitPrompt": {
+    "zh": "帮我新增一个行业租户",
+    "en": "Onboard a new industry tenant"
+  },
+  "plugin": "crm-platform-admin",
+  "tags": [
+    {
+      "en": "Tenant Onboarding",
+      "zh": "行业租户上线"
+    },
+    {
+      "en": "RBAC & Users",
+      "zh": "用户与权限"
+    },
+    {
+      "en": "System Bootstrap",
+      "zh": "系统初始化"
+    }
+  ],
+  "quickPrompts": [
+    {
+      "en": "Onboard a new industry tenant",
+      "zh": "帮我新增一个行业租户"
+    },
+    {
+      "en": "Create a sales user and assign RBAC",
+      "zh": "新增一个销售员并配置权限"
+    },
+    {
+      "en": "Run system initialization / bootstrap",
+      "zh": "执行系统初始化"
+    }
+  ]
+}

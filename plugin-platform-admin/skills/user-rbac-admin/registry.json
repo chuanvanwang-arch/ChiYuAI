@@ -1,0 +1,12 @@
+{
+  "name": "user-rbac-admin",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "平台管理员视角的用户与 RBAC 权限治理 Runbook：新增用户（crm.crm_users，crypt 哈希，禁删，首登改密）+ 配置 RBAC 矩阵（crm.rbac 角色×data_scope，禁 delete）。仅 sysadmin 角色可执。",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "user-rbac-admin",
+  "sub_skills": [],
+  "rbac_roles": ["sysadmin"],
+  "enabled": true
+}

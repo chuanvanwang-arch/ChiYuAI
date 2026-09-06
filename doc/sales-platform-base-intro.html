@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 原生销售平台 · 简单介绍（WorkBuddy 专家包）</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0e14; --bg2:#13161e; --card:#161a24; --card2:#1a1f2b;
+    --line:#232838; --line2:#2c3346;
+    --t1:#eef1f6; --t2:#a4abbd; --t3:#666d80;
+    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#f87171; --purple:#a78bfa;
+    --r:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Noto Sans SC',-apple-system,'Microsoft YaHei',sans-serif;background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px 80px}
+  .center{text-align:center}
+
+  /* HERO */
+  .hero{padding:76px 0 54px;text-align:center;background:radial-gradient(900px 360px at 50% -40px,rgba(34,211,238,.10),transparent 70%)}
+  .kicker{display:inline-block;font-size:12px;letter-spacing:3px;color:var(--cyan);font-weight:600;border:1px solid var(--line2);border-radius:999px;padding:6px 16px}
+  .hero h1{font-size:46px;font-weight:900;margin:22px 0 8px;letter-spacing:-.5px}
+  .hero h1 .hl{color:var(--cyan)}
+  .hero .lead{font-size:17px;color:var(--t2);max-width:660px;margin:14px auto 0}
+  .hero .lead b{color:var(--t1);font-weight:600}
+  .cta{display:inline-flex;align-items:center;gap:8px;margin-top:30px;background:var(--cyan);color:#04141a;font-weight:700;font-size:15px;padding:13px 26px;border-radius:12px;text-decoration:none;transition:.2s}
+  .cta:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(34,211,238,.25)}
+  .cta.ghost{background:transparent;color:var(--cyan);border:1px solid var(--line2)}
+
+  /* SECTION */
+  .sec{padding:54px 0 8px}
+  .sec .eyebrow{font-size:12px;letter-spacing:2px;color:var(--t3);font-weight:600;text-transform:uppercase}
+  .sec h2{font-size:28px;font-weight:800;margin:8px 0 6px}
+  .sec .sub{color:var(--t2);font-size:15px;max-width:620px}
+  .center .sub{margin:6px auto 0}
+
+  /* 3 不用 */
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}
+  .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:30px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;transition:.2s}
+  .card:hover{border-color:var(--line2);transform:translateY(-3px)}
+  .card .ic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px}
+  .card h3{font-size:17px;font-weight:700;margin-bottom:8px}
+  .card p{font-size:13.5px;color:var(--t2);line-height:1.65}
+  .card .n{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--t3);margin-bottom:6px}
+
+  /* 三大亮点 */
+  .hlcard{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:28px;position:relative;overflow:hidden}
+  .hlcard::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--ac)}
+  .hlcard .tag{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--ac);margin-bottom:10px}
+  .hlcard h3{font-size:20px;font-weight:800;margin-bottom:10px}
+  .hlcard p{font-size:14px;color:var(--t2)}
+  .hlcard ul{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .hlcard li{font-size:13px;color:var(--t1);padding-left:20px;position:relative}
+  .hlcard li::before{content:"✓";position:absolute;left:0;color:var(--ac);font-weight:700}
+  .ac-cyan{--ac:var(--cyan)} .ac-green{--ac:var(--green)} .ac-amber{--ac:var(--amber)}
+
+  /* 三步 */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:34px;counter-reset:s}
+  .step{padding:26px 22px;border:1px solid var(--line);border-right:none;background:var(--card)}
+  .step:last-child{border-right:1px solid var(--line);border-radius:0 var(--r) var(--r) 0}
+  .step:first-child{border-radius:var(--r) 0 0 var(--r)}
+  .step .num{counter-increment:s;width:40px;height:40px;border-radius:50%;background:var(--bg2);border:1px solid var(--line2);color:var(--cyan);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:14px}
+  .step .num::before{content:counter(s)}
+  .step h4{font-size:16px;font-weight:700;margin-bottom:6px}
+  .step p{font-size:13px;color:var(--t2)}
+
+  /* 案例 */
+  .cases{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}
+  .case{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .case .t{font-size:11px;font-weight:700;color:var(--green);letter-spacing:.5px;margin-bottom:8px}
+  .case .d{font-size:13.5px;color:var(--t1);line-height:1.6}
+  .case .d b{color:var(--cyan)}
+
+  /* 价值对比条 */
+  .bar{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:26px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .bar .pill{font-size:13px;font-weight:600;padding:8px 16px;border-radius:999px}
+  .bar .pill.no{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+  .bar .pill.yes{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+  .bar .arr{color:var(--t3);font-size:20px}
+
+  /* 收尾 CTA */
+  .final{margin-top:60px;text-align:center;background:radial-gradient(700px 300px at 50% 0,rgba(52,211,153,.10),transparent 70%);border:1px solid var(--line);border-radius:20px;padding:46px 28px}
+  .final h2{font-size:26px;font-weight:800}
+  .final p{color:var(--t2);margin:12px auto 0;max-width:560px;font-size:15px}
+  .foot{text-align:center;color:var(--t3);font-size:12px;margin-top:48px;line-height:1.8}
+
+  @media(max-width:760px){
+    .hero h1{font-size:34px}
+    .g3,.g2,.cases,.steps{grid-template-columns:1fr}
+    .step{border-right:1px solid var(--line);border-radius:var(--r)!important}
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="wrap">
+    <span class="kicker">AI 原生销售平台 · WORKBUDDY 专家包</span>
+    <h1>销售，本来就该<span class="hl">这么简单</span></h1>
+    <p class="lead">在 WorkBuddy 里直接对话，专家替你跑报价、跟单、控风险。<br>
+    <b>不用学系统，不用填表，越用越聪明</b>——把时间还给真正的成交。</p>
+    <a class="cta" href="#how">3 步上手 →</a>
+    <a class="cta ghost" href="#value">看看价值</a>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- 为什么简单 -->
+  <section class="sec center" id="why">
+    <div class="eyebrow">WHY SO SIMPLE</div>
+    <h2>简单到，没有"系统感"</h2>
+    <p class="sub">传统 CRM 要人去适应软件；AI 原生平台，让软件来适应你。</p>
+    <div class="g3">
+      <div class="card">
+        <div class="ic" style="background:rgba(34,211,238,.12);color:var(--cyan)">💬</div>
+        <div class="n">NO.1</div>
+        <h3>不用学系统</h3>
+        <p>没有菜单、没有表单树。对话就是唯一的入口——你想说什么就说什么。</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:rgba(52,211,153,.12);color:var(--green)">📝</div>
+        <div class="n">NO.2</div>
+        <h3>不用填表</h3>
+        <p>客户信息、承诺、偏好全部"谈完即沉淀"，一个字都不用你录。</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:rgba(251,191,36,.12);color:var(--amber)">🧭</div>
+        <div class="n">NO.3</div>
+        <h3>不用记流程</h3>
+        <p>7 大销售决策方法论已内置，该问什么、怎么判断，专家替你想清楚。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 三大亮点 -->
+  <section class="sec" id="value">
+    <div class="eyebrow">HIGHLIGHTS</div>
+    <h2>三个亮点，把"经验"变成"系统能力"</h2>
+    <p class="sub">不是又一个 CRM，而是一支住进 WorkBuddy 的销售专家团队。</p>
+    <div class="g3">
+      <div class="hlcard ac-cyan">
+        <div class="tag">亮点 01 · 智能体为核心</div>
+        <h3>多智能体，各管一摊</h3>
+        <p>接诊、报价、跟进、评审各有专职智能体，按商机大小自动派活。</p>
+        <ul>
+          <li>小单全自动跑，大单专家把关</li>
+          <li>谁在干活、卡在哪，一目了然</li>
+          <li>你只做"指挥"，不做"录入"</li>
+        </ul>
+      </div>
+      <div class="hlcard ac-green">
+        <div class="tag">亮点 02 · 客户记忆层</div>
+        <h3>越用越聪明</h3>
+        <p>对话即捕获，记忆自动入库。老客户说"上次那套系统再来一套"，直接出单。</p>
+        <ul>
+          <li>零填表，需求/承诺自动沉淀</li>
+          <li>复购调记忆秒级出单</li>
+          <li>人走，经验不走</li>
+        </ul>
+      </div>
+      <div class="hlcard ac-amber">
+        <div class="tag">亮点 03 · 决策 + 预警</div>
+        <h3>方法论 + 风险先报</h3>
+        <p>7 大决策有章法，风险不等你问先报——交期、回款、链断裂主动预警。</p>
+        <ul>
+          <li>线索/报价/签单，专家给方法</li>
+          <li>风险先于提问，事故前拦截</li>
+          <li>每次判断留痕，可复盘</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 三步上手 -->
+  <section class="sec" id="how">
+    <div class="eyebrow">GET STARTED</div>
+    <h2>三步上手，当天开单</h2>
+    <p class="sub">装好专家包，剩下的交给对话。</p>
+    <div class="steps">
+      <div class="step">
+        <div class="num"></div>
+        <h4>① 召唤</h4>
+        <p>在 WorkBuddy 技能市场一键装上「AI 原生销售管理助手」。</p>
+      </div>
+      <div class="step">
+        <div class="num"></div>
+        <h4>② 说话</h4>
+        <p>把客户需求、要报的价、要跟的进、要复的盘，直接说出来。</p>
+      </div>
+      <div class="step">
+        <div class="num"></div>
+        <h4>③ 收工</h4>
+        <p>专家给方案+数据，记忆自动入库，风险自动预警——你去谈下一单。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 真实印证 -->
+  <section class="sec" id="proof">
+    <div class="eyebrow">REAL CASES · B2B 销售</div>
+    <h2>真实业务，已经这么跑了</h2>
+    <p class="sub">案例全部来自真实业务文档，不是演示话术。</p>
+    <div class="cases">
+      <div class="case">
+        <div class="t">系统报价</div>
+        <div class="d">一句话报出 <b>两套方案</b>（经济型 / 商务版），成本结构、毛利底线<b>全透视</b>。</div>
+      </div>
+      <div class="case">
+        <div class="t">需求补全</div>
+        <div class="d">客户一段口语需求，自动<b>补齐 8 项必填缺失</b>，直接转方案/报价。</div>
+      </div>
+      <div class="case">
+        <div class="t">订单复盘</div>
+        <div class="d">年度采购成交 <b>¥12.6 万</b>，复盘教训变 SOP，<b>复购转化</b>自动排程。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 价值对比 -->
+  <section class="sec" id="compare">
+    <div class="eyebrow">THE SHIFT</div>
+    <h2>从"填表员"到"指挥员"</h2>
+    <div class="bar">
+      <span class="pill no">✕ 补录 8 张表单</span>
+      <span class="pill no">✕ 报价靠拍脑袋</span>
+      <span class="pill no">✕ 风险等出事才知道</span>
+      <span class="arr">→</span>
+      <span class="pill yes">✓ 对话即沉淀</span>
+      <span class="pill yes">✓ 专家给数据</span>
+      <span class="pill yes">✓ 风险先预警</span>
+    </div>
+  </section>
+
+  <!-- 收尾 -->
+  <div class="final">
+    <h2>在 WorkBuddy 里，一句话开始你的第一单</h2>
+    <p>不需要培训，不需要实施周期。装上专家包，把客户的需求说出来，剩下的专家替你跑。</p>
+    <a class="cta" href="#why" style="margin-top:24px">立即体验 →</a>
+  </div>
+
+  <div class="foot">
+    AI 原生销售管理助手 · WorkBuddy 技能市场一键召唤<br>
+    案例来自真实 B2B 销售业务文档（系统报价 · CRM 需求 · 订单复盘）
+  </div>
+
+</div>
+</body>
+</html>

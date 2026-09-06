@@ -1,0 +1,115 @@
+node_modules/
+.npm-cache/
+dist/
+*.tgz
+*.log
+.env
+# 云端部署凭据（含数据库密码，切勿提交）：scripts/tencent-lighthouse-deploy/.env.server
+.env.server
+*.pwd
+
+# 外部参考源码（仅借鉴机制，非本项目源码）
+CordysCRM-main/
+
+# 打包产物 / 二进制
+*.zip
+
+# 临时与脚本产物
+tmp/
+.playwright-cli/
+agent-config.png
+
+# 内置插件缓存（非源码）
+.workbuddy/plugins/cache/
+
+# 工作记忆（会话内部信息，不入库）
+.workbuddy/memory/
+
+# 会话运行态（技能实例/临时文件，不入库）
+.workbuddy/skills/
+.workbuddy/tmp/
+.workbuddy/mcp.json
+
+# 会话临时产物（brainstorm 预览/PID，不入库）
+.superpowers/
+
+# 会话验证快照/探针（不入库）
+tmp_verify/
+tmp_home_*.json
+tmp_probe.mjs
+_seed_verify.mjs
+tmp_agent_query.mjs
+tmp-test.mjs
+*.yaml
+
+# 冒烟/探针运行态输出（非源码，不入库）
+scripts/_smoke_*_out.txt
+
+# UI 验证截图（before/after/final-*.png，会话验证产物不入库）
+/*.png
+
+# 非结构化证据落盘目录（运行态文件本体，DB 只存元数据，不入库）
+uploads/
+
+# 调试探针/会话临时文件
+cookies.txt
+tmp-module-check.mjs
+tmp_apply_patch.mjs
+tmp_fix_qingyu.mjs
+tmp_probe_*.mjs
+tmp_*.mjs
+
+# ===== 2026-09-03 盘点排除：一次性探活/调试脚本（ad-hoc，无长期价值，非源码） =====
+_q_tasks.mjs
+check-decision.mjs
+check-decision2.mjs
+check-decision3.mjs
+find-vn.mjs
+verify-decision-fix.mjs
+scripts-qa/sim-decisions.mjs
+scripts-qa/t3-event-link-e2e.mjs
+scripts/audit-write-gate-coverage.mjs
+scripts/e2e-agent-trail-test.mjs
+scripts/e2e-decision-deep-test.mjs
+scripts/e2e-deep-probe.mjs
+scripts/e2e-deep-probe2.mjs
+scripts/e2e-deep-probe3.mjs
+scripts/probe-scenarios-t5.mjs
+
+# ===== 含真实客户 PII 的探活载荷（绝不可入库！含 c-medical 客户数据） =====
+create-quote-c-medical.mjs
+memory-c-medical*.mjs
+patch-c-medical*.json
+patch-visit-c-medical.json
+register-c-medical.mjs
+register-deal-importbatch.mjs
+
+# ===== 会话测试报告制品（HTML/JSON dump，运行态产物） =====
+docs/2026-09-02-decision-e2e-deep-test-report.html
+scripts-qa/e2e-agent-trail-results.json
+scripts-qa/e2e-deep-results.json
+
+# ===== 2026-09-04 夜间例行：根目录一次性探针/调试脚本（ad-hoc，无长期价值） =====
+# 探测类：_*.mjs / probe-*.mjs / _probe_*.mjs
+_*.mjs
+probe-*.mjs
+scripts/_probe_*.mjs
+# 数据迁移一次性工具（gh/abc 导入导出，完成即弃）
+dump-*.mjs
+enrich-*.mjs
+load-gh-*.mjs
+migrate-gh-*.mjs
+register-gh-*.mjs
+verify-gh-*.mjs
+verify-abc.mjs
+exec-abc.mjs
+repro-*.mjs
+# 一次性种子脚本（lin 销售线探活）
+seed-lin-*.mjs
+submit-quote-approval-c-medical.mjs
+sign-c-medical-contracts.mjs
+# 会话备份/产物目录
+artifacts/
+.workbuddy/backups/
+# 部署辅助产物
+scripts/tencent-lighthouse-deploy/__pycache__/

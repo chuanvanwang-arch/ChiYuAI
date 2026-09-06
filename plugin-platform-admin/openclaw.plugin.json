@@ -1,0 +1,17 @@
+{
+  "id": "crm-platform-admin",
+  "name": "CRM Platform Admin",
+  "description": "AI-native sales platform governance assistant: industry tenant onboarding (config profile), user & RBAC provisioning, system bootstrap. Inherits CRM-ai-native red lines: no-delete, decision-gated writes, per-tenant isolation, zero-trust.",
+  "version": "1.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "skills": [
+    "skills/industry-onboarding",
+    "skills/user-rbac-admin",
+    "skills/system-bootstrap",
+    "skills/platform-ops-insight"
+  ]
+}

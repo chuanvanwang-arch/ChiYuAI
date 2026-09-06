@@ -1,0 +1,12 @@
+{
+  "name": "system-bootstrap",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "CRM-ai-native 系统初始化 Runbook：数据库幂等迁移 + 种子 UPSERT + 配置引导 + 注册 sysadmin 角色 + 校验清单。仅 sysadmin 角色可执。",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "system-bootstrap",
+  "sub_skills": [],
+  "rbac_roles": ["sysadmin"],
+  "enabled": true
+}

@@ -1,0 +1,12 @@
+{
+  "methodology_id": "STOP_LOSS",
+  "name": "止损点方法论",
+  "role": "exec",
+  "dimensions": [
+    {"dim_key":"NV","label":"净投入净值 Net Value","weight":1.0,"required":true,"desc":"累计投入成本（人力/时间/售前资源）vs 赢单预期收益现值，净值转负即危险信号"},
+    {"dim_key":"CB","label":"投入预算上限 Cost Budget","weight":1.0,"required":true,"desc":"商机/项目预设的可投入上限（人天/金额/周期），超过即触发退出门"},
+    {"dim_key":"EG","label":"退出门 Exit Gate","weight":1.0,"required":true,"desc":"明确的退出信号（预算超支/关键里程碑连续未达成/关键决策人离职/信用恶化）"}
+  ],
+  "priority_rule": "前置设定优先：止损阈值必须在投入前设定，不在亏损后讨论；净值转负即有退出义务",
+  "gate_rule": "任一触发信号（NV 转负且无法回升/CB 超支/EG 命中）→ 禁止继续投入，触发退出门审查"
+}
