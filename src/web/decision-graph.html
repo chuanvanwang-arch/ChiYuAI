@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>决策链追溯 · CRM 决策网络</title>
+<style>
+  /* 2026-08-30：删除原 :root 中的自引用重定义（--panel:var(--panel) / --ink:var(--ink) /
+     --line:var(--line) / --bg:var(--panel)）。自引用变量按 CSS 规范为 invalid at
+     computed-value time，会连带让 body{background:var(--bg);color:var(--ink)} 失效、回落浏览器
+     默认白底黑字。--bg/--panel/--ink/--line/--muted 现统一由 tokens.css 提供，页面不再重定义。
+     仅保留本页专有的血缘节点配色。 */
+  /* 决策链血缘与 7 类边配色：全部由 tokens.css 语义 token 派生，禁止硬编码 hex（UI 铁律）。
+     根/上游/下游 = 节点角色；--edge-* = 7 类决策边（与 edgeDimensionSpec 一一对应）。 */
+  :root {
+    --root:var(--ac); --up:var(--ok); --down:var(--warn); --edge:var(--mut);
+    --edge-decided:var(--ac);      /* DECIDED_ON 决定作用于 */
+    --edge-precedent:var(--ok);    /* REFERENCED_PRECEDENT 引用先例 */
+    --edge-caused:var(--err);      /* CAUSED 直接引发 */
+    --edge-influenced:var(--warn); /* INFLUENCED 间接影响 */
+    --edge-derived:var(--rc-edge); /* DERIVED_FROM_EXCEPTION 例外派生（青） */
+    --edge-frame:var(--rc-dim);    /* ESTABLISHES_FRAME 建立框架（蓝） */
+    --edge-overrides:var(--rc-precedent); /* OVERRIDES 覆盖（粉） */
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Microsoft YaHei",sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { margin:0; font-size:18px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  .bar { display:flex; gap:8px; padding:16px 24px; flex-wrap:wrap; align-items:center; }
+  .bar input { padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px; width:300px; }
+  button { padding:8px 14px; border:none; border-radius:8px; background:var(--root); color:#fff; font-size:13px; cursor:pointer; }
+  button.sec { background:var(--panel); color:var(--ink); border:1px solid var(--line); }
+  .legend { display:flex; gap:16px; padding:0 24px 8px; color:var(--muted); font-size:12px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .stage { display:flex; gap:24px; padding:8px 24px 24px; }
+  /* 布局修复：svg 为替换元素，width:100% 在 flex item 未给定基础宽度时会塌回 300px 固有宽度
+     → 决策链图长期挤在 300px 内（下游节点几乎贴边）。令两张卡等分并允许收缩。 */
+  .stage > .rcard { flex:1 1 0; min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow); }
+  @media (max-width: 980px) { .stage { flex-direction: column; } }
+
+  #graph { width:100%; height:340px; display:block; }
+  pre { margin:0; padding:12px 16px; font-size:12px; white-space:pre-wrap; word-break:break-all; }
+  .empty { color:var(--muted); padding:24px; text-align:center; }
+  .audit-body { padding:12px 16px; font-size:12px; }
+  .audit-body .kv { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:6px 16px; margin:0 0 10px; }
+  .audit-body .kv dt { color:var(--mut); font-size:11px; margin-bottom:2px; }
+  .audit-body .kv dd { margin:0; font-weight:500; color:var(--ink); }
+  .audit-body h4 { margin:10px 0 6px; font-size:12px; color:var(--mut); }
+  .audit-body ul { margin:0; padding:0; list-style:none; }
+  .audit-body li { padding:4px 0; border-bottom:1px solid var(--panel); font-size:12px; }
+  .audit-body .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; background:var(--as); color:var(--ac); }
+
+
+  .audit-body table { width:100%; border-collapse:collapse; margin-top:8px; }
+  .audit-body th, .audit-body td { padding:6px 8px; border-bottom:1px solid var(--panel); text-align:left; font-size:12px; }
+  .audit-body th { background:var(--bg); color:var(--mut); font-weight:600; }
+  .audit-body .timeline-item { padding:8px 0 8px 20px; border-left:2px solid var(--line); margin-left:6px; position:relative; font-size:12px; }
+  .audit-body .timeline-item::before { content:''; position:absolute; left:-7px; top:12px; width:12px; height:12px; border-radius:50%; background:var(--ac); border:2px solid var(--panel); }
+  .audit-body .muted { color:var(--mut); }
+  .audit-body .mono { font-family:ui-monospace,monospace; }
+  .audit-body pre { background:var(--ink); color:#fff; padding:10px; border-radius:6px; font-size:11px; max-height:240px; overflow:auto; white-space:pre-wrap; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">决策链追溯 · CRM 决策网络</h1></div></header>
+
+<div class="bar">
+  <crm-input id="decisionId" placeholder="输入决策 decision_id（UUID）" ></crm-input>
+  <crm-button id="btnTrace">追溯因果链</crm-button>
+  <crm-button id="btnImpact" class="sec">影响地图</crm-button>
+  <crm-button id="btnAudit" class="sec">审计导出</crm-button>
+  <crm-button id="btnAnalytics" class="sec">图分析</crm-button>
+</div>
+<div class="legend">
+  <span><i class="dot" style="background:var(--root)"></i>根决策</span>
+  <span><i class="dot" style="background:var(--up)"></i>上游（为什么）</span>
+  <span><i class="dot" style="background:var(--down)"></i>下游（导致了什么）</span>
+</div>
+<div class="legend" style="border-top:1px solid var(--line); padding-top:8px;">
+  <span><i class="dot" style="background:var(--edge-decided)"></i>DECIDED_ON</span>
+  <span><i class="dot" style="background:var(--edge-precedent)"></i>REFERENCED_PRECEDENT</span>
+  <span><i class="dot" style="background:var(--edge-caused)"></i>CAUSED</span>
+  <span><i class="dot" style="background:var(--edge-influenced)"></i>INFLUENCED</span>
+  <span><i class="dot" style="background:var(--edge-derived)"></i>DERIVED_FROM_EXCEPTION</span>
+  <span><i class="dot" style="background:var(--edge-frame)"></i>ESTABLISHES_FRAME</span>
+  <span><i class="dot" style="background:var(--edge-overrides)"></i>OVERRIDES</span>
+</div>
+
+<div class="stage">
+  <div class="rcard">
+    <h2>决策链图</h2>
+    <svg id="graph"><text x="50%" y="50%" text-anchor="middle" fill="var(--mut)">输入 decision_id 后点击「追溯因果链」</text></svg>
+  </div>
+  <div class="rcard">
+    <h2>审计详情（PROV-O）</h2>
+    <div id="audit" class="audit-body">—</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// 节点角色色 + 7 类边色：全部运行时读取 tokens.css 派生变量，禁止硬编码 hex（UI 铁律）
+const CSS_VAR = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || 'var(--mut)';
+const COLORS = {
+  ROOT: CSS_VAR('--root'),
+  UPSTREAM: CSS_VAR('--up'),
+  DOWNSTREAM: CSS_VAR('--down'),
+};
+const EDGE_COLORS = {
+  DECIDED_ON: CSS_VAR('--edge-decided'),
+  REFERENCED_PRECEDENT: CSS_VAR('--edge-precedent'),
+  CAUSED: CSS_VAR('--edge-caused'),
+  INFLUENCED: CSS_VAR('--edge-influenced'),
+  DERIVED_FROM_EXCEPTION: CSS_VAR('--edge-derived'),
+  ESTABLISHES_FRAME: CSS_VAR('--edge-frame'),
+  OVERRIDES: CSS_VAR('--edge-overrides'),
+};
+const _edgeColor = (relType) => EDGE_COLORS[relType] || 'var(--edge)';
+
+const _esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const _short = (s) => (s ? String(s).slice(0, 8) + '…' : '—');
+function _payloadBrief(p) {
+  if (!p || typeof p !== 'object') return '（空）';
+  const keys = Object.keys(p);
+  if (!keys.length) return '（空）';
+  return keys.slice(0, 5).map((k) => {
+    let v = p[k];
+    if (typeof v === 'object' && v) v = JSON.stringify(v);
+    if (String(v).length > 60) v = String(v).slice(0, 60) + '…';
+    return `<b>${_esc(k)}</b>: ${_esc(v)}`;
+  }).join('　·　');
+}
+
+// 死区根因修复（2026-09-01）：本页原为裸 fetch，未带 Authorization 头。
+// /api/graph/* 与 /api/decision/* 全部走 requireMe → 恒 401，而调用方用 catch {} 静默吞掉
+// → 图永远只画一个孤立的根决策点、四个按钮点下去无任何变化（用户「图模型呢」的现象之一）。
+// 口径与 /portal/api.js 对齐：token 取自 localStorage('crm_token')，401 跳登录页。
+async function api(path) {
+  const headers = {};
+  let tk = '';
+  try { tk = localStorage.getItem('crm_token') || ''; } catch (e) { tk = ''; }
+  if (tk) headers.Authorization = 'Bearer ' + tk;
+  const res = await fetch(path, { headers });
+  if (res.status === 401) { location.href = '/home.html'; throw new Error('未登录'); }
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (e) { /* 非 JSON 响应沿用状态码 */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// 组合上游 + 下游 + 7 类 typed 边为一个有环布局图
+async function renderTrace(id) {
+  let up = [], down = [], typedEdges = [];
+  // canonical 消费面（§9：graph=主口径 / monitor=deprecated）——/api/graph/trace 一次返回
+  // upstream+downstream（节点）+ typedEdges（rel_type 7 类边，T11 权威 PG 读）
+  // 失败可见化：原 catch {} 静默吞异常，用户只看到孤零零一个点、不知是数据空还是请求挂了
+  let traceErr = null;
+  try {
+    const r = await api(`/api/graph/trace?decisionId=${id}&max_depth=4`);
+    up = r.upstream || []; down = r.downstream || []; typedEdges = r.typedEdges || [];
+  } catch (e) { traceErr = e && e.message ? e.message : String(e); }
+  const nodes = [{ id, layer:0, relation:'ROOT' }];
+  up.forEach((n) => nodes.push({ id:n.decision_id, layer:-(n.distance||1), relation:'UPSTREAM' }));
+  down.forEach((n) => nodes.push({ id:n.decision_id, layer:+(n.distance||1), relation:'DOWNSTREAM' }));
+
+  const svg = $('graph');
+  svg.innerHTML = '';
+  const W = svg.clientWidth || 800, H = 340, cx = W/2, cy = H/2;
+  const dx = 120, dy = 70;
+  const pos = {};
+  nodes.forEach((n, i) => {
+    const x = cx + n.layer * dx;
+    const y = cy + (i - (nodes.length-1)/2) * dy * 0.5;
+    pos[n.id] = { x, y, ...n };
+  });
+  const ns = 'http://www.w3.org/2000/svg';
+  const inMap = new Set(nodes.map((n) => n.id));
+  // 7 类 typed 边（先于节点绘制，避免被节点覆盖）：按 rel_type 着色 + 标注 rel 标签
+  for (const e of typedEdges) {
+    const from = pos[e.from_id], to = pos[e.to_id];
+    if (!from || !to || !inMap.has(String(e.from_id)) || !inMap.has(String(e.to_id))) continue;
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+    line.setAttribute('x2', to.x); line.setAttribute('y2', to.y);
+    line.setAttribute('stroke', _edgeColor(e.rel_type));
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('marker-end', 'url(#dn-arrow)');
+    svg.appendChild(line);
+    const et = document.createElementNS(ns, 'text');
+    et.setAttribute('x', (from.x + to.x) / 2); et.setAttribute('y', (from.y + to.y) / 2 - 6);
+    et.setAttribute('text-anchor', 'middle'); et.setAttribute('fill', _edgeColor(e.rel_type));
+    et.setAttribute('font-size', '8');
+    et.textContent = e.rel_type;
+    svg.appendChild(et);
+  }
+  // 无 typed 边时退化为到 root 的灰色线（兜底，不丢拓扑）
+  if (!typedEdges.length) {
+    for (const n of nodes) {
+      if (n.layer === 0) continue;
+      const r = pos[n.id], root = pos[nodes[0].id];
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', r.x); line.setAttribute('y1', r.y);
+      line.setAttribute('x2', root.x); line.setAttribute('y2', root.y);
+      line.setAttribute('stroke', 'var(--mut)'); line.setAttribute('stroke-width', '1.5');
+      svg.appendChild(line);
+    }
+  }
+  // 箭头定义（深色主题：浅色箭头 var(--mut)）
+  let defs = svg.querySelector('defs');
+  if (!defs) { defs = document.createElementNS(ns, 'defs'); svg.appendChild(defs); }
+  defs.innerHTML = '<marker id="dn-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mut)"/></marker>';
+  // 节点
+  for (const n of nodes) {
+    const p = pos[n.id];
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 22);
+    c.setAttribute('fill', COLORS[n.relation] || 'var(--ac)');
+    svg.appendChild(c);
+    const t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', p.x); t.setAttribute('y', p.y + 4); t.setAttribute('text-anchor','middle');
+    t.setAttribute('fill', '#fff'); t.setAttribute('font-size', '10');
+    t.textContent = (n.id || '').slice(0, 6);
+    svg.appendChild(t);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', p.x); lbl.setAttribute('y', p.y + 38); lbl.setAttribute('text-anchor','middle');
+    lbl.setAttribute('fill', 'var(--mut)'); lbl.setAttribute('font-size', '10');
+    lbl.textContent = n.relation;
+    svg.appendChild(lbl);
+  }
+  // 追溯失败必须在图上可见（原 catch {} 静默吞异常：图只剩一个点，用户无法区分「无关联」与「请求失败」）
+  if (traceErr) {
+    const err = document.createElementNS(ns, 'text');
+    err.setAttribute('x', '10'); err.setAttribute('y', '16');
+    err.setAttribute('fill', 'var(--err)'); err.setAttribute('font-size', '11');
+    err.textContent = '追溯失败：' + traceErr + '（当前仅显示根决策，不代表无关联）';
+    svg.appendChild(err);
+    const box = $('audit');
+    if (box) box.innerHTML = `<div class="muted">追溯失败：${_esc(traceErr)}。请确认已登录且该决策属于当前租户。</div>`;
+  }
+}
+
+async function renderAudit(id) {
+  const box = $('audit');
+  box.innerHTML = '<div class="muted">加载审计链…</div>';
+  try {
+    const a = await api(`/api/graph/provenance?decision_id=${encodeURIComponent(id)}`);
+    const d = a.decision; const entries = a.entries || []; const precs = a.referenced_precedents || [];
+    const cs = a.chainStatus || 'UNKNOWN';
+    const csCls = cs === 'OK' ? 'ok' : cs === 'TAMPERED' ? 'tampered' : 'warn';
+    const csText = cs === 'OK' ? '✅ 链完整性 OK（SHA-256 验证通过）'
+                  : cs === 'TAMPERED' ? '⛔ 链被篡改'
+                  : '链状态：' + cs;
+    const decisionCard = (d && d.decision_id) ? `
+      <dl class="kv">
+        <div><dt>场景</dt><dd>${_esc(d.scenario_id || '—')}</dd></div>
+        <div><dt>处置</dt><dd>${_esc(d.disposition || '—')}</dd></div>
+        <div><dt>状态</dt><dd>${d.state ? `<span class="pill">${_esc(d.state)}</span>` : '—'}</dd></div>
+        <div><dt>业务分级</dt><dd>${_esc(d.business_tier || '—')}</dd></div>
+        <div><dt>决策时间</dt><dd>${_esc((d.decided_at || '—').toString().slice(0, 19).replace('T', ' '))}</dd></div>
+        <div style="grid-column:1/-1"><dt>理由</dt><dd>${_esc(d.rationale || '—')}</dd></div>
+      </dl>` : `<div class="muted">该决策不存在或已被擦除（append-only 用墓碑标记）</div>`;
+    const precHtml = precs.length ? `<h4>本决策引用的先例（${precs.length} 条）</h4>
+      <ul>${precs.map((p) => `<li><span class="mono">${_esc(_short(p.precedent_id))}</span>　·　相似度 ${p.similarity != null ? (Number(p.similarity) * 100).toFixed(1) + '%' : '—'}</li>`).join('')}</ul>` : '';
+    const timeline = entries.length ? `<h4>审计条目时间线（${entries.length} 条 · append-only）</h4>
+      <div>${entries.map((e, i) => `
+        <div class="timeline-item">
+          <div><b>#${i + 1} ${_esc(e.entry_type)}</b>　<span class="mono" title="${_esc(e.checksum || '')}">SHA-256: ${_esc((e.checksum || '').slice(0, 12))}…</span>　<time>${_esc((e.created_at || '').toString().slice(0, 19).replace('T', ' '))}</time></div>
+          <div class="muted">${_payloadBrief(e.payload)}</div>
+        </div>`).join('')}</div>` : '<div class="muted">无审计条目</div>';
+    box.innerHTML = `
+      ${decisionCard}
+      <div style="margin:10px 0;"><span class="badge ${csCls}">${csText}</span></div>
+      ${precHtml}
+      ${timeline}
+      <details style="margin-top:10px;"><summary style="cursor:pointer;font-size:11px;color:var(--mut);">查看原始 JSON（调试用）</summary>
+      <pre>${_esc(JSON.stringify(a, null, 2))}</pre></details>`;
+  } catch (e) { box.innerHTML = '<div class="muted">审计失败：' + _esc(e.message) + '</div>'; }
+}
+
+$('btnTrace').onclick = () => { const id = $('decisionId').value.trim(); if (id) renderTrace(id); };
+$('btnAudit').onclick = () => { const id = $('decisionId').value.trim(); if (id) renderAudit(id); };
+$('btnImpact').onclick = async () => {
+  const id = $('decisionId').value.trim(); if (!id) return;
+  const box = $('audit'); box.innerHTML = '<div class="muted">加载影响地图…</div>';
+  try {
+    const m = await api(`/api/graph/impact?decisionId=${encodeURIComponent(id)}&max_depth=4`);
+    const nodes = m.nodes || []; const edges = m.edges || [];
+    const rows = nodes.map((n) => `<tr>
+      <td><span class="mono">${_esc(_short(n.decision_id))}</span></td>
+      <td>${_esc(n.state || '—')}</td>
+      <td>${_esc(n.disposition || '—')}</td>
+      <td>${n.distance != null ? n.distance + ' 跳' : '—'}</td>
+      <td>${n.confidence != null ? (Number(n.confidence) * 100).toFixed(1) + '%' : '—'}</td>
+    </tr>`).join('');
+    box.innerHTML = `
+      <h4>此决策引发了哪些后果？</h4>
+      <dl class="kv">
+        <div><dt>根决策</dt><dd><span class="mono">${_esc(_short(m.root))}</span></dd></div>
+        <div><dt>下游节点数</dt><dd>${nodes.length}</dd></div>
+        <div><dt>最大深度</dt><dd>${m.depth || 0} 跳</dd></div>
+        <div><dt>边数</dt><dd>${edges.length}</dd></div>
+      </dl>
+      <table><thead><tr><th>决策 ID</th><th>状态</th><th>处置</th><th>距离</th><th>置信度</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="muted">没有下游影响节点</td></tr>'}</tbody></table>
+      ${edges.length ? `<h4>边列表（由根沿因果链到下游）</h4><ul>${edges.map((e) => `<li><span class="mono">${_esc(_short(e.from))}</span> → <span class="mono">${_esc(_short(e.to))}</span>　·　深度 ${e.depth} 跳</li>`).join('')}</ul>` : ''}
+      <details style="margin-top:10px;"><summary style="cursor:pointer;font-size:11px;color:var(--mut);">查看原始 JSON（调试用）</summary>
+      <pre>${_esc(JSON.stringify(m, null, 2))}</pre></details>`;
+  } catch (e) { box.innerHTML = '<div class="muted">影响地图失败：' + _esc(e.message) + '</div>'; }
+};
+
+// P6 图分析：度数中心度 + 下游影响规模（消费 /api/graph/analytics）
+$('btnAnalytics').onclick = async () => {
+  const id = $('decisionId').value.trim(); if (!id) return;
+  const box = $('audit'); box.innerHTML = '<div class="muted">加载图分析…</div>';
+  try {
+    const a = await api(`/api/graph/analytics?decisionId=${encodeURIComponent(id)}&max_depth=4`);
+    const deg = a.degree || {}; const imp = a.impact || {};
+    box.innerHTML = `
+      <h4>图分析（度数中心度 + 下游影响规模）</h4>
+      <dl class="kv">
+        <div><dt>决策</dt><dd><span class="mono">${_esc(_short(a.decision_id))}</span></dd></div>
+        <div><dt>度数中心度</dt><dd>${deg.degree != null ? deg.degree : '—'}</dd></div>
+        <div><dt>下游影响节点</dt><dd>${imp.impacted != null ? imp.impacted : '—'}</dd></div>
+      </dl>
+      <details style="margin-top:10px;"><summary style="cursor:pointer;font-size:11px;color:var(--mut);">查看原始 JSON（调试用）</summary>
+      <pre>${_esc(JSON.stringify(a, null, 2))}</pre></details>`;
+  } catch (e) { box.innerHTML = '<div class="muted">图分析失败：' + _esc(e.message) + '</div>'; }
+};
+
+// ─── T8 页间联动：消费 ?decisionId=（从作战室/场景配置页跳来时预填并自动追溯）───
+// 缺口根因：本页此前只支持手工粘贴 UUID，外部带 decisionId 跳来时输入框为空、图形区为初始空态
+// → 用户「跳过来还是空的」。此处补：读取参数 → 预填输入框 → 自动触发因果链追溯（合并非删除，不改动原有按钮行为）。
+(function initFromQuery() {
+  try {
+    const q = new URLSearchParams(location.search).get('decisionId');
+    if (!q) return;
+    const el = $('decisionId');
+    if (el) { try { el.setAttribute('value', q); el.value = q; } catch (e) {} }
+    renderTrace(q);
+  } catch (e) { /* 参数缺失/非法时保持原空态，不影响手工使用 */ }
+})();
+</script>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body>
+</html>

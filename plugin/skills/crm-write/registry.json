@@ -1,0 +1,14 @@
+{
+  "name": "crm-write",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "CRM 对话式写入技能——两阶段写入 + 决策第0闸 + action-confirm（HITL）",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "skill_id": "crm-write",
+  "write_two_phase": true,
+  "require_decision_id": true,
+  "absolute_no_delete": true,
+  "rbac_roles": ["sales", "manager", "presales", "exec", "finance"],
+  "enabled": true
+}

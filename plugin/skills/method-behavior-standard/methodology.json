@@ -1,0 +1,39 @@
+{
+  "methodology_id": "BEHAVIOR_STANDARD",
+  "name": "销售行为合格线 21 条",
+  "role": "sales",
+  "standard_count": 21,
+  "categories": [
+    {"cat_key":"BH-01","label":"聪明勤奋","standards":["01-01 时间安排饱满","01-02 目的明确","01-03 工作计划完善"]},
+    {"cat_key":"BH-02","label":"双管齐下","standards":["02-01 拜访所有客户","02-02 珍惜项目机会"]},
+    {"cat_key":"BH-03","label":"知己知彼","standards":["03-01 BANTCC","03-02 关注需求","03-03 不做无效拜访","03-04 访前准备"]},
+    {"cat_key":"BH-04","label":"充满信心","standards":["04-01 理解关系作用","04-02 积极发展","04-03 主动管理"]},
+    {"cat_key":"BH-05","label":"着眼未来","standards":["05-01 科学分类","05-02 接触潜力","05-03 关注目标"]},
+    {"cat_key":"BH-06","label":"善用资源","standards":["06-01 看到所有商机","06-02 识别致胜关键","06-03 寻求团队","06-04 正确看待输赢"]},
+    {"cat_key":"BH-07","label":"依照套路","standards":["07-01 按照标准做事","07-02 及时总结反省"]}
+  ],
+  "taoran": [
+    {"key":"T","label":"Type","desc":"客户类型+商机阶段自动同步"},
+    {"key":"A","label":"Appointment","desc":"商机客户预约拜访"},
+    {"key":"O","label":"Objective","desc":"拜访目的与关键可量化成果"},
+    {"key":"R","label":"Result","desc":"引用客户原话的过程描述"},
+    {"key":"A","label":"Achieved","desc":"是否达标（达成比例分档：达标/部分达到/未达到；分界比例由配置 sales-thresholds.taoran.achieved_ratio 决定，默认 80%，此处不写死）"},
+    {"key":"N","label":"Next Step","desc":"下一步行动或下次拜访时间"}
+  ],
+  "priority_rule": "21 条是合格线（有/无判定），不设评分阈值；判定必须有可观察证据",
+  "gate_rule": "TAORAN 六字段齐（T/O/R/N 为必需要素，A 缺失仅告警）→ sales_visit_value=true；缺任一必需要素 → gap（sales_visit_gaps 列缺项）",
+  "thresholds_ref": {
+    "_policy": "本 SKILL 只定义方法论与判定逻辑，不承载可调业务数值；以下阈值一律由 config_store['sales-thresholds']（配置中心 id32）提供，下列取值仅为出厂默认建议",
+    "keys": [
+      {"key":"behavior.recent_visit_days","used_by":"01-01 时间安排饱满","default":7},
+      {"key":"behavior.min_customer_types","used_by":"02-01 拜访所有客户","default":2},
+      {"key":"behavior.min_contacts","used_by":"04-02 积极发展关系","default":2},
+      {"key":"taoran.achieved_ratio","used_by":"TAORAN-A 达标分档","default":80},
+      {"key":"ui.behavior_pass_rate_ok","used_by":"合格率着色阈值(%)","default":80}
+    ]
+  },
+  "structure_constants": {
+    "_note": "以下为方法论结构常量，客户不可调整（非业务阈值）",
+    "standard_count": 21
+  }
+}

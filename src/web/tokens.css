@@ -1,0 +1,66 @@
+/* src/web/tokens.css — 全站设计 Token（单源；全深色专业风 + 主色 #6366f1） */
+
+/* ── UI 封死全局基底（2026-08-29）：color-scheme:dark + 原生元素深色兜底 ──
+   作用：WC 迁移空窗期，未覆盖的原生 select/input/textarea/button 也深色，白底从根消失。
+   WC 全面铺开后保留为安全网。 */
+:root{ color-scheme: dark; }
+select,input,textarea,button{
+  background:var(--panel); color:var(--ink);
+  border:1px solid var(--line); border-radius:8px;
+  font-family:var(--font); font-size:14px;
+}
+select:focus,input:focus,textarea:focus,button:focus{ outline:2px solid var(--ac); outline-offset:1px; }
+
+:root{
+  --bg:#0f172a;  --panel:#1e293b;  --line:#334155;
+  --ink:#e2e8f0;  --mut:#cbd5e1;
+  --ac:#6366f1;  --ac-hover:#818cf8;  --as:#1e293b;  --on-ac:#ffffff;
+  --ok:#10b981;  --err:#f87171;  --warn:#fbbf24;
+  --radius:8px;  --radius-lg:14px;
+  --space:8px;  --space-2:16px;  --space-3:24px;
+  --font:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
+  --shadow:0 1px 3px rgba(15,23,42,.6);
+
+  /* ── 语义扩展（2026-08-30 批量统一专项）────────────────────────────
+     背景：多页引用了本文件从未定义的变量（--panel-bd / --hover / --sel /
+     --link / --tier-* / --bg2 / --accent / --good 等），浏览器解析不到便回落
+     到 var() 第二个参数——而那个参数写的是 #fff / #f8fafc 等浅色值，导致页面
+     在深色主题下渲染成白底黑字。此处补全为单源深色值，一次性修复全部引用页。
+     铁律：新增页面只准用本文件已定义变量，禁止自带浅色 fallback。 */
+  --panel-bd:rgba(148,163,184,.25);   /* 面板/卡片边框 */
+  --panel-head:#16233b;               /* 表头背景（比 --panel 略深） */
+  --hover:rgba(99,102,241,.08);       /* 行悬浮（主色微透明） */
+  --sel:rgba(99,102,241,.18);         /* 行选中 */
+  --link:var(--ac);                   /* 链接/可点击文字 */
+  --tier-bg:rgba(99,102,241,.15);     /* 档位标签底 */
+  --tier-ink:#a5b4fc;                 /* 档位标签字（indigo-300，深底可读） */
+  --bg2:#16233b;                      /* 次级背景（分组/提示块） */
+
+  /* ── 决策归因分类语义色（2026-08-30 Task 13 补：sales-decision-monitor.html .cat 类别章──
+     语义分类色 ≠ 状态语义色（--ok/--err/--warn 是单状态，类别章需区分输入缺失/输入错误/
+     推理偏差/上下文不足四种诊断类别）。tokens.css 单源定义，页面只准 var() 引用。 */
+  --cat-missing:#e8923a;              /* 输入缺失（橙） */
+  --cat-error:#e5484d;                /* 输入错误（红） */
+  --cat-bias:#8b5cf6;                 /* 推理偏差（紫） */
+  --cat-context:#3b82f6;              /* 上下文不足（蓝） */
+  --on-cat:#ffffff;                   /* 分类章白字（深色底白字合法保留） */
+
+  /* ── 七类根因分类语义色（2026-08-31 P4 扩展：root_cause.code 七态，右栏归因面板按新七类呈现）
+     与旧四类（--cat-missing/error/bias/context，写时物化 attribution.category）并存：
+     旧四类 = 拦截即时判定；新七类 = J3 溯源归因（classifyRootCause）。色相互不冲突，深底可读。 */
+  --rc-field:#f59e0b;                 /* 字段不一致 FIELD_MISMATCH（琥珀） */
+  --rc-info:#ef4444;                  /* 信息不完整 INFO_INCOMPLETE（红） */
+  --rc-stale:#a855f7;                 /* 输入不及时 INPUT_STALE（紫） */
+  --rc-dim:#3b82f6;                   /* 维度不对 DIM_MISSING（蓝） */
+  --rc-edge:#14b8a6;                  /* 边选择不对 EDGE_MISSING（青） */
+  --rc-order:#eab308;                 /* 优化次序 NEED_DIM_ORDER（黄） */
+  --rc-precedent:#ec4899;             /* 数据质量·先例 DATA_QUALITY_PRECEDENT（粉） */
+  /* UNKNOWN 不设独立色，回退 var(--mut)（灰） */
+
+  /* 历史别名兼容：早期页面与 page.css 注释里点名"不存在"的变量，统一指向既有 token */
+  --muted:var(--mut);
+  --accent:var(--ac);
+  --accent-soft:rgba(99,102,241,.12);
+  --good:var(--ok);
+  --bad:var(--err);
+}

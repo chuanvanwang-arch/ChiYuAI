@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>审批流配置 · 配置中心</title>
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background:var(--bg); color: var(--ink); }
+  header { background: var(--panel); color:#fff; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 17px; margin: 0; }
+  .sub { font-size: 12px; opacity: .8; }
+  .wrap { padding: 18px 20px; max-width: 1280px; margin: 0 auto; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  button { background: var(--panel); color:#fff; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  button.sec { background: var(--mut); }
+  button:hover { opacity: .9; }
+  #status { font-size: 12px; color: var(--mut); }
+  table.flow-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.flow-table th, table.flow-table td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; vertical-align: top; }
+  table.flow-table thead th { background: var(--panel)2f7; }
+  .stages { display: flex; flex-direction: column; gap: 4px; }
+  .stage-row { display: flex; gap: 6px; align-items: center; }
+  .stg-no { width: 22px; text-align: center; color: var(--mut); }
+  .stg-role, .stg-action { padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+  .stg-role { width: 110px; }
+  .stg-action { width: 90px; }
+  .note { background: var(--warn); border: 1px solid var(--warn); color:#fff; padding: 10px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+  .empty { color: var(--mut); padding: 12px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">审批流配置</h1></div></header>
+<div class="wrap">
+  <div class="note">说明：本页编排<b>审批流拓扑</b>——四域（deal/quote/contract/invoice）的关卡链与 auto_allowed 开关，数据直写 <b>CRM_APPROVAL_*</b> 粒子，已实时驱动运行态审批引擎（与 crm.approval_flow 旧表已解耦）。<b>审批业务参数</b>（R1-R4 规则、金额档位 ¥100万/¥500万、各档角色链、重大项目强制 T3、无规则默认兜底）统一在 <a href="/approval-config.html">「审批业务参数」配置页</a> 后台设置，本页仅编排拓扑节点。所有写操作经决策第0闸（无决策不写）。</div>
+  <div class="panel">
+    <div class="toolbar">
+      <crm-button id="saveBtn">保存变更</crm-button>
+      <crm-button class="sec" id="reloadBtn">重新加载</crm-button>
+      <span id="status">就绪</span>
+    </div>
+    <div id="flows" class="empty">加载中…</div>
+  </div>
+</div>
+
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+  import { renderApprovalFlows } from '/portal/approvalFlowRender.js';
+
+  let current = [];
+
+  async function load() {
+    // 修复（2026-09-05）：原 fetch('/api/approval-flows') 未带 Authorization header，必 401 → current=[] 显示「已加载 0 个审批流」。
+    //   改用统一 api.js 封装，自动从 localStorage.crm_token 取 Bearer token（src/web/api.js:5-7）
+    const d = await get('/api/approval-flows');
+    current = d.flows || [];
+    document.getElementById('flows').innerHTML = renderApprovalFlows(current);
+    document.getElementById('status').textContent = `已加载 ${current.length} 个审批流`;
+  }
+
+  // 收集页面编辑后的 stages → 构造 PUT payload 列表
+  function collect() {
+    return current.map((f) => {
+      const tr = document.querySelector(`tr.flow-row[data-flow="${f.flow_id}"]`);
+      const stageRows = [...tr.querySelectorAll('.stage-row')];
+      const stages = stageRows.map((sr, i) => ({
+        stage: i + 1,
+        role: sr.querySelector('.stg-role').value,
+        action: sr.querySelector('.stg-action').value,
+        auto_allowed: sr.querySelector('.stg-auto-chk').checked,
+      }));
+      const enabled = !tr.querySelector('.fenabled').textContent.includes('停用');
+      return { flow_id: f.flow_id, name: f.name, description: f.description, stages, enabled };
+    });
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const payloads = collect();
+    if (!confirm(`确认保存 ${payloads.length} 个审批流？（写操作经决策第0闸）`)) return;
+    let ok = 0, fail = 0;
+    for (const p of payloads) {
+      // 修复（2026-09-05）：原 fetch PUT 也没带 token；改用统一 api.js 封装的 put()
+      const r = await put(`/api/approval-flows/${p.flow_id}`, p);
+      if (r.ok || r.flow) ok++; else fail++;
+    }
+    document.getElementById('status').textContent = `保存完成：成功 ${ok} / 失败 ${fail}`;
+    if (fail === 0) await load();
+  });
+
+  document.getElementById('reloadBtn').addEventListener('click', load);
+  load();
+</script>
+
+<script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>我的待办 · 六视角</title>
+  <link rel="stylesheet" href="/portal/page.css">
+<style>
+  /* 浅色主题（IDE light 对齐）；五视角标签 + 渲染器容器 */
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 6px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 14px; }
+  /* tab 统一收敛为 common.css .tabs/.tab（下划线式），不再本地覆盖 */
+  /* 维度分组：审批流视角 vs 业务跟进视角，避免五视角平级混杂 */
+  .tabs-group { margin-bottom: 14px; }
+  .group-label { font-size: 11px; color: var(--mut); margin: 0 0 6px 2px; letter-spacing: .5px; font-weight: 600; }
+  .tabs-group + .tabs-group { border-top: 1px dashed var(--line); padding-top: 12px; }
+  #view-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+  #view-count { font-size: 12px; color: var(--mut); margin-bottom: 8px; }
+  #wb-container { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 14px; min-height: 120px; }
+  /* 复用渲染器产出样式（pg-* 类；与 page/renderer.js 输出契约一致的最小样式） */
+  .pg-page h2 { display: none; } /* 页面标题已由外层 #view-title 呈现，避免重复 */
+  .pg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pg-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--line); color: var(--mut); }
+  .pg-table td { padding: 6px 8px; border-bottom: 1px solid var(--panel); }
+  .pg-state { padding: 16px; text-align: center; color: var(--mut); font-size: 13px; }
+  #sse-status { font-size: 11px; color: var(--mut); margin-top: 10px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">我的待办</h1></div></header>
+
+<div class="tabs-group">
+  <div class="group-label">审批流</div>
+  <div class="tabs" id="tabs-approval">
+    <crm-tab data-view="approval" active>待我审批</crm-tab>
+    <crm-tab data-view="processing">我处理的</crm-tab>
+    <crm-tab data-view="initiated">我发起的</crm-tab>
+    <crm-tab data-view="cc">抄送我的</crm-tab>
+  </div>
+</div>
+<div class="tabs-group">
+  <div class="group-label">业务跟进</div>
+  <div class="tabs" id="tabs-follow">
+    <crm-tab data-view="follow">待跟进</crm-tab>
+  </div>
+</div>
+<div class="tabs-group">
+  <div class="group-label">系统治理</div>
+  <div class="tabs" id="tabs-tuning">
+    <crm-tab data-view="tuning">参数调优</crm-tab>
+  </div>
+</div>
+
+<div id="view-title">待我审批</div>
+<div id="view-count"></div>
+<div id="report-card" class="pg-card" style="display:none;margin-bottom:12px"></div>
+<div id="report-modal" class="pg-modal hidden">
+  <div class="pg-modal-body">
+    <crm-button id="report-modal-close">关闭</crm-button>
+    <pre id="report-modal-content" style="white-space:pre-wrap"></pre>
+  </div>
+</div>
+<div id="wb-container">加载中…</div>
+<div id="sse-status">SSE 未连接</div>
+
+<script type="module">
+import { get, post } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+
+// 六视角切换：view → /api/my-todo?view= → 渲染器 HTML 注入容器
+const VIEW_ORDER = ['approval', 'processing', 'initiated', 'cc', 'follow', 'tuning'];
+// URL 直达视角（监控台「参数体检」浮卡入口 /?view=tuning）：合法则用 URL 值，否则默认 approval
+const urlView = new URLSearchParams(location.search).get('view');
+let currentView = VIEW_ORDER.includes(urlView) ? urlView : 'approval';
+
+async function loadView(view) {
+  currentView = view;
+  document.querySelectorAll('crm-tab').forEach(t => t.toggleAttribute('active', t.dataset.view === view));
+  const title = document.querySelector(`crm-tab[data-view="${view}"]`).textContent;
+  document.getElementById('view-title').textContent = title;
+  document.getElementById('wb-container').textContent = '加载中…';
+  try {
+    const j = await get(`/api/my-todo?view=${view}`);
+    const rows = j.data?.components?.table?.rows || [];
+    document.getElementById('view-count').textContent = `${j.alias || title} · ${rows.length} 条`;
+    // 夜批日报报告卡（仅 tuning 视角有 reportCard；handler 置于 data 下）
+    const rc = j.data?.reportCard;
+    const card = document.getElementById('report-card');
+    if (rc) {
+      card.style.display = 'block';
+      card.innerHTML = `<strong>${rc.title || ('夜批报告 ' + rc.run_date)}</strong>
+        · 运行 ${rc.total_tasks ?? '?'} · 成功 ${rc.healthy ?? '?'} · 失败 ${rc.drift ?? '?'} · 待调整 ${rc.patches_count ?? 0}
+        <crm-button data-action="view-report" data-date="${rc.run_date}">查看完整报告</crm-button>`;
+    } else {
+      card.style.display = 'none';
+    }
+    document.getElementById('wb-container').innerHTML = j.html || '<div class="pg-state">暂无数据</div>';
+  } catch (e) {
+    document.getElementById('wb-container').innerHTML = `<div class="pg-state" data-state="error">请求失败：${e.message}</div>`;
+  }
+}
+
+// 两个分组容器统一委托点击
+document.querySelectorAll('.tabs').forEach(group => {
+  group.addEventListener('click', (ev) => {
+    const view = ev.target.dataset.view;
+    if (view) loadView(view);
+  });
+});
+
+// SSE 实时刷新：task/approval 域事件 → 重载当前视角
+function connectSse() {
+  const es = new EventSource('/events');
+  es.onopen = () => { document.getElementById('sse-status').textContent = 'SSE 已连接（实时刷新）'; };
+  es.onerror = () => { document.getElementById('sse-status').textContent = 'SSE 连接中断（重试中）'; };
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      // calibration 域：param-inspection（夜间参数体检推送）→ 参数调优视角实时刷新
+      if (['task', 'approval', 'calibration'].includes(msg.domain)) loadView(currentView);
+    } catch (e) { /* 忽略非 JSON 心跳 */ }
+  };
+}
+
+// 行内审批操作：批准 / 拒绝（声明式 data-action 按钮，由渲染器输出）
+// 审批任务（crm-approval-*）→ /api/my-todo/approve|reject（task_id）
+// 参数调优处方（crm-tune-*）→ /api/my-todo/tune-approve|tune-reject（patch_id，复用 approvePatch/rejectPatch）
+document.getElementById('wb-container').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const rowId = btn.dataset.rowId;
+  if (!rowId) return;
+  if (!['crm-approval-approve', 'crm-approval-reject', 'crm-tune-approve', 'crm-tune-reject'].includes(action)) return;
+  if (btn.dataset.confirm && !confirm(btn.dataset.confirm)) return;
+  let opinion = '';
+  if (action.includes('reject')) {
+    opinion = prompt('驳回意见（可选）：') ?? '';
+    if (opinion === null) return;
+  }
+  const isTune = action.startsWith('crm-tune');
+  const endpoint = isTune
+    ? (action === 'crm-tune-approve' ? '/api/my-todo/tune-approve' : '/api/my-todo/tune-reject')
+    : (action === 'crm-approval-approve' ? '/api/my-todo/approve' : '/api/my-todo/reject');
+  const body = isTune ? { patch_id: rowId, opinion } : { task_id: rowId, opinion };
+  try {
+    await post(endpoint, body);
+    loadView(currentView);
+  } catch (e) {
+    alert('操作失败：' + e.message);
+  }
+});
+
+// 报告卡「查看完整报告」→ 拉取 markdown 弹窗显示
+document.getElementById('report-card').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('crm-button[data-action="view-report"]');
+  if (!btn) return;
+  const date = btn.dataset.date;
+  try {
+    const md = await get(`/api/nightly-report/${date}`);
+    document.getElementById('report-modal-content').textContent = md;
+    document.getElementById('report-modal').classList.remove('hidden');
+  } catch (e) {
+    alert('报告获取失败：' + e.message);
+  }
+});
+document.getElementById('report-modal-close').addEventListener('click', () => {
+  document.getElementById('report-modal').classList.add('hidden');
+});
+
+loadView(currentView);
+connectSse();
+injectLayout();
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>财务应收看板 · S05</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  /* S05 财务应收闭环：总览卡 + 合同应收明细 + 发票对账 + 逾期区（受控页，finance 专属） */
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .ov { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .ov .rcard { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px; background: var(--panel); }
+  .ov .rcard .v { font-size: 22px; font-weight: 700; }
+  .ov .rcard .k { font-size: 12px; color: var(--mut); }
+  table.bd { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.bd th, table.bd td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  .bad { color: var(--err); font-weight: 600; }
+  section { margin-bottom: 22px; }
+  section > h3 { font-size: 15px; border-left: 4px solid var(--ac); padding-left: 8px; }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">财务应收看板</h1></div><div id="tenant-bar" class="ts-bar"></div></header>
+<div id="forbidden"><h3>需要 finance 权限</h3><p>请用财务账号 <a href="/home.html">重新登录</a>（管理员 admin 拥有 finance 视角，只读看板可见）。</p></div>
+<div id="app" style="display:none">
+  <div class="ov" id="overview"></div>
+  <section><h3>合同应收明细</h3><table class="bd" id="contract-table"></table></section>
+  <section><h3>发票对账</h3><div id="invoice-block"></div></section>
+  <section><h3>逾期区</h3><div id="overdue-block"></div></section>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  import { fmtMoney } from '/portal/util.js';
+  import { mountTenantScopeBar, tenantQuery, tenantMap, tenantCell } from '/portal/tenantScopeBar.js';
+  injectLayout();
+
+  async function guard() {
+    try {
+      const r = await me();
+      // me() 成功响应为 {role, display_name, username}（无 ok 字段）；失败为 {ok:false}
+      // 只读看板放行 admin（superuser 以 finance 视角查看）；写操作端点保持 finance 严闸（不影响）
+      if (r?.role !== 'finance' && r?.role !== 'admin') {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('forbidden').style.display = 'block';
+        return false;
+      }
+      // 守卫放行：显式 reveal #app（对齐 config.html:111 范式，否则内容写进隐藏容器=空白）
+      document.getElementById('app').style.display = 'block';
+      return true;
+    } catch (e) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('forbidden').style.display = 'block';
+      return false;
+    }
+  }
+
+  async function render() {
+    try {
+      const meRole = (await me().catch(() => ({})))?.role;
+      const showTenant = (meRole === 'admin' || meRole === 'sysadmin'); // 仅 admin/sysadmin 渲染租户列
+      const tmap = showTenant ? (await tenantMap().catch(() => ({}))) : {};
+      const tq = tenantQuery(); // '&tenant=x' 或 ''
+      const data = await api('/api/finance/receivables' + (tq ? '?' + tq.slice(1) : ''));
+      const cs = data?.contracts || [];
+      const totalRecv = cs.reduce((s, c) => s + (Number(c.receivable) || 0), 0);
+      const overdueN = cs.filter((c) => c.overdue).length;
+      const overdueAmt = cs.filter((c) => c.overdue).reduce((s, c) => s + (Number(c.receivable) || 0), 0);
+      document.getElementById('overview').innerHTML = `
+        <div class="rcard"><div class="v">${cs.length}</div><div class="k">合同数</div></div>
+        <div class="rcard"><div class="v">${fmtMoney(totalRecv)}</div><div class="k">应收余额</div></div>
+        <div class="rcard"><div class="v">${overdueN}</div><div class="k">逾期笔数</div></div>
+        <div class="rcard"><div class="v bad">${fmtMoney(overdueAmt)}</div><div class="k">逾期金额</div></div>`;
+      document.getElementById('contract-table').innerHTML = `<thead><tr><th>合同</th><th>计划</th><th>实回</th><th>应收</th><th>逾期天数</th><th>账龄</th><th>发票</th>${showTenant ? '<th>租户</th>' : ''}</tr></thead><tbody>
+        ${cs.map((c) => `<tr><td>${c.contract_title}</td><td>${c.plan_total}</td><td>${c.paid_total}</td><td class="${c.receivable > 0 ? 'bad' : ''}">${c.receivable}</td><td>${c.overdue_days}</td><td>${c.aging_bucket}</td><td>${c.invoice_status}</td>${showTenant ? tenantCell(c.tenant_id, tmap) : ''}</tr>`).join('')}</tbody>`;
+      const inv = cs.filter((c) => c.invoice_status && c.invoice_status !== 'none');
+      document.getElementById('invoice-block').innerHTML = inv.length
+        ? `<table class="bd"><thead><tr><th>合同</th><th>发票状态</th></tr></thead><tbody>${inv.map((c) => `<tr><td>${c.contract_title}</td><td>${c.invoice_status}</td></tr>`).join('')}</tbody></table>`
+        : '无发票';
+      const od = cs.filter((c) => c.overdue);
+      document.getElementById('overdue-block').innerHTML = od.length
+        ? `<table class="bd"><thead><tr><th>合同</th><th>逾期天数</th><th>应收</th></tr></thead><tbody>${od.map((c) => `<tr><td>${c.contract_title}</td><td class="bad">${c.overdue_days}</td><td>${c.receivable}</td></tr>`).join('')}</tbody></table>`
+        : '无逾期';
+    } catch (e) {
+      document.getElementById('overview').innerHTML = `<div class="rcard"><div class="v">—</div><div class="k">加载失败：${e.message}</div></div>`;
+    }
+  }
+
+  if (await guard()) { render(); mountTenantScopeBar(document.getElementById('tenant-bar'), () => render()); }
+</script>
+</body>
+</html>

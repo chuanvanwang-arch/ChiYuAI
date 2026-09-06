@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh" data-page-node-id="wUfB6gyPZb5JDgaM7symLB">
+<head data-page-node-id="91Jw7atIBbKdCF96CRLytO"><meta charset="utf-8" data-page-node-id="hFJJGdyLRa8zVMZG1fpWkI" />
+<meta name="viewport" content="width=device-width,initial-scale=1" data-page-node-id="71P5Q88GLaFZFm8gutVYND" />
+<title>我的 API Key · AI原生销售管理·青羽ChiYu</title>
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background:var(--bg); color: var(--ink); }
+  main { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+  h2 { margin: 0 0 12px; }
+  .muted { color: var(--mut); font-size: 13px; }
+  .err { color: var(--err); }
+  table.api-tbl { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  table.api-tbl th, table.api-tbl td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  table.api-tbl tr:last-child td { border-bottom: 0; }
+  .note { color: var(--warn); font-size: 12px; margin-top: 12px; }
+  .empty { color: var(--mut); padding: 24px; text-align: center; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
+  .role-tag { background: var(--as); color: var(--ac); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+  .token-modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .token-modal .box { background: var(--panel); padding: 24px; border-radius: 8px; max-width: 480px; }
+  .token-modal code { display: block; background: var(--bg); padding: 10px; margin: 10px 0; word-break: break-all; color: var(--ok); }
+</style>
+<link rel="stylesheet" href="/portal/tokens.css" data-page-node-id="PnhyhEXF02mmUgeiGuDdHR">
+<link rel="stylesheet" href="/portal/common.css" data-page-node-id="P0WNfcJoNtf91XkT45zuUY">
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body data-page-node-id="UXoHG63bzxzzABFDlZsVYa">
+<main id="keys-root" data-page-node-id="QQU4a6kkV65UA1yALJrEv5"><p class="muted" data-page-node-id="1xwhm3oGNgXEiPcYeehIng">加载中…</p></main>
+<div class="token-modal" id="tokenModal"><div class="box">
+  <b>API Key 已创建 — 请立即妥善保存</b>
+  <code id="tokenText"></code>
+  <div class="note">关闭后不可再查看，系统仅存哈希。遗失请在本页吊销后重新创建。</div>
+  <crm-button id="tokenClose">我已保存</crm-button>
+</div></div>
+<script type="module">
+import { get, post, put, token } from '/portal/api.js';
+import { esc, statusBadge, renderScopes } from '/portal/mcpIdentityRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+
+const root = document.getElementById('keys-root');
+
+function fmtExpire(v) {
+  if (!v) return '永久';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('zh-CN', { hour12: false });
+}
+
+function rowHtml(r) {
+  const revocable = r.enabled && !r.revoked_at;
+  return `<tr data-id="${esc(r.id || '')}">
+    <td>${esc(r.actor || '')}</td>
+    <td><span class="role-tag">${esc(r.role_tag || '')}</span></td>
+    <td>${renderScopes(r.scopes)}</td>
+    <td>${statusBadge(r)}</td>
+    <td>${esc(fmtExpire(r.expires_at))}</td>
+    <td><crm-button class="btn danger" data-act="revoke" data-id="${esc(r.id || '')}" ${revocable ? '' : 'disabled'}>吊销</crm-button></td>
+  </tr>`;
+}
+
+function render(rows) {
+  const body = rows.length
+    ? `<table class="api-tbl"><thead><tr><th>接入方</th><th>角色</th><th>域范围</th><th>状态</th><th>有效期</th><th>操作</th></tr></thead>
+       <tbody>${rows.map(rowHtml).join('')}</tbody></table>`
+    : `<div class="empty">你名下暂无 API Key，点击「+ 新建 API Key」创建</div>`;
+  root.innerHTML = `<h2>我的 API Key</h2>
+    <div style="display:flex;gap:10px;align-items:center;margin:0 0 12px">
+      <crm-button id="createBtn">+ 新建 API Key</crm-button>
+      <span class="muted">启用中上限 5 个 · 只显示属于你的身份（共 ${rows.length} 条）</span>
+    </div>
+    ${body}
+    <div class="note">零信任：token 明文仅在创建时一次性返回，系统只存哈希、不可恢复；不再使用请及时吊销（软标记，可追溯）。平台级角色（admin/ten_admin）请走「连接器 / MCP 身份配置」管理页。</div>`;
+  bind();
+}
+
+function bind() {
+  document.getElementById('createBtn')?.addEventListener('click', async () => {
+    if (!confirm('确认为当前账号创建新的 API Key？（决策第0闸留痕；明文仅展示一次）')) return;
+    try {
+      // 统一走 api.js 封装（自动携带 Authorization / 401 跳登录 / 错误抛掷），杜绝手写鉴权死区
+      const j = await post('/api/mcp-identities/me', {});
+      document.getElementById('tokenText').textContent = j.token_plaintext || '';
+      document.getElementById('tokenModal').style.display = 'flex';
+      load();
+    } catch (e) { alert('创建失败：' + e.message); }
+  });
+  root.querySelectorAll('crm-button[data-act="revoke"]:not([disabled])').forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm('确认吊销该 API Key？吊销后立即失效（软标记留痕，不可恢复）。')) return;
+      try {
+        await put('/api/mcp-identities/mine/' + encodeURIComponent(btn.dataset.id), {});
+        load();
+      } catch (e) { alert('吊销失败：' + e.message); }
+    };
+  });
+}
+
+document.getElementById('tokenClose')?.addEventListener('click', () => {
+  document.getElementById('tokenModal').style.display = 'none';
+  document.getElementById('tokenText').textContent = '';
+});
+
+async function load() {
+  try {
+    const j = await get('/api/mcp-identities/me');
+    render(j.rows || []);
+  } catch (e) { root.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
+// 未登录（无 token）先跳登录；api.js 亦会拦截 401 并跳 /home.html
+if (!token()) location.href = '/home.html';
+else load();
+</script>
+</body>
+</html>

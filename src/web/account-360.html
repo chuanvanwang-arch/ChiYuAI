@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>客户 360 · CRM</title>
+  <!-- 受控渲染页必须链 /portal/page.css（renderer 输出 pg-* 样式来源；本页合并 S06 画像 + S35 洞察双 Tab） -->
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <link rel="stylesheet" href="/portal/page.css" />
+  <style>
+    .pg-page { padding: 16px; }
+    .pg-grid { display: grid; gap: 12px; }
+    #role-hint { color: var(--mut); font-size: 13px; }
+    #account-select { display:inline-block; min-width: 240px; }
+    /* 画像/洞察 tab 统一收敛为 common.css .tabs/.tab（下划线式） */
+    #profile-root:empty::before, #insight-root:empty::before { content: "加载中…"; color: var(--mut); }
+    .pg-profile-hint { margin: 0 16px 12px; padding: 10px 14px; border: 1px solid var(--warn); border-radius: 8px; background: rgba(251,191,36,.12); color: var(--warn); font-size: 13px; }
+    .pg-origin-hint { display: block; font-size: 11px; color: var(--mut); margin-top: 2px; }
+    .pg-attr-field input:disabled { background: rgba(148,163,184,.12); color: var(--mut); cursor: not-allowed; }
+    /* S13：目标达标卡（目标指标数据面；浅色主题下深色文本，用 token 变量） */
+    .pg-target-card { margin: 12px 16px; padding: 12px 16px; border: 1px solid var(--panel-bd, rgba(148,163,184,.3)); border-radius: 8px; background: var(--panel); }
+    .pg-target-card h4 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
+    .pg-target-card p { margin: 0; font-size: 13px; color: var(--ink); }
+  </style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="page-head">
+      <div class="ph-main">
+        <h1 class="page-title">客户 360</h1>
+      </div>
+      <div class="page-actions">
+        <crm-select id="account-select" title="切换客户"><option value="">加载客户列表…</option></crm-select>
+      </div>
+    </header>
+    <div class="tabs">
+      <div class="tab active" data-tab="profile">画像</div>
+      <div class="tab" data-tab="insight">洞察</div>
+      <div class="tab" data-tab="history">字段历史</div>
+    </div>
+    <div id="profile-root"></div>
+    <div id="insight-root" hidden></div>
+    <div id="history-root" hidden></div>
+  </div>
+  <script type="module">
+    import { api } from '/portal/api.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+    const profileRoot = document.getElementById('profile-root');
+    const insightRoot = document.getElementById('insight-root');
+    const historyRoot = document.getElementById('history-root');
+    const select = document.getElementById('account-select');
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+
+    const q = new URLSearchParams(location.search);
+    const fromPath = location.pathname.match(/\/accounts\/([^/]+)/);
+    let accountId = q.get('id') || (fromPath ? fromPath[1] : '');
+    const initialTab = ['insight', 'history'].includes(q.get('tab')) ? q.get('tab') : 'profile';
+    let insightLoaded = false;
+    let historyLoadedFor = null; // 字段历史按「客户 + 商机」缓存，切换客户需重载
+
+    function isValidAccountId(id) {
+      return id && accounts.some(a => a.id === id || a.slug === id);
+    }
+
+    function currentTab() { return (document.querySelector('.tab.active') || {}).dataset?.tab || 'profile'; }
+
+    function setTab(tab) {
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      profileRoot.hidden = tab !== 'profile';
+      insightRoot.hidden = tab !== 'insight';
+      historyRoot.hidden = tab !== 'history';
+      if (tab === 'insight' && !insightLoaded) { loadInsight(); insightLoaded = true; }
+      if (tab === 'history' && historyLoadedFor !== accountId) { loadHistory(); historyLoadedFor = accountId; }
+      const url = new URL(location.href);
+      url.searchParams.set('tab', tab);
+      if (accountId) url.searchParams.set('id', accountId);
+      history.replaceState(null, '', url);
+    }
+
+    function renderSelect(items, currentId) {
+      const pickId = currentId && items.find(a => a.id === currentId || a.slug === currentId)?.slug;
+      select.innerHTML = '<option value="">— 选择客户 —</option>' +
+        items.map(a => `<option value="${a.slug}" ${a.slug === pickId ? 'selected' : ''}>${a.title || a.payload?.name || a.slug}</option>`).join('');
+    }
+
+    let accounts = [];
+
+    async function loadAccounts() {
+      try {
+        const list = await api('/api/particles?type=CRM_ACCOUNT');
+        accounts = (list.items || []).filter(a => a.type === 'CRM_ACCOUNT');
+        renderSelect(accounts, accountId);
+      } catch (e) { /* 权限/加载问题由 loadProfile 暴露 */ }
+    }
+
+    function selectAccountById(id) {
+      const a = id && accounts.find(x => x.id === id || x.slug === id);
+      if (!a) return;
+      if (select.value !== a.slug) select.value = a.slug;
+      // URL 中的旧/无效 id 替换为当前真实 slug，保证刷新后一致
+      if (accountId !== a.slug) {
+        accountId = a.slug;
+        const u = new URL(location.href);
+        u.searchParams.set('id', a.slug);
+        history.replaceState(null, '', u);
+      }
+    }
+
+    async function loadProfile() {
+      const url = '/api/page/account-360' + (accountId ? ('?accountId=' + encodeURIComponent(accountId)) : '');
+      try {
+        const j = await api(url);
+        if (j.accountId) selectAccountById(j.accountId);
+        if (j.html) {
+          profileRoot.innerHTML = j.html;
+          if (j.profileHint) {
+            const banner = document.createElement('div');
+            banner.className = 'pg-profile-hint';
+            banner.textContent = j.profileHint;
+            profileRoot.prepend(banner);
+          }
+          // S13：目标达标卡（renderer 输出 target-card 与 JS 注入二选一防双份：已存在 .pg-target-card 则不重复 append）
+          if (j.data?.components?.['target-card'] && !profileRoot.querySelector('.pg-target-card')) {
+            const tc = j.data.components['target-card']['目标达标'];
+            const mark = tc.pass ? '✅ 达标' : '⚠️ 未达标';
+            const card = document.createElement('div');
+            card.className = 'pg-target-card';
+            card.innerHTML = `<h4>目标达标（${tc.tier}）</h4>
+              <p>目标频率：${tc.target ?? 1} 次/${tc.window || 'month'}｜实际：近窗口 ${tc.actual ?? 0} 次｜${mark}</p>`;
+            profileRoot.appendChild(card);
+          }
+        }
+      } catch (e) {
+        profileRoot.innerHTML = `<div class="pg-state" data-state="error">画像加载失败：${e.message}</div>`;
+      }
+    }
+
+    async function loadInsight() {
+      const url = '/api/page/account-insight' + (accountId ? ('?accountId=' + encodeURIComponent(accountId)) : '');
+      insightRoot.innerHTML = '<div class="pg-state" data-state="loading">加载中…</div>';
+      try {
+        const j = await api(url);
+        if (j.accountId) selectAccountById(j.accountId);
+        if (j.html) insightRoot.innerHTML = j.html;
+      } catch (e) {
+        insightRoot.innerHTML = `<div class="pg-state" data-state="error">洞察加载失败：${e.message}</div>`;
+      }
+    }
+
+    // 字段历史（P1③，docs/2026-09-05-security-hardening-design.md §3.3）
+    // 范围：当前客户下商机的价格字段 list_price 变更（接口支持任意 field，UI 起步只做价格）
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(0, 19) : '—');
+
+    async function loadHistory() {
+      historyRoot.innerHTML = '<div class="pg-state" data-state="loading">加载中…</div>';
+      try {
+        const acc = accounts.find(a => a.slug === accountId || a.id === accountId);
+        const deals = await api('/api/particles?type=CRM_DEAL');
+        const mine = (deals.items || []).filter(d => {
+          if (!acc) return true;
+          const aid = d.payload?.account_id || '';
+          return aid === acc.id || aid === acc.slug;
+        });
+        if (!mine.length) {
+          historyRoot.innerHTML = '<div class="pg-state" data-state="empty">该客户暂无商机，无字段变更历史</div>';
+          return;
+        }
+        const rows = [];
+        for (const d of mine.slice(0, 20)) {
+          const j = await api(`/api/particles/${encodeURIComponent(d.id)}/field-history?field=list_price`).catch(() => ({ events: [] }));
+          (j.events || []).forEach(ev => rows.push({ deal: d.title || d.payload?.title || d.slug, ...ev }));
+        }
+        if (!rows.length) {
+          historyRoot.innerHTML = '<div class="pg-state" data-state="empty">暂无 list_price 变更记录（价格经审批调整后才会留痕）</div>';
+          return;
+        }
+        rows.sort((a, b) => (String(a.created_at) > String(b.created_at) ? 1 : -1));
+        historyRoot.innerHTML = '<table class="pg-table"><thead><tr>' +
+          '<th>时间</th><th>商机</th><th>操作人</th><th>旧值</th><th>新值</th><th>原因</th><th>决策 ID</th>' +
+          '</tr></thead><tbody>' +
+          rows.map(r => `<tr><td>${fmtTime(r.created_at)}</td><td>${esc(r.deal)}</td><td>${esc(r.actor)}</td>` +
+            `<td>${esc(r.before)}</td><td>${esc(r.after)}</td><td>${esc(r.reason)}</td><td>${esc(r.decision_id)}</td></tr>`).join('') +
+          '</tbody></table>';
+      } catch (e) {
+        historyRoot.innerHTML = `<div class="pg-state" data-state="error">字段历史加载失败：${esc(e.message)}</div>`;
+      }
+    }
+
+    select.addEventListener('change', () => {
+      if (!select.value) return;
+      location.href = '/account-360.html?id=' + encodeURIComponent(select.value) + '&tab=' + currentTab();
+    });
+    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+    (async () => {
+      await loadAccounts();
+      if (accountId && !isValidAccountId(accountId)) accountId = '';
+      await loadProfile();
+      setTab(initialTab);
+    })();
+  </script>
+</body>
+</html>

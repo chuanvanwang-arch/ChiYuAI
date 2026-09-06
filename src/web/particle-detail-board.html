@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>粒子详情</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">粒子详情</h1></div></header>
+<div id="root" class="pg-grid">加载中…</div>
+<script type="module">
+import { injectLayout } from '/portal/layout.js'; injectLayout();
+import { get } from '/portal/api.js';
+const id = new URLSearchParams(location.search).get('id');
+try {
+  const r = await get(`/api/page/particle-detail${id ? `?id=${id}` : ''}`);
+  const root = document.getElementById('root');
+  if (r && r.html) root.innerHTML = r.html;
+  else root.innerHTML = '<div class="muted">无粒子数据</div>';
+} catch (e) {
+  document.getElementById('root').innerHTML = '<div class="err">加载失败：' + (e?.message || e) + '</div>';
+}
+</script>
+</body></html>

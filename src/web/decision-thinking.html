@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>销售决策思维要素 · 8要素×九尺子</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 12px; }
+  .scn { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 14px; background: var(--panel); }
+  .scn h2 { font-size: 15px; border-left: 4px solid var(--ac); padding-left: 8px; margin: 0 0 8px; }
+  .scn .note { color: var(--mut); font-size: 12px; margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  th { background: var(--panel); color: var(--mut); }
+  .generic { color: var(--warn); }
+  .rulers span, .methods span { display: inline-block; margin: 0 3px 3px 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 10px; font-size: 11px; color: var(--mut); }
+  #err { color: var(--err); }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">销售决策思维要素 · 8要素×九尺子</h1></div></header>
+<div class="wrap">
+  <div class="sub">8 大销售决策各自的八要素提问 × 九尺子评分键（方法论层，代码版化自 thinkingTemplates.js，只读）。未作者化场景显式标注「未配置思维模板」，不伪装。</div>
+  <div id="err"></div>
+  <div id="list">加载中…</div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me } from '/portal/api.js';
+  // T11：注入鉴权头（与 api.js 同源：localStorage['crm_token'] → Bearer），让本页裸 fetch 自动带 token 走通 requireMe 鉴权
+  (function () {
+    const TK = 'crm_token';
+    const o = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      init = init || {};
+      const t = localStorage.getItem(TK);
+      if (t) init.headers = Object.assign({}, init.headers, { Authorization: 'Bearer ' + t });
+      return o(input, init);
+    };
+  })();
+  injectLayout();
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function load() {
+    try {
+      const r = await me();
+      if (r?.role == null) { document.getElementById('list').innerHTML = '<div class="generic">请先登录</div>'; return; }
+    } catch { document.getElementById('list').innerHTML = '<div class="generic">请先登录</div>'; return; }
+    try {
+      const r = await fetch('/api/decision/thinking-templates');
+      if (r.status === 401) { document.getElementById('list').innerHTML = '<div class="generic">请先登录</div>'; return; }
+      const j = await r.json();
+      if (!j.ok) { document.getElementById('err').textContent = '加载失败'; return; }
+      document.getElementById('list').innerHTML = (j.items || []).map((it) => `
+        <div class="scn">
+          <h2>${esc(it.stage)} · ${esc(it.scenario_id)} ${it.generic ? '<span class="generic">（未配置思维模板）</span>' : ''}</h2>
+          <div class="note">${esc(it.scenario_note)}</div>
+          <table><thead><tr><th>要素</th><th>核心问题</th><th>九尺子评分键</th><th>方法</th></tr></thead>
+          <tbody>${(it.elements || []).map((e) => `<tr>
+            <td><b>${esc(e.label)}</b>${e.focus ? ' <span class="generic">聚焦</span>' : ''}</td>
+            <td>${esc(e.guiding_question)}</td>
+            <td class="rulers">${(e.ruler_keys || []).map((k) => `<span>尺·${esc(k)}</span>`).join('')}</td>
+            <td class="methods">${(e.methodology || []).map((m) => `<span>${esc(m)}</span>`).join('')}</td>
+          </tr>`).join('')}</tbody></table>
+        </div>`).join('');
+    } catch (e) { document.getElementById('err').textContent = '加载失败：' + e.message; }
+  }
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>池配置</title>
+<style> body{font-family:system-ui;margin:24px;background:var(--bg);color:var(--ink)}
+label{display:block;margin:10px 0 4px;font-size:13px;color:var(--mut)}
+input,select{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px}
+button{padding:7px 16px;border:0;border-radius:7px;background:var(--ac);color:#fff;margin-top:14px;cursor:pointer}
+.muted{color:var(--mut);font-size:13px}</style>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="panel"><h2>🗂 池配置</h2><p class="muted">线索池/商机池 pick/recycle 规则 · setPoolConfig 持久化 · GET/PUT /api/pool-config</p><div id="app">加载中…</div></div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import { renderPoolForm, validatePoolPatch } from '/portal/poolConfigRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+const TOKEN = localStorage.getItem('crm_token');
+const app = document.getElementById('app');
+if (!TOKEN) location.href = '/home.html';
+async function load() {
+  try {
+    const r = await fetch('/api/pool-config', { headers: { Authorization: `Bearer ${TOKEN}` } });
+    const j = await r.json();
+    if (!r.ok) { app.innerHTML = `<p class="muted">加载失败：${j.error || r.status}</p>`; return; }
+    app.innerHTML = renderPoolForm(j.config) + `<p class="muted">org ${j.orgId}</p>`;
+    bind();
+  } catch (e) { app.innerHTML = `<p class="muted">${e.message}</p>`; }
+}
+function bind() {
+  const f = document.getElementById('poolf');
+  if (!f) return;
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(f);
+    const patch = { pickRule: fd.get('pickRule'), recycleAfterDays: Number(fd.get('recycleAfterDays')) };
+    const v = validatePoolPatch(patch);
+    if (!v.ok) { alert('校验失败：' + v.errors.join('; ')); return; }
+    const r = await fetch('/api/pool-config', { method: 'PUT', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId: 'org-hq', patch: v.normalized }) });
+    const j = await r.json();
+    alert(r.ok ? `已保存（org ${j.orgId}）` : ('失败：' + (j.error || r.status)));
+    load();
+  };
+}
+load();
+setInterval(() => { if (TOKEN) load(); }, 15000);
+
+</script>
+</body></html>

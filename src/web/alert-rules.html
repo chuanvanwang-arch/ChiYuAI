@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>预警规则配置</title>
+  <style>
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 24px; background:var(--bg); color: var(--ink); }
+    .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+    table { border-collapse: collapse; width: 100%; background: var(--panel); }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--line); }
+    .cp-row { display: block; margin: 2px 0; }
+    .cp-key { display: inline-block; min-width: 90px; color: var(--mut); }
+    .toolbar { margin: 12px 0; }
+    button { padding: 6px 14px; border: none; border-radius: 6px; background: var(--ac); color:#fff; cursor: pointer; }
+    button:hover { background: var(--ac); }
+    .summary { color: var(--mut); font-size: 13px; }
+  </style>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">预警规则配置</h1></div></header>
+  <div class="note">⚠️ 配置管理 <code>crm.alert_rule</code> 持久源；引擎实时读内存缓存（改即生效）。与运营态告警处置（ack/close）端点分离。</div>
+  <div id="app">加载中…</div>
+  <div class="toolbar"><crm-button id="save">保存全部</crm-button> <span class="summary" id="summary"></span></div>
+
+  <script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { renderAlertRules, alertRuleSummary } from '/portal/alertRuleConfigRender.js';
+
+    let RULES = [];
+    const app = document.getElementById('app');
+
+    async function load() {
+      const data = await get('/api/alert-rules');
+      RULES = data.rules || [];
+      app.innerHTML = renderAlertRules(RULES);
+      document.getElementById('summary').textContent =
+        `共 ${alertRuleSummary(RULES).count} 条 / 启用 ${alertRuleSummary(RULES).enabled} 条`;
+    }
+
+    function collect() {
+      const rows = [...app.querySelectorAll('.rule-row')];
+      return rows.map((row) => {
+        const kind = row.dataset.kind;
+        const enabled = !!row.querySelector('.r-enabled')?.checked;
+        const severity = row.querySelector('.r-severity')?.value || null;
+        const target_role = row.querySelector('.r-target_role')?.value || null;
+        const cp = {};
+        row.querySelectorAll('.cp-val').forEach((el) => { cp[el.dataset.key] = Number(el.value); });
+        return { kind, enabled, severity, target_role, check_params: cp };
+      });
+    }
+
+    document.getElementById('save').addEventListener('click', async () => {
+      const payload = collect();
+      let okCount = 0;
+      for (const p of payload) {
+        await put(`/api/alert-rules/${p.kind}`, {
+          enabled: p.enabled, severity: p.severity, target_role: p.target_role, check_params: p.check_params,
+        });
+        okCount++;
+      }
+      alert(`已保存 ${okCount}/${payload.length} 条（写经决策第0闸）`);
+      load();
+    });
+
+    load();
+</script>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body>
+</html>

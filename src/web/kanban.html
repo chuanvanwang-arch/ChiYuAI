@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM 任务看板 · 角色确认</title>
+<style>
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0; background:var(--bg); color: var(--ink); }
+  .board { display: flex; gap: 12px; padding: 16px; overflow-x: auto; }
+  .col { flex: 1; min-width: 180px; background: var(--panel); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .col h2 { font-size: 13px; margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--panel); display: flex; justify-content: space-between; }
+  .col .count { color: var(--mut); font-weight: 400; }
+  .col.awaiting_confirm { border-top: 3px solid var(--warn); }
+
+  .badge-warning { background: var(--warn); color:#fff; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 6px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">CRM 任务看板 <span style="font-weight:400;font-size:12px;">（含「待确认」角色确认挂点）</span></h1></div></header>
+<div class="board" id="board"></div>
+<script type="module">
+import { get } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+  const STATUSES = ['ready','running','done','failed','blocked','awaiting_confirm'];
+  const LABEL = { ready:'待办', running:'执行中', done:'完成', failed:'失败', blocked:'熔断', awaiting_confirm:'待确认' };
+
+  async function load() {
+    const { items } = await get('/api/kanban/tasks');
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    for (const st of STATUSES) {
+      const list = (items || []).filter(t => t.status === st);
+      const col = document.createElement('div');
+      col.className = 'col' + (st === 'awaiting_confirm' ? ' awaiting_confirm' : '');
+      col.innerHTML = `<h2>${LABEL[st]}<span class="count">${list.length}</span></h2>`;
+      for (const t of list) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<div class="title">${escapeHtml(t.title || t.action_name || t.id)}${st === 'awaiting_confirm' ? '<span class="badge-warning">待确认 ●</span>' : ''}</div>` +
+          `<div class="meta">${escapeHtml(t.action_name || '')}${t.confirmed_role ? ' · 角色:' + t.confirmed_role : ''}</div>`;
+        col.appendChild(card);
+      }
+      board.appendChild(col);
+    }
+  }
+  function escapeHtml(s) { return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  load();
+  setInterval(load, 5000);
+</script>
+</body>
+</html>

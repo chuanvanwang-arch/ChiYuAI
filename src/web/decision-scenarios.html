@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>销售决策场景配置</title>
+  <style>
+    body { font-family: -apple-system, system-ui, "Microsoft YaHei", sans-serif; background:var(--bg); margin: 0; color: var(--ink); }
+    .ds-stage { margin-bottom: 18px; }
+    .ds-stage > h3 { font-size: 15px; border-left: 4px solid var(--ac); padding-left: 8px; margin: 0 0 8px; }
+    .ds-stage .cnt { color: var(--mut); font-weight: 400; font-size: 12px; }
+    .ds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+    .ds-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .ds-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .ds-head b { font-size: 14px; }
+    .ds-desc { font-size: 13px; color: var(--mut); margin: 4px 0 8px; }
+    .ds-row { font-size: 12px; color: var(--mut); margin: 3px 0; }
+    .ds-row .k { display: inline-block; width: 56px; color: var(--mut); }
+
+    .empty { color: var(--mut); padding: 20px; }
+
+    /* §2026-09-04 TAB 视图 */
+    .ds-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 14px; position: sticky; top: 0; background: var(--bg); z-index: 5; }
+    .ds-tab { font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--ink); cursor: pointer; white-space: nowrap; }
+    .ds-tab:hover { border-color: var(--ac); }
+    .ds-tab.active { background: var(--ac); color: #fff; border-color: var(--ac); font-weight: 600; }
+    .ds-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+    .ds-toolbar .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mut); cursor: pointer; }
+    .ds-toolbar .stage-info { font-size: 12px; color: var(--mut); }
+
+    .ds-card.simple .ds-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ds-card.simple .diff-dot { color: #e8830c; font-size: 10px; margin-left: 4px; }
+    .ds-row .subset { color: #e8830c; font-weight: 600; }
+    .ds-row .full { color: var(--mut); }
+
+    .edit-form { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; display: none; }
+    .edit-form.show { display: block; }
+    .edit-form label { display: block; font-size: 12px; color: var(--mut); margin: 6px 0 2px; }
+    .edit-form input[type=text], .edit-form textarea, .edit-form select { width: 100%; box-sizing: border-box; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+    .edit-form textarea { min-height: 70px; font-family: ui-monospace, monospace; }
+    /* 9 尺子 chip 多选（聚焦/启用尺子） */
+    .ruler-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+    .rchip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; user-select: none; background: var(--panel); color: var(--mut); }
+    .rchip input { display: none; }
+    .rchip.on { background: var(--ac); color: #fff; border-color: var(--ac); }
+    .pass-row { display: flex; align-items: center; gap: 10px; }
+    .pass-row input[type=range] { flex: 1; }
+    .pass-row #f-pass-val { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 36px; text-align: right; }
+    /* T13/ui-lint 清障：编辑表单迁 crm-* 后 host 宽度对齐（shadow 内样式已含边框/圆角） */
+    .edit-form crm-input, .edit-form crm-select, .edit-form crm-textarea { display: block; width: 100%; margin-bottom: 2px; }
+    .edit-form crm-checkbox { display: inline-flex; margin: 7px 0; }
+    .edit-form crm-textarea { min-height: 70px; }
+    .form-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    .hint { font-size: 12px; color: var(--mut); }
+    .ok { color: var(--ok); } .err { color: var(--err); }
+
+    /* T8 三闭环页联动：?decisionId= 来源决策上下文条（从作战室「重跑场景」跳来时保留上下文） */
+    .ds-ctx:empty { display: none; }
+    .ds-ctx { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ac);
+      border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: var(--ink); }
+    .ds-ctx .ctx-title { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ds-ctx .ctx-title code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 12px; }
+    .ds-ctx .ctx-meta { color: var(--mut); font-size: 12px; line-height: 1.7; }
+    .ds-ctx .ctx-actions { margin-top: 8px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+    .ds-ctx .ctx-actions a { color: var(--ac); text-decoration: none; }
+    .ds-ctx .ctx-actions a:hover { text-decoration: underline; }
+    .ds-ctx .ctx-warn { color: var(--warn); }
+    /* 命中场景高亮（不改渲染器，页面层叠加，遵守「合并非删除」） */
+    .ds-card.focus { outline: 2px solid var(--ac); outline-offset: 2px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+    .ds-card.focus .ds-head b::after { content: ' · 来源决策场景'; color: var(--ac); font-size: 11px; font-weight: 400; }
+  </style>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">⚖ 销售决策场景配置</h1></div></header>
+  <p class="page-sub">决策事件主轴（§6）<b id="ds-sub-count">…</b> 销售场景 · 按销售漏斗 stage 分 TAB · 聚焦尺子/启用尺子/及格线可编辑 · 写经决策第0闸</p>
+  <div id="ds-ctx" class="ds-ctx"></div>
+  <div id="ds-tabs"></div>
+  <div class="ds-toolbar">
+    <label class="toggle"><crm-checkbox id="diffOnly">只看差异化（启用尺子子集）</crm-checkbox></label>
+    <span class="stage-info" id="stageInfo"></span>
+    <span id="ds-save-msg"></span>
+  </div>
+  <div id="ds-root">加载中…</div>
+
+  <script type="module">
+    import { get, post, put } from '/portal/api.js';
+    import * as ds from '/portal/decisionScenarioRender.js';
+    window.renderDecisionScenarios = ds.renderDecisionScenarios;
+
+    const root = document.getElementById('ds-root');
+    const tabsHost = document.getElementById('ds-tabs');
+    const stageInfo = document.getElementById('stageInfo');
+    const diffChk = document.getElementById('diffOnly');
+    let cache = [];
+    // §2026-09-04 TAB 视图状态：当前激活 stage + 「只看差异化」开关
+    let activeStage = null;
+    // 自动刷新控制：编辑表单打开时暂停，避免 setInterval 重建 DOM 破坏编辑态（竞态根因）
+    let refreshTimer = null;
+    function startRefresh() { if (!refreshTimer) refreshTimer = setInterval(load, 15000); }
+    function stopRefresh() { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } }
+
+    // ─── T8 三闭环页联动：消费 ?decisionId=（作战室「重跑场景 / 去重跑场景」跳转）───
+    // 缺口根因：gotoRerun() 携带 decisionId 跳来，但本页此前完全不读该参数 → 用户跳过来即丢失上下文，
+    // 只见 8 张场景卡、不知该调哪一个。此处补「来源决策上下文条 + 命中场景高亮定位」，不改渲染器（合并非删除）。
+    // 数据源：/api/decision/:id/closure（单决策三图闭环聚合，m.scenario_id 为权威场景归属；requireMe 已鉴权）
+    const ctxHost = document.getElementById('ds-ctx');
+    const FOCUS_ID = new URLSearchParams(location.search).get('decisionId') || '';
+    let focusScenario = null; // 解析出的场景 id（null=未解析/解析失败）
+    let focusMeta = null;     // 决策元信息
+
+    function escHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadFocusContext() {
+      if (!FOCUS_ID) return;
+      // 用 api()（/portal/api.js）而非裸 fetch：/api/decision/:id/closure 走 requireMe，需 Authorization 头
+      try {
+        const j = await get('/api/decision/' + encodeURIComponent(FOCUS_ID) + '/closure');
+        focusScenario = j?.m?.scenario_id || null;
+        focusMeta = {
+          disposition: j?.m?.disposition || j?.j?.disposition || null,
+          state: j?.j?.state || null,
+          confidence: j?.j?.confidence ?? null,
+          rationale: j?.m?.rationale || j?.j?.rationale || null,
+          runtimeEdges: j?.m?.edge_caliber?.runtime ?? null,
+          provCount: Array.isArray(j?.provenance) ? j.provenance.length : null,
+        };
+      } catch (e) {
+        focusScenario = null;
+        const st = e && e.status;
+        focusMeta = {
+          error: st === 404 ? '决策不存在'
+            : st === 403 ? '无权访问该租户决策'
+            : st === 401 ? '未登录，无法读取该决策上下文'
+            : (e && e.message) || '上下文加载失败',
+        };
+      }
+      renderCtx();
+      applyFocus(); // 上下文解析完成后再高亮（首屏 render 早于 closure 返回）
+    }
+
+    function renderCtx() {
+      if (!ctxHost || !FOCUS_ID) return;
+      const short = FOCUS_ID.slice(0, 8);
+      const err = focusMeta && focusMeta.error;
+      const scTxt = focusScenario
+        ? `归属场景 <b>${escHtml(focusScenario)}</b>`
+        : `<span class="ctx-warn">${escHtml(err || '未能定位归属场景')}</span>`;
+      const bits = [];
+      if (focusMeta && focusMeta.state) bits.push(`状态 ${escHtml(focusMeta.state)}`);
+      if (focusMeta && focusMeta.disposition) bits.push(`处置 ${escHtml(focusMeta.disposition)}`);
+      if (focusMeta && focusMeta.confidence != null) bits.push(`置信度 ${Number(focusMeta.confidence).toFixed(2)}`);
+      if (focusMeta && focusMeta.runtimeEdges != null) bits.push(`运行时边 ${focusMeta.runtimeEdges} 条`);
+      if (focusMeta && focusMeta.provCount != null) bits.push(`溯源条目 ${focusMeta.provCount} 条`);
+      const rat = focusMeta && focusMeta.rationale
+        ? `<div class="ctx-meta">决策理由：${escHtml(String(focusMeta.rationale).slice(0, 160))}</div>` : '';
+      ctxHost.innerHTML = `
+        <div class="ctx-title">🔗 来源决策 <code title="${escHtml(FOCUS_ID)}">${escHtml(short)}…</code> ${scTxt}</div>
+        ${bits.length ? `<div class="ctx-meta">${bits.join(' · ')}</div>` : ''}
+        ${rat}
+        <div class="ctx-meta">${focusScenario
+          ? '下方该场景卡片已高亮并滚动定位；调整评估维 / 默认分级 / 自主开关后保存，改动经决策第 0 闸沉淀。'
+          : '请从下方场景列表中手动选择需要重跑的场景。'}</div>
+        <div class="ctx-actions">
+          <a href="/sales-decision-monitor.html">← 返回销售决策监控台</a>
+          <a href="/decision-graph.html?decisionId=${encodeURIComponent(FOCUS_ID)}">查看该决策的决策链 →</a>
+          <a href="/decision-scenarios.html">清除上下文</a>
+        </div>`;
+    }
+
+    // 高亮 + 滚动定位命中场景（受 15s 自动刷新重建 DOM 影响，故每次 render 后重放）
+    function applyFocus() {
+      if (!focusScenario) return;
+      const card = root.querySelector('.ds-card[data-id="' + focusScenario + '"]');
+      if (!card) return;
+      root.querySelectorAll('.ds-card.focus').forEach((el) => el.classList.remove('focus'));
+      card.classList.add('focus');
+      // 首屏定位一次即可，避免自动刷新反复跳动
+      if (!applyFocus.__done) { applyFocus.__done = true; card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
+
+    function render(scenarios) {
+      cache = scenarios;
+      // 副标题场景数仅计 8 销售（TAB 视图）；平台治理/TRACE 不进销售视角
+      const salesCount = scenarios.filter((s) => ds.SALES_STAGE_ORDER.includes(s.stage)).length;
+      const subCount = document.getElementById('ds-sub-count');
+      if (subCount) subCount.textContent = String(salesCount);
+
+      // §2026-09-04 TAB 视图：首屏默认激活第一个存在的销售 stage
+      const presentStages = ds.SALES_STAGE_ORDER.filter((st) => scenarios.some((s) => s.stage === st));
+      if (!activeStage || !presentStages.includes(activeStage)) activeStage = presentStages[0] || null;
+
+      tabsHost.innerHTML = ds.renderScenarioTabs(scenarios, activeStage);
+      const diffOnly = diffChk.checked;
+      root.innerHTML = (activeStage ? ds.renderStageCards(scenarios, activeStage, { diffOnly }) : '<div class="empty">无销售场景</div>') + editFormShell();
+
+      // stage 信息条：当前阶段场景数 / 差异化数
+      const stageList = scenarios.filter((s) => s.stage === activeStage);
+      const diffN = stageList.filter((s) => ds.ALL_RULERS && Array.isArray(s.enabled_rulers) && s.enabled_rulers.length > 0).length;
+      if (stageInfo) stageInfo.textContent = activeStage ? `当前：${activeStage} · ${stageList.length} 场景${diffN ? ` · 差异化 ${diffN}` : ''}` : '';
+
+      applyFocus(); // 刷新后重放高亮
+    }
+
+    // TAB 点击切换（事件委托，挂在 tabsHost 上，不受 innerHTML 重建影响）
+    tabsHost.addEventListener('click', (e) => {
+      const tab = e.target.closest('.ds-tab');
+      if (!tab) return;
+      e.preventDefault();
+      activeStage = tab.dataset.stage;
+      render(cache);
+    });
+    // 「只看差异化」开关切换（事件委托）
+    diffChk.addEventListener('change', () => render(cache));
+
+    function editFormShell() {
+      return `<div id="editShell" class="edit-form"></div>`;
+    }
+
+    // 事件委托：root → button.edit（冒泡捕获，不受 innerHTML 重建影响）
+    root.addEventListener('click', (e) => {
+      const btn = e.target.closest('button.edit');
+      if (btn) { e.preventDefault(); openEdit(btn.dataset.id); }
+    });
+
+    function openEdit(id) {
+      const s = cache.find((x) => x.scenario_id === id);
+      if (!s) { console.warn('[ds] scenario not found in cache:', id); return; }
+      const shell = document.getElementById('editShell');
+      if (!shell) { console.error('[ds] #editShell not found in DOM'); return; }
+      stopRefresh(); // 编辑期间暂停自动刷新，避免竞态破坏表单
+      shell.classList.add('show');
+      shell.innerHTML = `
+        <h4>编辑 ${id}</h4>
+        <label>描述 description</label>
+        <crm-input type="text" id="f-desc" value="${escAttr(s.description || '')}"></crm-input>
+        <label>默认分级 default_tier</label>
+        <crm-select id="f-tier">
+          ${['LEAD','NORMAL','HIGH'].map((t) => `<option ${t === s.default_tier ? 'selected' : ''}>${t}</option>`).join('')}
+        </crm-select>
+        <label>自主开关 autonomous_allowed</label>
+        <crm-checkbox id="f-auto" ${s.autonomous_allowed ? 'checked' : ''}>自主决策允许</crm-checkbox>
+        <label>方法论 methodology_ids（逗号分隔）</label>
+        <crm-input type="text" id="f-methods" value="${asArray(s.methodology_ids).join(', ')}"></crm-input>
+        <label>评估维 eval_dimensions（JSON 数组）</label>
+        <crm-textarea id="f-dims" value="${escAttr(JSON.stringify(asArray(s.eval_dimensions), null, 0))}"></crm-textarea>
+        <label>处置集 dispositions（逗号分隔）</label>
+        <crm-input type="text" id="f-disp" value="${asArray(s.dispositions).join(', ')}"></crm-input>
+        <label>聚焦尺子 focus_rulers（×1.5 加权，点选切换）</label>
+        <div class="ruler-chips" id="f-focus-chips">
+          ${ds.ALL_RULERS.map((k) => `<crm-checkbox class="rchip${asArray(s.focus_rulers).some((x) => (typeof x === 'string' ? x : x?.key) === k) ? ' on' : ''}" data-ruler="${k}" ${asArray(s.focus_rulers).some((x) => (typeof x === 'string' ? x : x?.key) === k) ? 'checked' : ''}>${k}</crm-checkbox>`).join('')}
+        </div>
+        <label>启用尺子 enabled_rulers（点选=只跑这些尺子；全不选=跑全 9 尺子）</label>
+        <div class="ruler-chips" id="f-enabled-chips">
+          ${ds.ALL_RULERS.map((k) => `<crm-checkbox class="rchip${asArray(s.enabled_rulers).includes(k) ? ' on' : ''}" data-ruler="${k}" ${asArray(s.enabled_rulers).includes(k) ? 'checked' : ''}>${k}</crm-checkbox>`).join('')}
+        </div>
+        <label>及格线 rubric_pass_line（0–1）</label>
+        <div class="pass-row">
+          <crm-input type="range" id="f-pass" min="0" max="1" step="0.05" value="${s.rubric_pass_line != null ? Number(s.rubric_pass_line) : 0.5}"></crm-input>
+          <span id="f-pass-val">${s.rubric_pass_line != null ? Number(s.rubric_pass_line).toFixed(2) : '0.50'}</span>
+        </div>
+        <div class="form-actions">
+          <crm-button class="btn" id="saveBtn">保存</crm-button>
+          <crm-button class="btn ghost" id="cancelBtn">取消</crm-button>
+          <span id="msg" class="hint"></span>
+        </div>`;
+      document.getElementById('cancelBtn').onclick = () => { shell.classList.remove('show'); startRefresh(); };
+      document.getElementById('saveBtn').onclick = () => save(id, shell);
+      // chip 选中态随 checkbox change 切换高亮（label 默认 toggle input → change 触发，无需手动干预）
+      shell.querySelectorAll('#f-focus-chips .rchip, #f-enabled-chips .rchip').forEach((cb) => {
+        cb.addEventListener('change', () => cb.classList.toggle('on', cb.checked));
+      });
+      const passRange = shell.querySelector('#f-pass');
+      const passVal = shell.querySelector('#f-pass-val');
+      if (passRange) passRange.addEventListener('input', () => { passVal.textContent = Number(passRange.value).toFixed(2); });
+      shell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function save(id, shell) {
+      const msg = document.getElementById('ds-save-msg'); // 页面级固定提示，不受 render 重建影响
+      const patch = {
+        description: shell.querySelector('#f-desc').value.trim(),
+        default_tier: shell.querySelector('#f-tier').value,
+        autonomous_allowed: shell.querySelector('#f-auto').checked,
+        methodology_ids: shell.querySelector('#f-methods').value.split(',').map((x) => x.trim()).filter(Boolean),
+        eval_dimensions: shell.querySelector('#f-dims').value,
+        dispositions: shell.querySelector('#f-disp').value.split(',').map((x) => x.trim()).filter(Boolean),
+        focus_rulers: JSON.stringify([...shell.querySelectorAll('#f-focus-chips crm-checkbox')].filter((i) => i.checked).map((i) => i.dataset.ruler)),
+        enabled_rulers: JSON.stringify([...shell.querySelectorAll('#f-enabled-chips crm-checkbox')].filter((i) => i.checked).map((i) => i.dataset.ruler)),
+        rubric_pass_line: shell.querySelector('#f-pass').value.trim(),
+      };
+      msg.textContent = '保存中…'; msg.className = 'hint';
+      try {
+        const j = await put('/api/decision-scenarios', { scenario_id: id, patch });
+        msg.textContent = '✓ 已保存（决策事件 ' + (j.decision || '已沉淀') + '）'; msg.className = 'ok';
+        const refreshed = await get('/api/decision-scenarios');
+        render(refreshed.scenarios);
+        startRefresh();
+      } catch (e) {
+        msg.textContent = '✗ ' + e.message; msg.className = 'err';
+        startRefresh();
+      }
+    }
+
+    function escAttr(s) { return String(s).replace(/"/g, '&quot;'); }
+    function asArray(v) {
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === 'string') {
+        try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
+      }
+      return [];
+    }
+
+    async function load() {
+      // 编辑表单打开时不刷新，避免竞态导致正在编辑的表单被重建丢失
+      if (document.getElementById('editShell')?.classList.contains('show')) return;
+      try {
+        const j = await get('/api/decision-scenarios');
+        render(j.scenarios || []);
+      } catch (e) {
+        root.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+      }
+    }
+    load();
+    startRefresh();
+    loadFocusContext(); // T8：?decisionId= 来源决策上下文（无参数时为空操作）
+</script>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body>
+</html>

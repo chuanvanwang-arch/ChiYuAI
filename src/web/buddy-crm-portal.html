@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CRM 销售智能工作台</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  .buddy-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .buddy-tab[data-active="true"] { background: var(--ac); color: #fff; }
+  .buddy-caps { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 10px; }
+  .buddy-cap[data-active="true"] { background: var(--ac); color: #fff; }
+  .buddy-hint { font-size: 12px; color: var(--mut); margin-bottom: 8px; min-height: 16px; }
+  .buddy-frame { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  .buddy-view { height: 50vh; }
+  .buddy-chat { height: 40vh; }
+  .buddy-err { color: var(--err); font-size: 12px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">CRM 销售智能工作台</h1></div></header>
+<div class="page-sub">AI 原生销售管理垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、财务（仅 finance 角色可见）。点击场景胶囊，预设指令（已精确绑定 method-* Skill / Action）将注入下方对话区，确认后发送即走 crm-native MCP 派发。</div>
+
+<div class="buddy-err" id="buddy-err"></div>
+<div class="buddy-hint" id="buddy-login-hint" style="display:none"></div>
+
+<nav class="buddy-tabs">
+  <crm-button class="buddy-tab" data-tab="客户洞察" data-active="true">客户洞察</crm-button>
+  <crm-button class="buddy-tab" data-tab="商机推进">商机推进</crm-button>
+  <crm-button class="buddy-tab" data-tab="报价折扣">报价折扣</crm-button>
+  <crm-button class="buddy-tab" data-tab="决策审批">决策审批</crm-button>
+  <crm-button class="buddy-tab" data-tab="业绩治理">业绩治理</crm-button>
+  <crm-button class="buddy-tab" data-tab="财务">财务</crm-button>
+</nav>
+
+<div class="buddy-caps" id="buddy-caps"></div>
+<div class="buddy-hint" id="buddy-hint"></div>
+
+<iframe class="buddy-frame buddy-view" id="buddy-view" src="/portal/account-360.html" title="业务视图"></iframe>
+
+<iframe class="buddy-frame buddy-chat" id="buddy-chat" src="/portal/agent-workbench.html" title="AI 对话"></iframe>
+
+<script type="module">
+  // 业务视图：每个 Tab 关联的既有页面（iframe 复用，零新建）
+  const PAGES = {
+    "客户洞察": "account-360.html",
+    "商机推进": "pipeline.html",
+    "报价折扣": "quotation-detail.html",
+    "决策审批": "approval-flow.html",
+    "业绩治理": "sales-decision-monitor.html",
+    "财务": "finance-receivables.html"
+  };
+  // 场景胶囊：精确绑定现有 method-* / crm-* Skill（已通过 scripts/buddy-capsule-binding-check.mjs 校验）
+  // skill=绑定技能（MCP 工具名/平台 Skill 名）；targetAgent=确定性路由目标（直接落 routeThroughIntake，绕过意图猜词）
+  // prompt=注入对话区的预设指令（显式命名技能 + 业务动作）
+  const CAPS = {
+    "客户洞察": [
+      { label: "360 视图", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 展示当前客户的 360 度视图，重点标注近期商机、风险信号与待办事项。" },
+      { label: "重点客户", skill: "method-funnel-classification", targetAgent: "followup-agent", prompt: "调用 method-funnel-classification 技能，对当前负责的客户按漏斗质量分群，标出高意向与需培育对象（跟进视角）。" },
+      { label: "客户拜访", skill: "method-intake-routing", targetAgent: "intake-router", prompt: "调用 method-intake-routing 技能规划客户拜访：明确拜访目标、关键决策人、待澄清痛点与现场推进动作。" },
+      { label: "客户任务线", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 梳理该客户的任务时间线，标出停滞节点与推进建议。" }
+    ],
+    "商机推进": [
+      { label: "管道看板", skill: "crm-deal-advance", targetAgent: "quote-engine", prompt: "展示当前商机管道看板，标注各阶段数量、金额与预期关闭日期，并给出阶段推进建议。" },
+      { label: "阶段评估", skill: "method-stage-progression", targetAgent: "quote-engine", prompt: "调用 method-stage-progression 技能，对当前商机做阶段评估，判断是否可推进到下一阶段及缺口。" },
+      { label: "漏斗分类", skill: "method-funnel-classification", targetAgent: "followup-agent", prompt: "调用 method-funnel-classification 技能，按质量对商机漏斗分类，标出高意向与需培育对象。" },
+      { label: "商机复盘", skill: "decision-retrospective", targetAgent: "decision-retro", prompt: "调用 decision-retrospective 技能，对近期赢单/丢单做复盘，提炼可复用的打法。" }
+    ],
+    "报价折扣": [
+      { label: "报价生成", skill: "method-quote-engine", targetAgent: "quote-engine", prompt: "调用 method-quote-engine 技能，基于当前商机生成报价草稿，含产品、数量、单价与合计。" },
+      { label: "折扣策略", skill: "method-quote-engine", targetAgent: "quote-engine", prompt: "调用 method-quote-engine 技能，给出该客户适用的折扣策略，标注权限边界与审批要求。" },
+      { label: "价目表", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 展示现行价目表，标明标准价与可申请的折扣区间。" },
+      { label: "折扣审批", skill: "method-review-gate", targetAgent: "review-gate", prompt: "调用 method-review-gate 技能发起折扣审批，按 CRM_APPROVAL_FLOW 走决策闸门与 HITL 确认。" }
+    ],
+    "决策审批": [
+      { label: "审批流", skill: "method-review-gate", targetAgent: "review-gate", prompt: "调用 method-review-gate 技能查看待我审批的流程，标注超时风险与决策依据。" },
+      { label: "复核闸门", skill: "method-review-gate", targetAgent: "review-gate", prompt: "调用 method-review-gate 技能对当前决策执行复核闸门，校验先例与阈值。" },
+      { label: "决策追溯", skill: "method-decision-enrich", targetAgent: "decision-agent", prompt: "调用 method-decision-enrich 技能追溯某决策的完整链路（C1-C4）：触发、先例、阈值、执行。" },
+      { label: "根因分析", skill: "decision-retrospective", targetAgent: "decision-retro", prompt: "调用 decision-retrospective 技能对一次失败决策做根因分析，给出防复发建议。" }
+    ],
+    "业绩治理": [
+      { label: "销售监控", skill: "method-followup-engine", targetAgent: "followup-agent", prompt: "调用 method-followup-engine 技能展示今日销售监控指标：新增商机、阶段推进、赢单金额。" },
+      { label: "决策监控", skill: "method-decision-enrich", targetAgent: "decision-agent", prompt: "调用 method-decision-enrich 技能监控决策自治层运行：自主放行率、升级率、异常。" },
+      { label: "校准指标", skill: "method-behavior-standard", targetAgent: "followup-agent", prompt: "调用 method-behavior-standard 技能对照 7 维校准模型，给出本团队能力短板与校准建议。" },
+      { label: "团队看板", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 展示团队任务看板，标注阻塞任务与责任人。" }
+    ],
+    "财务": [
+      { label: "回款计划", skill: "crm-payment-plan-create", targetAgent: "quote-engine", prompt: "调用 crm-payment-plan-create 动作，为当前商机制定回款计划，标注各期金额与到期日（走 crm-write 两阶段与 HITL 确认）。" },
+      { label: "回款登记", skill: "crm-payment-record-create", targetAgent: "quote-engine", prompt: "调用 crm-payment-record-create 动作登记一笔回款，须走 crm-write 两阶段与 HITL 确认。" },
+      { label: "发票管理", skill: "crm-invoice-create", targetAgent: "quote-engine", prompt: "调用 crm-invoice-create 动作开具发票并支持后续核销（crm-invoice-reconcile），关键动作须 HITL。" },
+      { label: "财务应收看板", skill: "crm-finance-receivables", targetAgent: "quote-engine", prompt: "调用 crm-finance-receivables 动作展示本租户应收看板（需 advanced_reporting 权益，仅 finance 角色）。" }
+    ]
+  };
+  const PAGE_BASE = "/portal/";
+  const view = document.getElementById('buddy-view');
+  const chat = document.getElementById('buddy-chat');
+  const caps = document.getElementById('buddy-caps');
+  const hint = document.getElementById('buddy-hint');
+  const err = document.getElementById('buddy-err');
+
+  function renderCaps(tab) {
+    const list = CAPS[tab] || [];
+    caps.innerHTML = '';
+    list.forEach((cap, i) => {
+      const b = document.createElement('crm-button');
+      b.className = 'buddy-cap';
+      b.textContent = cap.label;
+      if (i === 0) b.setAttribute('data-active', 'true');
+      b.addEventListener('click', () => {
+        try {
+          chat.contentWindow.postMessage({
+            type: 'inject-prompt',
+            text: cap.prompt,
+            skillSlug: cap.skill,
+            targetAgent: cap.targetAgent,
+            scope: cap.scope || 'crm-native'
+          }, '*');
+          caps.querySelectorAll('crm-button').forEach(x => x.removeAttribute('data-active'));
+          b.setAttribute('data-active', 'true');
+          hint.textContent = '已注入对话区：' + cap.label + ' → 技能 ' + cap.skill + ' — 请在下方输入框确认后发送';
+          setTimeout(() => { if (hint.textContent.startsWith('已注入')) hint.textContent = ''; }, 2800);
+        } catch (e) {
+          err.textContent = '注入失败：' + (e?.message || e);
+        }
+      });
+      caps.appendChild(b);
+    });
+  }
+
+  document.querySelectorAll('.buddy-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.buddy-tab').forEach(x => x.removeAttribute('data-active'));
+      t.setAttribute('data-active', 'true');
+      const tab = t.getAttribute('data-tab');
+      renderCaps(tab);
+      const page = PAGES[tab];
+      if (page) view.src = PAGE_BASE + page;
+      applyLoginHint(); // Tab 切换后重算登录提示（写类胶囊 Tab 才提示）
+    });
+  });
+
+  // 财务 Tab 角色闸门（零信任防御纵深）：仅 finance/admin/sysadmin 可见；未登录默认隐藏。
+  // 真实权限仍以 crm-finance-receivables 的 requiresEntitlement(advanced_reporting) + 下游写通道闸门为准。
+  async function applyRoleGating() {
+    const financeTab = document.querySelector('.buddy-tab[data-tab="财务"]');
+    if (!financeTab) return;
+    const FINANCE_ROLES = ['finance', 'admin', 'sysadmin'];
+    const token = localStorage.getItem('crm_token');
+    if (!token) { financeTab.style.display = 'none'; return; }
+    try {
+      const r = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) { financeTab.style.display = 'none'; return; }
+      const me = await r.json();
+      const role = me?.role || (me?.data && me?.data.role);
+      if (!FINANCE_ROLES.includes(role)) financeTab.style.display = 'none';
+    } catch {
+      financeTab.style.display = 'none';
+    }
+  }
+  applyRoleGating();
+
+  // 登录引导（零信任 UX）：未登录时注入「请先登录/注册」提示，写操作前置告知。
+  // 真实拦截仍在 /api/agent/dispatch 401（workbench 已引导登录），此处仅做前置提示，不设硬登录墙。
+  function applyLoginHint() {
+    const activeTab = document.querySelector('.buddy-tab[data-active="true"]')?.getAttribute('data-tab') || '客户洞察';
+    const pending = CAPS[activeTab] || [];
+    const isWrite = pending.some((c) => /quote|approval|advance|payment|invoice|contract/.test(c.skill || ''));
+    const hintHost = document.getElementById('buddy-login-hint');
+    if (!hintHost) return;
+    if (localStorage.getItem('crm_token') || !isWrite) { hintHost.style.display = 'none'; return; }
+    hintHost.style.display = '';
+    hintHost.textContent = `${activeTab} 含写类胶囊（报价/审批/回款/开票）——发送前请先登录：前往 /home.html 登录，或 /landing.html#start 注册（按公司名自动开通租户）。`;
+  }
+  applyLoginHint();
+
+  try {
+    renderCaps("客户洞察");
+  } catch (e) {
+    err.textContent = '初始化失败：' + (e?.message || e);
+  }
+</script>
+<footer class="app-footer">
+  <span>北京青羽智行科技有限公司 © 2023-2026 版权所有</span>
+  <span class="f-sep">｜</span><span>chiyuai.com</span>
+  <span class="f-sep">·</span><span>本平台相关内容同步更新</span>
+</footer>
+</body>
+</html>

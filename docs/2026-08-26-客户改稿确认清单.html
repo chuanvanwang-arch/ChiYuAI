@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>客户改稿确认清单（彩盒）</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color:#222; background:#f5f6f8; margin:0; padding:20px; }
+  .page { max-width:780px; margin:0 auto; background:#fff; padding:32px 36px; box-shadow:0 2px 8px rgba(0,0,0,.08); }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:#888; font-size:13px; margin-bottom:20px; }
+  table { width:100%; border-collapse:collapse; margin-bottom:18px; font-size:14px; }
+  th, td { border:1px solid #ccc; padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; font-weight:600; }
+  .group { font-weight:bold; border-left:4px solid #2d6cdf; background:#eef3fb; padding:6px 12px; margin:20px 0 8px; }
+  .note { background:#fffbe6; border:1px solid #e8d48a; padding:12px 14px; font-size:13px; margin-bottom:14px; }
+  .confirm { border:1px solid #4caf50; background:#f6fbf6; }
+  .confirm th { background:#e8f5e9; }
+  .warn { color:#c00; }
+  .fill { color:#999; }
+  @media print { body { background:#fff; padding:0; } .page { box-shadow:none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>客户改稿确认清单</h1>
+  <div class="sub">彩盒 · 5,000 只　|　来源：客户语音转文字（2026-08-26）　|　用途：客户确认 + 转生产执行</div>
+
+  <div class="group">1. 本次改稿项（5 项）</div>
+  <table>
+    <tr><th style="width:44px">#</th><th style="width:200px">客户原话（语音转文字）</th><th>改稿要求（可执行描述）</th><th style="width:80px">状态</th></tr>
+    <tr><td>1</td><td>封面烫金位置往上挪一点</td><td>烫金位置整体上移（偏移量见 §3 待确认）</td><td>待确认</td></tr>
+    <tr><td>2</td><td>底色不要深黑改成深灰</td><td>底色由深黑改为深灰（具体色值待确认）</td><td>待确认</td></tr>
+    <tr><td>3</td><td>第 3 页文字换字体</td><td>第 3 页文字更换字体（目标字体待确认）</td><td>待确认</td></tr>
+    <tr><td>4</td><td>样品边角希望不要有毛边</td><td>样品边角去毛边（模切后去毛刺/光边处理）</td><td>已明确</td></tr>
+    <tr><td>5</td><td>打样先做 5 个，打样费后续大货可以抵扣</td><td>打样 5 个，打样费计入、大货下单后抵扣</td><td>已明确</td></tr>
+  </table>
+
+  <div class="group">2. 生产执行要点（转发生产）</div>
+  <table>
+    <tr><th>烫金</th><td>重新定位烫金版（偏移量按 §3 确认）；烫金版需重制另计。</td></tr>
+    <tr><th>底色</th><td>按确认深灰色值重新调色，出标准色样，追色以签样为准。</td></tr>
+    <tr><th>字体</th><td>第 3 页换字体后核对：字形替换是否影响版式/行距/文字溢出/与图片叠印。</td></tr>
+    <tr><th>去毛边</th><td>模切后增加去毛刺/边角光边处理（固化工艺，报价含后道）。</td></tr>
+    <tr><th>打样</th><td>先出 5 个样品（数码样或上机样按 §3 确认）；签样后作为大货验收基准。</td></tr>
+  </table>
+
+  <div class="group">3. 口语描述 → 需量化的空缺参数（请客户补充）</div>
+  <table>
+    <tr><th style="width:44px">#</th><th style="width:140px">口语描述</th><th>需量化确认</th></tr>
+    <tr><td>1</td><td>"往上挪一点"</td><td>烫金位置向上偏移 <span class="fill">＿＿ mm</span>（建议参考：5mm / 10mm）</td></tr>
+    <tr><td>2</td><td>"深灰"</td><td>□ 常规深灰（如 C0 M0 Y0 K60）　□ 品牌指定色号（PMS _______）　□ 其他：<span class="fill">＿＿＿</span></td></tr>
+    <tr><td>3</td><td>"换字体"</td><td>□ 厂方推荐（思源黑体 / 方正大黑）　□ 客户提供字体文件　□ 目标字体：<span class="fill">＿＿＿</span></td></tr>
+    <tr><td>4</td><td>"打样 5 个"</td><td>□ 数码样（快/便宜）　□ 上机样（准/贵）；打样费金额：<span class="fill">＿＿＿ 元</span></td></tr>
+  </table>
+
+  <div class="group">4. 费用与规则（报价单条款重申）</div>
+  <table class="confirm">
+    <tr><th style="width:130px">改稿费</th><td>本次改稿（第 1-4 项）属<b>首轮修改</b>，免费 1 次。</td></tr>
+    <tr><th>打样费</th><td>5 个样品费<b>另计</b>，<b>大货下单后抵扣</b>。</td></tr>
+    <tr><th>确认后改稿</th><td><span class="warn">打样确认后再改稿</span>：需承担重新制版费 + 已耗材料。</td></tr>
+    <tr><th>文件规范</th><td>客户文件规范问题（缺出血/色彩空间/分辨率不足）返工不属免费范围。</td></tr>
+  </table>
+
+  <div class="group">5. 确认回执</div>
+  <table class="confirm">
+    <tr><th>客户确认</th><td>□ 上述 5 项改稿要求已确认无误，同意按此执行</td></tr>
+    <tr><th>参数补充</th><td>□ 空缺参数（§3）已补充：<span class="fill">＿＿＿＿＿＿＿＿</span></td></tr>
+    <tr><th>签样</th><td>样品签样人：<span class="fill">＿＿＿＿＿</span>　签字/日期：<span class="fill">＿＿＿＿＿</span></td></tr>
+  </table>
+
+  <div class="note"><b>流程</b>：请客户确认回传 → 转生产执行 → 出打样（5 个）→ 签样 → 大货。打样费按报价单规则在大货下单后抵扣。</div>
+</div>
+</body>
+</html>

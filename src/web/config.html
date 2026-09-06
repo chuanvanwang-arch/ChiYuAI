@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>配置中心 · 30 项（系统级/租户级两组）</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  /* G4：配置中心 = 4 组聚类（对齐蓝图 §1.1 G1–G4 全 18 项）；组内为可编辑配置面入口（对应单页继续编辑，保留 admin 守卫） */
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .panels .cfg-group { display: none; }
+  .panels .cfg-group.on { display: block; }
+  .cfg-group h3 { font-size: 15px; border-left: 4px solid var(--ac); padding-left: 8px; margin: 12px 0 10px; }
+  .cfg-group h4 { font-size: 13px; color: var(--mut); margin: 0 0 12px; font-weight: 400; }
+  /* §15.2 子组（G1–G4）嵌套在系统级/租户级一级分组内 */
+  .cfg-sub h3 { font-size: 13px; color: var(--mut); border-left: 3px solid var(--line); margin: 14px 0 8px; }
+  .cfg-sub h4 { font-size: 12px; margin: 0 0 8px; }
+  .cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .cfg-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; background: var(--panel); border-left: 4px solid transparent; }
+  .cfg-card.read { border-left-color: var(--ac); }
+  .cfg-head { display: flex; align-items: center; gap: 8px; }
+  .cfg-head h4 { margin: 0; font-size: 13px; }
+  .cfg-sum { font-size: 12px; color: var(--mut); margin: 8px 0; min-height: 18px; }
+  .cfg-act .btn-anchor { font-size: 12px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--ac); background: var(--ac); color: #fff; text-decoration: none; cursor: pointer; }
+  .cfg-act .btn-anchor:hover { background: var(--ac-hover); }
+  #err { color: var(--err); font-size: 12px; }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">配置中心</h1></div></header>
+<div id="err"></div>
+<div id="forbidden"><h3>需要管理权限</h3><p>请用管理员账号 <a href="/home.html">重新登录</a>。</p></div>
+<div id="app" style="display:none">
+  <div class="tabs" id="tabs"></div>
+  <div class="panels" id="panels"></div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me } from '/portal/api.js';
+  import { CONFIG_ITEMS } from '/portal/configCenter.js';
+
+  injectLayout();
+
+  async function guard() {
+    try {
+      const r = await me();
+      // me() 成功响应为 {role, display_name, username}（无 ok 字段）；失败为 {ok:false}
+      // §15.1 守卫放宽：admin/sysadmin/ten_admin（含连字符/历史拼写变体）可入；其余拦截
+      // canonical=ten_admin（userManagement ROLE_TAGS 落库名）；tan_admin 为历史拼写，rbac.js ALIAS 已归一
+      const ALIAS = { admin: 'ADMIN', ADMIN: 'ADMIN', sysadmin: 'SYSADMIN', ten_admin: 'TAN_ADMIN', tan_admin: 'TAN_ADMIN', 'tan-admin': 'TAN_ADMIN', 'tenant-admin': 'TAN_ADMIN' };
+      const level = ALIAS[r?.role] || null;
+      if (!level) {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('forbidden').style.display = 'block';
+        return null;
+      }
+      return { ...r, level };
+    } catch (e) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('forbidden').style.display = 'block';
+      return null;
+    }
+  }
+
+  // G4：4 组全量映射（对齐蓝图 §1.1 G1–G4）——组名 → 承载配置项（沿用 CONFIG_ITEMS 的 id/name/page）
+  // §15.2 重分组：此 4 组降为「子组」（一级分组=系统级/租户级，按 CONFIG_ITEMS.level 切分，见 render()）
+  // 用户按 S 编号（master-blueprint §3：S16/S19/S21/S25/S28/S31）查找，卡片标题带 sRef 交叉引用
+  const LEVEL_GROUPS_MARKUP = [
+    { name: '平台与访问', items: [11, 12, 13, 27, 28, 40, 41] },   // G1: llm(S16) / users / rbac / mcp-identities / system / tenant-mgmt / platform-plan
+    { name: '销售方法论与决策治理', items: [14, 15, 16, 31, 32, 33, 35, 43, 36, 37, 38, 44] },  // G2: decision-scenarios(S19) / seven-dim / skills(S21) / behavior-standard(S31b) / sales-thresholds(S31c) / 思维要素(S33) / event-retro(③事件触发复盘) / 夜间批量复盘(R3,2026-09-05) / 场景路由(融合设计-故事线/图谱) / 审计链巡检(C2) / 先例检索(C4 四分量) / 路由实验(routing-explore, 2026-09-05)
+    { name: '业务对象与流程建模', items: [17, 18, 20, 22, 29, 30, 34] },    // G3: approval-flow / business-tier / pool(S25) / ontology(业务词汇,租户级) / approval-config
+    { name: '智能体与运行', items: [21, 23, 39] },              // G4: alert-rules / agent-config(S28) / agent-event-trigger（page-market 已迁系统日志）
+    { name: '系统日志', items: [19, 24, 26, 45] },   // 纯显示只读参考：meta-attr 抽屉 / page-market 画廊 / 记忆先例总览 / 粒子本体只读快照（均系统级，仅 ADMIN）
+    { name: '全局复用与经验蔓延', items: [42] },   // 传播 TAB 专属子组（仅 ADMIN TAB；id42 深链 /propagation-hub.html，后端 4 API 已就绪）
+  ];
+  const byId = Object.fromEntries(CONFIG_ITEMS.map((i) => [i.id, i]));
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function render(me) {
+    const tabsEl = document.getElementById('tabs');
+    const panelsEl = document.getElementById('panels');
+    // §15.2 两个一级分组：系统级仅 ADMIN 可见；ten_admin/sysadmin 仅见租户级（API 侧注册表闸同步兜底）
+    // 标签不含角色名（2026-09-05 用户决议：菜单是导航不是权限声明）
+    const LEVEL_TABS = [
+      { level: 'system', name: '系统级', visible: me.level === 'ADMIN' },
+      { level: 'tenant', name: '租户级', visible: true },
+      // 第三 TAB（2026-09-05）：传播中枢，仅 ADMIN 可见（上下贯通语义；ten_admin/sysadmin 不可见）
+      { level: 'propagation', name: '全局复用与经验蔓延', visible: me.level === 'ADMIN' },
+    ].filter((t) => t.visible);
+    LEVEL_TABS.forEach((lt, gi) => {
+      const tab = document.createElement('div');
+      tab.className = 'tab' + (gi === 0 ? ' on' : '');
+      tab.textContent = lt.name;
+      tab.dataset.gi = gi;
+      tabsEl.appendChild(tab);
+
+      const panel = document.createElement('div');
+      panel.className = 'cfg-group' + (gi === 0 ? ' on' : '');
+      panel.dataset.gi = gi;
+      // 组内仍按 G1–G4 子组陈列（蓝图 §1.1 分组保留，仅外层加权限一级分组）
+      panel.innerHTML = LEVEL_GROUPS_MARKUP
+        .map((g) => {
+          const items = g.items.filter((id) => (byId[id]?.level || 'tenant') === lt.level);
+          if (!items.length) return '';
+          return `<div class="cfg-sub" data-group="${esc(g.name)}">
+            <h3>${esc(g.name)}</h3>
+            <h4>${items.map((id) => byId[id]?.name || id).join(' · ')}</h4>
+            <div class="cfg-grid">${items.map((id) => {
+              const it = byId[id]; if (!it) return '';
+              return `<article class="cfg-card read" data-id="${id}">
+                <div class="cfg-head"><span class="badge read">可编辑</span><h4>#${it.id}${it.sRef ? ' · ' + esc(it.sRef) : ''} ${esc(it.name)}</h4></div>
+                <p class="cfg-sum">${esc(it.note || '')}</p>
+                <div class="cfg-act"><a class="btn-anchor" href="${esc(it.page || '#')}">打开编辑</a></div>
+              </article>`;
+            }).join('')}</div>
+          </div>`;
+        }).join('');
+      panelsEl.appendChild(panel);
+    });
+
+    // Tab 切换
+    tabsEl.addEventListener('click', (e) => {
+      const t = e.target.closest('.tab'); if (!t) return;
+      tabsEl.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x === t));
+      panelsEl.querySelectorAll('.cfg-group[data-gi]').forEach((p) => p.classList.toggle('on', p.dataset.gi === t.dataset.gi));
+    });
+  }
+
+  const meCtx = await guard();
+  if (meCtx) {
+    render(meCtx);
+    document.getElementById('app').style.display = 'block';
+  }
+</script>
+</body>
+</html>

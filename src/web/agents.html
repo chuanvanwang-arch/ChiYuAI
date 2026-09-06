@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>智能体运行监控台</title>
+<style>
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color:var(--ink); }
+  h2 { margin:0 0 4px; }
+  .sub { color:var(--mut); font-size:13px; margin-bottom:16px; }
+  .statusbar { display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:var(--panel); margin-bottom:16px; }
+  .statusbar .health { color:var(--mut); font-size:12px; }
+  .gates { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+  .gate { border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:var(--panel); }
+  .gate h3 { margin:0 0 4px; font-size:14px; }
+  .gate .stage { color:var(--mut); font-size:12px; margin-bottom:6px; }
+  .chips { display:flex; gap:4px; flex-wrap:wrap; margin:8px 0; }
+  .metrics { display:flex; gap:10px; margin:6px 0; }
+  .metric { background:var(--panel); border-radius:4px; padding:2px 8px; font-size:12px; }
+  .actions { font-size:12px; color:var(--mut); margin-top:4px; }
+  .empty { color:var(--mut); padding:24px; }
+  #err { color:#c00; font-size:12px; }
+  #contracts h2 { font-size: 16px; margin: 0 0 8px; }
+  #contracts .sub { color: var(--mut); font-size: 12px; font-weight: 400; }
+  .contract-doc { margin-bottom: 16px; }
+  .doc-title { font-size: 13px; color: var(--mut); margin: 0 0 6px; word-break: break-all; }
+  .contract-task { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--panel); }
+  .ct-head { font-size: 14px; margin-bottom: 4px; }
+  .agent-tag { font-size: 11px; color: var(--mut); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; }
+  .ct-line { font-size: 12px; margin: 3px 0; }
+  .ct-line.success { color: var(--ok); }
+  .fb-list { margin: 6px 0; padding-left: 18px; font-size: 12px; }
+  .fb-empty { color: var(--mut); list-style: none; margin-left: -18px; }
+  .fb-open { color: var(--warn); } .fb-resolved { color: var(--ok); } .fb-wontfix { color: var(--mut); }
+  .ct-actions { margin-top: 6px; display: flex; gap: 8px; }
+  .sla-qs { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+  .sla-q { display:flex; align-items:center; gap:6px; font-size:12px; }
+  .sla-qk { width:30px; color:var(--mut); font-weight:600; }
+</style>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">智能体运行监控台</h1></div></header>
+<div id="err"></div>
+<div id="board">加载中…</div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+  import * as agentsPage from '/portal/agentsPage.js';
+  window.renderAgents = agentsPage.renderAgents;
+  window.renderAuditabilitySla = agentsPage.renderAuditabilitySla;
+  async function load(){
+    try{
+      const [a,h,sl]=await Promise.all([
+        get('/api/agents'),
+        get('/api/realtime/health').catch(()=>({domains:[]})),
+        get('/api/monitor/auditability?limit=50').catch(()=>null)
+      ]);
+      const board = window.renderAgents({ ...a, health: h });
+      document.getElementById('board').innerHTML = sl ? board + window.renderAuditabilitySla(sl) : board;
+    }catch(e){ document.getElementById('err').textContent='加载失败: '+e.message; }
+  }
+  load(); setInterval(load, 5000);
+</script>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+  <section id="contracts" class="panel">
+    <h2>契约监测 <span class="sub">living contract 消费 · 静态校验 + 探针 + 人工裁定</span></h2>
+    <div id="contract-board">加载中…</div>
+  </section>
+  <script type="module">
+    import { get, post } from '/portal/api.js';
+    import * as cp from '/portal/contractsPage.js';
+    const board = document.getElementById('contract-board');
+    async function loadContracts() {
+      try {
+        const data = await get('/api/contracts');
+        board.innerHTML = cp.renderContracts(data);
+      } catch (e) { board.textContent = '加载失败: ' + e.message; }
+    }
+    document.getElementById('contracts').addEventListener('click', async (ev) => {
+      const t = ev.target;
+      if (t.classList.contains('probe')) {
+        const r = await post('/api/contracts/probe', { doc_path: t.dataset.doc, task: t.dataset.task }).catch((e) => ({ error: e.message }));
+        if (r.error) alert('探针失败: ' + r.error); else alert('探针结果: ' + (r.probe?.status || '?'));
+        loadContracts();
+      }
+      if (t.classList.contains('gap')) {
+        const gap_type = prompt('缺口类型 (skill|memory|success|knowledge_scope|other):', 'other');
+        if (!gap_type) return;
+        const observed = prompt('观测到的问题:', '');
+        if (observed === null) return;
+        const r = await post('/api/contracts/feedback', { doc_path: t.dataset.doc, task: t.dataset.task, gap_type, observed, severity: 'warn', status: 'open' }).catch((e) => ({ error: e.message }));
+        if (r.error) alert('记录失败: ' + r.error); else loadContracts();
+      }
+    });
+    loadContracts();
+    setInterval(loadContracts, 15000);
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>基础数据门户 · 业务主数据</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .cfg-group h3 { font-size: 15px; border-left: 4px solid var(--ac); padding-left: 8px; margin: 12px 0 10px; }
+  .cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .cfg-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; background: var(--panel); }
+  .cfg-head h4 { margin: 0; font-size: 13px; }
+  .cfg-sum { font-size: 12px; color: var(--mut); margin: 8px 0; min-height: 18px; }
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">基础数据门户</h1></div></header>
+<div id="app">加载中…</div>
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+import { renderBusinessDataCenter } from '/portal/businessDataCenter.js';
+document.getElementById('app').innerHTML = renderBusinessDataCenter();
+</script>
+</body>
+</html>

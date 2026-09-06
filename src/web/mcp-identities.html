@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>连接器 / MCP 身份配置</title>
+<style>
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--mut); }
+  main { padding: 16px 20px; }
+  .summary { color:var(--mut); margin-bottom:12px; }
+  table.mcp-table { width:100%; border-collapse:collapse; }
+  .mcp-table th,.mcp-table td { border:1px solid var(--panel); padding:8px; text-align:left; }
+  button { background:var(--ac); color:#fff; border:0; padding:6px 12px; border-radius:6px; cursor:pointer; margin-right:6px; }
+  button.revoke-row { background:var(--panel); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .f-actor { background:var(--panel); color:var(--mut); border:1px solid var(--panel); padding:4px 6px; border-radius:4px; }
+  .toolbar { margin-bottom:12px; }
+  .token-modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; }
+  .token-modal .box { background:var(--panel); padding:24px; border-radius:8px; max-width:480px; }
+  .token-modal code { display:block; background:var(--bg); padding:10px; margin:10px 0; word-break:break-all; color:var(--ok); }
+  .note { color:var(--warn); font-size:12px; margin-top:8px; }
+  .empty { color:var(--mut); padding:20px; }
+</style>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">连接器 / MCP 身份配置</h1></div></header>
+<p class="page-sub">crm.mcp_identity · 零信任：token 仅存哈希、明文一次性、绝对禁删</p>
+<main>
+  <div style="margin:0 0 12px"><crm-button id="add">+ 新增身份</crm-button></div>
+  <div class="summary" id="summary"></div>
+  <div id="list"></div>
+  <div class="note">已知限制：token 明文仅创建时返回一次，不可恢复；遗失须吊销旧身份后新建。初始为空（无种子，保持零信任）。</div>
+</main>
+<div class="token-modal" id="tokenModal"><div class="box">
+  <b>身份已创建 — 请妥善保存 token</b>
+  <code id="tokenText"></code>
+  <div class="note">关闭后不可再查看，token 仅存哈希于数据库。</div>
+  <crm-button id="tokenClose">我已保存</crm-button>
+</div></div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import { renderMcpIdentities, mcpIdentitySummary, roleOptions } from '/portal/mcpIdentityRender.js';
+
+async function load() {
+  const { rows, roles } = await get('/api/mcp-identities');
+  document.getElementById('list').innerHTML = renderMcpIdentities(rows, roles);
+  const s = mcpIdentitySummary(rows);
+  document.getElementById('summary').textContent = `共 ${s.count} 个 · 启用 ${s.enabled} · 已吊销 ${s.revoked}`;
+  bindRows();
+}
+function bindRows() {
+  document.querySelectorAll('.mcp-row').forEach((tr) => {
+    const id = tr.dataset.id;
+    tr.querySelector('.save-row').onclick = async () => {
+      const actor = tr.querySelector('.f-actor').value;
+      const role_tag = tr.querySelector('.role-tag-select').value;
+      await put('/api/mcp-identities/' + id, { actor, role_tag });
+      load();
+    };
+    const rev = tr.querySelector('.revoke-row');
+    if (rev) rev.onclick = async () => {
+      await put('/api/mcp-identities/' + id, { revoked_at: new Date().toISOString() });
+      load();
+    };
+  });
+}
+document.getElementById('add').onclick = async () => {
+  const actor = prompt('接入方 actor（如 kavak-bot）：');
+  if (!actor) return;
+  const role_tag = prompt('角色 role_tag（sales/manager/finance/presales/contract_admin）：');
+  if (!role_tag) return;
+  const data = await post('/api/mcp-identities', { actor, role_tag });
+  if (data.token_plaintext) {
+    document.getElementById('tokenText').textContent = data.token_plaintext;
+    document.getElementById('tokenModal').style.display = 'flex';
+  } else { alert('创建失败：' + (data.error || '未知')); }
+};
+document.getElementById('tokenClose').onclick = () => {
+  document.getElementById('tokenModal').style.display = 'none';
+  load();
+};
+load();
+</script>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body></html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>今日优先 · 高匹配商机</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div id="tp-root" data-schema="S34"><div class="pg-state" data-state="loading">加载中…</div></div>
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+const token = localStorage.getItem('crm_token');
+if (!token) { location.href = '/home.html'; }
+injectLayout();
+const root = document.getElementById('tp-root');
+(async () => {
+  try {
+    const dim = new URLSearchParams(location.search).get('dim') || 'FIT';
+    const res = await fetch('/api/page/today-priority?dim=' + encodeURIComponent(dim), { headers: { Authorization: `Bearer ${token}` } });
+    const j = await res.json();
+    if (j.html) root.innerHTML = j.html;
+    else root.innerHTML = '<div class="pg-state" data-state="error">出片为空</div>';
+  } catch (e) {
+    root.innerHTML = `<div class="pg-state" data-state="error">加载失败：${String(e.message)}</div>`;
+  }
+})();
+</script>
+</body></html>

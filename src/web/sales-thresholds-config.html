@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>判定阈值 · 配置</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  /* 仅保留布局与字段说明样式；卡片外壳复用 common.css .card */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .field-label { font-size: 13px; color: var(--ink); margin-bottom: 6px; }
+  .field-desc { font-size: 12px; color: var(--mut); margin-top: 4px; }
+  .field-step { font-size: 11px; color: var(--mut); margin-left: 6px; }
+  .group-title { font-size: 14px; border-left: 3px solid var(--ac); padding-left: 8px; margin: 18px 0 10px; }
+  .actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">判定阈值</h1></div></header>
+<div id="forbidden"><h3>需要 admin 权限</h3><p>请用管理员账号 <a href="/home.html">重新登录</a>。</p></div>
+<div id="app" style="display:none">
+  <p class="field-desc" style="margin-bottom:12px">业务阈值唯一事实源。修改后立即影响 21 条行为判定、阶段推进门控与看板缺口提示；SKILL 与代码中不保留任何写死的数值。</p>
+  <div id="form"></div>
+  <div class="actions">
+    <crm-button id="save" class="btn-primary">保存</crm-button>
+    <span class="msg" id="msg"></span>
+  </div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  injectLayout();
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // 字段定义：path 与后端 RULES 一一对应（后端为唯一校验权威，此处仅做展示与输入提示）
+  const FIELDS = [
+    { group: '商机资质（BANTCC）', items: [
+      { path: 'bantcc.pass', label: 'BANTCC 达标线', step: '0.05', desc: '影响 21 条 03-01、P3→P4 门控、看板 BANTCC 缺口（三处同源）' },
+      { path: 'bantcc.unknown', label: 'BANTCC 未知兜底值', step: '0.05', desc: '商机未评估时按此值参与判定（默认按缺口处理）' },
+    ]},
+    { group: '行为判定（21 条）', items: [
+      { path: 'behavior.recent_visit_days', label: '近期拜访天数窗口', step: '1', desc: '01-01 时间安排饱满：近 N 天内有拜访' },
+      { path: 'behavior.min_customer_types', label: '客户类型种数下限', step: '1', desc: '02-01 拜访所有客户：拜访过的客户类型种数' },
+      { path: 'behavior.min_contacts', label: '联系人数量下限', step: '1', desc: '04-02 积极发展关系（或本次新增联系人亦可）' },
+    ]},
+    { group: '客户接触与阶段', items: [
+      { path: 'rhythm.adherence_window_days', label: '拜访频率达标窗口（天）', step: '1', desc: 'sales_visit_frequency_adherence 统计窗口' },
+      { path: 'stage.stuck_days', label: '阶段停留告警天数', step: '1', desc: 'stuck_warning 与「S4/S5 推进卡点」判定' },
+      { path: 'gate.s1_s2_min_need_facts', label: 'S1→S2 需求事实项数', step: '1', desc: 'needs 中 product/qty/spec 至少填 N 项才可推进' },
+    ]},
+    { group: '客户覆盖与拜访数量', items: [
+      { path: 'coverage.target_month_days', label: '目标客户月覆盖（天）', step: '1', desc: '目标客户至少 1 个月拜访 1 次（按月折算天数）' },
+      { path: 'coverage.potential_quarter_days', label: '潜力客户季覆盖（天）', step: '1', desc: '潜力客户至少 3 个月拜访 1 次（按季折算天数）' },
+      { path: 'coverage.lost_contact_days', label: '失联流失警戒线（天）', step: '1', desc: '3 个月以上不接触 → 关系下降、大概率流失' },
+      { path: 'coverage.named_visit_warn_days', label: '指名应访黄色提醒（天）', step: '1', desc: '指名客户应访日过后 N 天进入黄色提醒（须 < 红色天数）' },
+      { path: 'coverage.named_visit_alert_days', label: '指名应访红色告警（天）', step: '1', desc: '指名客户应访日过后 N 天进入红色告警（默认 2 天）' },
+      { path: 'coverage.daily_visits_target', label: '日均拜访目标', step: '1', desc: '当前标准：日均 3 次拜访' },
+      { path: 'coverage.weekly_visits_target', label: '每周拜访目标', step: '1', desc: '当前标准：每周 15 次' },
+      { path: 'coverage.daily_visits_optimized', label: '日均拜访优化目标', step: '1', desc: '优化目标：日均 4 次 → 80-100 客户' },
+      { path: 'coverage.info_collect_weekly', label: '周信息收集进度', step: '1', desc: '信息收集分解到周：每周 5-10 个客户（下限）' },
+      { path: 'coverage.customer_count_min', label: '客户数量合理下限', step: '1', desc: '人均客户数合理范围 60-90（下限）' },
+      { path: 'coverage.customer_count_target', label: '客户数量定额', step: '1', desc: '日均 3 次 → 75 个 客户（定额）' },
+    ]},
+    { group: '展示与分档', items: [
+      { path: 'ui.behavior_pass_rate_ok', label: '21 条合格率着色线(%)', step: '5', desc: '看板合格率高于此值显示达标色' },
+      { path: 'taoran.achieved_ratio', label: 'TAORAN 达标比例(%)', step: '5', desc: '拜访达成比例 ≥ 此值 为达标' },
+      { path: 'taoran.unachieved_ratio', label: 'TAORAN 未达分数(%)', step: '5', desc: '拜访达成比例 < 此值 为未达到（默认 20%）' },
+    ]},
+    { group: '漏斗质量（P1-B）', items: [
+      { path: 'funnel.weighted.win', label: '加权值-确保', step: '0.05', desc: '确保类商机加权系数（金额×此值）' },
+      { path: 'funnel.weighted.adv', label: '加权值-优势', step: '0.05', desc: '优势类商机加权系数' },
+      { path: 'funnel.weighted.even', label: '加权值-可能+', step: '0.05', desc: '势均力敌类加权系数' },
+      { path: 'funnel.weighted.weak', label: '加权值-可能-', step: '0.05', desc: '劣势类加权系数（建议 0）' },
+      { path: 'funnel.jitter_max', label: '抖动率健康阈值', step: '0.05', desc: '季度/月抖动率 ≤ 此值视为健康' },
+      { path: 'funnel.commit.green_low', label: '承诺绿带下限', step: '0.05', desc: '兑现率 ≥ 此值且 ≤ 绿带上限 → 绿' },
+      { path: 'funnel.commit.green_high', label: '承诺绿带上限', step: '0.05', desc: '兑现率 ≤ 此值 → 绿；超出 → 紫（承诺过低）' },
+      { path: 'funnel.commit.yellow_low', label: '承诺黄带下限', step: '0.05', desc: '兑现率 ≥ 此值且 < 绿带下限 → 黄；低于 → 红' },
+      { path: 'funnel.commit.purple_low', label: '承诺紫带下限', step: '0.05', desc: '兑现率 ≥ 此值 → 紫（承诺过低，须复盘）' },
+      { path: 'funnel.health_min_ratio', label: '漏斗健康线', step: '0.05', desc: '滚动 2 个 Q 销售潜力达成率 ≥ 此值 为健康' },
+      { path: 'funnel.month_new_bid_ratio', label: '月新增开标上限', step: '0.05', desc: '当月新增开标占比 ≤ 此值 为健康' },
+      { path: 'funnel.annual_target', label: '年任务金额', step: '10000', desc: '销售潜力健康性分母（已下单+加权）/年任务' },
+      { path: 'funnel.forecast_breach_ratio', label: '预测缺口阈值', step: '0.05', desc: '销售潜力 < 此值触发 forecast_breach 告警' },
+    ]},
+    { group: 'SWAS 商机回顾（P1-A）', items: [
+      { path: 'swas.stale_days', label: '回顾新鲜度天数', step: '1', desc: 'SWAS reviewed_at 距今 > 此天数触发 stuck_warning 联动' },
+      { path: 'swas.soft_warn_below', label: 'S2→S3 soft 闸下限', step: '0.05', desc: 'SWAS 齐全度 < 此值 → S2→S3 推进时提示「未做商机回顾」（不硬拦）' },
+    ]},
+  ];
+
+  function getPath(obj, path) {
+    return String(path).split('.').filter(Boolean).reduce((c, k) => (c == null ? undefined : c[k]), obj);
+  }
+
+  function render(cfg) {
+    $('form').innerHTML = FIELDS.map((g) => `
+      <div class="group-title">${esc(g.group)}</div>
+      <div class="grid">${g.items.map((f) => `
+        <div class="card">
+          <div class="field-label">${esc(f.label)}</div>
+          <crm-input id="${f.path}" type="number" step="${f.step}" style="width:120px"></crm-input>
+          <div class="field-desc">${esc(f.desc)}</div>
+        </div>`).join('')}</div>`).join('');
+    for (const g of FIELDS) for (const f of g.items) {
+      const v = getPath(cfg, f.path);
+      $(f.path).value = (v != null) ? v : '';
+    }
+  }
+
+  function setMsg(text, kind) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); }
+
+  async function load() {
+    const r = await api('/api/config/sales-thresholds') || {};
+    render(r);
+  }
+
+  $('save').addEventListener('click', async () => {
+    const body = {};
+    for (const g of FIELDS) for (const f of g.items) {
+      const raw = $(f.path).value;
+      if (raw === '' || raw == null) continue;
+      const n = Number(raw);
+      if (Number.isNaN(n)) { setMsg(f.label + ' 须为数字', 'err'); return; }
+      const keys = f.path.split('.');
+      let cur = body;
+      for (let i = 0; i < keys.length - 1; i++) { cur[keys[i]] = cur[keys[i]] || {}; cur = cur[keys[i]]; }
+      cur[keys[keys.length - 1]] = n;
+    }
+    if (!Object.keys(body).length) { setMsg('无可更新字段', 'err'); return; }
+    $('save').setAttribute('disabled', ''); setMsg('保存中…');
+    const r = await api('/api/config/sales-thresholds', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    $('save').removeAttribute('disabled');
+    if (r?.updated) setMsg('已保存（决策凭证 ' + (r.decision || '-') + '）', 'ok');
+    else setMsg('保存失败：' + (r?.error || '未知错误'), 'err');
+  });
+
+  (async () => {
+    let r;
+    try { r = await me(); } catch { r = {}; }
+    if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+      $('app').style.display = 'none';
+      $('forbidden').style.display = 'block';
+      return;
+    }
+    $('app').style.display = 'block';
+    await load();
+  })();
+</script>
+</body>
+</html>

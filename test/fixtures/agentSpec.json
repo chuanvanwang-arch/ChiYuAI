@@ -1,0 +1,23 @@
+{
+  "crm-copilot": {
+    "capabilities": {
+      "skillCalls": ["data-particle-read", "data-particle-create"],
+      "knowledgeScope": { "layers": ["L1"], "maxHops": 2 }
+    },
+    "memory": { "read": ["crm-copilot"] }
+  },
+  "deal-coach": {
+    "capabilities": {
+      "skillCalls": ["data-particle-read"],
+      "knowledgeScope": { "layers": ["L1", "L2"], "maxHops": 3 }
+    },
+    "memory": { "read": ["deal-coach", "crm-copilot"] }
+  },
+  "lead-miner": {
+    "capabilities": {
+      "skillCalls": ["data-particle-read"],
+      "knowledgeScope": { "layers": ["L1", "L2"], "maxHops": 3 }
+    },
+    "memory": { "read": ["lead-miner"] }
+  }
+}

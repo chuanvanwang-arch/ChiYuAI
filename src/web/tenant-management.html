@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>租户管理</title>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+<script type="module" src="/portal/components.js"></script>
+<style>
+  body { font-family: system-ui; margin: 24px; background: var(--bg); color: var(--ink); }
+  .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+  #tm-filter { width: 220px; }
+  #tm-refresh { cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; font-size: 13px; }
+  th { background: var(--panel); }
+  #tm-err { color: #c00; font-size: 12px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">租户管理</h1></div></header>
+<div id="tm-err"></div>
+<div class="toolbar">
+  <crm-input id="tm-filter" type="text" placeholder="按创建者筛选"></crm-input>
+  <crm-button id="tm-refresh">刷新</crm-button>
+</div>
+<table id="tm-table">
+  <thead>
+    <tr><th>租户 ID</th><th>状态</th><th>用户数</th><th>创建者</th></tr>
+  </thead>
+  <tbody><tr><td colspan="4">加载中…</td></tr></tbody>
+</table>
+<script type="module">
+  const filterEl = document.getElementById('tm-filter');
+  const tbody = document.querySelector('#tm-table tbody');
+  const errEl = document.getElementById('tm-err');
+
+  async function load() {
+    try {
+      const f = filterEl.value.trim();
+      const url = '/api/tenants' + (f ? '?createdBy=' + encodeURIComponent(f) : '');
+      const res = await fetch(url);
+      const data = await res.json();
+      const tenants = data.tenants || [];
+      if (!tenants.length) { tbody.innerHTML = '<tr><td colspan="4">暂无租户</td></tr>'; return; }
+      tbody.innerHTML = tenants.map((t) => {
+        const creator = t.created_by_username ? escapeHtml(t.created_by_username) : '—';
+        return `<tr><td>${escapeHtml(t.tenant_id)}</td><td>${escapeHtml(t.status || '')}</td><td>${t.users ?? 0}</td><td>${creator}</td></tr>`;
+      }).join('');
+    } catch (e) { errEl.textContent = '加载失败: ' + e.message; }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  filterEl.addEventListener('input', load);
+  document.getElementById('tm-refresh').addEventListener('click', load);
+  load();
+</script>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  injectLayout();
+</script>
+</body>
+</html>

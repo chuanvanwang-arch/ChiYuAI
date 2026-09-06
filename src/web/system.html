@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>系统设置 · CRM 配置中心</title>
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background:var(--bg); color: var(--ink); }
+  main { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+  h2 { margin: 0 0 12px; }
+  .muted { color: var(--mut); font-size: 13px; }
+  .err { color: var(--err); }
+
+  form#sf label { display: block; margin: 8px 0 4px; font-size: 12px; color: var(--mut); }
+  form#sf input[type=text], form#sf input[type=number], form#sf select { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; }
+  .sec-grid { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0; }
+  .sec-grid label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0; }
+  button[type=submit] { margin-top: 14px; }
+  table.audit-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.audit-tbl th, table.audit-tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--panel); }
+  .mono { font-family: ui-monospace, Consolas, monospace; }
+  .empty { color: var(--mut); padding: 16px; text-align: center; }
+</style>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<main id="sys-root"><p class="muted">加载中…</p></main>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import * as ss from '/portal/systemSettingsRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+
+const TOKEN = localStorage.getItem('crm_token');
+const root = document.getElementById('sys-root');
+
+async function load() {
+  try {
+    const [g, a] = await Promise.all([
+      fetch('/api/config/system', { headers: { Authorization: `Bearer ${TOKEN}` } }),
+      fetch('/api/config/system/audit-logs', { headers: { Authorization: `Bearer ${TOKEN}` } }),
+    ]);
+    const gj = g.ok ? await g.json() : null;
+    const aj = a.ok ? await a.json() : null;
+    if (!g.ok && g.status !== 404) { root.innerHTML = `<p class="err">加载失败：${g.status} ${await g.text()}</p>`; return; }
+    root.innerHTML = `<h2>系统设置</h2>
+      <div class="panel">
+        <h3>全局参数（写经决策第0闸 · sysadmin 权限）</h3>
+        <div id="form">
+          ${gj ? ss.renderSystemSettings(gj.value) : ss.renderSystemSettings(null)}
+        </div>
+      </div>
+      <div class="panel">
+        <h3>审计日志（决策事件直查，只读）</h3>
+        ${ss.renderAuditLogs(aj?.logs || [])}
+        <p class="muted">最近 20 条 config_change 事件 · 每 15s 刷新</p>
+      </div>`;
+    const f = document.getElementById('sf');
+    if (f) f.onsubmit = onSubmit;
+  } catch (e) { root.innerHTML = `<p class="err">${e.message}</p>`; }
+}
+
+async function onSubmit(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const value = {
+    site_name: fd.get('site_name'),
+    default_theme: fd.get('default_theme'),
+    session_timeout: Number(fd.get('session_timeout')) || 120,
+  };
+  const sp = {};
+  if (fd.get('password_min_len_set')) sp.password_min_len = 8;
+  if (fd.get('mfa_required')) sp.mfa_required = true;
+  if (fd.get('allow_external_login')) sp.allow_external_login = true;
+  if (Object.keys(sp).length) value.security_policy = sp;
+  const r = await fetch('/api/config/system', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value }),
+  });
+  const j = await r.json();
+  if (!r.ok) { alert('失败：' + (j.error || r.status)); return; }
+  alert('已保存（决策事件 ' + String(j.decision || '').slice(0, 8) + '…）');
+  load();
+}
+
+if (!TOKEN) location.href = '/home.html';
+else load();
+setInterval(() => { if (TOKEN) load(); }, 15000);
+
+</script>
+</body>
+</html>

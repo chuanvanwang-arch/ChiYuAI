@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>记忆 / 先例管理</title>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+  <style>
+    /* 记忆管理页面私有样式（不重声明设计系统保留类） */
+    .mem-wrap { padding: 18px 20px; max-width: 1200px; margin: 0 auto; }
+    .mem-note { background: var(--warn); border: 1px solid var(--warn); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+    .mem-table, .mem-tbl { border-collapse: collapse; width: 100%; background: var(--panel); margin: 8px 0 20px; font-size: 12px; }
+    .mem-table th, .mem-table td, .mem-tbl th, .mem-tbl td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+    .mem-table th, .mem-tbl th { background: var(--panel); color: var(--mut); font-weight: 600; }
+    .mem-mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .mem-muted { color: var(--mut); font-size: 13px; }
+    .mem-distill-box, .mem-distill-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin: 8px 0 16px; }
+    .mem-sec-title { font-size: 15px; margin: 16px 0 6px; color: var(--ink); }
+    .mem-empty { color: var(--mut); font-size: 13px; padding: 12px 0; }
+    .sim-bar { width: 80px; height: 8px; background: var(--panel); border-radius: 4px; display: inline-block; vertical-align: middle; }
+    .sim-bar span { display: block; height: 100%; background: var(--ac); border-radius: 4px; }
+  </style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">记忆 / 先例管理</h1></div></header>
+<div class="page-sub">
+  <div class="mem-note">只读管理视图：记忆由业务事件自动捕获（residue 铁律，无手写入口）；<b>绝对禁删</b>——蒸馏仅标记，原始行保留。写（蒸馏触发）经决策第 0 闸。</div>
+</div>
+<div id="app" class="mem-wrap">加载中…</div>
+
+  <script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { renderMemoryLogs, renderMemoryNotes, renderMemorySnapshots, renderPrecedentPanel, memorySummary, renderDistillPanel } from '/portal/memoryConfigRender.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+    const TOKEN = localStorage.getItem('crm_token');
+    const app = document.getElementById('app');
+    if (!TOKEN) location.href = '/home.html';
+
+    async function load() {
+      try {
+        const r = await fetch('/api/memory', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const j = await r.json();
+        if (!r.ok) {
+          // 2026-08-31：区分「权限不足」与「真故障」。GET /api/memory 为 sysadmin-only，
+          //   非 admin 账号（如 sales）进来必然 403 —— 这是设计而非故障，应说明原因并给出可读的
+          //   替代出口（记忆闭环进度可回作战室三闭环条查看），而不是笼统报「加载失败」。
+          const isForbidden = r.status === 403 || r.status === 401;
+          app.innerHTML = isForbidden
+            ? `<p class="mem-muted">本页为记忆治理视图，仅 <b>sysadmin</b> 可读写（当前账号无该权限）。</p>
+               <p class="mem-muted">记忆仍由业务事件自动捕获并在系统中流转；其闭环进度可在
+               <a href="/sales-decision-monitor.html">销售决策监控台</a> 的「三系统闭环条 · 记忆系统」查看，
+               或前往 <a href="/decision-graph.html">决策链追溯</a> 查看先例引用边。</p>`
+            : `<p class="mem-muted">加载失败：${j.error || r.status}</p>`;
+          return;
+        }
+        const s = memorySummary(j.logs, j.notes, j.snapshots);
+        app.innerHTML = `
+          <p class="mem-muted">日志 ${s.logs}（蒸馏 ${s.distilled} · 归档 ${s.archivedLogs}）· 笔记 ${s.notes} · 快照 ${s.snapshots} · ${new Date().toLocaleTimeString()}</p>
+          <h3 class="mem-sec-title">记忆流水（memory_log · append-only）</h3>
+          ${renderMemoryLogs(j.logs)}
+          <h3 class="mem-sec-title">常驻笔记（memory_note）</h3>
+          ${renderMemoryNotes(j.notes)}
+          <h3 class="mem-sec-title">不可变快照（memory_snapshot）</h3>
+          ${renderMemorySnapshots(j.snapshots)}
+          <h3 class="mem-sec-title">先例网络（decision_precedent_rel · Top 相似度被引用）</h3>
+          ${renderPrecedentPanel(j.precedents)}
+          <h3 class="mem-sec-title">30 天蒸馏</h3>
+          <div class="mem-distill-box" id="distill">
+            <crm-button id="dry">预检</crm-button> <crm-button id="run" class="ghost">执行蒸馏</crm-button> <span class="mem-muted" id="dres"></span>
+          </div>`;
+        bind();
+      } catch (e) { app.innerHTML = `<p class="mem-muted">${e.message}</p>`; }
+    }
+
+    function bind() {
+      const dres = document.getElementById('dres');
+      const setErr = (e) => { dres.textContent = '失败：' + (e?.message || e); };
+      // 预检：dryRun 是 query 标识，后端端点 POST /api/memory/distill 接收 dryRun=true/false（2026-09-05 修复）
+      //   旧版用默认 GET → 后端 404 → fetch 不抛，r.json() 解 HTML 错误页抛 SyntaxError，async 监听器无 .catch
+      //   静默吞错 → 用户看到「点了没反应」。同型 bug 不复现：所有调用必须 method 对齐后端契约。
+      document.getElementById('dry').addEventListener('click', async () => {
+        try {
+          const r = await fetch('/api/memory/distill?dryRun=1', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun: true }),
+          });
+          const j = await r.json();
+          dres.textContent = j.dryRun ? `预检：待蒸馏 ${j.wouldDistill} 条` : (j.error || '预检失败');
+        } catch (e) { setErr(e); }
+      });
+      document.getElementById('run').addEventListener('click', async () => {
+        try {
+          const r = await fetch('/api/memory/distill', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          const j = await r.json();
+          // 后端非 dryRun 路径返回 { ok, decision?: event_id }；decision 缺失时显式显示 — 而非空「…」
+          const did = j.decision ? String(j.decision).slice(0, 8) + '…' : '—';
+          dres.textContent = j.ok ? `蒸馏完成（决策 ${did}）` : (j.error || '蒸馏失败');
+          load();
+        } catch (e) { setErr(e); }
+      });
+    }
+
+    load();
+    setInterval(() => { if (TOKEN) load(); }, 15000);
+
+</script>
+</body>
+</html>

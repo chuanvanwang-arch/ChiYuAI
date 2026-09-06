@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>发票详情 · CRM</title>
+  <!-- 统一设计系统：layout 壳 + tokens/common/page -->
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <link rel="stylesheet" href="/portal/page.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+  
+</script>
+
+  <main class="portal-shell">
+    <header class="page-head">
+      <h1>发票详情</h1>
+      
+    </header>
+    <section id="invoice-root" class="portal-content">
+      <div class="pg-loading">加载中…</div>
+    </section>
+  </main>
+
+  <script type="module">
+    const q = new URLSearchParams(location.search);
+    const fromPath = location.pathname.match(/\/invoices\/([^/]+)/);
+    const id = q.get('id') || q.get('invoiceId') || (fromPath ? fromPath[1] : '');
+    const url = id ? `/api/page/invoice-detail?invoiceId=${encodeURIComponent(id)}` : '/api/page/invoice-detail';
+    (async () => {
+      try {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${localStorage.getItem('crm_token') || ''}` } });
+        const j = await res.json();
+        const root = document.getElementById('invoice-root');
+        if (!res.ok || !j.html) { root.innerHTML = `<div class="pg-empty">发票详情加载失败：${j.error || '未知错误'}</div>`; return; }
+        root.innerHTML = j.html;
+      } catch (e) {
+        document.getElementById('invoice-root').innerHTML = `<div class="pg-error">渲染错误：${e.message}</div>`;
+      }
+    })();
+
+</script>
+</body>
+</html>

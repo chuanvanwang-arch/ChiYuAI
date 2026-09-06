@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI原生销售管理平台 — 定位 · 行业 · 收费</title>
+<style>
+:root{
+  --bg:#0b1220; --bg2:#0f172a; --panel:#16233b; --panel2:#1e293b;
+  --ink:#e2e8f0; --mut:#94a3b8; --line:#27364f;
+  --ac:#6366f1; --ac-hover:#818cf8; --on-ac:#fff;
+  --ok:#22c55e; --warn:#f59e0b; --err:#f87171; --as:rgba(99,102,241,.12);
+  --radius-lg:14px; --shadow:0 8px 30px rgba(0,0,0,.35);
+  --font:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);color:var(--ink);line-height:1.6;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+a{color:var(--ac-hover);text-decoration:none}
+section{padding:54px 0;border-bottom:1px solid var(--line)}
+h2{font-size:26px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+h2::before{content:"";width:4px;height:22px;background:var(--ac);border-radius:3px;display:inline-block}
+.sub{color:var(--mut);margin:0 0 26px;font-size:14px}
+.eyebrow{color:var(--ac-hover);font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:10px}
+
+/* hero */
+.hero{padding:72px 0 60px;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(620px 320px at 50% -10%,rgba(99,102,241,.22),transparent 70%);pointer-events:none}
+.hero .badge-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;position:relative}
+.tag{font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--mut)}
+.hero h1{font-size:40px;line-height:1.25;margin:0 0 16px;font-weight:800;letter-spacing:-.5px;position:relative}
+.hero h1 .g{background:linear-gradient(90deg,#a5b4fc,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:17px;color:var(--mut);max-width:760px;margin:0 auto 26px;position:relative}
+.cta{display:flex;gap:12px;justify-content:center;position:relative}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--ac)}
+.btn.primary{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.btn.primary:hover{background:var(--ac-hover)}
+
+/* triangle cards */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.card h3{margin:0 0 4px;font-size:17px}
+.card .src{font-size:12px;color:var(--ac-hover);font-weight:600;margin-bottom:10px}
+.card ul{margin:8px 0 0;padding-left:18px;color:var(--mut);font-size:13.5px}
+.card ul li{margin:5px 0}
+.moat{background:linear-gradient(180deg,rgba(99,102,241,.10),transparent);border-color:var(--ac)}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;background:var(--panel2)}
+tr:hover td{background:rgba(99,102,241,.05)}
+td b{color:var(--ink)}
+td.center,th.center{text-align:center}
+
+/* industry cards */
+.ind{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.ind .card{position:relative;overflow:hidden}
+.ind .score{position:absolute;top:16px;right:16px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.score.hi{background:rgba(34,197,94,.15);color:var(--ok)}
+.score.mid{background:rgba(245,158,11,.15);color:var(--warn)}
+.ind .why{font-size:13px;color:var(--mut);margin-top:8px}
+.ind .map{font-size:12px;color:var(--ac-hover);margin-top:10px;border-top:1px dashed var(--line);padding-top:9px}
+
+/* pricing */
+.tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:8px}
+.tier{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column}
+.tier.feat{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac) inset}
+.tier .name{font-size:15px;font-weight:700}
+.tier .price{font-size:22px;font-weight:800;margin:8px 0 2px}
+.tier .price small{font-size:12px;color:var(--mut);font-weight:500}
+.tier ul{margin:12px 0 0;padding-left:16px;font-size:12.5px;color:var(--mut);flex:1}
+.tier ul li{margin:5px 0}
+.legend{font-size:12.5px;color:var(--mut);margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.legend b{color:var(--ink)}
+
+/* pitch box */
+.pitch{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:12px;padding:20px 22px;font-size:14px}
+.pitch h4{margin:0 0 10px;font-size:15px;color:var(--ac-hover)}
+.pitch p{margin:8px 0;color:var(--ink)}
+.pitch .q{color:var(--mut);font-style:italic}
+
+footer{padding:34px 0;text-align:center;color:var(--mut);font-size:13px}
+@media(max-width:880px){.grid3,.ind,.tiers{grid-template-columns:1fr}.hero h1{font-size:30px}}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero" style="border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="badge-row">
+      <span class="tag">客户记忆</span>
+      <span class="tag">可溯源的自主决策</span>
+      <span class="tag">越用越聪明</span>
+    </div>
+    <h1>AI原生销售管理平台<br><span class="g">记住每个客户、决策可溯源、越用越聪明的销售平台</span></h1>
+    <p class="lead">不是给老 CRM 外挂 AI 插件，而是以「客户记忆 × 可溯源的自主决策 × 越用越聪明」重构销售管理。
+    系统记住每个客户的来龙去脉，重要决定自动留痕可审计，并在每次交互中持续进化——让销售团队的经验复利沉淀，而非随人离职蒸发。</p>
+    <div class="cta">
+      <a class="btn primary" href="#industry">看适合哪些行业 →</a>
+      <a class="btn" href="#pricing">收费模式设计 →</a>
+    </div>
+  </div>
+</section>
+
+<!-- PILLARS -->
+<section id="dna">
+  <div class="wrap">
+    <div class="eyebrow">平台核心能力</div>
+    <h2>三大支柱 · 重构销售管理</h2>
+    <p class="sub">以"客户记忆 + 可溯源的自主决策 + 越用越聪明"重构销售管理。长周期、多角色、强合规 B2B 销售需要的不是更花哨的 UI，而是记得住、说得清、长本事的系统。</p>
+    <div class="grid3">
+      <div class="card" id="pillar-memory">
+        <div class="src">支柱一 · 客户记忆</div>
+        <h3>系统替你记住每个客户的来龙去脉</h3>
+        <ul>
+          <li><b>客户 360 时间线</b>：四源融合（商机 / 合同 / 决策事件 / 交互记录），按时间轴还原真实轨迹</li>
+          <li>关键拍板自动挂<b>决策事件</b>：谁批的、依据哪版政策、参考哪次先例、真实理由</li>
+          <li>跨历史回溯"为什么"，而非只记录"做了什么"</li>
+          <li>销售易手不丢上下文，新人秒接老客户</li>
+        </ul>
+        <p style="color:var(--mut);font-size:12.5px;margin:10px 0 0;border-top:1px dashed var(--line);padding-top:9px">支撑：柔性粒子数据底座承载，行业字段零代码生长。</p>
+      </div>
+      <div class="card" id="pillar-decision">
+        <div class="src">支柱二 · 可溯源的自主决策</div>
+        <h3>重要决定自动留痕、可解释、可审计</h3>
+        <ul>
+          <li><b>决策主轴贯穿 L1–L4</b>：写操作必挂 decision_id，记条件 / 政策版本 / 先例 / 真实理由</li>
+          <li><b>零信任 HITL</b>：写通道三闸（规则层 → action-confirm → 审批流），绝无绕过闸门的写</li>
+          <li><b>自主决策引擎</b>：置信度 ≥ 0.8 且有先例时自主放行，高危场景强制升级人工</li>
+          <li>每个决定可继承为 precedent，形成可复用的先例网络</li>
+        </ul>
+        <p style="color:var(--mut);font-size:12.5px;margin:10px 0 0;border-top:1px dashed var(--line);padding-top:9px">支撑：决策问责护城河（decision_id + C2 哈希链溯源）。</p>
+      </div>
+      <div class="card moat" id="pillar-evolve">
+        <div class="src">支柱三 · 越用越聪明</div>
+        <h3>系统随每次交互持续进化</h3>
+        <ul>
+          <li><b>事件驱动进化</b>：多步任务后自动沉淀 SKILL / 修正 / 反思，避免重复踩坑</li>
+          <li><b>先例检索</b>：新决策自动匹配历史先例，推荐更稳的路径</li>
+          <li><b>反馈闭环</b>：业务结果回接决策质量，校准置信度与放行策略</li>
+          <li>租户知识持续复利，行业适配零代码上线</li>
+        </ul>
+        <p style="color:var(--mut);font-size:12.5px;margin:10px 0 0;border-top:1px dashed var(--line);padding-top:9px">即"用得越多，决策越准"。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY US -->
+<section id="why">
+  <div class="wrap">
+    <div class="eyebrow">为什么选我们</div>
+    <h2>长周期 B2B 销售，记住、说清、长本事是刚需</h2>
+    <p class="sub">强合规、多角色决策、报价折扣层层审批——这些场景里，"系统记得住客户、每个决定说得清、还越用越聪明"比"AI 多聪明"更重要。</p>
+    <div class="grid3">
+      <div class="card">
+        <div class="src">新人秒接老客户 · 客户记忆</div>
+        <h3>记忆可继承</h3>
+        <p style="color:var(--mut);font-size:13.5px;margin:6px 0 0">客户历史决策与上下文随租户沉淀，销售离职/易手不丢盘，先例网络持续复利。</p>
+      </div>
+      <div class="card">
+        <div class="src">报价折扣不再黑箱 · 可溯源的自主决策</div>
+        <h3>破例放行全程留痕</h3>
+        <p style="color:var(--mut);font-size:13.5px;margin:6px 0 0">"折扣是谁批的、依据哪版价格政策、参考了哪次先例"——系统用书面决策链根治"口头预算批准 ≠ 落地预算"的教训。</p>
+      </div>
+      <div class="card moat">
+        <div class="src">行业零代码接入 · 越用越聪明</div>
+        <h3>你的行业字段自己长出来</h3>
+        <p style="color:var(--mut);font-size:13.5px;margin:6px 0 0">元模型 + 动态属性，新行业后台配置即可上线，不污染既有架构、不二次开发，知识随使用持续复利。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INDUSTRY -->
+<section id="industry">
+  <div class="wrap">
+    <div class="eyebrow">行业适配分析</div>
+    <h2>最适合本平台的行业</h2>
+    <p class="sub">筛选逻辑：销售周期长、决策角色多、报价/折扣/回款需审批、合规审计要求高、可配置化差异明显 —— 这些正好命中本平台的三大支柱：客户记忆、可溯源的自主决策、越用越聪明。</p>
+    <div class="ind">
+      <div class="card">
+        <span class="score hi">适配度 ●●●●○</span>
+        <h3>工业装备 / 智能制造 B2B</h3>
+        <div class="why">长周期、招投标、决策委员会、报价折扣层层审批、回款分期。粒子四级定价链（产品→价格表→报价→合同）+ 审批流 + 回款计划/记录对账天然贴合。</div>
+        <div class="map">映射：quotation / contract / payment-plan / approval-flow / decision(DISCOUNT_OVER)</div>
+      </div>
+      <div class="card">
+        <span class="score hi">适配度 ●●●●○</span>
+        <h3>医疗器械 / 医药</h3>
+        <div class="why">强合规、招标备案、长周期、多院区多角色。provenance 哈希链 + 7 年不可篡改审计 + 决策先例网络，直接对齐行业审计与飞检要求。</div>
+        <div class="map">映射：decision provenance / audit_event / policy_version / named-account</div>
+      </div>
+      <div class="card">
+        <span class="score hi">适配度 ●●●●○</span>
+        <h3>企业软件 / SaaS</h3>
+        <div class="why">agent-native 买家、land-expand、订阅续费。GTM Skills 银行（建管道→懂商机→赢单→跑增长）+ 客户记忆复利最契合，AI 原生买家接受度高。</div>
+        <div class="map">映射：Skills 银行 / Knowledge(ICP·异议) / 复利式外呼</div>
+      </div>
+      <div class="card">
+        <span class="score mid">适配度 ●●●○○</span>
+        <h3>专业服务 / 咨询 / 培训中介</h3>
+        <div class="why">项目制、按租户自有数据、行业 Know-How 配置化。本平台"每租户独立主数据/知识 + 零代码行业上线"正好支撑中介型多租户经营（已纳入 onboarding Runbook）。</div>
+        <div class="map">映射：tenant 自有 / industry-onboarding / knowledge.* 命名空间</div>
+      </div>
+      <div class="card">
+        <span class="score mid">适配度 ●●●○○</span>
+        <h3>金融 / 保险 B2B</h3>
+        <div class="why">强合规、零信任、审计留痕、敏感脱敏。写通道三闸 + 决策第 0 闸 + 行级隔离，满足金融级治理；敏感受限上下文天然支持。</div>
+        <div class="map">映射：zero-trust HITL / RBAC data_scope / 脱敏</div>
+      </div>
+      <div class="card">
+        <span class="score mid">适配度 ●●●○○</span>
+        <h3>电子 / 半导体供应链</h3>
+        <div class="why">复杂定价链、多产品目录、多套价格表、价格有效期与权限。四级定价 + 价格变更日志 + 动态 meta_attr 适配 BOM/替代料等行业语义。</div>
+        <div class="map">映射：price-list(N 套) / product / meta_attr 动态扩展</div>
+      </div>
+    </div>
+
+    <h3 style="margin:30px 0 12px;font-size:16px;color:var(--mut)">诚实边界 · 暂不适合</h3>
+    <table>
+      <thead><tr><th>行业</th><th>原因</th></tr></thead>
+      <tbody>
+        <tr><td><b>纯 C 端高频零售</b></td><td>无复杂决策/审批，问责护城河用不上，价值密度低</td></tr>
+        <tr><td><b>极小微 / 个体户</b></td><td>配置化与多租户 overhead 大于收益，轻量 SaaS 更划算</td></tr>
+        <tr><td><b>短周期纯线上小额</b></td><td>无需要被解释的"重要决定"，记忆/先例网络无意义</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="eyebrow">收费模式设计</div>
+    <h2>SaaS 档位制 · 免费版 / 成长版 / 增强版 / 企业版 / 本地旗舰版</h2>
+    <p class="sub">采用 SaaS 档位制：<b style="color:var(--ink)">按账号(席位)计费</b>，套餐同时决定<b style="color:var(--ink)">功能权益门禁</b>。五档对应 Free / Starter / Pro / Enterprise / Local Flagship，价格随账号规模线性可预测。</p>
+
+    <div class="tiers" style="margin-top:18px">
+      <div class="tier">
+        <div class="name">免费版 · Free</div>
+        <div class="price">¥0<small> /账号</small></div>
+        <ul>
+          <li>含 3 席位</li>
+          <li>核心 CRM（客户/商机/合同/报价/回款）</li>
+          <li>社区支持</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="name">成长版 · Starter</div>
+        <div class="price">¥698<small> /账号·月</small></div>
+        <ul>
+          <li>AI 智能体四件套</li>
+          <li>客户 360 洞察</li>
+          <li>邮件 / 社区支持</li>
+        </ul>
+      </div>
+      <div class="tier feat">
+        <div class="name">增强版 · Pro ⭐</div>
+        <div class="price">¥2980<small> /账号·月</small></div>
+        <ul>
+          <li>决策自治 / 事件自动化 / 审批流</li>
+          <li>LLM 配置 / MCP 接入 / 高级报表</li>
+          <li>决策溯源 / 审计（C1–C4 + 哈希链）</li>
+          <li>专属客户成功</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="name">企业版 · Enterprise</div>
+        <div class="price">¥8800<small> /账号·月</small></div>
+        <ul>
+          <li>行业配置化（每租户自有）</li>
+          <li>高级 RBAC（域级 data_scope）</li>
+          <li>客户记忆生命周期</li>
+          <li>SLA + 合规定制</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="name">本地旗舰版 · Local Flagship</div>
+        <div class="price">面议</div>
+        <ul>
+          <li>不限席位 / 私有化本地部署</li>
+          <li>全量功能 + 数据不出域</li>
+          <li>专属部署 / 合规审计 / 定制开发</li>
+          <li>7×24 专属支持</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin:26px 0 12px;font-size:16px;color:var(--mut)">功能权益矩阵（套餐门禁）</h3>
+    <table>
+      <thead><tr><th>本平台能力</th><th class="center">免费版</th><th class="center">成长版</th><th class="center">增强版</th><th class="center">企业版</th><th class="center">本地旗舰版</th></tr></thead>
+      <tbody>
+        <tr><td><b>核心 CRM</b>（客户/商机/合同/报价/回款）</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>AI 智能体四件套</b>（intake / quote / followup / review）</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>客户 360 洞察</b></td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>决策自治层</b>（autonomyEngine + D 层）</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>事件触发自动化</b>（SSE + agent-event-trigger）</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>审批流配置</b>（CRM_APPROVAL_FLOW）</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>多租户 LLM 配置</b></td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>MCP 接入</b>（crm-native :3001/mcp）</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>高级报表 / 对账看板</b></td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>决策溯源 / 审计</b>（C1–C4 + 哈希链）</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>行业配置化</b>（每租户自有 + 上线引导）</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>高级 RBAC</b>（data_scope 域级）</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>客户记忆生命周期</b></td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td></tr>
+        <tr><td><b>私有化本地部署</b>（数据不出域）</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+      </tbody>
+    </table>
+
+    <div class="legend">
+      <b>定价逻辑说明：</b><br>
+      · <b>按账号(席位)计费</b>：价格 = 单价 × 账号数，套餐同时决定功能权益门禁，规模可预测、无隐藏 Token 税。<br>
+      · <b>本地旗舰版</b>：私有化部署、数据不出域、合规与定制开发，价格面议（按部署规模与 SLA 评估）。<br>
+      · <b>套餐即功能门禁</b>：档位决定功能权益（AI 代理 / 决策自治 / 审批 / 审计 / 行业配置化 按档解锁），让客户为真实价值付费。<br>
+      · <b>不卖"AI 加价税"</b>：基础账号费不额外叠加 AI 溢价，降低采用门槛。
+    </div>
+  </div>
+</section>
+
+<!-- PITCH -->
+<section id="pitch">
+  <div class="wrap">
+    <div class="eyebrow">可直接发送</div>
+    <h2>一页客户沟通要点（销售可复制）</h2>
+    <p class="sub">面向"长周期、多角色决策、强合规"的 B2B 客户，用业务语言讲清差异，不堆功能。</p>
+    <div class="pitch">
+      <h4>开场 · 我们不一样在哪</h4>
+      <p>市面上两类"AI CRM"：一类是老系统外挂 AI 插件（数据模型没变，AI 在现实的影子上推理）；一类是只做自动摘要的速记员（capture 不是 understanding）。<b>我们是第三类——以"客户记忆 + 可溯源的自主决策 + 越用越聪明"为地基：系统记得住每个客户、每个重要决定都可解释可审计、还随使用持续进化。</b></p>
+      <h4>痛点 · 为什么客户需要问责层</h4>
+      <p class="q">"折扣是谁批的、依据哪版价格政策、参考了哪次先例、为什么这个单子破例放行？"——传统 CRM 答不出"为什么"，只能答"批了/拒了"。</p>
+      <p>本平台把报价折扣、合同金额变更、输单原因等每个拍板自动挂决策事件：记当时生效政策版本、结构化条件、真实理由、引用先例。口头预算批准 ≠ 落地预算的教训，系统用书面决策链根治。</p>
+      <h4>适配 · 你们行业为什么合身</h4>
+      <p>贵司（工业装备/医疗器械/企业软件…）销售周期长、决策角色多、报价回款需层层审批、合规审计要求高——正好命中我们的三大支柱：<b>客户记忆</b>（来龙去脉随租户沉淀）、<b>可溯源的自主决策</b>（审批全程留痕、可审计）、<b>越用越聪明</b>（行业 Know-How 零代码长出来、知识持续复利）。</p>
+      <h4>行动 · 下一步</h4>
+      <p>建议先做一次<b>行业模板试点</b>：我们把贵司的定价链/审批规则/ICP 配置成一个可复用包，2 周内部署试用，用真实商机跑通"报价→审批→合同→回款"全链路。报价一律走系统流程，杜绝线下口头报价造成的治理缺口。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    AI原生销售管理平台 ｜ 决策问责闭环 × 零信任写入 × 行业配置化<br>
+    本页为平台定位与商业分析对外材料 · 可与客户沟通要点一并使用
+  </div>
+</footer>
+
+</body>
+</html>

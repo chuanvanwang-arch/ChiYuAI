@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>AI原生销售管理·青羽ChiYu · 今日优先</title>
+<!-- 设计系统 tokens + 通用壳（顶栏/侧栏/内容区）+ 受控渲染样式（pg-* 出片必需，此前漏链导致首页出片无样式=视觉「乱码」） -->
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+ /* 仅本页私有组件（pg-* 已由 page.css 接管，shell 由 common.css 接管） */
+ *{box-sizing:border-box}
+ .nl-result{margin:18px 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:none}
+ .nl-result.show{display:block}
+ .nl-head{font-weight:700;font-size:14px;margin-bottom:6px}
+ .nl-meta{font-size:12px;color:var(--mut);margin-bottom:8px}
+ .nl-preview{width:100%;height:200px;border:1px solid var(--line);border-radius:8px}
+ .nl-empty{font-size:13px;color:var(--mut)}
+
+ .sse{font-size:12px;max-height:160px;overflow:auto}
+ .sse .e{padding:6px 8px;border-bottom:1px solid var(--panel);display:flex;gap:8px}
+ .sse .e .tg{font-size:10px;color:#fff;border-radius:5px;padding:1px 6px;background:var(--ac)}
+ .pool input{width:100%;padding:7px;margin:4px 0;border:1px solid var(--line);border-radius:7px;font-family:monospace}
+ .pool button{margin-top:6px;border:none;background:var(--ac);color:#fff;border-radius:7px;padding:6px 14px;cursor:pointer}
+ /* 客户跟踪告警 KPI 卡（2026-08-31 抽离复用）：零硬编码，走 tokens 语义变量 */
+ .follow-kpi-panel{margin:10px 0 6px}
+ .follow-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+ .fkpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;color:var(--ink);text-decoration:none;display:block}
+ .fkpi .k-label{font-size:12px;color:var(--mut)}
+ .fkpi .k-val{font-size:24px;font-weight:700;margin-top:4px}
+ .fkpi.warn .k-val{color:var(--err)}
+ .fkpi.ok .k-val{color:var(--ok)}
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<!-- S02 受控渲染唯一出片容器：/api/page/home 返回渲染产物 html，注入此处（renderPage 唯一出口，非手写旁路） -->
+<div id="home-root" data-schema="S02"><div class="pg-state" data-state="loading">加载中…</div></div>
+
+<!-- NL / copilot 生成结果（⌘K / S02 goal-form 提交后展示 draft 预览） -->
+<div class="nl-result" id="nlResult"></div>
+
+<!-- 实时事件流（S02 子表为快照，此处为 EventSource 实时推送，常驻预警 SSE） -->
+<section class="panel">
+  <h3>📡 实时事件流（实时推送）</h3>
+  <div class="sse" id="sse"><div class="pg-state" data-state="loading">连接中…</div></div>
+</section>
+
+<!-- 线索池配置（pick/recycle 规则；S02 未含，独立承载） -->
+<section class="panel pool">
+  <h3>⚙ 线索池配置（pick/recycle 规则）</h3>
+  <crm-input id="pickRule" placeholder="pick_rule (JSON)"></crm-input>
+  <crm-input id="recycleRule" placeholder="recycle_rule (JSON)"></crm-input>
+  <crm-button id="savePool">保存</crm-button><span id="poolMsg" style="font-size:12px;color:var(--mut);margin-left:8px"></span>
+</section>
+
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+import { renderFollowKpis } from '/portal/followReminder.js';
+
+const token = localStorage.getItem('crm_token');
+// ESM 顶层禁止 return —— 无 token 直接跳转登录页中断后续
+if (!token) { location.href = '/home.html'; }
+injectLayout();
+
+// 二次校验 token（无效/过期清 token 退回登录页）
+(async () => {
+  try {
+    const r = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) { localStorage.clear(); location.href = '/home.html'; }
+  } catch { localStorage.clear(); location.href = '/home.html'; }
+})();
+
+function escapeHtml(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── 客户跟踪告警 KPI 卡（2026-08-31 抽离复用）──
+// 受控渲染 renderer 不支持裸 mount 节点 → 客户端注入到 S02「客户跟踪」collapse 最前
+function injectFollowKpiPanel() {
+  const root = document.getElementById('home-root');
+  if (!root) return;
+  if (document.getElementById('follow-kpi-mount')) return; // 幂等
+  const details = [...root.querySelectorAll('details.pg-collapse')]
+    .find((d) => (d.querySelector('summary')?.textContent || '').includes('客户跟踪'));
+  if (!details) return;
+  const body = details.querySelector('.pg-collapse-body');
+  if (!body) return;
+  const sec = document.createElement('section');
+  sec.className = 'follow-kpi-panel';
+  sec.innerHTML = '<h3 class="pg-comp-title">🔔 客户跟踪告警</h3><div class="follow-kpis" id="follow-kpi-mount"></div>';
+  body.insertBefore(sec, body.firstChild);
+}
+async function mountFollowKpis() {
+  const host = document.getElementById('follow-kpi-mount');
+  if (!host) return;
+  try {
+    const j = await get('/api/board/named-account-manage');
+    host.innerHTML = renderFollowKpis(j);
+  } catch { /* 静默：未登录/异常不破坏 S02 既有内容 */ }
+}
+
+// S02 受控渲染注入（renderPage 唯一出口；失败回落提示，不阻断壳）
+(async () => {
+  const root = document.getElementById('home-root');
+  try {
+    const j = await get('/api/page/home');
+    if (j.html) { root.innerHTML = j.html; injectFollowKpiPanel(); await mountFollowKpis(); }
+    else root.innerHTML = '<div class="pg-state" data-state="error">首页出片为空</div>';
+  } catch (e) {
+    root.innerHTML = `<div class="pg-state" data-state="error">首页受控渲染失败：${escapeHtml(e.message)}</div>`;
+  }
+})();
+
+// NL 指令执行（⌘K 顶栏 / S02 goal-form 共用）
+// R1 按钮即时反馈：禁用+转文字，用户点击后立即感知「已受理」（根治「点了没反应」）
+// R2 结果容器动态插入表单紧下方（而非固定在页面底部首屏外）
+// R3 错误高亮红底+可关闭（不再静默埋在长页面底部）
+async function runNl(nl, form) {
+  const btn = form?.querySelector('button[type="submit"]');
+  // R1: 按钮立即反馈
+  if (btn) { btn.disabled = true; btn.textContent = '处理中…'; btn.style.opacity = '0.7'; }
+  const box = document.getElementById('nlResult');
+  // R2: 把结果面板移到表单紧邻下方（而非页面底部 #home-root 之后）
+  if (form && form.parentNode) {
+    try { form.parentNode.insertBefore(box, form.nextSibling); } catch {}
+  }
+  box.classList.add('show');
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  box.innerHTML = '<div class="pg-state" data-state="loading">生成中…</div>';
+  try {
+    const j = await post('/api/page/from-nl', { nl });
+    box.innerHTML =
+      `<div class="nl-head">已生成 draft · 置信度 ${(j.confidence ?? 0).toFixed(2)}${j.needsClarification ? ' · 需澄清' : ''}</div>` +
+      `<div class="nl-meta">page_id: <code>${escapeHtml(j.page_id || '')}</code></div>` +
+      (j.previewHtml ? `<div id="nl-preview-anchor"></div>` : '<div class="nl-empty">（无预览）</div>');
+    // 修复（2026-08-30）：srcdoc 经 encodeURIComponent 会变成 %3Cdiv 字面文本（浏览器当纯文本渲染=「乱码」）。
+    //   改用 property setter 直赋，绕过属性引号转义问题。
+    if (j.previewHtml) {
+      const iframe = document.createElement('iframe');
+      iframe.className = 'nl-preview';
+      iframe.srcdoc = j.previewHtml;
+      box.querySelector('#nl-preview-anchor')?.replaceWith(iframe);
+    }
+  } catch (e) {
+    // R3: 错误高亮红底 + 透传后端 notes（parse_empty 时含实体识别引导）
+    const body = e && e.body ? e.body : {};
+    const notes = Array.isArray(body.notes) ? body.notes : [];
+    const errCode = body.error || (e && e.message) || '未知错误';
+    const notesHtml = notes.length
+      ? `<ul style="margin:6px 0 0;padding-left:18px;color:#b91c1c;font-size:12px">${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>`
+      : '';
+    const hint = notes.length
+      ? '请按上方引导补充业务对象词后重试'
+      : '请检查网络连接或登录状态后重试';
+    box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;padding:12px;border-radius:8px;color:#991b1b;font-size:13px"><strong>生成失败</strong>：${escapeHtml(errCode)}${notesHtml}<div style="margin-top:6px;color:#b91c1c;font-size:12px">提示：${escapeHtml(hint)}</div></div>`;
+  } finally {
+    // R1 恢复按钮（无论成功失败）
+    if (btn) { btn.disabled = false; btn.textContent = '提交'; btn.style.opacity = ''; }
+  }
+}
+
+// S02 goal-form 声明式提交（data-action="POST /api/page/from-nl"）
+document.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (!(form.matches && form.matches('form.pg-form[data-action]'))) return;
+  e.preventDefault();
+  const nl = (form.querySelector('input[name="goal"]')?.value || '').trim();
+  if (nl) runNl(nl, form);
+});
+
+// 顶栏 ⌘K 约定：/?nl=xxx → 自动执行
+const initNl = new URLSearchParams(location.search).get('nl');
+if (initNl) runNl(initNl);
+
+// 实时事件流（EventSource 常驻）
+try {
+  const es = new EventSource('/events');
+  const box = document.getElementById('sse');
+  es.onopen = () => { box.innerHTML = ''; };
+  es.onmessage = (e) => {
+    if (!box.children.length || box.querySelector('[data-state="loading"]')) box.innerHTML = '';
+    const div = document.createElement('div'); div.className = 'e';
+    div.innerHTML = `<span class="tg">ev</span><span>${escapeHtml(e.data)}</span>`;
+    box.prepend(div); if (box.children.length > 20) box.lastChild.remove();
+  };
+  es.onerror = () => {};
+} catch {}
+
+// 线索池配置（GET 回填 / PUT 保存）
+(async () => {
+  try {
+    const j = await get('/api/pool-config');
+    const cfg = j.config || {};
+    document.getElementById('pickRule').value = JSON.stringify(cfg.pick_rule || {});
+    document.getElementById('recycleRule').value = JSON.stringify(cfg.recycle_rule || {});
+  } catch {}
+})();
+document.getElementById('savePool').onclick = async () => {
+  const msg = document.getElementById('poolMsg');
+  try {
+    await put('/api/pool-config', {
+      patch: {
+        pick_rule: JSON.parse(document.getElementById('pickRule').value || '{}'),
+        recycle_rule: JSON.parse(document.getElementById('recycleRule').value || '{}'),
+      },
+    });
+    msg.textContent = '已保存';
+  } catch (e) { msg.textContent = '保存失败（JSON 格式？）'; }
+};
+</script>
+</body>
+</html>

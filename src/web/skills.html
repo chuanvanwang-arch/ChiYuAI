@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>方法论 SKILL 注册表</title>
+<style> body{font-family:system-ui;margin:24px;background:var(--bg);color:var(--ink)}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:8px 10px;border-bottom:1px solid var(--panel)2f7;text-align:left;font-size:13px}
+th{background:var(--panel);color:var(--mut)}
+td{vertical-align:middle}
+.sreg-toggle input{margin-right:6px}
+.muted{color:var(--mut);font-size:13px}
+button{padding:7px 16px;border:0;border-radius:7px;background:var(--ac);color:#fff;margin-top:10px;cursor:pointer}</style>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="panel"><h2>📚 方法论 SKILL 注册表</h2><p class="muted">SKILL 启停开关 · DB 持久化（重启不丢）· 写经决策第0闸+sysadmin · 禁删只改 enabled · GET/PUT /api/config/skill-registry</p><div id="app">加载中…</div></div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import { renderSkillRegistryHeader, renderSkillRegistryTable, validateSkillToggle } from '/portal/skillRegistryRender.js';
+import { injectLayout } from '/portal/layout.js'; injectLayout();
+const TOKEN = localStorage.getItem('crm_token');
+const app = document.getElementById('app');
+if (!TOKEN) location.href = '/home.html';
+async function load() {
+  try {
+    const r = await fetch('/api/config/skill-registry', { headers: { Authorization: `Bearer ${TOKEN}` } });
+    const j = await r.json();
+    if (!r.ok) { app.innerHTML = `<p class="muted">加载失败：${j.error || r.status}</p>`; return; }
+    const enabledCount = (j.skills || []).filter((s) => s.enabled).length;
+    app.innerHTML = renderSkillRegistryHeader({ total: j.total, enabledCount }) + renderSkillRegistryTable(j.skills);
+    bind();
+  } catch (e) { app.innerHTML = `<p class="muted">${e.message}</p>`; }
+}
+function bind() {
+  document.querySelectorAll('input[name="enabled"]').forEach((cb) => {
+    cb.onchange = async () => {
+      const tr = cb.closest('tr');
+      const skill_id = tr.dataset.skill;
+      const enabled = cb.checked;
+      const v = validateSkillToggle({ skill_id, enabled });
+      if (!v.ok) { alert('校验失败：' + v.errors.join('; ')); cb.checked = !enabled; return; }
+      const r = await fetch('/api/config/skill-registry', { method: 'PUT', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ skill_id, enabled }) });
+      const j = await r.json();
+      alert(r.ok ? `已${enabled ? '启用' : '停用'} ${skill_id}` : ('失败：' + (j.error || r.status)));
+      load();
+    };
+  });
+}
+load();
+setInterval(() => { if (TOKEN) load(); }, 15000);
+
+</script>
+</body></html>

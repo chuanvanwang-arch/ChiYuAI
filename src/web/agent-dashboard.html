@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>智能体监控台（S04 受控）</title>
+  <link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: system-ui; margin: 0; background:var(--bg); color:var(--ink); }
+  #agent-dashboard-root { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .pg-state[data-state="loading"] { color:var(--mut); padding:24px; }
+  .pg-state[data-state="error"] { color:var(--err); padding:24px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">智能体监控台 （S04 受控渲染）</h1></div></header>
+<div id="agent-dashboard-root"><div class="pg-state" data-state="loading">加载中…</div></div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+  import { injectLayout } from '/portal/layout.js';
+  injectLayout();
+  (async () => {
+    const root = document.getElementById('agent-dashboard-root');
+    if (!root) return;
+    try {
+      const j = await get('/api/page/agent-dashboard');
+      if (j.html) root.innerHTML = j.html;
+    } catch (e) {
+      root.innerHTML = `<div class="pg-state" data-state="error">智能体监控台受控渲染失败：${e.message}（/agents 手写台仍可用）</div>`;
+    }
+  })();
+
+</script>
+</body>
+</html>

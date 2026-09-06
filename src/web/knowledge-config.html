@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>租户级知识 · 配置</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  /* 仅保留布局与表单样式；外壳复用 common.css .card */
+  .k-tabs { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
+  .k-tab { padding: 8px 16px; border: 1px solid var(--line, #e2e6ee); border-radius: 8px; background: var(--panel, #fff); cursor: pointer; font-size: 13px; }
+  .k-tab.active { background: var(--ac, #2b5cd9); color: #fff; border-color: var(--ac, #2b5cd9); }
+  table { width: 100%; border-collapse: collapse; background: var(--panel, #fff); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--line, #e2e6ee); text-align: left; font-size: 13px; vertical-align: top; }
+  th { background: var(--muted-bg, #eef1f7); color: var(--ink, #1f2733); }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--panel, #fff); padding: 16px; border-radius: 8px; margin-top: 16px; }
+  .form label { font-size: 12px; color: var(--mut, #6b7280); }
+  input, select, textarea { padding: 8px; border: 1px solid var(--line, #e2e6ee); border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  .actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok, #1a7f37); }
+  .msg.err { color: var(--err, #d93025); }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac, #2b5cd9); }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">租户级知识管理</h1></div></header>
+<div id="forbidden"><h3>需要知识管理权限</h3><p>请用 manager / presales / exec / sysadmin 账号 <a href="/home.html">重新登录</a>。</p></div>
+<div id="app" style="display:none">
+  <p class="field-desc" style="margin-bottom:12px">领域 Know-How 唯一沉淀点（ICP / 竞品 / 异议 / 买家语言）。录入经决策第 0 闸 + 双段确认，按租户隔离；复盘自动回写 buyer_language / objections。</p>
+  <div class="k-tabs" id="tabs">
+    <crm-button class="k-tab active" data-kind="icp">ICP 画像</crm-button>
+    <crm-button class="k-tab" data-kind="competitors">竞品</crm-button>
+    <crm-button class="k-tab" data-kind="objections">异议处理</crm-button>
+    <crm-button class="k-tab" data-kind="buyer_language">买家语言</crm-button>
+    <crm-button class="k-tab" data-kind="">全部</crm-button>
+  </div>
+  <table id="list">
+    <thead><tr><th>term</th><th>kind</th><th>content</th><th>source</th><th>confidence</th><th>state</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="form">
+    <div><label>kind</label>
+      <crm-select id="kind"><option value="icp">ICP</option><option value="competitors">竞品</option>
+        <option value="objections">异议</option><option value="buyer_language">买家语言</option></crm-select></div>
+    <div><label>term（必填，标题/关键词）</label>
+      <crm-input id="term" placeholder="如：化工买手-决策链"></crm-input></div>
+    <div style="grid-column:1/3"><label>content（必填，知识正文）</label>
+      <crm-textarea id="content" rows="3" placeholder="如：主要对接采购/技术双线，预算单在 Q3 集中释放"></crm-textarea></div>
+    <div><label>source（默认 manual）</label>
+      <crm-input id="source" placeholder="manual"></crm-input></div>
+    <div><label>confidence（0-1，默认 1）</label>
+      <crm-input id="confidence" placeholder="1"></crm-input></div>
+    <div style="grid-column:1/3"><label>tags（逗号分隔，可选）</label>
+      <crm-input id="tags" placeholder="如：产线,压价"></crm-input></div>
+  </div>
+  <div class="actions">
+    <crm-button id="save" class="btn-primary">提交（经第0闸 + 确认）</crm-button>
+    <span class="msg" id="msg"></span>
+  </div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  injectLayout();
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const KNOWLEDGE_ROLES = ['manager', 'presales', 'exec', 'sysadmin'];
+  const KIND_ZH = { icp: 'ICP 画像', competitors: '竞品', objections: '异议', buyer_language: '买家语言' };
+  let currentKind = 'icp';
+
+  function setMsg(text, kind) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); }
+
+  async function load() {
+    try {
+      const j = await api('/api/knowledge' + (currentKind ? '?kind=' + encodeURIComponent(currentKind) : ''));
+      const tb = document.querySelector('#list tbody');
+      tb.innerHTML = '';
+      for (const r of (j.rows || [])) {
+        const p = r.payload || {};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${esc(p.term || '')}</td><td>${esc(KIND_ZH[p.kind] || p.kind || '')}</td>
+          <td>${esc(p.content || '')}</td><td>${esc(p.source || '')}</td><td>${esc(p.confidence ?? '')}</td><td>${esc(r.state || '')}</td>`;
+        tb.appendChild(tr);
+      }
+    } catch (e) { setMsg('加载失败：' + e.message, 'err'); }
+  }
+
+  $('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('.k-tab'); if (!b) return;
+    document.querySelectorAll('.k-tab').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active'); currentKind = b.dataset.kind || 'icp'; load();
+  });
+
+  $('save').addEventListener('click', async () => {
+    const body = {
+      kind: $('kind').value,
+      term: $('term').value.trim(),
+      content: $('content').value.trim(),
+      source: $('source').value.trim() || undefined,
+      confidence: $('confidence').value.trim() || undefined,
+      tags: $('tags').value.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+    };
+    if (!body.term || !body.content) { setMsg('term/content 必填', 'err'); return; }
+    if (body.confidence !== undefined) { const n = Number(body.confidence); if (!(n >= 0 && n <= 1)) { setMsg('confidence 须为 0-1', 'err'); return; } body.confidence = n; }
+    $('save').setAttribute('disabled', ''); setMsg('提交中…');
+    try {
+      const r = await api('/api/knowledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      setMsg('已提交（id=' + (r.id || '-') + '）', 'ok');
+      $('term').value = ''; $('content').value = ''; load();
+    } catch (e) { setMsg('提交失败：' + e.message, 'err'); }
+    finally { $('save').removeAttribute('disabled'); }
+  });
+
+  (async () => {
+    let r;
+    try { r = await me(); } catch { r = {}; }
+    if (!r?.ok || !KNOWLEDGE_ROLES.includes(r?.role)) {
+      $('app').style.display = 'none';
+      $('forbidden').style.display = 'block';
+      return;
+    }
+    $('app').style.display = 'block';
+    await load();
+  })();
+</script>
+</body>
+</html>

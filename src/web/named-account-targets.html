@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>指名客户目标指标配置</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  /* S13：目标指标配置页 — 严格遵循项目深色 token + common.css 组件体系 */
+  /* 注：tokens.css 已全局封死 select/input/textarea/button 为深色（color-scheme:dark），此处只补布局 */
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 18px; line-height: 1.55; }
+
+  /* === 档位表（紧凑 key-value 风格，对齐 文档 §A 表格形态）=== */
+  .tier-table { width: 100%; border-collapse: collapse; }
+  .tier-table th { text-align: left; padding: 8px 10px; font-size: 12px; color: var(--mut); font-weight: 600; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .tier-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .tier-table tr:hover td { background: rgba(99,102,241,.06); }
+  .tier-table crm-select { width: 110px; }
+  .tier-table crm-input { width: 84px; }
+
+  /* === 窗口天数（inline 数字组）=== */
+  .wd-grid { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 4px; }
+  .wd-item { display: flex; align-items: center; gap: 8px; }
+  .wd-item label { font-size: 13px; color: var(--ink); white-space: nowrap; font-weight: 500; }
+  .wd-item code { font-size: 12px; color: var(--mut); }
+  .wd-item crm-input { width: 90px; }
+
+  /* === 监测指标（checkbox 组）=== */
+  .metrics-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 6px; }
+  .metric-chk { color: var(--ink); font-size: 13px; }
+  .metric-chk .m-hint { color: var(--mut); font-size: 11px; }
+
+  /* === 操作区 === */
+  .actions { margin-top: 22px; display: flex; gap: 12px; align-items: center; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+
+  #forbidden { display: none; padding: 40px 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+
+  /* hint 行 */
+  .hint-row { font-size: 12px; color: var(--mut); margin-top: 6px; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">指名客户目标指标配置</h1></div></header>
+<div id="forbidden"><h3>需要 admin 权限</h3><p>请用管理员账号 <a href="/home.html">重新登录</a>。</p></div>
+
+<div id="app" style="display:none">
+  <p class="sub">客户分级档 × 拜访频率目标 × 时间窗口，落 config_store['named-account-targets']，写经决策第 0 闸。消费方：客户 360 目标达标卡 + 指名客户看板达标标记。</p>
+
+  <!-- ====== 1. 目标档位定义 ====== -->
+  <div class="sect">
+    <div class="sect-title">目标档位定义</div>
+    <p class="hint-row">定义每个客户分级的拜访频率要求（次数 × 统计窗口）。</p>
+    <table class="tier-table" id="tierTable">
+      <thead><tr><th style="width:120px">档位名称</th><th style="width:100px">拜访次数</th><th style="width:140px">时间窗</th></tr></thead>
+      <tbody id="tierBody"></tbody>
+    </table>
+  </div>
+
+  <!-- ====== 2. 窗口天数口径 ====== -->
+  <div class="sect">
+    <div class="sect-title">窗口天数口径</div>
+    <p class="hint-row">各时间窗对应的回溯天数，用于达标判定时的计数范围。</p>
+    <div class="wd-grid">
+      <div class="wd-item"><label>周 <code>(week)</code></label><crm-input type="number" id="wd_week" min="1" max="365"></crm-input></div>
+      <div class="wd-item"><label>月 <code>(month)</code></label><crm-input type="number" id="wd_month" min="1" max="365"></crm-input></div>
+      <div class="wd-item"><label>季 <code>(quarter)</code></label><crm-input type="number" id="wd_quarter" min="1" max="365"></crm-input></div>
+    </div>
+  </div>
+
+  <!-- ====== 3. 监测指标 ====== -->
+  <div class="sect">
+    <div class="sect-title">监测指标</div>
+    <p class="hint-row">勾选需要纳入达标统计的指标维度。</p>
+    <div class="metrics-row" id="metricsGrid">
+      <crm-checkbox class="metric-chk" value="visit">拜访 <span class="m-hint">(visit_notes)</span></crm-checkbox>
+      <crm-checkbox class="metric-chk" value="lead">线索 <span class="m-hint">(lead 阶段)</span></crm-checkbox>
+      <crm-checkbox class="metric-chk" value="deal">商机 <span class="m-hint">(非 lead)</span></crm-checkbox>
+      <crm-checkbox class="metric-chk" value="contract">合同 <span class="m-hint">(CRM_CONTRACT)</span></crm-checkbox>
+    </div>
+  </div>
+
+  <div class="actions">
+    <crm-button id="save" class="btn-primary">保存</crm-button>
+    <span class="msg" id="msg"></span>
+  </div>
+</div>
+
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  injectLayout();
+
+  const TIER_OPTIONS = ['重点', '目标', '潜力'];
+  const WINDOW_OPTIONS = ['week', 'month', 'quarter'];
+
+  const $ = (id) => document.getElementById(id);
+  function setMsg(text, kind) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); }
+
+  /* ---- 权限守卫 ---- */
+  async function guard() {
+    try {
+      const r = await me();
+      if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('forbidden').style.display = 'block';
+        return false;
+      }
+      return true;
+    } catch (e) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('forbidden').style.display = 'block';
+      return false;
+    }
+  }
+
+  /* ---- 渲染档位表格（运行时生成，走 crm-* 组件保持一致）---- */
+  function renderTiers(tiers) {
+    const tbody = $('tierBody');
+    tbody.innerHTML = '';
+    (tiers || []).forEach((t, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <crm-select data-idx="${i}" data-field="tier">
+            ${TIER_OPTIONS.map(o => `<option value="${o}" ${t.tier === o ? 'selected' : ''}>${o}</option>`).join('')}
+          </crm-select>
+        </td>
+        <td>
+          <crm-input type="number" min="0" max="99" data-idx="${i}" data-field="times"
+                 value="${(t.visit_freq && t.visit_freq.times) || 1}"></crm-input>
+        </td>
+        <td>
+          <crm-select data-idx="${i}" data-field="window">
+            ${WINDOW_OPTIONS.map(o =>
+              `<option value="${o}" ${(t.visit_freq && t.visit_freq.window) === o ? 'selected' : ''}>${o}</option>`
+            ).join('')}
+          </crm-select>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ---- 从表单收集 tiers 数据 ---- */
+  function collectTiers() {
+    const rows = document.querySelectorAll('#tierBody tr');
+    const tiers = [];
+    rows.forEach(row => {
+      const tier = row.querySelector('[data-field="tier"]').value;
+      const times = parseInt(row.querySelector('[data-field="times"]').value, 10);
+      const window_ = row.querySelector('[data-field="window"]').value;
+      if (!tier || isNaN(times)) return;
+      tiers.push({ tier, visit_freq: { times, window: window_ } });
+    });
+    return tiers;
+  }
+
+  /* ---- 收集 window_days ---- */
+  function collectWindowDays() {
+    return {
+      week: Math.max(1, parseInt($('wd_week').value, 10) || 7),
+      month: Math.max(1, parseInt($('wd_month').value, 10) || 30),
+      quarter: Math.max(1, parseInt($('wd_quarter').value, 10) || 90),
+    };
+  }
+
+  /* ---- 收集 metrics ---- */
+  function collectMetrics() {
+    const cbs = Array.from(document.querySelectorAll('#metricsGrid crm-checkbox'));
+    return cbs.filter(c => c.checked).map(c => c.value);
+  }
+
+  /* ---- 加载 ---- */
+  async function load() {
+    const r = await api('/api/config/named-account-targets') || {};
+
+    // 档位
+    renderTiers(r.tiers || [
+      { tier: '重点', visit_freq: { times: 1, window: 'week' } },
+      { tier: '目标', visit_freq: { times: 1, window: 'month' } },
+      { tier: '潜力', visit_freq: { times: 1, window: 'quarter' } },
+    ]);
+
+    // 窗口天数
+    const wd = r.window_days || { week: 7, month: 30, quarter: 90 };
+    $('wd_week').value = wd.week || 7;
+    $('wd_month').value = wd.month || 30;
+    $('wd_quarter').value = wd.quarter || 90;
+
+    // 监测指标
+    const metrics = r.metrics || ['visit', 'lead', 'deal', 'contract'];
+    document.querySelectorAll('#metricsGrid crm-checkbox').forEach(cb => {
+      cb.checked = metrics.includes(cb.value);
+    });
+  }
+
+  /* ---- 保存 ---- */
+  $('save').addEventListener('click', async () => {
+    const tiers = collectTiers();
+    if (!tiers.length) { setMsg('至少需要一个有效档位', 'err'); return; }
+    const names = tiers.map(t => t.tier);
+    if (new Set(names).size !== names.length) { setMsg('档位名称不能重复', 'err'); return; }
+
+    const wd = collectWindowDays();
+    const metrics = collectMetrics();
+    if (!metrics.length) { setMsg('至少勾选一个监测指标', 'err'); return; }
+
+    $('save').setAttribute('disabled', '');
+    setMsg('保存中…');
+
+    try {
+      const r = await api('/api/config/named-account-targets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tiers, window_days: wd, metrics }),
+      });
+      $('save').removeAttribute('disabled');
+      if (r?.updated) setMsg('已保存（决策凭证 ' + (r.decision || '-') + '）', 'ok');
+      else setMsg('保存失败：' + (r?.error || '未知错误'), 'err');
+    } catch (e) {
+      $('save').removeAttribute('disabled');
+      setMsg('请求异常：' + e.message, 'err');
+    }
+  });
+
+  /* ---- 启动 ---- */
+  (async () => {
+    if (!(await guard())) return;
+    document.getElementById('app').style.display = 'block';
+    await load();
+  })();
+</script>
+</body>
+</html>

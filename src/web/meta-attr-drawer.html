@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>粒子属性元模型配置抽屉</title>
+<style>
+  body { font-family: system-ui; margin: 0; background:var(--bg); color: var(--ink); }
+  .drawer { display: grid; grid-template-columns: 320px 1fr; gap: 16px; max-width: 1200px; margin: 0 auto; }
+
+  .attr-row { padding: 8px; border-bottom: 1px solid var(--panel); cursor: pointer; font-size: 13px; }
+  .attr-row .tag { display: inline-block; font-size: 11px; background: var(--line); color: var(--ac); border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .attr-row.disabled { opacity: .5; }
+  .perm-grid td, .perm-grid th { border: 1px solid var(--panel); padding: 4px 8px; font-size: 12px; text-align: center; }
+  #preview { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 16px; min-height: 90px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="drawer">
+  <aside class="panel">
+    <h2>字段列表</h2>
+    <div id="attr-list">加载中…</div>
+  </aside>
+  <section class="panel">
+    <h2>属性配置面板</h2>
+    <div id="attr-config">
+      <p style="color:var(--mut);font-size:13px">选择左侧属性后此处显示配置（title/required/options/display/permission），保存按钮映射 data-particle-attr-update（过第 0 闸，需决策上下文）。</p>
+    </div>
+  </section>
+</div>
+<div class="panel" style="max-width:1200px;margin:16px auto">
+  <h2>受控预览（renderer 同链路）</h2>
+  <div id="preview">（选择属性后在右侧预览）</div>
+</div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+  // 读桥接：拉元模型列表；预览由受控 schema → 同链路渲染（阶段 3 接 renderer 完整交互）
+  get('/api/meta-attr').then(({ items }) => {
+    const box = document.getElementById('attr-list');
+    if (!items.length) { box.textContent = '（空）'; return; }
+    box.innerHTML = items.map((a) =>
+      `<div class="attr-row ${a.enabled ? '' : 'disabled'}" data-slug="${a.attr_slug}" data-type="${a.attr_type}" data-tag="${a.semantic_tag}">
+        <span class="tag">${a.semantic_tag}</span>${a.attr_slug}
+        <span style="color:var(--mut)"> · ${a.attr_type}</span>
+      </div>`).join('');
+    box.querySelectorAll('.attr-row').forEach(el => el.onclick = () => {
+      const slug = el.dataset.slug, type = el.dataset.type;
+      document.getElementById('attr-config').innerHTML = `
+        <label style="font-size:13px">属性 ${slug}（类型 ${type}，19 类型集内）</label>
+        <p style="font-size:13px;color:var(--mut)">title / required / unique / options / display / permission 的编辑与保存由
+        data-particle-attr-update Action 提供（阶段 3 完整交互）。</p>`;
+      document.getElementById('preview').innerHTML = `
+        <label style="font-size:13px">${slug}</label><crm-input placeholder="预览输入 ${slug}" style="width:100%"></crm-input>`;
+    });
+  }).catch(e => { document.getElementById('attr-list').textContent = '读取失败：' + e.message; });
+</script>
+</body>
+</html>

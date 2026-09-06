@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>销售个人行为看板</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  /* 仅保留布局与 metric 内部样式；卡片外壳复用 common.css .card */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .kpi-label { font-size: 13px; color: var(--mut); margin-bottom: 6px; }
+  .kpi-value { font-size: 26px; font-weight: 600; color: var(--ink); }
+  .kpi-value.ok { color: var(--ok); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-foot { font-size: 12px; color: var(--mut); margin-top: 4px; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">销售个人行为看板</h1></div></header>
+<div id="app">
+  <div id="kpis" class="kpi-grid"></div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api } from '/portal/api.js';
+  injectLayout();
+
+  function cards(summary = {}) {
+    const s = summary || {};
+    const mk = (label, actual, target, suffix = '') => {
+      const a = Number(actual ?? 0), t = Number(target ?? 0);
+      const ok = t > 0 ? a >= t : true;
+      return `<div class="card">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-value ${ok ? 'ok' : 'warn'}">${a}${suffix}</div>
+        <div class="kpi-foot">目标 ${t}${suffix} ｜ ${ok ? '达标' : '缺口 ' + (t - a)}</div>
+      </div>`;
+    };
+    return [
+      mk('今日拜访次数', s.todayVisits, s.dailyVisitTarget),
+      mk('今日电话量', s.todayCalls, s.dailyCallTarget),
+      mk('本周拜访客户数', s.weekVisitCustomers, s.weeklyVisitCustomerTarget),
+      mk('本周新客户数', s.weekNewCustomers, s.weeklyNewCustomerTarget),
+      mk('本周拜访总数', s.weekVisits, '-'),
+      mk('本月拜访总数', s.monthVisits, '-'),
+    ].join('');
+  }
+
+  (async () => {
+    const el = document.getElementById('kpis');
+    try {
+      const b = await api('/api/board/named-accounts') || {};
+      el.innerHTML = cards(b.summary);
+    } catch (e) {
+      el.innerHTML = '<p class="empty">加载失败：' + (e?.message || e) + '</p>';
+    }
+  })();
+</script>
+</body>
+</html>

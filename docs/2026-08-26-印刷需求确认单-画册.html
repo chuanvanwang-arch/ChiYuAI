@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>印刷需求确认单 · 画册</title>
+<style>
+  :root { --brand:#1a56db; --ok:#059669; --warn:#d97706; --bad:#dc2626; --ink:#1f2937; --mut:#6b7280; --line:#e5e7eb; --bg:#f9fafb; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--ink); padding:24px 12px; }
+  .sheet { max-width:860px; margin:0 auto; background:#fff; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.08); overflow:hidden; }
+  .head { background:var(--brand); color:#fff; padding:22px 28px; }
+  .head h1 { font-size:22px; }
+  .head p { opacity:.9; font-size:13px; margin-top:6px; }
+  .body { padding:26px 28px; }
+  h2 { font-size:16px; color:var(--brand); border-left:4px solid var(--brand); padding-left:10px; margin:22px 0 12px; }
+  h2:first-child { margin-top:0; }
+  table { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:9px 10px; text-align:left; vertical-align:top; }
+  th { background:#f3f4f6; font-weight:600; white-space:nowrap; width:120px; }
+  .ok { color:var(--ok); font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  .ask { color:var(--bad); font-weight:600; }
+  .field { display:inline-flex; align-items:center; gap:6px; margin:4px 10px 4px 0; }
+  .field input[type=checkbox] { width:15px; height:15px; accent-color:var(--brand); }
+  .field input[type=text] { width:150px; border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:13px; }
+  .blank { border-bottom:1.5px solid var(--ink); display:inline-block; min-width:120px; margin:0 6px; }
+  .note { font-size:12px; color:var(--mut); margin:4px 0 10px; }
+  .foot { padding:16px 28px 22px; border-top:1px solid var(--line); font-size:12px; color:var(--mut); text-align:center; }
+  .p0 { display:inline-block; background:#fee2e2; color:var(--bad); border-radius:4px; padding:1px 8px; font-size:12px; font-weight:600; }
+  .p1 { display:inline-block; background:#fef3c7; color:var(--warn); border-radius:4px; padding:1px 8px; font-size:12px; font-weight:600; }
+  .p2 { display:inline-block; background:#e0e7ff; color:var(--brand); border-radius:4px; padding:1px 8px; font-size:12px; font-weight:600; }
+  ol li { margin:8px 0 8px 20px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="head">
+    <h1>印刷需求确认单 · 画册</h1>
+    <p>以下参数已初步确认，请核对并补全【需确认】项，回传确认后我们将据此报价与排产。</p>
+  </div>
+  <div class="body">
+
+    <h2>一、已确认参数</h2>
+    <table>
+      <tr><th>印品</th><td>画册（用途：<span class="blank"></span>）<span class="ask">【需确认用途】</span></td></tr>
+      <tr><th>数量</th><td><span class="warn">约 3000 本</span>（请确认精确数 <span class="blank"></span>）</td></tr>
+      <tr><th>成品尺寸</th><td>210×285 mm（大16开，出血 3mm）<span class="ok">✓</span></td></tr>
+      <tr><th>封面纸张</th><td>250g 铜版纸，覆哑膜 <span class="ok">✓</span></td></tr>
+      <tr><th>内页纸张</th><td>157g 铜版纸 <span class="ok">✓</span></td></tr>
+      <tr><th>页数</th><td>48P（是否含封面封底：<span class="ask">【需确认】</span>）</td></tr>
+      <tr><th>工艺</th><td>烫银（位置/面积：<span class="ask">【需确认】</span>）</td></tr>
+      <tr><th>交货地</th><td>苏州（具体地址 <span class="blank"></span>）</td></tr>
+      <tr><th>税费</th><td>含税（发票类型：<span class="blank"></span> 专票13% / 普票）</td></tr>
+      <tr><th>交货时间</th><td><span class="ask">【需确认】</span> 期望什么时候要？最晚节点？</td></tr>
+      <tr><th>是否需我方设计</th><td><span class="ask">【需确认】</span> □需设计 □客户自有文件</td></tr>
+    </table>
+
+    <h2>二、需您补充确认</h2>
+    <p class="p0">P0 · 影响报价（先确认）</p>
+    <ol>
+      <li><b>精确数量</b>：3000 本是整数还是约数？若区间请注明（如 3000-5000）。</li>
+      <li><b>48P 口径</b>：内页 48P（加封底封面共 52P）？还是含封面总 48P？</li>
+      <li><b>设计</b>：需要我方设计？还是您提供文件？（若您提供，请按：PDF/X-1a、CMYK、出血3mm、300dpi、字体嵌入）</li>
+      <li><b>烫银位置与面积</b>：封面局部（logo/文字，约＿＿cm²）还是大面积？</li>
+      <li><b>装订方式</b>：□骑马钉（价格低） □胶装（更显档次，推荐） □锁线胶装</li>
+    </ol>
+    <p class="p1">P1 · 影响排产与交期</p>
+    <ol start="6">
+      <li><b>交货时间</b>：期望＿＿年＿月＿日 / 收到确认后＿天。</li>
+      <li><b>交货地址</b>：苏州＿＿区＿路＿号；卸货条件（□有电梯 □需搬楼）。</li>
+      <li><b>付款方式</b>：□预付 50% 定金，余款发货前结清（款到发货，行业常见） □预付 30% + 验收后 70%</li>
+      <li><b>损耗放损</b>：3000 本是否含 3-5% 放损？多印部分是否收费？</li>
+      <li><b>开票</b>：□专票 13% □普票</li>
+    </ol>
+    <p class="p2">P2 · 影响品质验收</p>
+    <ol start="11">
+      <li><b>覆膜范围</b>：封面整面哑膜？封底是否同覆？内页不覆？</li>
+      <li><b>打样</b>：□数码样（快/便宜） □蓝纸（核对版面） □上机样（最准，费用另计）；谁签字确认？</li>
+      <li><b>色彩标准</b>：以签样为准，允许偏差 ±10%（印刷行业通行）——可接受？</li>
+      <li><b>环保</b>：是否需要环保油墨 / FSC 认证纸（部分消费品牌要求）？</li>
+      <li><b>留样本</b>：是否留＿本样书给贵司存档？</li>
+    </ol>
+    <p class="p2">P3 · 商务细节</p>
+    <ol start="16">
+      <li><b>设计费</b>：如需我方设计，设计费＿＿＿（另计/含报价）。</li>
+      <li><b>运费</b>：苏州交货是否含运费？</li>
+      <li><b>版权</b>：源文件归贵司还是我方？（您提供文件→版权责任您自理，写入合同）</li>
+    </ol>
+
+    <h2>三、您可直接勾填的速填区</h2>
+    <div>
+      <div class="field"><input type="checkbox"> 数量：<input type="text" placeholder="精确数"></div>
+      <div class="field"><input type="checkbox"> 48P 含封面</div>
+      <div class="field"><input type="checkbox"> 需我方设计</div>
+      <div class="field"><input type="checkbox"> 客户自有文件</div>
+      <div class="field"><input type="checkbox"> 焊接银封面局部</div>
+      <div class="field"><input type="checkbox"> 胶装</div>
+      <div class="field"><input type="checkbox"> 骑马钉</div>
+      <div class="field"><input type="checkbox"> 预付 50% + 发货前结清</div>
+      <div class="field"><input type="checkbox"> 预付 30% + 验收结 70%</div>
+      <div class="field"><input type="checkbox"> 数码样</div>
+      <div class="field"><input type="checkbox"> 上机样</div>
+      <div class="field"><input type="checkbox"> 色差 ±10% 以签样为准</div>
+      <div class="field"><input type="checkbox"> 留样本 10 本</div>
+      <div class="field"><input type="checkbox"> 含运费</div>
+      <div class="field"><input type="checkbox"> 专票 13%</div>
+    </div>
+    <p class="note">勾选后请补充数量和交货时间，回传（拍照/截图/打字）即可。</p>
+
+  </div>
+  <div class="foot">确认完成后回传 → 我方据此报价与排产 · 印刷需求确认单（画册）v2 · 2026-08-27</div>
+</div>
+</body>
+</html>

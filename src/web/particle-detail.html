@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>粒子详情 · 数据来源展示（①人工 ②AI ③规则 ④外部）</title>
+<style>
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color: var(--ink); }
+  h2 { margin-bottom: 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 14px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  select, input, button { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--line); font-size: 13px; }
+  button { background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover { background: var(--panel); border-color: var(--ac); color: var(--ac); }
+  a { color: var(--ac); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .layout { display: grid; grid-template-columns: 380px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .legend { font-size: 12px; color: var(--mut); display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+  .attr { border-bottom: 1px solid var(--panel); padding: 7px 0; font-size: 13px; }
+  .attr:last-child { border-bottom: none; }
+  .attr .k { color: var(--mut); font-weight: 600; }
+  .attr .v { word-break: break-all; }
+  .b-manual { background: var(--mut); }
+  .b-ai { background: var(--ac); }
+  .b-rule { background: var(--warn); }
+  .b-external { background: var(--ok); }
+  .conf { font-size: 11px; color: var(--mut); margin-left: 6px; }
+  .axis { font-size: 11px; color: var(--ac); margin-left: 6px; }
+  .pending { color: var(--warn); font-size: 11px; margin-left: 4px; }
+  .rationale { color: var(--mut); font-size: 12px; margin-top: 2px; }
+  .edge { border-bottom: 1px solid var(--panel); padding: 5px 0; font-size: 12px; }
+  .edge .src { color: var(--ok); font-weight: 600; }
+  .none { color: var(--mut); font-size: 12px; }
+  #summary { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 16px; font-size: 13px; }
+  .sum-item { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; }
+  .sum-item b { font-size: 16px; margin-right: 4px; }
+  .note { font-size: 12px; color: var(--mut); line-height: 1.7; }
+  .ok { color: var(--ok); } .err { color: #c00; }
+  .l2c { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:6px 0; }
+  .l2c-step { padding:3px 10px; border-radius:12px; font-size:12px; border:1px solid var(--line); color:var(--mut); background:var(--panel); }
+  .l2c-step.done { background:var(--ok); color:#fff; border-color:var(--ok); }
+  .l2c-step.cur { background:var(--ac); color:#fff; border-color:var(--ac); }
+  .l2c-sep { color:var(--mut); }
+  .pg-subtable { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
+  .pg-subtable th, .pg-subtable td { border:1px solid var(--panel); padding:5px 8px; text-align:left; }
+  .pg-subtable th { background:var(--panel); color:var(--mut); }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">粒子详情 · 数据来源展示</h1></div></header>
+
+<div class="toolbar">
+  <crm-select id="typeFilter" onchange="loadList()">
+    <option value="">全部类型</option>
+    <option>CRM_DEAL</option>
+    <option>CRM_ACCOUNT</option>
+    <option>CRM_CONTACT</option>
+    <option>CRM_PRODUCT</option>
+    <option>CRM_PRICE_LIST</option>
+    <option>CRM_PERSON</option>
+    <option>CRM_ORGANIZATION</option>
+    <option>CRM_KNOWLEDGE</option>
+    <option>CRM_UNSTRUCTURED_ASSET</option>
+    <option>CRM_QUOTATION</option>
+    <option>CRM_CONTRACT</option>
+    <option>CRM_PAYMENT_PLAN</option>
+    <option>CRM_PAYMENT_RECORD</option>
+    <option>CRM_INVOICE</option>
+    <option>CRM_ORDER</option>
+    <option>CRM_TECHNICAL_PROPOSAL</option>
+  </crm-select>
+  <crm-button onclick="loadList()">刷新列表</crm-button>
+</div>
+
+<div id="summary">加载中…</div>
+
+<div class="layout">
+  <div class="card">
+    <h3>粒子列表</h3>
+    <div id="list">—</div>
+  </div>
+  <div class="card">
+    <h3 id="detailTitle">选择左侧粒子查看详情</h3>
+    <div id="detail">
+      <div class="note">
+        字段采集四查（总体设计 §8.7）：
+        <br>① 人工 → 前台必须有输入控件（表单/对话式 crm-write）；
+        <br>② AI → 评估器只读展示 + review（置信度 <0.6 需人工确认）；
+        <br>③ 规则 → 定时器/确定性管道（nightly 蒸馏、interaction_index 等）；
+        <br>④ 外部 → 连接器 + review 确认（auto_weak 边 → confirmed）。
+        <br><br>验收：任何字段都能回答「谁产生、怎么产生、可信度多少」，无孤儿字段。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+const SOURCE_CLASS = {
+  manual:   { label: '① 人工', css: 'b-manual' },
+  ai:       { label: '② AI',   css: 'b-ai' },
+  rule:     { label: '③ 规则', css: 'b-rule' },
+  external: { label: '④ 外部', css: 'b-external' },
+};
+const AXIS = { S_Sight:'看见', C_Classify:'分类', J_Judge:'判断', F_Forecast:'预测', A_Alert:'预警', B_Brief:'简报', C_Compliance:'合规' };
+const AI_DEFS = {
+  CRM_DEAL: ['revenue_forecast','win_probability_adjusted','age_in_stage','stuck_warning','engagement_trend','funnel_velocity'],
+  CRM_ACCOUNT: ['account_segment','customer_health_score','churn_risk','business_verified'],
+  CRM_CONTACT: ['relationship_heatmap','stakeholder_influence'],
+};
+const RULE_FIELDS = ['stage_changed_at','stage_history','interaction_index','updated_at','created_at','deal_count','last_interaction'];
+
+async function loadList() {
+  const type = document.getElementById('typeFilter').value;
+  const { items } = await get('/api/particles' + (type ? `?type=${type}` : ''));
+  const box = document.getElementById('list');
+  box.innerHTML = items.length ? items.map(p =>
+    `<div class="attr"><span class="k">${p.type}</span> · <a href="#" onclick="showDetail('${p.id}');return false;">${p.payload?.name || p.payload?.title || p.id}</a> <span class="conf">state=${p.state}</span></div>`
+  ).join('') : '<div class="none">无粒子（类型过滤后为空）</div>';
+  const sum = document.getElementById('summary');
+  sum.innerHTML = items.length ? summaryBadges(items) : '<div class="none">无数据</div>';
+}
+
+function summaryBadges(items) {
+  let m = 0, ai = 0, rule = 0;
+  for (const p of items) {
+    const payload = p.payload || {};
+    // 顶层事实字段：① 人工 / ③ 规则（② AI 属性独立存于 payload.ai，不在此混算）
+    for (const k of Object.keys(payload)) {
+      if (k === 'ai') continue;
+      if (RULE_FIELDS.includes(k)) rule++;
+      else m++;
+    }
+    // ② AI 属性：payload.ai.* 中每个键都是一条 AI 产生的字段（evaluator.js 落库）
+    ai += Object.keys(payload.ai || {}).length;
+  }
+  return `<div class="sum-item">② AI <b>${ai}</b></div><div class="sum-item">③ 规则 <b>${rule}</b></div><div class="sum-item">① 人工 <b>${m}</b></div>`;
+}
+
+function classify(field, payload, ext, isAi) {
+  // ② AI 属性（payload.ai.* 独立存在）
+  if (isAi) {
+    const a = payload.ai?.[field];
+    if (a) return { kind: 'ai', label: '② AI', css: 'b-ai', conf: a.confidence, axis: a.axis, rationale: a.rationale, generated_at: a.generated_at, degraded: a.degraded };
+    return { kind: 'ai', label: '② AI', css: 'b-ai', pending: true };
+  }
+  // ② 优先（兼容：顶层字段恰为 AI 声明字段）
+  if ((AI_DEFS[payload.__type] || []).includes(field) || payload.ai?.[field]) {
+    const a = payload.ai?.[field];
+    if (a) return { kind: 'ai', label: '② AI', css: 'b-ai', conf: a.confidence, axis: a.axis, rationale: a.rationale, generated_at: a.generated_at, degraded: a.degraded };
+    return { kind: 'ai', label: '② AI', css: 'b-ai', pending: true };
+  }
+  // ④ 外部（sourcedFrom 来源边）
+  if (ext) {
+    return { kind: 'external', label: '④ 外部', css: 'b-external', conf: ext.meta?.relation_confidence };
+  }
+  // ③ 规则
+  if (RULE_FIELDS.includes(field)) return { kind: 'rule', label: '③ 规则', css: 'b-rule' };
+  // ① 默认人工
+  return { kind: 'manual', label: '① 人工', css: 'b-manual' };
+}
+
+function renderOne(k, c, v) {
+  const val = (typeof v === 'object') ? JSON.stringify(v) : String(v);
+  const badge = `<span class="badge ${c.css}" title="${c.kind} 来源">${c.label}</span>`;
+  const meta = c.pending ? '<span class="pending">待生成（needsReview）</span>'
+    : c.conf ? `<span class="conf">置信度 ${c.conf}</span>` : '';
+  const axis = c.axis ? `<span class="axis" title="能力轴">${AXIS[c.axis] || c.axis}</span>` : '';
+  const degraded = c.degraded ? '<span class="conf">[确定性兜底]</span>' : '';
+  const gen = c.generated_at ? `<span class="conf">· ${c.generated_at}</span>` : '';
+  const rationale = c.rationale ? `<div class="rationale">理由：${c.rationale}</div>` : '';
+  return `<div class="attr"><span class="k">${k}</span>${badge}${meta}${axis}${degraded}${gen}<div class="v">${val}</div>${rationale}</div>`;
+}
+
+function renderAttrs(p, outEdges) {
+  const payload = { ...p.payload, __type: p.type };
+  const ext = (outEdges || p.outEdges || []).find(e => e.edgeType === 'sourcedFrom');
+  const topKeys = Object.keys(payload).filter(k => k !== '__type' && k !== 'ai');
+  const aiKeys = Object.keys(payload.ai || {});
+  if (!topKeys.length && !aiKeys.length) return '<div class="none">无属性（payload 为空）</div>';
+  const topHtml = topKeys.map(k => renderOne(k, classify(k, payload, ext, false), payload[k])).join('');
+  const aiHtml = aiKeys.length
+    ? `<div class="note" style="margin:6px 0 2px">AI 自动生成属性（②：evaluator.js 落库，确定性兜底/待 review）</div>`
+      + aiKeys.map(k => renderOne(k, classify(k, payload, ext, true), payload.ai[k])).join('')
+    : '';
+  return topHtml + aiHtml;
+}
+
+async function showDetail(id) {
+  const d = await get(`/api/particles/${id}`);
+  const p = d.particle;
+  document.getElementById('detailTitle').textContent =
+    `${p.type} · ${p.payload?.name || p.payload?.title || p.id}（state=${p.state}）`;
+  const biz = (window.renderBusinessSections ? window.renderBusinessSections(p, d.outEdges, d.related) : '');
+  document.getElementById('detail').innerHTML = `
+    ${biz}
+    <h4 style="margin:6px 0 4px">事实字段与来源徽标</h4>
+    ${renderAttrs(p, d.outEdges)}
+    <h4 style="margin:12px 0 4px">sourcedFrom 来源边（④ 外部语义）</h4>
+    ${renderEdges(d.outEdges, d.related)}
+    <div class="note" style="margin-top:12px">
+      展示依据：AI 评估器落 <code>payload.ai.*</code>（写事件自动触发，evaluator.js）；
+      来源边 <code>sourcedFrom</code> 由连接器写（connectorActions.js），relation_confidence 落边 meta；
+      交互索引 <code>interaction_index</code> 由规则管道维护（interactionIndex.js）。
+    </div>`;
+}
+
+function renderEdges(edges, related) {
+  if (!edges || !edges.length) return '<div class="none">无出边（无外部来源记录）</div>';
+  return edges.map(e => {
+    const conf = e.meta?.relation_confidence;
+    const nm = related[e.targetId] ? `→ ${related[e.targetId]}` : '';
+    return `<div class="edge"><span class="src">${e.edgeType}</span> [${e.targetType}] ${nm}
+      <span class="conf">relation_confidence=${conf ?? '—'}${e.meta?.confirmed ? ' · confirmed' : ' · 待review'}</span></div>`;
+  }).join('');
+}
+
+loadList();
+// 暴露给 inline onclick / 路径别名 bootstrap（module 作用域需显式挂 window）
+window.loadList = loadList;
+window.showDetail = showDetail;
+</script>
+
+<script type="module">
+  import { renderBusinessSections } from '/portal/detailSections.js';
+  window.renderBusinessSections = renderBusinessSections;
+  // 深链引导：/deals/:id 等路径别名 → 解析 id 并预载详情；?id= 同效
+  (function bootstrapDetail(){
+    const m = location.pathname.match(/^\/(deals|quotes|contracts|orders|payments|invoices|leads)\/([^/]+)$/);
+    if (m) {
+      const typeMap = { deals:'CRM_DEAL', leads:'CRM_DEAL', quotes:'CRM_QUOTATION', contracts:'CRM_CONTRACT', orders:'CRM_ORDER', payments:'CRM_PAYMENT_PLAN', invoices:'CRM_INVOICE' };
+      const sel = document.getElementById('typeFilter');
+      if (sel) sel.value = typeMap[m[1]] || '';
+      window.loadList();
+      window.showDetail(decodeURIComponent(m[2]));
+      return;
+    }
+    const q = new URLSearchParams(location.search).get('id');
+    if (q) window.showDetail(q);
+  })();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+/* src/web/page.css — 门户运行时渲染器（renderPage）输出样式（第 7 项 12 文档 / portal/page.css） */
+/* 根因修复（2026-08-27）：contract/order/payment-detail.html 引用 /portal/page.css 但文件与路由均不存在 → 404 → 详情页无样式（“显示不正常”）。 */
+/* 主题修正（2026-08-28）：跟随全站深色 tokens（tokens.css），统一使用 var(--bg/panel/line/ink/mut/ac)，保证 portal-shell 与 renderPage 输出在深色主题下文字/背景对比度。 */
+
+/* ---- 页面骨架（portal-shell / portal-head / portal-content）---- */
+.portal-shell { font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 18px; }
+.portal-head { margin-bottom: 14px; }
+.portal-head h1 { font-size: 20px; margin: 0 0 4px; color: var(--ink); }
+.portal-head .muted { color: var(--mut); font-size: 13px; margin: 0; }
+.portal-content { min-height: 40vh; }
+.pg-loading { color: var(--mut); padding: 28px; text-align: center; }
+.pg-empty { color: var(--mut); padding: 28px; border: 1px dashed var(--line); border-radius: 8px; text-align: center; }
+.pg-error { color: var(--err); background: rgba(248, 113, 113, .08); border: 1px solid rgba(248, 113, 113, .35); padding: 16px; border-radius: 8px; }
+
+/* ---- 页面主体（renderPage 输出）---- */
+.pg-page { display: grid; gap: 16px; padding: 4px 0; }
+.pg-page h2 { font-size: 18px; margin: 0 0 10px; color: var(--ink); }
+.pg-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+/* ---- 属性字段（attr-field，含权限/来源四查）---- */
+.pg-attr-field { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.pg-attr-field label { font-size: 13px; color: var(--ink); font-weight: 600; }
+.pg-attr-field input[type="text"] { border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 13px; color: var(--ink); background: var(--bg); }
+.pg-attr-field input:disabled { background: var(--panel); color: var(--mut); }
+.pg-attr-field.pg-perm[data-perm="hidden"] { background: var(--panel); color: var(--mut); font-size: 13px; }
+.pg-lock { font-size: 12px; color: var(--mut); }
+.pg-source-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(226, 232, 240, .1); color: var(--mut); margin-bottom: 2px; align-self: flex-start; }
+.pg-source-badge[data-origin-rule] { background: rgba(99, 102, 241, .15); color: var(--ac); }
+.pg-source-badge[data-origin-manual] { background: rgba(16, 185, 129, .15); color: var(--ok); }
+.pg-source-badge[data-origin-ai] { background: rgba(139, 92, 246, .2); color: #a78bfa; }
+.pg-source-badge[data-origin-external] { background: rgba(251, 191, 36, .15); color: var(--warn); }
+.pg-source-badge[data-state="needsReview"] { background: rgba(248, 113, 113, .15); color: var(--err); }
+.pg-source-badge[data-state="unverified"] { background: rgba(226, 232, 240, .1); color: var(--mut); }
+
+/* ---- 指标卡 / 表格 / 子表格 / 选择器 ---- */
+.pg-metric-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.pg-metric-card h3 { margin: 0 0 6px; font-size: 13px; color: var(--mut); font-weight: 600; }
+.pg-metric-card .pg-value { font-size: 22px; font-weight: 700; color: var(--ink); }
+.pg-metric-card .pg-value[data-state="partial"] { color: var(--mut); }
+.pg-metric-card p { margin: 4px 0 0; font-size: 12px; color: var(--mut); }
+.pg-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.pg-table th { background: var(--bg); color: var(--mut); font-size: 12px; text-align: left; padding: 8px 12px; }
+.pg-table td { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink); }
+.pg-subtable-wrap { padding: 0; }
+.pg-subtable { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.pg-subtable th { background: var(--bg); color: var(--ink); font-size: 11px; padding: 5px 8px; }
+.pg-subtable td { font-size: 12px; padding: 5px 8px; color: var(--ink); }
+.pg-select { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink); }
+.pg-select select { border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 13px; background: var(--panel); color: var(--ink); }
+
+/* ---- 状态 / 动作 / 推理链 / 结果卡 ---- */
+.pg-state { padding: 16px; text-align: center; color: var(--mut); font-size: 13px; }
+.pg-state[data-state="error"] { color: var(--err); }
+.pg-state[data-state="loading"] { color: var(--ink); }
+.pg-spinner { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border: 2px solid var(--line); border-top-color: var(--ac); border-radius: 50%; animation: pg-spin .8s linear infinite; vertical-align: -2px; }
+@keyframes pg-spin { to { transform: rotate(360deg); } }
+.pg-actions { display: flex; gap: 8px; }
+.pg-actions button { background: var(--ac); color: var(--on-ac); border: 0; border-radius: 7px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.pg-actions button:hover { background: var(--ac-hover); }
+.pg-form { display: flex; gap: 8px; padding: 14px 0; }
+.pg-form input { flex: 1; border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; font-size: 13px; background: var(--panel); color: var(--ink); }
+.pg-form button { background: var(--ac); color: var(--on-ac); border: 0; border-radius: 7px; padding: 8px 16px; cursor: pointer; }
+.pg-trace { list-style: none; padding: 0; margin: 0; }
+.pg-trace li { padding: 6px 10px; border-left: 3px solid var(--line); margin-bottom: 4px; font-size: 13px; color: var(--ink); }
+.pg-trace li[data-trace-step="ok"] { border-left-color: var(--ok); }
+.pg-trace li[data-trace-step="warn"] { border-left-color: var(--warn); }
+.pg-trace li[data-trace-step="pending"] { border-left-color: var(--mut); }
+.pg-result-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.pg-result-card h3 { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+.pg-result-items { list-style: none; padding: 0; margin: 0; }
+.pg-result-items li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pg-result-label { color: var(--mut); }
+.pg-result-value { color: var(--ink); font-weight: 600; }
+.pg-result-summary { margin: 0; font-size: 13px; color: var(--ink); }
+.pg-unknown { color: var(--err); font-size: 12px; padding: 10px; }
+
+/* ---- 数字化指标组件（2026-08-28 重设计）：kpi-strip / pipeline / progress-card ----
+   色彩仅用 tokens.css 既有变量：--panel --line --ink --mut --bg --ok --err --warn --ac
+   注意：tokens.css 无 --good/--bad/--accent，勿误用（会被浏览器丢弃导致样式静默失效）。 */
+.pg-kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.pg-kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 16px; }
+.pg-kpi-label { font-size: 13px; color: var(--mut); margin-bottom: 4px; }
+.pg-kpi-value { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.15; }
+.pg-kpi-value[data-state="partial"] { color: var(--mut); }
+.pg-kpi-unit { font-size: 13px; color: var(--mut); margin-left: 3px; font-weight: 600; }
+.pg-kpi-hint { font-size: 12px; color: var(--mut); margin-top: 4px; }
+.pg-kpi[data-state="good"] .pg-kpi-value { color: var(--ok); }
+.pg-kpi[data-state="warn"] .pg-kpi-value { color: var(--warn); }
+.pg-kpi[data-state="bad"] .pg-kpi-value { color: var(--err); }
+.pg-kpi[data-state="hidden"] { opacity: .72; }
+
+.pg-pipeline, .pg-pipeline-conv { display: grid; gap: 0; text-align: center; }
+.pg-pipeline { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 8px; }
+.pg-pipeline-conv { padding: 0 8px 10px; }
+.pg-stage { padding: 4px; position: relative; min-width: 0; }
+.pg-stage:not(:last-child)::after { content: "→"; position: absolute; right: -3px; top: 14px; color: var(--line); font-size: 14px; }
+.pg-stage-n { font-size: 22px; font-weight: 700; color: var(--ink); }
+.pg-stage-name { font-size: 12px; color: var(--mut); margin-top: 2px; }
+.pg-stage-amt { font-size: 12px; color: var(--mut); margin-top: 2px; }
+.pg-stage-amt[data-state="hidden"] { opacity: .72; }
+.pg-stage-conv { font-size: 11px; color: var(--mut); padding-top: 4px; }
+
+.pg-progress-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 16px; }
+.pg-progress-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--mut); margin-bottom: 8px; }
+.pg-progress-value { font-size: 15px; font-weight: 700; color: var(--ink); }
+.pg-bar { height: 8px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.pg-bar > i { display: block; height: 100%; border-radius: 5px; background: var(--ac); }
+.pg-progress-card[data-state="good"] .pg-bar > i { background: var(--ok); }
+.pg-progress-card[data-state="warn"] .pg-bar > i { background: var(--warn); }
+.pg-progress-card[data-state="bad"] .pg-bar > i { background: var(--err); }
+.pg-progress-card[data-state="hidden"] { opacity: .72; }
+.pg-progress-hint { font-size: 12px; color: var(--mut); margin-top: 6px; }
+.pg-col-amt { font-size: 11px; color: var(--mut); margin-left: 4px; font-weight: 400; }
+
+/* ---- 客户360 三型字段视觉（2026-08-29 T3）：④ 外部采集只读 + 待接入提示 ---- */
+.pg-attr-field input:disabled { background: rgba(148,163,184,.12); color: var(--mut); cursor: not-allowed; }
+.pg-origin-hint { display: block; font-size: 11px; color: var(--mut); margin-top: 2px; }
+.pg-profile-hint { margin: 0 16px 12px; padding: 10px 14px; border: 1px solid var(--warn); border-radius: 8px; background: rgba(251,191,36,.12); color: var(--warn); font-size: 13px; }
+
+/* ---- S02 三卡钻取：focus 高亮（2026-08-29）---- */
+.pg-metric-card[data-highlight="active"]{outline:2px solid var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 22%,transparent)}
+
+/* ---- S02 三卡钻取：focus 高亮（2026-08-29）---- */
+.pg-metric-card[data-highlight="active"]{outline:2px solid var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 22

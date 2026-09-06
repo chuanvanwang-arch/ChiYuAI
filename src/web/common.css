@@ -1,0 +1,138 @@
+/* src/web/common.css — 全站公共组件（依赖 tokens.css；深色专业风） */
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5}
+a{color:var(--ac);text-decoration:none}
+a:hover{color:var(--ac-hover)}
+
+/* ── 布局壳（layout.js 注入） ── */
+.app-shell{display:grid;grid-template-rows:56px 1fr auto;grid-template-columns:220px 1fr;min-height:100vh;grid-template-areas:"topbar topbar" "sidebar content" "footer footer"}
+.topbar{grid-area:topbar;display:flex;align-items:center;gap:14px;padding:0 16px;background:#0b1220;border-bottom:1px solid var(--line)}
+.topbar .brand{color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+.cmdbar{flex:1;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 12px;max-width:520px}
+.cmdbar input{flex:1;border:none;outline:none;background:transparent;color:var(--ink);font-size:13px}
+.kbd{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:2px 7px;white-space:nowrap}
+/* ── ⌘K 命令面板（导航第二入口；RBAC 过滤系统组） ── */
+.cmd-overlay{position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:300;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
+.cmd-panel{width:min(560px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.cmd-input-box{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.cmd-input-box input{flex:1;border:none;outline:none;background:transparent;color:var(--ink);font-size:15px}
+.cmd-list{max-height:360px;overflow-y:auto;padding:6px}
+.cmd-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;color:var(--ink);cursor:pointer}
+.cmd-item:hover,.cmd-item.on{background:var(--as);color:var(--ac)}
+.cmd-item .grp{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;min-width:44px}
+.cmd-item .k{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-left:auto}
+.cmd-empty{padding:22px;text-align:center;color:var(--mut);font-size:13px}
+.topbar-right{display:flex;align-items:center;gap:10px;position:relative}
+.avatar{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:9px;border:1px solid transparent}
+.avatar:hover{background:var(--panel);border-color:var(--line)}
+.avatar-char{width:28px;height:28px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.avatar-role{font-size:12px;color:var(--mut)}
+.avatar-role.admin{color:var(--ac)}
+
+/* ── 头像用户小菜单 ── */
+.user-menu-wrap{position:absolute;right:0;top:46px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:170px;padding:6px;z-index:100}
+.user-menu-wrap[hidden]{display:none}
+.user-menu-item{display:block;padding:9px 12px;border-radius:8px;font-size:13px;color:var(--ink)}
+.user-menu-item:hover{background:var(--as);color:var(--ac)}
+.user-menu-item.danger{color:var(--err)}
+.user-menu-sep{height:1px;background:var(--line);margin:5px 4px}
+
+/* ── 左侧导航 ── */
+.sidebar{grid-area:sidebar;background:#0b1220;border-right:1px solid var(--line);padding:14px 10px;overflow-y:auto}
+.nav-group{margin-bottom:14px}
+.nav-group-title{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;padding:0 10px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:9px;font-size:13px;color:#cbd5e1}
+.nav-item:hover{background:#1e293b;color:#fff}
+.nav-item.active{background:var(--ac);color:#fff}
+/* 侧栏告警角标（2026-08-31 客户跟踪）：依赖 .nav-item 的 display:flex + margin-left:auto 右对齐；
+   色值走 --err 语义变量（零硬编码铁律），白字 #fff 为深色底上的合法反色 */
+.nav-badge{margin-left:auto;min-width:18px;height:18px;padding:0 6px;border-radius:9px;
+  font-size:11px;line-height:18px;text-align:center;background:var(--err);color:#fff;
+  font-weight:600;flex:none}
+.content{grid-area:content;padding:20px 24px;overflow:auto}
+
+/* ── 全站页脚版权（2026-09-06）：layout.js 注入 + 独立页内联复用同一段 HTML ── */
+.app-footer{grid-area:footer;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  padding:12px 16px;border-top:1px solid var(--line);background:#0b1220;color:var(--mut);font-size:12px;line-height:1.6;text-align:center}
+.app-footer .f-sep{opacity:.5}
+
+/* ── 组件：按钮 / 卡片 / 表格 / 表单 ── */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}
+.btn:hover{border-color:var(--ac)}
+.btn.primary{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.btn.primary:hover{background:var(--ac-hover)}
+.btn.ghost{background:transparent;color:var(--mut)}
+.btn.danger{background:transparent;border-color:var(--err);color:var(--err)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th,.table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+.table th{color:var(--mut);font-weight:600}
+.table tr:hover td{background:#16233b}
+.form{display:flex;flex-direction:column;gap:10px}
+.form .field{display:flex;flex-direction:column;gap:4px}
+.form label{font-size:12px;color:var(--mut)}
+.form input,.form select,.form textarea{background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px;outline:none}
+.form input:focus,.form select:focus{border-color:var(--ac)}
+.badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;background:var(--as);color:var(--ac)}
+.badge.ok{background:rgba(16,185,129,.15);color:var(--ok)}
+.badge.off{background:rgba(248,113,113,.15);color:var(--err)}
+.tag{font-size:11px;padding:1px 7px;border-radius:6px;border:1px solid var(--line);color:var(--mut)}
+.empty{text-align:center;color:var(--mut);padding:36px 0;font-size:13px}
+.error{color:var(--err);font-size:13px}
+
+/* ── 过滤 chips / Tabs / toast ── */
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:12px;color:var(--mut);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tab{padding:9px 14px;font-size:13px;color:var(--mut);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on,.tab.active{color:var(--ac);border-bottom-color:var(--ac);background:transparent}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ac);color:var(--ink);border-radius:10px;padding:10px 16px;font-size:13px;box-shadow:var(--shadow);z-index:200;animation:fadein .2s}
+.toast.err{border-left-color:var(--err)}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+
+/* ── 状态修饰符（风格统一专项 2026-08-29：从各管理页提升为单源，消除页内重声明漂移） ──
+   全部沿用 common.css 既有 token（tinted 风格，与 .badge.ok/.off 一致）；删除页内重声明后即统一。 */
+.badge.lead{background:rgba(245,158,11,.15);color:var(--warn)}
+.badge.high{background:rgba(239,68,68,.15);color:var(--err)}
+.badge.norm{background:rgba(100,116,139,.15);color:var(--mut)}
+.badge.na{background:rgba(100,116,139,.15);color:var(--mut)}
+.badge.read{background:rgba(99,102,241,.15);color:var(--ac)}
+.badge.disabled{background:rgba(100,116,139,.15);color:var(--mut);opacity:.7}
+.badge.enabled{background:rgba(16,185,129,.15);color:var(--ok)}
+.badge.expired{background:rgba(248,113,113,.15);color:var(--err)}
+.badge.revoked{background:rgba(248,113,113,.15);color:var(--err)}
+.badge.fail{background:rgba(248,113,113,.15);color:var(--err)}
+.badge.tampered{background:rgba(248,113,113,.15);color:var(--err)}
+.chip.ok{background:rgba(16,185,129,.15);color:var(--ok);border-color:transparent}
+.chip.warn{background:rgba(245,158,11,.15);color:var(--warn);border-color:transparent}
+.chip.fail{background:rgba(248,113,113,.15);color:var(--err);border-color:transparent}
+.btn.probe{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn.sec{background:transparent;color:var(--mut)}
+/* 表格行内操作按钮（渲染器 rowActions 声明式输出）：紧凑版 .btn，色值全部走 token */
+.pg-row-action{padding:3px 10px;font-size:12px;border-radius:6px}
+.pg-row-action[data-action="crm-approval-reject"]{border-color:var(--err);color:var(--err);background:transparent}
+
+/* ── 内容区统一页头 / 分区（风格统一专项 2026-08-29；方向 A 清爽分隔线） ──
+   单源组件：所有内容页页头一律 .page-head > .ph-main(.back/.page-title) + .page-actions；描述行(.page-sub/.muted/.sub)已按统一规范移除，页眉只保留标题。
+   内部分组用 .sect > .sect-title；tab 统一用上方 .tabs/.tab（pill）。仅新增，不改动既有规则。 */
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:16px 20px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.page-head .ph-main{min-width:0}
+.page-head .back{display:inline-block;font-size:13px;color:var(--mut);text-decoration:none;margin-bottom:6px}
+.page-head .back:hover{color:var(--ac)}
+.page-title{font-size:19px;font-weight:700;margin:0;line-height:1.3}
+/* 兜底：portal-head 等改名页眉内的裸 <h1> 也走统一标题样式（无需逐页补 class） */
+.page-head h1{font-size:19px;font-weight:700;margin:0;line-height:1.3}
+.page-sub{font-size:13px;color:var(--mut);margin:4px 0 0}
+.page-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.page-actions>*{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:8px;padding:7px 12px;font-size:13px;line-height:1.2;white-space:nowrap}
+.page-actions select{cursor:pointer}
+.page-actions .btn.primary{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.page-actions .ph-count{font-size:12px;color:var(--mut);border:0;background:transparent;padding:0}
+.sect{margin-bottom:22px}
+.sect-title{font-size:15px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.sect-title::before{content:"";width:3px;height:14px;background:var(--ac);border-radius:2px;display:inline-block}

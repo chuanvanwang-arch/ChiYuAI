@@ -1,0 +1,39 @@
+// src/portal/layoutMenu.js — 导航菜单单源（全员 5 项 + 系统分组仅 admin）
+// 角色过滤：menuFor(role)；FULL_MENU/ADMIN_MENU 供 layout.js 与单测引用
+// 客户深度洞察 + 指名客户监测合并为客户跟踪（S13 合并入口，画像/洞察 TAB 并入 named-accounts.html）
+export const FULL_MENU = [
+  { group: '销售', label: '线索·商机', href: '/pipeline.html' },
+  // 客户跟踪：客户 360 洞察入口 → 受 customer_360 权益门禁（配置驱动，免费档不展示）
+  { group: '销售', label: '客户跟踪', href: '/named-accounts.html', requiresEntitlement: ['customer_360'] },
+  { group: '销售', label: '销售行为看板', href: '/sales-behavior-board.html' },
+  { group: '协同', label: '我的待办', href: '/my-todo.html' },
+  // 业务主数据门户（2026-08-28 实施计划）：与配置中心（admin 独享）边界分离，业务角色可见；
+  // 5 个维护面只放在门户总览内，左侧菜单不再展开，避免臃肿。
+  { group: '基础数据', label: '📚 基础数据门户', href: '/business-data.html' },
+  // S05 财务应收闭环（T2）：finance 专属导航；admin 也可达（系统侧）
+  { group: '财务', label: '财务应收', href: '/receivables.html', roles: ['finance', 'admin'] },
+  // 多租户计费（T6）：全员可见；数据面按租户隔离（API 经 applyTenantOverride/scopeTenant 强制本租户）
+  { group: '洞察', label: '账单', href: '/billing.html' },
+];
+export const ADMIN_MENU = [
+  { group: '系统', label: '配置中心', href: '/config' },
+  // 智能体中心：AI 智能体能力入口 → 受 ai_agents 权益门禁
+  { group: '系统', label: '智能体中心', href: '/agent-workbench.html', requiresEntitlement: ['ai_agents'] },
+  // 销售决策监控台：治理/审计类页面，仅 admin（销售员无需此权限，2026-09-03 收敛）
+  // 决策监控 = 决策自治层能力 → 受 decision_autonomy 权益门禁（配置驱动）
+  { group: '洞察', label: '报告', href: '/sales-decision-monitor', requiresEntitlement: ['decision_autonomy'] },
+  // 平台套餐管理不再占侧边栏（2026-09-05 用户决议）：入口收敛到配置中心「系统级 → 平台与访问」#41 卡片（深链 /admin-billing-console.html#plans）
+];
+// 菜单过滤：按角色 + 按套餐权益（2026-09-06 补齐权益门禁）
+//   entitlements 缺省（null）→ 只按角色过滤，保持既有调用点行为不变（向后兼容，避免误伤未知调用方）；
+//   传入 Set 时，声明 requiresEntitlement 的菜单项必须全部命中才展示（与 Action 第 1.7 闸同一口径）。
+export function menuFor(role, entitlements = null) {
+  const sys = (role === 'admin' || role === 'sysadmin') ? ADMIN_MENU : [];
+  const entOk = (m) => {
+    if (!Array.isArray(m.requiresEntitlement) || !m.requiresEntitlement.length) return true;
+    if (!entitlements) return true;
+    return m.requiresEntitlement.every((k) => entitlements.has(k));
+  };
+  const base = FULL_MENU.filter((m) => (!m.roles || m.roles.includes(role)) && entOk(m));
+  return [...base, ...sys.filter(entOk)];
+}

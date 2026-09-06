@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>销售行为标准配置</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: var(--font, 'Segoe UI', system-ui, sans-serif); margin: 0; background: var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .section { margin-bottom: 26px; }
+  .section h3 { font-size: 15px; border-left: 3px solid var(--ac); padding-left: 8px; margin: 0 0 12px; }
+  .row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .row label { width: 160px; font-size: 13px; color: var(--mut); }
+  .row input { width: 120px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+  .hint { font-size: 12px; color: var(--mut); margin-top: 4px; }
+  .actions { margin-top: 10px; display: flex; gap: 12px; align-items: center; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+  table.std { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.std th, table.std td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  table.std th { background: var(--bg2); }
+  .tag { display: inline-block; padding: 2px 10px; margin-right: 6px; border-radius: 10px; font-size: 12px; background: var(--tier-bg, rgba(99,102,241,.15)); color: var(--tier-ink, var(--ac)); }
+  .muted { color: var(--mut); }
+  a { color: var(--ac); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">销售行为标准配置</h1></div></header>
+<div id="forbidden"><h3>需要 admin 权限</h3><p>请用管理员账号 <a href="/home.html">重新登录</a>。</p></div>
+<div id="app" style="display:none">
+  <p class="sub">销售个人行为量化目标（每天拜访次数等）落 config_store['behavior-standard']，公开给销售便于看板对比实际 vs 目标，写经决策第 0 闸 + admin。21 条行为合格线为静态事实源（有/无判定，不设评分阈值），仅展示。</p>
+
+  <div class="section">
+    <h3>一、量化目标（可编辑，销售个人总量口径）</h3>
+    <div class="hint" style="margin-bottom:12px">本层是<strong>销售个人</strong>的日/周行为总量 KPI，<strong>不按客户类型区分</strong>；按客户类型（重点/目标/潜力）的拜访节奏由「指名客户目标指标配置」（id 30）中的“每档拜访频率目标”控制。</div>
+    <div class="row"><label>每天拜访次数</label><crm-input id="daily_visit_count" type="number" min="0" style="width:120px"></crm-input></div>
+    <div class="row"><label>每周拜访客户数</label><crm-input id="weekly_visit_customer" type="number" min="0" style="width:120px"></crm-input></div>
+    <div class="row"><label>每周新客户数</label><crm-input id="weekly_new_customer" type="number" min="0" style="width:120px"></crm-input></div>
+    <div class="row"><label>每天电话量</label><crm-input id="daily_call_count" type="number" min="0" style="width:120px"></crm-input></div>
+    <div class="actions">
+      <crm-button id="save" class="btn-primary">保存</crm-button>
+      <span class="msg" id="msg"></span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>二、21 条行为合格线（只读，事实源 = skills/method-behavior-standard）</h3>
+    <table class="std">
+      <thead><tr><th>编码</th><th>标准</th></tr></thead>
+      <tbody id="std-body"></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h3>三、关联配置与引擎规则（数据驱动，实时实例）</h3>
+    <div class="hint" style="margin-bottom:12px">本页只负责 L1 销售个人量化目标。以下为按客户档位的关联配置口径与引擎实时实例，便于核对口径一致性（数据实时拉取，非静态文字）。</div>
+
+    <h4 style="margin:14px 0 8px;color:var(--ink)">A. 后台可配置项（指标口径 ④，来自「指名客户目标指标配置」）</h4>
+    <div class="row"><label>客户分档指标口径</label><span id="metric-dims" class="muted">加载中…</span></div>
+    <div class="row"><label>客户档位 + 拜访节奏</label><a href="/named-account-targets.html">去「指名客户目标指标配置」设置 →</a></div>
+
+    <h4 style="margin:14px 0 8px;color:var(--ink)">B. 引擎规则 · 前台展示（实时实例）</h4>
+    <div class="card">
+      <h3>⑤ 达标判定实例（窗口内实际拜访数 ≥ 目标次数 → 达标）</h3>
+      <div id="pass-instances" class="muted">加载中…</div>
+    </div>
+    <div class="card">
+      <h3>⑥ 档位归属实例（by_payload：取 account.payload.tier，未命中归末档潜力）</h3>
+      <div id="tier-instances" class="muted">加载中…</div>
+    </div>
+  </div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  injectLayout();
+
+  async function guard() {
+    try {
+      const r = await me();
+      if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('forbidden').style.display = 'block';
+        return false;
+      }
+      return true;
+    } catch (e) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('forbidden').style.display = 'block';
+      return false;
+    }
+  }
+
+  const $ = (id) => document.getElementById(id);
+  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function setMsg(text, kind) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); }
+
+  const NUM_FIELDS = ['daily_visit_count', 'weekly_visit_customer', 'weekly_new_customer', 'daily_call_count'];
+
+  function renderStandards(list = []) {
+    $('std-body').innerHTML = list.map((s) => `<tr><td>${s.code}</td><td>${s.name}</td></tr>`).join('');
+  }
+
+  async function load() {
+    const r = await api('/api/config/behavior-standard') || {};
+    for (const f of NUM_FIELDS) $(f).value = (r[f] != null) ? r[f] : '';
+    renderStandards(r.standards || []);
+    // ④ 指标口径（admin 端点，返回 metricDimensions[{code,label}]，单一事实源 namedAccountTargets.js）
+    try {
+      const t = await api('/api/config/named-account-targets') || {};
+      const dims = Array.isArray(t.metricDimensions) ? t.metricDimensions : [];
+      $('metric-dims').innerHTML = dims.length
+        ? dims.map((d) => `<span class="tag">${esc(d.label || d.code)}</span>`).join(' ')
+        : '<span class="muted">（空，回退默认 4 维）</span>';
+    } catch (e) {
+      $('metric-dims').textContent = '加载失败：' + (e?.message || e);
+    }
+    // ⑤⑥ 实时实例：取指名客户看板首 1~2 行真实数据
+    try {
+      const b = await api('/api/board/named-accounts') || {};
+      const rows = Array.isArray(b.rows) ? b.rows : [];
+      // ⑤ 达标判定实例
+      if (rows.length) {
+        $('pass-instances').innerHTML = rows.slice(0, 2).map((row) => {
+          const actual = row.visits30 ?? 0;
+          const target = row.visitTarget != null ? row.visitTarget : 1;
+          const ok = row.visitPass;
+          return `<div class="kv"><span>${esc(row.name)}</span><b class="${ok ? 'pass' : 'warn'}">近窗口拜访 ${actual} ${ok ? '≥' : '<'} 目标 ${target} → ${ok ? '达标' : '缺口'}</b></div>`;
+        }).join('');
+      } else {
+        $('pass-instances').innerHTML = '<span class="muted">当前名下暂无指名客户（无实例）</span>';
+      }
+      // ⑥ 档位归属实例
+      if (rows.length) {
+        $('tier-instances').innerHTML = rows.slice(0, 2).map((row) => {
+          const tier = row.tier || '潜力';
+          const note = row.tier ? `payload.tier=${tier} → ${tier}档` : '无 tier → 潜力（末档）';
+          return `<div class="kv"><span>${esc(row.name)}</span><b>${esc(note)}</b></div>`;
+        }).join('');
+      } else {
+        $('tier-instances').innerHTML = '<span class="muted">当前名下暂无指名客户（无实例）</span>';
+      }
+    } catch (e) {
+      $('pass-instances').textContent = '加载失败：' + (e?.message || e);
+      $('tier-instances').textContent = '加载失败：' + (e?.message || e);
+    }
+  }
+
+  $('save').addEventListener('click', async () => {
+    const pick = {};
+    for (const f of NUM_FIELDS) {
+      const raw = $(f).value;
+      if (raw === '' || raw == null) continue;
+      const n = Number(raw);
+      if (Number.isNaN(n) || n < 0) { setMsg(f + ' 须为非负数字', 'err'); return; }
+      pick[f] = n;
+    }
+    if (!Object.keys(pick).length) { setMsg('无可更新字段', 'err'); return; }
+    $('save').setAttribute('disabled', ''); setMsg('保存中…');
+    const r = await api('/api/config/behavior-standard', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pick),
+    });
+    $('save').removeAttribute('disabled');
+    if (r?.updated) setMsg('已保存（决策凭证 ' + (r.decision || '-') + '）', 'ok');
+    else setMsg('保存失败：' + (r?.error || '未知错误'), 'err');
+  });
+
+  (async () => {
+    if (!(await guard())) return;
+    document.getElementById('app').style.display = 'block';
+    await load();
+  })();
+</script>
+</body>
+</html>

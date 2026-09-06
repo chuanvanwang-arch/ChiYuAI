@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>销售决策监控台 · 7 闸门闭环</title>
+<style>
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color: var(--ink); }
+  h2 { margin-bottom: 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .gate { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--panel); }
+  .gate h3 { margin: 0 0 4px; font-size: 14px; }
+  .gate .stage { color: var(--mut); font-size: 12px; }
+  .metrics { display: flex; gap: 10px; margin: 8px 0 6px; flex-wrap: wrap; }
+  .metric { background: var(--panel); border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+  .metric b { font-weight: 600; }
+  .acc.ok { color: var(--ok); } .acc.warn { color: var(--warn); } .acc.err { color: var(--err); }
+  .dims { display: flex; gap: 3px; margin: 8px 0; }
+  .dim { flex: 1; height: 8px; border-radius: 2px; background: var(--panel); }
+  .dim.provided { background: var(--ok); }
+  .dim.missing { background: var(--err); }
+  .dimlegend { font-size: 11px; color: var(--mut); text-align: center; margin-top: 2px; }
+  button { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 3px 10px; font-size: 12px; color: var(--ink); cursor: pointer; }
+  button:hover { background: var(--panel); border-color: var(--ac); color: var(--ac); }
+  /* 2026-09-04 总览仪表盘：总体指标条 + 闸门汇总行 + L2 汇总卡（明细移入档案 tab，总览只放摘要+入口） */
+  .metrics-strip { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  .metric-tile { flex: 1 1 160px; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--panel); }
+  .metric-tile .mt-val { font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .metric-tile .mt-lbl { font-size: 12px; color: var(--mut); }
+  .gates-summary-body { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .gate-sum-row { display: flex; gap: 12px; align-items: center; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12px; }
+  .gate-sum-row:hover { border-color: var(--ac); }
+  .gate-sum-row .gs-name { font-weight: 600; min-width: 180px; }
+  .gate-sum-row .gs-metric { color: var(--mut); }
+  .l2-summary-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  /* 页面级 tab 统一收敛为 common.css .tabs/.tab（下划线式） */
+  #decision-network { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+  #decision-network input { width: 360px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+  #decision-network .row { margin: 8px 0; display: flex; gap: 8px; align-items: center; }
+  #dn-output { background:var(--panel); border:1px solid var(--line,var(--line)); border-radius:8px; margin-top:10px; font-size:13px; overflow:auto; }
+  #dn-output .dn-view { padding:14px 16px; }
+  #dn-output .dn-loading { color:var(--muted,var(--mut)); padding:24px; text-align:center; }
+  #dn-output .dn-empty { color:var(--muted,var(--mut)); padding:24px; text-align:center; font-size:13px; }
+  #dn-output .dn-summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line,var(--line)); background:var(--panel); border-radius:8px 8px 0 0; }
+  #dn-output .dn-summary .id { font-family:ui-monospace,monospace; font-size:12px; color:var(--mut); }
+
+
+  #dn-output .dn-tabs { display:flex; gap:6px; padding:8px 12px 0; border-bottom:1px solid var(--line,var(--line)); }
+  #dn-output .dn-tab { border:1px solid var(--line,var(--line)); border-bottom:none; border-radius:8px 8px 0 0; padding:6px 14px; font-size:12px; cursor:pointer; background:var(--panel); color:var(--ink); }
+  #dn-output .dn-tab.active { background:var(--panel); color:var(--ac); font-weight:600; }
+  #dn-output table.dn-table { width:100%; border-collapse:collapse; margin-top:12px; }
+  #dn-output table.dn-table th, #dn-output table.dn-table td { padding:6px 10px; border-bottom:1px solid var(--panel); text-align:left; font-size:12px; }
+  #dn-output table.dn-table th { background:var(--panel); color:var(--mut); font-weight:600; }
+  #dn-output .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  #dn-output .pill.up { background:var(--ok); color:#fff; }
+  #dn-output .pill.down { background:var(--warn); color:#fff; }
+  #dn-output .pill.state-confirmed { background:var(--ac); color:#fff; }
+  #dn-output .pill.state-other { background:var(--panel); color:var(--mut); }
+  #dn-output .dn-meta { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px 16px; padding:12px 0; font-size:13px; }
+  #dn-output .dn-meta dt { color:var(--mut); font-size:11px; margin-bottom:2px; }
+  #dn-output .dn-meta dd { margin:0; font-weight:500; color:var(--ink); }
+  #dn-output .dn-timeline { position:relative; padding:8px 0 0; }
+  #dn-output .dn-timeline-item { position:relative; padding:8px 0 8px 22px; border-left:2px solid var(--line); margin-left:8px; font-size:12px; }
+  #dn-output .dn-timeline-item::before { content:''; position:absolute; left:-7px; top:14px; width:12px; height:12px; border-radius:50%; background:var(--ac); border:2px solid var(--panel); }
+  #dn-output .dn-timeline-item.broken::before { background:var(--err); }
+  #dn-output .dn-timeline-item .head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #dn-output .dn-timeline-item .entry-type { font-weight:600; color:var(--ink); }
+  #dn-output .dn-timeline-item .checksum { font-family:ui-monospace,monospace; color:var(--mut); font-size:11px; }
+  #dn-output .dn-timeline-item time { color:var(--mut); }
+  #dn-output .dn-timeline-item .payload { color:var(--mut); margin-top:4px; }
+  #dn-output .dn-block { margin-top:12px; padding:10px 12px; background:var(--panel); border-radius:6px; }
+  #dn-output .dn-block h4 { margin:0 0 6px; font-size:12px; color:var(--mut); font-weight:600; }
+  #dn-output .dn-block ul { margin:0; padding:0; list-style:none; }
+  #dn-output .dn-block li { padding:3px 0; font-size:12px; color:var(--ink); }
+  #dn-output .arrow { color:var(--mut); padding:0 4px; }
+  #dn-output .dn-json-toggle { margin-top:10px; padding-top:8px; border-top:1px dashed var(--line); }
+  #dn-output .dn-json-toggle summary { cursor:pointer; font-size:11px; color:var(--mut); user-select:none; }
+  #dn-output .dn-json-toggle pre { background:var(--ink); color:#fff; padding:10px; border-radius:6px; font-size:11px; margin:6px 0 0; max-height:240px; overflow:auto; white-space:pre-wrap; }
+  /* ─── 页面级决策网络内联摘要（2026-08-31：消除 #dn-output「— 等待查询 —」死区；色值全走 token）─── */
+  .dn-inline-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .dn-inline-head .dn-inline-id { font-family:ui-monospace,monospace; font-size:12px; color:var(--mut); }
+  .dn-inline-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:8px; margin:10px 0 4px; }
+  .dn-inline-edge { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); font-size:12px; }
+  .dn-inline-edge.is-zero { opacity:.55; }
+  .dn-inline-dot { width:10px; height:10px; border-radius:50%; flex:none; }
+  .dn-inline-rt { font-weight:600; color:var(--ink); font-size:11px; }
+  .dn-inline-n { color:var(--mut); font-size:11px; }
+  .dn-inline-dim { color:var(--mut); font-size:11px; margin-left:auto; font-style:italic; }
+  .dn-inline-sect { margin-top:12px; font-size:12px; color:var(--mut); font-weight:600; }
+  .dn-inline-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .dn-inline-chip { border:1px solid var(--line); border-radius:10px; padding:3px 9px; font-size:11px; background:var(--panel); color:var(--ink); cursor:pointer; font-family:ui-monospace,monospace; }
+  .dn-inline-chip:hover { border-color:var(--ac); color:var(--ac); }
+  .dn-inline-empty { color:var(--mut); font-size:12px; }
+  /* ─── T-AUDIT4Q：4 问审计看板（可审计性 N/4 健康条 + 四问卡；色值 100% 走 tokens.css 语义变量）─── */
+  .dn-health { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; }
+  .dn-health-title { font-size:13px; color:var(--ink); }
+  .dn-health-title b { font-size:15px; }
+  .dn-health-q { font-size:12px; padding:2px 8px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--mut); }
+  .dn-health-q.ok { color:var(--ok); border-color:var(--ok); }
+  .dn-health-q.warn { color:var(--warn); border-color:var(--warn); }
+  .dn-health-q.err { color:var(--err); border-color:var(--err); }
+  .dn-qgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  @media (max-width:760px){ .dn-qgrid{ grid-template-columns:1fr; } }
+  .dn-qcard { border:1px solid var(--line); border-left:4px solid var(--line); border-radius:8px; padding:10px 12px; background:var(--panel); }
+  .dn-qcard.ok { border-left-color:var(--ok); }
+  .dn-qcard.warn { border-left-color:var(--warn); }
+  .dn-qcard.err { border-left-color:var(--err); }
+  .dn-qcard-head { font-size:13px; color:var(--ink); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .dn-qcard-badge { font-weight:700; }
+  .dn-qcard-badge.ok { color:var(--ok); } .dn-qcard-badge.warn { color:var(--warn); } .dn-qcard-badge.err { color:var(--err); }
+  .dn-qcard-ans { font-size:12px; color:var(--mut); margin-top:6px; }
+  .dn-qcard-list { margin:6px 0 0; padding-left:18px; font-size:12px; color:var(--ink); }
+  /* T-AUDIT4Q 重排：两 Tab 组（四问审计 / 其它视图）+ 健康度常驻头，零硬编码色值 */
+  .dn-tabrow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 12px 0; border-bottom:1px solid var(--line); }
+  .dn-tabgroup-label { font-size:11px; color:var(--mut); margin-right:4px; padding:2px 8px; background:var(--panel); border:1px solid var(--line); border-radius:10px; white-space:nowrap; }
+  .dn-tab.active { background:var(--ac); color:#fff; font-weight:600; border-color:var(--ac); }
+  .dn-cy { width:100%; height:380px; background:var(--panel); border-radius:8px; border:1px solid var(--line); margin-top:8px; }
+  .dn-cy-wrap { display:flex; flex-direction:column; }
+  .dn-export-btn { margin-top:8px; }
+  .dn-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+  .dn-badge.ok { color:var(--ok); border-color:var(--ok); }
+  .dn-badge.err { color:var(--err); border-color:var(--err); }
+  .dn-badge.warn { color:var(--warn); border-color:var(--warn); }
+  .dn-panel-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0; }
+  .dn-conflict-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; margin-top:10px; }
+  .dn-conflict-card { border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:8px; padding:10px 12px; background:var(--panel); }
+  .dn-val-row { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px; }
+  .dn-val-row .pill { margin-right:4px; }
+  .dn-qhint { font-size:11px; color:var(--mut); margin-top:10px; border-top:1px dashed var(--line); padding-top:8px; }
+  /* ─── T5（2026-08-31 合并修复）：每决策 7×7 巡检卡抽屉（设计 §1.1 硬性要求）─── */
+  .dn-drawer { position: fixed; top: 0; right: 0; width: min(560px, 92vw); height: 100vh; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0,0,0,0.28); z-index: 1300; display: flex; flex-direction: column; transform: translateX(105%); transition: transform .22s ease; }
+  .dn-drawer.open { transform: translateX(0); }
+  .dn-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .dn-drawer-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .dn-drawer-close { background: transparent; border: 1px solid var(--line); color: var(--ink); border-radius: 6px; width: 28px; height: 28px; font-size: 16px; cursor: pointer; }
+  .dn-drawer-close:hover { color: var(--err); border-color: var(--err); }
+  .dn-drawer-body { overflow-y: auto; padding: 14px 16px; flex: 1; font-size: 12px; color: var(--ink); }
+  .dn-drawer-body h5 { margin: 12px 0 6px; font-size: 13px; color: var(--ac); }
+  .dn-77 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 640px) { .dn-77 { grid-template-columns: 1fr; } }
+  .dn-77-col { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+  .dn-77-col h5 { margin: 0 0 6px; font-size: 12px; color: var(--ac); }
+  .dn-77-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .dn-77-row:last-child { border-bottom: none; }
+  .dn-77-row .name { font-weight: 600; color: var(--ink); }
+  .dn-77-row .state { font-size: 11px; padding: 1px 8px; border-radius: 10px; }
+  .dn-77-row .state.ok { background: var(--ok); color: #fff; }
+  .dn-77-row .state.bad { background: var(--err); color: #fff; }
+  .dn-77-row .state.na { background: var(--panel); color: var(--mut); border: 1px solid var(--line); }
+  .dn-77-row .det { color: var(--mut); font-size: 11px; flex: 1; text-align: right; }
+  .dn-77-cross { margin-top: 10px; border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 6px; padding: 8px 12px; background: var(--panel); font-size: 12px; color: var(--ink); }
+  .dn-77-cross b { color: var(--warn); }
+  #detail { margin-top: 16px; }
+
+  /* ─── T4（2026-08-31 合并修复）：三系统闭环条（知识/记忆/决策，用户点名「3闭环」）─── */
+  .loop-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0 18px; }
+  @media (max-width: 820px) { .loop-strip { grid-template-columns: 1fr; } }
+  .loop-card { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel); text-decoration: none; color: inherit; cursor: pointer; transition: border-color .15s ease, transform .15s ease; }
+  .loop-card:hover { border-color: var(--ac); transform: translateY(-1px); }
+  .loop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .loop-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .loop-dot.knowledge { background: var(--ac); }
+  .loop-dot.memory { background: var(--ok); }
+  .loop-dot.decision { background: var(--warn); }
+  .loop-name { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .loop-state { margin-left: auto; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+  .loop-state.closed { background: var(--ok); color: #fff; }
+  .loop-state.break { background: var(--err); color: #fff; }
+  .loop-state.na { background: var(--panel); color: var(--mut); border: 1px solid var(--line); }
+  .loop-desc { font-size: 12px; color: var(--mut); line-height: 1.55; }
+
+  .missing-note { font-size: 12px; color: var(--err); }
+  /* ─── Phase4 A-T6 Layer0：平台问责健康头（双口径防假绿，色值 100% 走 tokens.css 语义变量）─── */
+  .layer0 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0 8px; }
+  @media (max-width: 880px) { .layer0 { grid-template-columns: 1fr; } }
+  .layer0-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel); }
+  .layer0-card h5 { margin: 0 0 8px; font-size: 12px; color: var(--mut); font-weight: 600; }
+  .layer0-big { font-size: 22px; font-weight: 700; color: var(--ink); }
+  .layer0-big small { font-size: 12px; color: var(--mut); font-weight: 400; }
+  .layer0-bar { display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap; }
+  .layer0-q { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--line); }
+  .layer0-q.ok { color: var(--ok); border-color: var(--ok); }
+  .layer0-q.warn { color: var(--warn); border-color: var(--warn); }
+  .layer0-q.err { color: var(--err); border-color: var(--err); }
+  .layer0-sub { font-size: 11px; color: var(--mut); margin-top: 6px; }
+  .loop-pending { color: var(--warn); font-weight: 600; }
+  .layer0-edge { display: flex; gap: 12px; margin-top: 8px; }
+  .layer0-edge b { font-size: 15px; font-weight: 700; }
+  .layer0-edge .runtime { color: var(--ok); }
+  .layer0-edge .demo { color: var(--warn); }
+  .layer0-edge .lbl { font-size: 11px; color: var(--mut); }
+  /* 7×7 边格回跳快照（点击高亮） */
+  .dn-77-row.jump { cursor: pointer; }
+  .dn-77-row.jump:hover { border-color: var(--ac); }
+  .dn-77-row .jumphint { margin-left: auto; font-size: 10px; color: var(--ac); }
+  .ctx-focus-banner { border: 1px solid var(--line); border-left: 3px solid var(--ac); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; font-size: 12px; color: var(--ink); }
+  .ctx-focus-banner b { color: var(--ac); }
+  /* 决策质量归因面板（右栏） */
+  .monitor-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 980px) { .monitor-cols { grid-template-columns: 1fr; } }
+  .attrib-panel { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--panel); }
+  .attrib-panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .attrib-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; cursor: pointer; background: var(--bg); }
+  .attrib-card:hover { border-color: var(--ac); }
+  .attrib-card .scn { font-weight: 600; font-size: 13px; }
+  .attrib-card .rate { display: flex; gap: 12px; margin: 6px 0; font-size: 12px; color: var(--mut); }
+  .attrib-card .rate b { color: var(--ink); font-weight: 600; }
+  .cat-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cat { font-size: 11px; padding: 2px 8px; border-radius: 10px; color: var(--on-cat); }
+  .cat.input_missing { background: var(--cat-missing); }          /* 橙：输入缺失 */
+  .cat.input_error { background: var(--cat-error); }              /* 红：输入错误 */
+  .cat.inference_bias { background: var(--cat-bias); }            /* 紫：推理偏差 */
+  .cat.context_insufficient { background: var(--cat-context); }   /* 蓝：上下文不足 */
+  /* ── 七类根因分类章（P4：右栏归因按 root_cause.code 七态呈现；色值 100% 走 tokens.css 语义变量）── */
+  .cat.rc-field { background: var(--rc-field); }                  /* 琥珀：字段不一致 */
+  .cat.rc-info { background: var(--rc-info); }                    /* 红：信息不完整 */
+  .cat.rc-stale { background: var(--rc-stale); }                  /* 紫：输入不及时 */
+  .cat.rc-dim { background: var(--rc-dim); }                      /* 蓝：维度不对 */
+  .cat.rc-edge { background: var(--rc-edge); }                    /* 青：边选择不对 */
+  .cat.rc-order { background: var(--rc-order); }                  /* 黄：优化次序 */
+  .cat.rc-precedent { background: var(--rc-precedent); }          /* 粉：先例污染 */
+  .cat.rc-unknown { background: var(--mut); }                     /* 灰：未知/正向 */
+  /* 单次决策 7 维输入快照（下钻） */
+  .snap { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  .snap-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--mut); }
+  .snap-dims { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .sdim { font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+  .sdim.good { background: var(--ok); color: #fff; }
+  .sdim.bad { background: var(--err); color: #fff; }
+  .sdim.neutral { background: var(--panel); color: var(--mut); border: 1px solid var(--line); }
+  /* 待办/决策任务列表 */
+  .tasklist-wrap { margin-top: 24px; }
+  .tasklist-wrap h2 { font-size: 16px; margin-bottom: 4px; }
+  .task-table { width: 100%; border-collapse: collapse; margin-top: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .task-table th, .task-table td { padding: 8px 10px; text-align: left; font-size: 12px; border-bottom: 1px solid var(--line); }
+  .task-table th { background: var(--panel); color: var(--mut); font-weight: 600; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .task-table code { font-family: ui-monospace, monospace; font-size: 11px; }
+  .task-table button { background: var(--ac); color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .task-table button:hover { background: var(--ac-hover, var(--ac)); }
+  .dn-empty { color: var(--mut); padding: 16px; text-align: center; font-size: 13px; }
+  /* 决策网络弹窗（#dn-modal 根节点 = 固定遮罩；.dn-modal-panel = 居中面板） */
+  .dn-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .dn-modal-panel { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; width: min(920px, 92vw); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.45); }
+  .dn-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .dn-modal-title { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .dn-modal-title .dn-close { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; width: 28px; height: 28px; line-height: 1; font-size: 16px; cursor: pointer; margin-left: 12px; }
+  .dn-modal-title .dn-close:hover { color: var(--err); }
+  .dn-modal-sub { font-size: 12px; color: var(--mut); margin-top: 2px; }
+  .dn-modal-body { padding: 16px; overflow-y: auto; flex: 1; }
+  .dn-modal-body #dn-output { height: 100%; }
+  /* ─── 决策质量校准（P2 四段式：指标卡 / 归因 / 处方卡 / 历史）─── */
+  #calibration { margin-top: 4px; }
+  #calibration .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+  #calibration select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--panel); color: var(--ink); }
+  #cal-output { margin-top: 10px; }
+  .cal-cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .cal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; min-width: 120px; }
+  .cal-card-v { font-size: 18px; font-weight: 600; color: var(--ink); }
+  .cal-card-l { font-size: 12px; color: var(--mut); margin-top: 2px; }
+  .cal-card-h { font-size: 11px; color: var(--mut); margin-top: 2px; }
+  .cal-warn { flex-basis: 100%; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--ac); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: var(--ink); }
+  .cal-block { margin: 14px 0; }
+  .cal-block h3 { font-size: 13px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
+  .cal-muted { color: var(--mut); font-size: 12px; }
+  .cal-blocked { color: var(--err); font-size: 12px; font-weight: 600; }
+  .cal-patch { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .cal-patch-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink); }
+  .cal-mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--ink); }
+  .cal-tag { border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--mut); }
+  .cal-impact { font-size: 12px; color: var(--mut); margin-top: 4px; }
+  .cal-actions { margin-top: 8px; display: flex; gap: 8px; }
+  .cal-actions button { background: var(--ac); color: #fff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+  .cal-risk-medium { border-left: 3px solid var(--ac); }
+  .cal-risk-high { border-left: 3px solid var(--err); }
+  /* ─── 夜间决策复盘浮卡（订阅 calibration 域 retro-suggestions；零硬编码色值，全走 tokens.css）─── */
+  .retro-fab { position: fixed; right: 16px; bottom: 16px; width: 340px; max-height: 72vh; display: none; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); z-index: 1200; overflow: hidden; }
+  .retro-fab-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg2); }
+  .retro-fab-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .retro-fab-collapse { background: transparent; border: 1px solid var(--line); color: var(--mut); border-radius: 6px; width: 24px; height: 24px; line-height: 1; font-size: 14px; cursor: pointer; }
+  .retro-fab-collapse:hover { color: var(--ac); border-color: var(--ac); }
+  .retro-fab-body { overflow-y: auto; padding: 10px 12px; flex: 1; }
+  .retro-fab-loading, .retro-fab-empty { color: var(--mut); font-size: 12px; padding: 8px 0; }
+  .retro-fab-badge { font-size: 10px; color: var(--mut); margin-bottom: 6px; }
+  .retro-fab-cluster { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: var(--bg); }
+  .retro-fab-cluster h4 { margin: 0 0 4px; font-size: 12px; color: var(--ink); }
+  .retro-fab-rc { font-size: 11px; color: var(--mut); margin: 2px 0; }
+  .retro-fab-rc b { color: var(--ink); font-weight: 600; }
+  .retro-fab-knob { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--ac); color: var(--on-ac); }
+  .retro-fab-impact { font-size: 11px; color: var(--mut); margin-top: 4px; }
+  .retro-fab-foot { padding: 8px 12px; border-top: 1px solid var(--line); text-align: right; }
+  .retro-fab-link { font-size: 12px; color: var(--ac); text-decoration: none; cursor: pointer; }
+  .retro-fab-link:hover { color: var(--ac-hover); }
+  /* ─── 参数体检浮卡（P2 2026-09-05：订阅 calibration 域 param-inspection；22 项算法参数每夜体检出口）───
+      复用 retro-fab 样式体系（零新增保留类）；右移避开夜间复盘浮卡；仅 ADMIN 显示 */
+  #param-fab { right: 372px; }
+  .param-fab-summary { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .param-fab-pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+  .param-fab-pill b { font-weight: 600; }
+  .param-fab-pill.ok   { border-color: var(--ok);   color: var(--ok); }
+  .param-fab-pill.drift{ border-color: var(--warn); color: var(--warn); }
+  .param-fab-pill.cool { border-color: var(--mut);  color: var(--mut); }
+  .param-fab-pill.unk  { border-color: var(--err);  color: var(--err); }
+  .param-fab-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 12px; }
+  .param-fab-row:last-child { border-bottom: none; }
+  .param-fab-row .pf-key { color: var(--ink); font-weight: 500; }
+  .param-fab-row .pf-val { color: var(--mut); }
+  .param-fab-row .pf-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; }
+  .pf-badge.drift { background: var(--warn); color: var(--on-warn); }
+  .pf-badge.healthy { background: var(--ok); color: var(--on-ok); }
+  .pf-badge.cooling { background: var(--mut); color: var(--on-mut); }
+  .pf-badge.unknown { background: var(--err); color: var(--on-err); }
+  .param-fab-details { margin-top: 8px; }
+
+  /* ─── T12 Cytoscape 真图（配色全走 tokens.css，JS 注入，零硬编码）─── */
+  #cy { width: 100%; height: 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-top: 10px; }
+  #cy-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--mut); }
+  #cy-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+
+  /* ─── T17 L2 反馈回路区（配色全走 tokens.css，零硬编码）─── */
+  #l2-feedback { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .l2-gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 10px 0 4px; }
+  .l2-gate { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .l2-gate-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .l2-rings { display: flex; gap: 12px; justify-content: center; }
+  .l2-donut { display: block; }
+  .l2-donut-pct { font-size: 13px; font-weight: 600; fill: var(--ink); }
+  .l2-donut-label { font-size: 8px; fill: var(--mut); }
+  .l2-gate-meta { font-size: 11px; color: var(--mut); text-align: center; margin-top: 4px; }
+  .l2-h { font-size: 13px; color: var(--ink); margin: 18px 0 6px; }
+  .l2-count { color: var(--err); font-size: 12px; }
+  .l2-hidden-list { display: flex; flex-direction: column; gap: 6px; }
+  .l2-hidden-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel); border: 1px solid var(--err); border-left: 3px solid var(--err); border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+  .l2-hidden-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink); }
+  .l2-hidden-scn { color: var(--mut); font-size: 11px; }
+  .l2-hidden-out { color: var(--warn); font-size: 11px; }
+  .l2-hidden-actions { flex: none; }
+  .l2-write { margin: 6px 0 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .l2-input { width: 280px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--bg); color: var(--ink); }
+  .l2-select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--bg); color: var(--ink); }
+  .l2-msg { font-size: 12px; color: var(--mut); }
+  .snap-outcome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--mut); }
+  .snap-write-btn { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--ac); cursor: pointer; }
+  /* Task F：闭环看板 + 弹窗思维要素/闭环页签（零硬编码色值，全走 tokens.css） */
+  .cl-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .cl-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; background: var(--panel); }
+  .cl-card h3 { margin: 0 0 6px; font-size: 13px; color: var(--ink); }
+  .cl-body { font-size: 12px; color: var(--mut); margin-top: 8px; }
+  .cl-row { padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .dn-warn { color: var(--warn); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-bottom: 8px; }
+  .sdim-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--panel); }
+  .sdim-head { font-weight: 600; font-size: 13px; color: var(--ink); }
+  .sdim-q { font-size: 12px; color: var(--mut); margin: 4px 0; }
+  .sdim-prompts { font-size: 12px; color: var(--ink); }
+  .sdim-rulers { margin-top: 4px; }
+  .sdim-ex { font-size: 11px; color: var(--mut); margin-top: 4px; }
+  .sdim.focus { border-color: var(--ac); color: var(--ac); font-weight: 600; }
+  #attrib-tabs { margin: 4px 0; }
+  /* P3 D1 Knowledge 注入三件套（概念清单 / 启用规则 / 方法论证据）—— 零硬编码色值，全走 tokens */
+  .k-input { width: 100%; box-sizing: border-box; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-size: 12px; margin: 4px 0; }
+  .k-sect-title { font-weight: 600; font-size: 13px; color: var(--ink); margin: 14px 0 6px; border-left: 3px solid var(--ac); padding-left: 8px; }
+  .k-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--ink); }
+  .k-row:last-child { border-bottom: none; }
+  .k-dim { font-family: ui-monospace, monospace; color: var(--mut); min-width: 88px; }
+  .k-reason { flex: 1 1 100%; font-size: 11px; color: var(--mut); }
+  .k-legend { font-size: 11px; color: var(--mut); margin-bottom: 6px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+  <!-- T12：Cytoscape 离线 vendor（随仓库，零外部 CDN 依赖）；UMD 全局 cytoscape -->
+  <script src="/portal/vendor/cytoscape.min.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">销售决策监控台 · 7 阶段闸门闭环</h1></div></header>
+
+<div class="tabs">
+    <crm-tab data-page-tab="overview" active>总览监控</crm-tab>
+    <crm-tab data-page-tab="archive">决策档案</crm-tab>
+    <crm-tab data-page-tab="governance" id="page-tab-governance" style="display:none">校准治理</crm-tab>
+</div>
+
+<!-- ─── TAB1 总览监控：平台健康 → 三闭环 → 闸门质量 → L2 反馈 ─── -->
+<div id="page-overview">
+  <!-- Phase4 A-T6 平台问责健康头（①可审计性 ②供给健康；③三闭环已并入下方三系统闭环条，避免同指标双份） -->
+  <section id="layer0" class="layer0" aria-label="平台问责健康">
+    <div class="layer0-card">
+      <h5>① 可审计性（4 问验收）</h5>
+      <div class="layer0-big" id="l0-audit">—<small> /4</small></div>
+      <div class="layer0-bar" id="l0-audit-bar"></div>
+      <div class="layer0-sub" id="l0-audit-sub">加载中…</div>
+    </div>
+    <div class="layer0-card">
+      <h5>② 上下文供给健康（N/7，双口径）</h5>
+      <div class="layer0-big" id="l0-supply">—<small>%</small></div>
+      <div class="layer0-sub" id="l0-supply-sub">加载中…</div>
+      <div class="layer0-edge">
+        <div><div class="lbl">运行时边</div><b class="runtime" id="l0-edge-rt">—</b></div>
+        <div><div class="lbl">演示边（不计入分母）</div><b class="demo" id="l0-edge-demo">—</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- T4 三系统闭环条（知识/记忆/决策；与 Layer0 旧卡③同指标，单份承载） -->
+  <div id="loop-strip" class="loop-strip">
+    <a class="loop-card" href="/skills.html" id="loop-knowledge">
+      <div class="loop-head"><span class="loop-dot knowledge"></span><span class="loop-name">知识系统</span><span class="loop-state na">加载中…</span></div>
+      <div class="loop-desc" id="loop-knowledge-desc">本体/词汇/方法 SKILL 装配计数…</div>
+    </a>
+    <a class="loop-card" href="/memory.html" id="loop-memory">
+      <div class="loop-head"><span class="loop-dot memory"></span><span class="loop-name">记忆系统</span><span class="loop-state na">加载中…</span></div>
+      <div class="loop-desc" id="loop-memory-desc">记忆流水/先例网络（决策引用先例边）…</div>
+    </a>
+    <a class="loop-card" href="/decision-scenarios.html" id="loop-decision">
+      <div class="loop-head"><span class="loop-dot decision"></span><span class="loop-name">决策系统</span><span class="loop-state na">加载中…</span></div>
+      <div class="loop-desc" id="loop-decision-desc">L1 拦截 / L2 结果 / L3 校准…</div>
+    </a>
+  </div>
+
+  <!-- 总体指标条（仪表盘：总决策 / 整体可审计率 / 整体供给率 / 三闭环状态） -->
+  <section id="overview-metrics" class="dn-section" style="margin-top:20px">
+    <h2>总体指标</h2>
+    <div class="sub">全平台决策子系统整体健康一览；明细在「决策档案」页签。</div>
+    <div class="metrics-strip">
+      <div class="metric-tile"><div class="mt-val" id="m-total-decisions">—</div><div class="mt-lbl">总决策数</div></div>
+      <div class="metric-tile"><div class="mt-val" id="m-audit-rate">—</div><div class="mt-lbl">整体可审计率</div></div>
+      <div class="metric-tile"><div class="mt-val" id="m-supply-rate">—</div><div class="mt-lbl">整体供给率</div></div>
+      <div class="metric-tile"><div class="mt-val" id="m-closed-loops">—</div><div class="mt-lbl">闭环状态</div></div>
+    </div>
+  </section>
+
+  <!-- 闸门质量汇总卡（总览只放头部摘要 + 下钻入口；9 卡明细已移入决策档案页签 #gates） -->
+  <section id="gates-summary" class="dn-section" style="margin-top:20px">
+    <h2>闸门质量 · 汇总 <crm-button onclick="goArchive('gates')" style="margin-left:8px">看 9 闸门明细 →</crm-button></h2>
+    <div class="sub">每闸门一行：准确率 / 必填完整率 / 样本。点「看 9 闸门明细」跳决策档案页签展开全卡。</div>
+    <div id="gates-summary-body" class="gates-summary-body">加载中…</div>
+  </section>
+
+  <!-- L2 反馈汇总卡（总览只放头部摘要 + 下钻入口；双环明细已移入决策档案页签 #l2-feedback） -->
+  <section id="l2-summary" class="dn-section" style="margin-top:20px">
+    <h2>决策质量闭环 · L2 汇总 <crm-button onclick="goArchive('l2')" style="margin-left:8px">看双环明细 →</crm-button></h2>
+    <div class="sub">决策通过率 vs 业务成功率 双环均值 + 隐性错误簇计数。点「看双环明细」跳决策档案页签展开。</div>
+    <div class="l2-summary-cards">
+      <div class="metric-tile"><div class="mt-val" id="s-pass-rate">—</div><div class="mt-lbl">决策通过率（均值）</div></div>
+      <div class="metric-tile"><div class="mt-val" id="s-success-rate">—</div><div class="mt-lbl">业务成功率（均值）</div></div>
+      <div class="metric-tile"><div class="mt-val" id="s-hidden-cluster">—</div><div class="mt-lbl">隐性错误簇</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- ─── TAB2 决策档案：明细区（闸门质量+L2 双环，由总览下钻）→ 清单 → 详览 → 真图 → 三卡 ─── -->
+<div id="page-archive" style="display:none">
+
+  <!-- 闸门质量明细（总览汇总卡「看 9 闸门明细」→ goArchive('gates') 滚动定位；9 卡原样单份） -->
+  <section id="gates" class="gates" style="margin-top:0">
+    <div class="dn-section-head"><h2>闸门决策质量（明细）</h2>
+      <div class="sub">每闸门质量卡：准确率 / 必填完整率 / 七类根因（无归因数据时回退旧四类）。点击「钻取决策」打开决策网络弹窗。</div>
+    </div>
+  </section>
+  <!-- 注：9 闸门卡渲染由 load() 复用原 #gates 逻辑（单份网格），仅 DOM 位置移到档案 tab -->
+
+  <!-- L2 反馈回路明细（总览 L2 汇总卡「看双环明细」→ goArchive('l2') 滚动定位） -->
+  <section id="l2-feedback" class="dn-section" style="margin-top:20px">
+    <h2>决策质量闭环 · L2 反馈明细</h2>
+    <div class="sub">业务结果自动回写 → 「决策通过率 vs 业务成功率」双环对比 → 隐性错误簇（人工采纳但业务失败）红色高亮，直链巡检卡 + 重跑。数据来源 <code>getGateOutcome</code>。</div>
+    <div id="l2-gates" class="l2-gates">加载中…</div>
+    <h3 class="l2-h">隐性错误簇（人工采纳但业务失败）<span id="l2-hidden-count" class="l2-count"></span></h3>
+    <div id="l2-hidden" class="dn-empty">— 等待聚合 —</div>
+  </section>
+  <!-- 隐藏 dn-select：3-TAB 重构去掉可见下拉后，10+ 处 JS 仍按 id 契约引用（getElementById），
+       保留隐藏元素承接 value，避免契约断裂（零删函数铁律的 DOM 侧对应） -->
+  <crm-select id="dn-select" style="display:none"></crm-select>
+  <section class="dn-section">
+    <h2>决策清单</h2>
+    <div class="sub">点击行打开决策网络弹窗（因果链 / 影响地图 / 审计链）；选中后下方详览联动更新。</div>
+    <div class="row" style="margin:8px 0">
+      <crm-select id="task-filter-scenario"><option value="">全部场景</option></crm-select>
+      <crm-select id="task-filter-disposition"><option value="">全部处置</option><option value="escalated">escalated</option><option value="autonomous">autonomous</option><option value="confirmed">confirmed</option><option value="reversed">reversed</option></crm-select>
+      <crm-input id="task-filter-name" class="l2-input" placeholder="按名称/客户搜索" style="width:200px"></crm-input>
+      <crm-button onclick="applyTaskFilters()">筛选</crm-button>
+      <crm-button onclick="clearTaskFilters()">清空</crm-button>
+    </div>
+    <div id="tasklist" class="tasklist">加载中…</div>
+  </section>
+
+  <section class="dn-section">
+    <h2>决策详览（当前所选）</h2>
+    <div class="sub">7 类边分布 + 上游/下游决策（与真图同源）；行内补录业务结果。</div>
+    <div id="dn-output">— 请先在上方选择一个决策 —</div>
+    <details style="margin-top:10px">
+      <summary>手动补录业务结果</summary>
+      <div class="row l2-write">
+        <crm-input id="l2-did" class="l2-input" placeholder="决策 ID（前 8 位或完整）" style="width:280px"></crm-input>
+        <crm-select id="l2-otype" class="l2-select" style="width:auto">
+          <option value="won">won（赢单）</option>
+          <option value="lost">lost（丢单）</option>
+          <option value="paid">paid（回款）</option>
+          <option value="partial">partial（部分）</option>
+          <option value="stalled">stalled（停滞）</option>
+          <option value="other">other（其它）</option>
+        </crm-select>
+        <crm-button onclick="manualOutcomeWrite()">补录</crm-button>
+        <span id="l2-write-msg" class="l2-msg"></span>
+      </div>
+    </details>
+  </section>
+
+  <!-- T12 决策真图（Cytoscape；当前决策 = 清单选中联动） -->
+  <section id="true-graph" class="dn-section">
+    <h2>决策真图（Cytoscape · 7 类决策边）</h2>
+    <div class="sub">点「渲染全图」把当前所选决策画为力导向真图：节点=决策（根/上游/下游），边按 7 类 rel_type 上色并标注 serves_dimension；配色经 tokens.css 注入，零硬编码。</div>
+    <div class="row">
+      <crm-button onclick="renderTrueGraph()">渲染全图（Cytoscape）</crm-button>
+      <span class="dn-empty" style="display:inline-block;padding:0;color:var(--mut);font-size:12px;">当前决策：<span id="true-graph-root">未选择</span></span>
+    </div>
+    <div id="cy">— 点击上方「渲染全图（Cytoscape）」—</div>
+    <div id="cy-legend"></div>
+  </section>
+
+  <!-- B6/B7 决策三卡（真实数据：自检 / 评分 / 思维） -->
+  <section id="decision-cards" class="sect" style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px">
+    <h3 class="l2-h">决策三卡 · 真实数据（自检 / 评分 / 思维）</h3>
+    <div class="l2-write">
+      <crm-input id="dc-id" class="l2-input" placeholder="decision_id (UUID)"></crm-input>
+      <crm-button onclick="dcLoad()">加载真实三卡</crm-button>
+      <span id="dc-msg" class="l2-msg"></span>
+    </div>
+    <details class="dn-json-toggle" open><summary>① 自检卡（极简 7 问）</summary><div id="dc-selfcheck" class="dn-block"></div></details>
+    <details class="dn-json-toggle"><summary>② 评分卡（九尺子）</summary><div id="dc-rubric" class="dn-block"></div></details>
+    <details class="dn-json-toggle"><summary>③ 思维卡（八要素 + 故事三构件）</summary><div id="dc-thinking" class="dn-block"></div></details>
+  </section>
+</div>
+
+<!-- ─── TAB3 校准治理：决策校准（P2 四段式）+ 闭环活度看板 ─── -->
+<div id="page-governance" style="display:none">
+  <section id="page-calibration">
+    <h2>决策质量校准</h2>
+    <div class="sub">指标 → 归因 → 处方。处方由规则引擎生成并附影子重放算出的预期影响；批准需 sysadmin，落库经第 0 闸且可回滚。</div>
+    <div class="row">
+      <crm-select id="cal-scenario">
+        <option value="">全部场景</option>
+        <option value="LEAD_FOLLOW_UP">一、线索 LEAD_FOLLOW_UP</option>
+        <option value="OPP_QUALIFY">二、机会评估 OPP_QUALIFY</option>
+        <option value="SOLUTION_VALUE">三、方案价值 SOLUTION_VALUE</option>
+        <option value="QUOTE_PRICING">四、商务报价 QUOTE_PRICING</option>
+        <option value="SIGN_RISK">五、签单前风险 SIGN_RISK</option>
+        <option value="POST_CONTRACT">六、签约后 POST_CONTRACT</option>
+        <option value="LOSS_REVIEW">七、丢单复盘 LOSS_REVIEW</option>
+      </crm-select>
+      <crm-select id="cal-window">
+        <option value="7">近 7 天</option>
+        <option value="30" selected>近 30 天</option>
+        <option value="90">近 90 天</option>
+      </crm-select>
+      <crm-button id="cal-refresh">刷新</crm-button>
+      <crm-button id="cal-generate">生成处方</crm-button>
+    </div>
+    <div id="cal-output" class="dn-empty">— 等待查询 —</div>
+  </section>
+
+  <section id="closure-loop" class="dn-section">
+    <h2>闭环活度看板（P2/P3 · 真实流量）</h2>
+    <div class="sub">消费已落地 P2 闭环回流 / P3 知识沉淀 API；当前真实业务流量未到，相关表为 0 行时诚实显「暂无数据」，绝不造假填充。</div>
+    <div class="cl-cards">
+      <div class="card cl-card" id="cl-deviation"><h3>偏差处方 (C3)</h3><div class="cl-body dn-empty">加载中…</div></div>
+      <div class="card cl-card" id="cl-qskill"><h3>Q(Skill,T) 改善 (C5)</h3><div class="cl-body dn-empty">加载中…</div></div>
+      <div class="card cl-card" id="cl-concept"><h3>知识概念覆盖 (D3)</h3><div class="cl-body dn-empty">加载中…</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- ─── 决策质量归因下钻弹窗（单次决策 7 维输入快照）─── -->
+<div id="attrib-modal" class="dn-modal" style="display:none">
+  <div class="dn-modal-panel">
+    <div class="dn-modal-head">
+      <div class="dn-modal-title">决策质量 · 单次决策穿透
+        <crm-button class="dn-close" onclick="closeAttribModal()">×</crm-button>
+      </div>
+      <div class="dn-tabrow" id="attrib-tabs">
+        <crm-button class="dn-tab active" data-v="snap" onclick="attribSwitch('snap')">7维快照</crm-button>
+        <crm-button class="dn-tab" data-v="thinking" onclick="attribSwitch('thinking')">思维要素(8要素×九尺子)</crm-button>
+        <crm-button class="dn-tab" data-v="loop" onclick="attribSwitch('loop')">闭环写回</crm-button>
+      </div>
+    </div>
+    <div class="dn-modal-body" id="attrib-modal-body"></div>
+  </div>
+</div>
+
+<!-- 旧 #page-calibration 残骸已删除：P2 四段式现由 TAB3 校准治理 #page-governance>#page-calibration 单份承载（避免重复 id） -->
+
+<script>
+// T11：注入鉴权头（与 api.js 同源：localStorage['crm_token'] → Bearer）。
+// 使本页既有裸 fetch('/api/graph/*') 调用在登录后自动携带 token，满足 /api/graph/* requireMe 鉴权；未登录仍 401（符合设计）。
+(function () {
+  const TK = 'crm_token';
+  const o = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    init = init || {};
+    const t = localStorage.getItem(TK);
+    if (t) init.headers = Object.assign({}, init.headers, { Authorization: 'Bearer ' + t });
+    return o(input, init);
+  };
+})();
+// 闸门清单与 GATE_SCENARIOS（src/monitor/monitorStore.js:19，8 闸含 DEAL_REOPEN）保持一致；
+// 线上实际以 /api/monitor/gates 返回为准，此处仅作本地兜底/直拉场景。漏 DEAL_REOPEN 会导致第 8 闸不显示。
+const GATES = ['LEAD_FOLLOW_UP','OPP_QUALIFY','SOLUTION_VALUE','QUOTE_PRICING','SIGN_RISK','POST_CONTRACT','LOSS_REVIEW','DEAL_REOPEN'];
+const DIM_LABELS = ['Id','Str','Sem','Time','Hist','State','Gov'];
+const DIM_KEYS = ['identity','structure','semantics','time','history','state','governance'];
+
+// ─── 归因分类标签映射（必须在 load()/loadAttribution() 调用之前完成初始化 ───
+// 教训：三者均为 const/function，若定义在 load() 调用（本文件下方）之后，
+//   首次执行即撞 TDZ（ReferenceError: Cannot access 'RC_META' before initialization）→ 卡片区渲染失败。
+function catLabel(k) {
+  return ({ input_missing: '输入缺失', input_error: '输入错误', inference_bias: '推理偏差', context_insufficient: '上下文不足' })[k] || k;
+}
+
+// 七类根因（J3 溯源归因 decision.root_cause.code）→ 中文标签 + 分类章 class
+// 与 rootCauseClassifier.ROOT_CAUSES 七类一一对应；cls 对应 .cat.rc-* 规则（色值全走 tokens.css）
+const RC_META = {
+  FIELD_MISMATCH:         { label: '字段不一致', cls: 'rc-field' },
+  INFO_INCOMPLETE:        { label: '信息不完整', cls: 'rc-info' },
+  INPUT_STALE:            { label: '输入不及时', cls: 'rc-stale' },
+  DIM_MISSING:            { label: '维度不对',   cls: 'rc-dim' },
+  EDGE_MISSING:           { label: '边选择不对', cls: 'rc-edge' },
+  NEED_DIM_ORDER:         { label: '优化次序',   cls: 'rc-order' },
+  DATA_QUALITY_PRECEDENT: { label: '先例污染',   cls: 'rc-precedent' },
+  UNKNOWN:                { label: '未知/正向',  cls: 'rc-unknown' },
+};
+
+// 旧四类回退（拦截即时判定 attribution.category；七类无数据时展示，保证存量数据不空白）
+function renderLegacyCats(c) {
+  return ['input_missing', 'input_error', 'inference_bias', 'context_insufficient']
+    .filter(k => c[k] > 0)
+    .map(k => `<span class="cat ${k}" title="${catLabel(k)}">${catLabel(k)} ${c[k]}</span>`).join('') ||
+    '<span class="cat" style="background:var(--panel);color:var(--mut)">无错误归因</span>';
+}
+
+// ─── 左栏：决策质量门卡（消费 /api/monitor/gate-attribution 写时物化数据）───
+// 取代原「7 条固定红绿 = 场景覆盖体检」误导视图：直接回答「这个闸门决策质量如何」。
+//   准确率 = 人工处置未被推翻占比；必填完整率 = 必填维齐/总；
+//   归因分布 = 七类根因（root_cause.code，J3 溯源）优先，无七类数据回退旧四类（拦截即时判定）。
+async function load() {
+  const r = await fetch('/api/monitor/gate-attribution');
+  const { gates } = await r.json();
+  const box = document.getElementById('gates');
+  if (!gates || !gates.length) {
+    box.innerHTML = '<div class="gate"><div class="sub">暂无质量数据（需写时物化落 attribution；新建决策后自动出现）</div></div>';
+    return;
+  }
+  box.innerHTML = gates.map(g => {
+    const acc = g.accuracy?.accuracy_rate;
+    const fill = g.required_fill_rate;
+    const accCls = acc == null ? '' : (acc >= 80 ? 'ok' : acc >= 50 ? 'warn' : 'err');
+    // 七类根因（J3 溯源归因 root_cause.code）优先；无七类数据回退旧四类（与右栏口径一致）
+    const rc = g.root_causes || {};
+    const rcHits = Object.keys(rc).filter(k => rc[k] > 0);
+    const cats = rcHits.length
+      ? rcHits.map(k => {
+          const m = RC_META[k] || { label: k, cls: 'rc-unknown' };
+          return `<span class="cat ${m.cls}" title="${m.label}（${k}）">${m.label} ${rc[k]}</span>`;
+        }).join('')
+      : renderLegacyCats(g.categories || {});
+    return `<div class="gate">
+      <h3>${g.scenario_id}</h3>
+      <div class="metrics">
+        <span class="metric">决策准确率 <b class="acc ${accCls}">${acc == null ? '—' : acc + '%'}</b></span>
+        <span class="metric">必填完整率 <b>${fill == null ? '—' : fill + '%'}</b></span>
+        <span class="metric">样本 <b>${g.total}</b></span>
+      </div>
+      <div class="cat-row">${cats}</div>
+      <crm-button onclick="openScenarioModal('${g.scenario_id}')">钻取决策</crm-button>
+    </div>`;
+  }).join('');
+  // 2026-09-04：总览汇总卡填充（明细在档案 tab，总览只放每闸门一行摘要 —— 复用同一 fetch 结果，零新增接口）
+  const sum = document.getElementById('gates-summary-body');
+  if (sum) {
+    sum.innerHTML = gates.map(g => {
+      const acc = g.accuracy?.accuracy_rate;
+      const fill = g.required_fill_rate;
+      const accCls = acc == null ? '' : (acc >= 80 ? 'ok' : acc >= 50 ? 'warn' : 'err');
+      const total = g.total || 0;
+      return `<div class="gate-sum-row" onclick="goArchive('gates')" style="cursor:pointer">
+        <span class="gs-name">${g.scenario_id}</span>
+        <span class="gs-metric" title="决策准确率">准确率 <b class="acc ${accCls}">${acc == null ? '—' : acc + '%'}</b></span>
+        <span class="gs-metric" title="必填完整率">完整率 <b>${fill == null ? '—' : fill + '%'}</b></span>
+        <span class="gs-metric">样本 <b>${total}</b></span>
+      </div>`;
+    }).join('');
+  }
+  // 总体指标条：总决策数 = 各闸门样本合计（同源汇总）
+  const totalDec = gates.reduce((s, g) => s + (g.total || 0), 0);
+  const mTot = document.getElementById('m-total-decisions');
+  if (mTot) mTot.textContent = totalDec || '—';
+}
+
+async function drill(scenarioId) {
+  // 3-TAB 重构（2026-09-04）：#detail 区已删除（决策列表已被「决策清单 + 弹窗」覆盖）。
+  // 函数保留（零删函数铁律），改为直接打开决策网络弹窗。
+  if (!scenarioId) return;
+  openScenarioModal(scenarioId);
+}
+// 3-TAB 重构：load() 首拉+轮询交 _POLL_SPEC.overview（TAB1 激活时触发），不再启动即拉（懒加载契约）
+
+// ─── T17 L2 反馈回路区：双环对比 + 隐性错误簇 + 手动补录 + 重跑入口 ───
+// 数据来源：GET /api/monitor/gate-outcome（getGateOutcome：决策通过率 vs 业务成功率 + 隐性错误簇）。
+// 配色零硬编码：所有色值经 _readTok 读 tokens.css 语义变量；SVG 圆环 stroke 用 token。
+function _donut(pct, colorVar, label) {
+  const v = (typeof pct === 'number' && !isNaN(pct)) ? pct : null;
+  const c = _readTokResolved(colorVar);
+  const track = _readTokResolved('--line');
+  const R = 26, C = 2 * Math.PI * R;
+  const off = v == null ? C : C * (1 - v / 100);
+  return `<svg class="l2-donut" width="72" height="72" viewBox="0 0 72 72">
+    <circle cx="36" cy="36" r="${R}" fill="none" stroke="${track}" stroke-width="7"></circle>
+    <circle cx="36" cy="36" r="${R}" fill="none" stroke="${c}" stroke-width="7"
+      stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+      transform="rotate(-90 36 36)"></circle>
+    <text x="36" y="33" text-anchor="middle" class="l2-donut-pct">${v == null ? '—' : v + '%'}</text>
+    <text x="36" y="48" text-anchor="middle" class="l2-donut-label">${_esc(label)}</text>
+  </svg>`;
+}
+async function loadL2() {
+  const gatesBox = document.getElementById('l2-gates');
+  const hiddenBox = document.getElementById('l2-hidden');
+  const countEl = document.getElementById('l2-hidden-count');
+  if (!gatesBox) return;
+  let results = [];
+  try {
+    results = await Promise.all(GATES.map(async (s) => {
+      try {
+        const r = await fetch(`/api/monitor/gate-outcome?scenario_id=${encodeURIComponent(s)}`);
+        if (!r.ok) return { scenario_id: s, error: true };
+        return await r.json();
+      } catch (e) { return { scenario_id: s, error: true }; }
+    }));
+  } catch (e) {
+    gatesBox.innerHTML = '<div class="dn-empty">L2 反馈区加载失败：' + _esc(e.message) + '</div>';
+    return;
+  }
+  // 双环对比卡
+  gatesBox.innerHTML = results.map((g) => {
+    const has = g && !g.error && typeof g.total === 'number';
+    if (!has) return `<div class="l2-gate"><div class="l2-gate-title">${_esc(g.scenario_id || '—')}</div><div class="dn-empty" style="padding:6px">无数据</div></div>`;
+    return `<div class="l2-gate">
+      <div class="l2-gate-title">${_esc(g.scenario_id)}</div>
+      <div class="l2-rings">
+        ${_donut(g.decision_pass_rate, '--ac', '决策通过率')}
+        ${_donut(g.business_success_rate, '--ok', '业务成功率')}
+      </div>
+      <div class="l2-gate-meta">样本 ${g.total} · 隐性错误 ${Array.isArray(g.hidden_error_cluster) ? g.hidden_error_cluster.length : 0}</div>
+    </div>`;
+  }).join('');
+  // 隐性错误簇汇总（跨闸门）
+  const allHidden = [];
+  results.forEach((g) => {
+    if (g && Array.isArray(g.hidden_error_cluster)) {
+      g.hidden_error_cluster.forEach((h) => allHidden.push(Object.assign({ scenario_id: g.scenario_id }, h)));
+    }
+  });
+  if (countEl) countEl.textContent = allHidden.length ? `（${allHidden.length}）` : '';
+  // 2026-09-04：总览 L2 汇总卡均值（与双环明细同一数据源，零新增接口）
+  const okResults = results.filter((g) => g && !g.error && typeof g.decision_pass_rate === 'number' && typeof g.business_success_rate === 'number');
+  const sPass = document.getElementById('s-pass-rate');
+  if (sPass) {
+    sPass.textContent = okResults.length
+      ? Math.round(okResults.reduce((s, g) => s + g.decision_pass_rate, 0) / okResults.length) + '%'
+      : '—';
+  }
+  const sSucc = document.getElementById('s-success-rate');
+  if (sSucc) {
+    sSucc.textContent = okResults.length
+      ? Math.round(okResults.reduce((s, g) => s + g.business_success_rate, 0) / okResults.length) + '%'
+      : '—';
+  }
+  const sHidden = document.getElementById('s-hidden-cluster');
+  if (sHidden) sHidden.textContent = allHidden.length ? `${allHidden.length} 簇` : '0';
+  if (!allHidden.length) {
+    hiddenBox.className = 'dn-empty';
+    hiddenBox.innerHTML = '本周期内无隐性错误簇（人工采纳且业务成功的决策占优）。';
+    return;
+  }
+  hiddenBox.className = 'l2-hidden-list';
+  hiddenBox.innerHTML = allHidden.map((h) => `<div class="l2-hidden-item" onclick="openDnModal('${_esc(h.decision_id)}')">
+    <div class="l2-hidden-main">
+      <code title="${_esc(h.decision_id)}">${_esc(_short(h.decision_id))}</code>
+      <span class="l2-hidden-scn">${_esc(h.scenario_id || '')}</span>
+      <span class="l2-hidden-out">outcome=${_esc(h.outcome_verified || '—')} · 处置=${_esc(h.human_disposition || h.disposition || '—')}</span>
+    </div>
+    <div class="l2-hidden-actions">
+      <crm-button class="l2-rerun" onclick="event.stopPropagation();gotoRerun('${_esc(h.decision_id)}')">重跑场景</crm-button>
+    </div>
+  </div>`).join('');
+}
+async function manualOutcomeWrite() {
+  const did = (document.getElementById('l2-did') || {}).value?.trim();
+  const otype = (document.getElementById('l2-otype') || {}).value;
+  const msg = document.getElementById('l2-write-msg');
+  if (!did) { if (msg) msg.textContent = '请填写决策 ID'; return; }
+  if (msg) msg.textContent = '补录中…';
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(did)}/outcome`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome_type: otype, source: 'manual' }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      if (msg) msg.textContent = '失败：' + _esc(j.error || r.status);
+      return;
+    }
+    const j = await r.json();
+    if (msg) msg.textContent = '已补录：' + _esc(j.outcome_type || otype) + '（' + _esc(j.source || 'manual') + '）';
+    loadL2();
+  } catch (e) {
+    if (msg) msg.textContent = '异常：' + _esc(e.message);
+  }
+}
+// 巡检卡内「补录业务结果」按钮：回填 L2 表单并滚动定位
+function manualOutcomeWriteFor(decisionId) {
+  const did = document.getElementById('l2-did');
+  if (did) did.value = decisionId || '';
+  const box = document.getElementById('l2-feedback');
+  if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function gotoRerun(decisionId) {
+  window.location.href = `decision-scenarios.html?decisionId=${encodeURIComponent(decisionId)}`;
+}
+// 3-TAB 重构：loadL2 首拉+轮询交 _POLL_SPEC.overview（TAB1 激活时触发），不再启动即拉（懒加载契约）
+
+// ─── 决策质量归因面板（右栏）+ 下钻 7 维快照（读 getGateAttribution 写时物化数据）───
+// 注：catLabel / RC_META / renderLegacyCats 已统一前移至 DIM_KEYS 之后（消除 TDZ 风险）
+async function loadAttribution() {
+  // 3-TAB 重构（2026-09-04）：右栏 #attribution-panel 已删除（同源双份渲染），
+  // 归因合并进 #gates 网格下方的单份「归因章」容器，仍用同一 /api/monitor/gate-attribution 数据。
+  const box = document.getElementById('attribution-panel');
+  if (!box) return;
+  try {
+    const r = await fetch('/api/monitor/gate-attribution');
+    const { gates } = await r.json();
+    if (!gates || !gates.length) {
+      box.innerHTML = '<h2>决策质量归因</h2><div class="dn-empty">暂无归因数据（需写时物化落 attribution）</div>';
+      return;
+    }
+    box.innerHTML = '<h2>决策质量归因（近 30 天）</h2>' + gates.map(g => {
+      // 七类根因（J3 溯源归因 root_cause.code）优先呈现；无七类数据时回退旧四类（拦截即时判定）
+      const rc = g.root_causes || {};
+      const rcHits = Object.keys(rc).filter(k => rc[k] > 0);
+      const cats = rcHits.length
+        ? rcHits.map(k => {
+            const m = RC_META[k] || { label: k, cls: 'rc-unknown' };
+            return `<span class="cat ${m.cls}" title="${m.label}（${k}）">${m.label} ${rc[k]}</span>`;
+          }).join('')
+        : renderLegacyCats(g.categories || {});
+      const acc = g.accuracy?.accuracy_rate;
+      const fill = g.required_fill_rate;
+      return `<div class="attrib-card" onclick="drillGateAttribution('${g.scenario_id}')">
+        <div class="scn">${g.scenario_id}</div>
+        <div class="rate">准确率 <b>${acc == null ? '—' : acc + '%'}</b> · 必填完整率 <b>${fill == null ? '—' : fill + '%'}</b> · 样本 <b>${g.total}</b></div>
+        <div class="cat-row">${cats}</div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    box.innerHTML = '<h2>决策质量归因</h2><div class="dn-empty">加载失败：' + _esc(e.message) + '</div>';
+  }
+}
+let currentAttribScenario = null;
+async function drillGateAttribution(scenarioId) {
+  currentAttribScenario = scenarioId;
+  const panel = document.getElementById('attrib-modal');
+  const body = document.getElementById('attrib-modal-body');
+  if (!panel || !body) return;
+  panel.style.display = 'flex';
+  attribSwitch('snap'); // 默认 7维快照
+}
+function attribSwitch(v) {
+  document.querySelectorAll('#attrib-tabs .dn-tab').forEach((t) => t.classList.toggle('active', t.dataset.v === v));
+  if (v === 'snap') renderSnap(currentAttribScenario);
+  else if (v === 'thinking') loadAttribThinking(currentAttribScenario);
+  else if (v === 'loop') renderAttribLoop(currentAttribScenario);
+}
+async function renderSnap(scenarioId) {
+  const body = document.getElementById('attrib-modal-body');
+  if (!scenarioId) { body.innerHTML = '<div class="dn-empty">未选择场景</div>'; return; }
+  try {
+    const r = await fetch(`/api/monitor/decisions?scenario_id=${encodeURIComponent(scenarioId)}&limit=50`);
+    const { items } = await r.json();
+    const withAttr = (items || []).filter((d) => d.attribution);
+    if (!withAttr.length) {
+      body.innerHTML = `<h3 style="margin:0 0 8px">${scenarioId} · 单次决策 7 维输入快照</h3><div class="dn-empty">该闸门暂无带 attribution 的决策（写时物化生效于新建决策）</div>`;
+      return;
+    }
+    // T17：并行拉取每个决策的业务结果，供巡检卡底部「业务结果」行 + 补录入口
+    const outcomesMap = {};
+    await Promise.all(withAttr.map(async (d) => {
+      try {
+        const rr = await fetch(`/api/decision/${encodeURIComponent(d.decision_id)}/outcome`);
+        if (rr.ok) outcomesMap[d.decision_id] = await rr.json();
+      } catch {}
+    }));
+    body.innerHTML = `<h3 style="margin:0 0 8px">${scenarioId} · 单次决策 7 维输入快照</h3>` +
+      withAttr.map((d) => snapHtml(d, outcomesMap[d.decision_id] || [])).join('');
+  } catch (e) {
+    body.innerHTML = '<div class="dn-empty">加载失败：' + _esc(e.message) + '</div>';
+  }
+}
+async function loadAttribThinking(scenarioId, subjectId) {
+  const body = document.getElementById('attrib-modal-body');
+  body.innerHTML = '加载思维要素…';
+  try {
+    // 主体（商机粒子）可选：填了才带 entities，后端才能算方法论证据；不填则证据区诚实留空
+    const sid = String(subjectId || '').trim();
+    let url = `/api/decision/pre-context?scenario_id=${encodeURIComponent(scenarioId)}`;
+    if (sid) url += `&entities=${encodeURIComponent(JSON.stringify([{ type: 'CRM_DEAL', id: sid }]))}`;
+    const r = await fetch(url);
+    if (r.status === 401) { body.innerHTML = '<div class="dn-empty">请先登录</div>'; return; }
+    const j = await r.json();
+    if (!j.ok) { body.innerHTML = '<div class="dn-empty">加载失败</div>'; return; }
+    let html = j.generic ? '<div class="dn-warn">该场景未配置思维模板，显示通用八要素骨架</div>' : '';
+    html += `<div class="card sdim-card">
+      <div class="sdim-head">方法论证据主体（可选）</div>
+      <div class="sdim-q">填入商机粒子 UUID 可查看该商机的方法论维度证据现状；留空时证据区显示「未采集」，不做任何推测。</div>
+      <crm-input id="attrib-subject" class="k-input" value="${_esc(sid)}" placeholder="CRM_DEAL 粒子 UUID"></crm-input>
+      <crm-button class="snap-write-btn" onclick="loadAttribThinking('${_esc(scenarioId)}', document.getElementById('attrib-subject').value)">加载证据</crm-button>
+    </div>`;
+    html += (j.thinking_skeleton || []).map((e) => `
+      <div class="card sdim-card">
+        <div class="sdim-head">${_esc(e.label)} ${e.focus ? '<span class="sdim focus">聚焦×1.5</span>' : ''}</div>
+        <div class="sdim-q">${_esc(e.guiding_question)}</div>
+        <div class="sdim-prompts">${(e.prompts || []).map((p) => `<div>• ${_esc(p)}</div>`).join('')}</div>
+        <div class="sdim-rulers">${(e.ruler_keys || []).map((k) => `<span class="sdim neutral">尺·${_esc(k)}</span>`).join('')} ${(e.methodology || []).map((m) => `<span class="sdim neutral">${_esc(m)}</span>`).join('')}</div>
+        ${e.example ? `<div class="sdim-ex">例：${_esc(e.example)}</div>` : ''}
+      </div>`).join('');
+    html += knowledgeSectionsHtml(j, sid);
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<div class="dn-empty">加载失败：' + _esc(e.message) + '</div>';
+  }
+}
+// P3 D1：Knowledge 注入三件套渲染（概念清单 × 方法论证据 JOIN + 启用规则清单）。
+// 铁律：证据三态严格区分 —— 「未采集」绝不渲染成「不达标」（F5 缺陷的 UI 侧防复发）；
+//       注入失败（后端 fail-open 返回 null）与「无数据」也必须分开显示，不静默。
+function knowledgeSectionsHtml(j, subjectId) {
+  const ev = (j && j.methodology_evidence) || {};
+  const cc = j ? j.concept_checklist : null;
+  const rules = j ? j.rule_knowledge : null;
+  const hasEv = (k) => { const e = ev[k]; return !!(e && e.met !== null && e.met !== undefined); };
+  let html = '<div class="k-sect-title">Knowledge ① 方法论概念清单 × 证据现状</div>';
+  if (cc === null || cc === undefined) {
+    html += '<div class="dn-warn">概念清单注入失败（后端已 trace 留痕），非“无数据”</div>';
+  } else {
+    const list = Array.isArray(cc.checklist) ? cc.checklist : [];
+    if (!list.length) {
+      html += '<div class="dn-empty">该场景未绑定方法论维度（decision_scenario.methodology_ids 为空）</div>';
+    } else {
+      const collected = list.filter((d) => hasEv(d.dim_key)).length;
+      const pct = Math.round((collected / list.length) * 100);
+      html += `<div class="k-legend">已绑定 ${list.length} 维 · 已采集证据 ${collected} 维 · 证据覆盖率 ${pct}%`
+        + (sid_missing(subjectId) ? ' · <b>未指定主体，全部维度为「未采集」（不等于不达标）</b>' : '') + '</div>';
+      html += '<div class="card sdim-card">' + list.map((d) => {
+        const e = ev[d.dim_key];
+        const has = hasEv(d.dim_key);
+        const cls = !has ? 'neutral' : (e.met ? 'good' : 'bad');
+        const label = !has ? '未采集' : (e.met ? '已达标' : '不达标');
+        return `<div class="k-row">
+          <span class="k-dim">${_esc(d.dim_key)}</span>
+          <span>${_esc(d.label || '')}</span>
+          <span class="sdim ${cls}">${label}</span>
+          ${d.required ? '<span class="sdim focus">必需</span>' : ''}
+          <span class="sdim neutral">权重 ${_esc(d.weight == null ? '-' : d.weight)}</span>
+          ${has && e.source ? `<span class="sdim neutral">来源 ${_esc(e.source)}</span>` : ''}
+          ${has && e.evidence_reason ? `<div class="k-reason">${_esc(e.evidence_reason)}</div>` : ''}
+        </div>`;
+      }).join('') + '</div>';
+    }
+  }
+  html += '<div class="k-sect-title">Knowledge ② 公司常设规则（启用中）</div>';
+  if (rules === null || rules === undefined) {
+    html += '<div class="dn-warn">规则清单注入失败（后端已 trace 留痕），非“无规则”</div>';
+  } else if (!Array.isArray(rules) || !rules.length) {
+    html += '<div class="dn-empty">当前无启用规则（crm.decision_rule 无 enabled=true 行）</div>';
+  } else {
+    html += '<div class="card sdim-card">' + rules.map((r) => `
+      <div class="k-row">
+        <span class="k-dim">${_esc(r.code)}</span>
+        <span class="sdim neutral">${_esc(r.match_type)}</span>
+        ${r.scope_hint ? `<span class="sdim neutral">作用域 ${_esc(r.scope_hint)}</span>` : ''}
+      </div>`).join('') + '</div>';
+  }
+  return html;
+}
+function sid_missing(sid) { return !String(sid || '').trim(); }
+function renderAttribLoop(scenarioId) {
+  const body = document.getElementById('attrib-modal-body');
+  body.innerHTML = `<h3>闭环写回（C1/C2/C3）</h3>
+    <div class="dn-empty">写回入口：复盘 / 记忆影响 / 后见之明基线。需登录，写经既有 POST 端点落库。一旦真实拜访/报价/合同推进经系统发生即被填充。</div>
+    <crm-textarea id="loop-retro" placeholder="A事实 / B假设 / C推论 / G目标" style="width:100%;min-height:80px"></crm-textarea>
+    <crm-button class="snap-write-btn" onclick="attribRetro('${_esc(scenarioId)}')">提交复盘(C1)</crm-button>
+    <div id="loop-msg" class="dn-empty"></div>`;
+}
+async function attribRetro(scenarioId) {
+  const msg = document.getElementById('loop-msg');
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(scenarioId)}/retro`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: document.getElementById('loop-retro').value }) });
+    if (r.status === 401) { msg.textContent = '请先登录'; return; }
+    const j = await r.json();
+    msg.textContent = j.ok ? '已落库（provenance/记忆）' : ('失败：' + (j.error || ''));
+  } catch (e) {
+    msg.textContent = '失败：' + e.message;
+  }
+}
+function snapHtml(d, outcomes = []) {
+  const a = d.attribution || {};
+  const provided = new Set(a.required_fill?.provided || []);
+  const missing = new Set(a.required_fill?.missing || []);
+  const required = [...provided, ...missing];
+  const ctx = d.trigger_context || {};
+  const ctxKeys = Object.keys(ctx).filter(k => !required.includes(k));
+  const dims = [
+    ...required.map(k => `<span class="sdim ${provided.has(k) ? 'good' : 'bad'}" title="${_esc(k)}">${_esc(k)}</span>`),
+    ...ctxKeys.map(k => `<span class="sdim neutral" title="${_esc(k)}">${_esc(k)}</span>`),
+  ].join('') || '<span class="sdim neutral">无维度</span>';
+  const acc = a.accuracy_signal === 'accurate' ? '准' : a.accuracy_signal === 'inaccurate' ? '不准' : '待定';
+  // T17：业务结果行（outcome_type + source + verified_at）+ 补录入口；零硬编码色值，复用 .sdim.neutral
+  const outcomeRow = outcomes.length
+    ? outcomes.map((o) => {
+        const vt = (o.verified_at || '').toString().slice(0, 19).replace('T', ' ');
+        return `<span class="sdim neutral" title="verified_at ${_esc((o.verified_at || '').toString())}">结果 ${_esc(o.outcome_type)}·${_esc(o.source)}·${_esc(vt)}</span>`;
+      }).join('')
+    : '<span class="sdim neutral">无业务结果</span>';
+  return `<div class="snap">
+    <div class="snap-head"><span><code title="${_esc(d.decision_id)}">${_esc(_short(d.decision_id))}</code></span>
+      <span>处置 ${_esc(d.disposition || '—')} · 类 ${_esc(a.category || '—')} · ${acc}</span></div>
+    <div class="snap-dims">${dims}</div>
+    <div class="snap-outcome">${outcomeRow} <crm-button class="snap-write-btn" onclick="manualOutcomeWriteFor('${_esc(d.decision_id)}')">补录</crm-button></div>
+  </div>`;
+}
+function closeAttribModal() {
+  const panel = document.getElementById('attrib-modal');
+  if (panel) panel.style.display = 'none';
+}
+// 3-TAB 重构：loadAttribution 首拉+轮询交 _POLL_SPEC.overview（TAB1 激活时触发），不再启动即拉（懒加载契约）
+
+// ─── T4 三系统闭环条（知识/记忆/决策 · 用户点名「3闭环」）───
+// 数据口（设计文档 T4 + 角色可见性修正）：
+//   🔵 知识系统 = 方法 SKILL 装配数（/api/methodology/skew → METHODOLOGY 镜像数，登录可读）
+//   🟢 记忆系统 = 先例边数（/api/graph/edges 的 REFERENCED_PRECEDENT）→ 记忆→决策闭环可见性
+//   🟠 决策系统 = L1 拦截（/api/monitor/gate-attribution 样本）+ L2 结果（/api/monitor/gate-outcome）+ L3 校准（/api/calibration/patches pending）
+// 降级：单环失败 → 该环灰态「数据不可用」，不阻断其它环（设计文档 T4 降级条）。
+async function loadLoops() {
+  const setState = (cardId, stateId, cls, text) => {
+    const dot = document.querySelector(`#${cardId} .loop-state`);
+    if (dot) { dot.className = 'loop-state ' + cls; dot.textContent = text; }
+  };
+  const setDesc = (cardId, html) => {
+    const d = document.getElementById(cardId + '-desc');
+    if (d) d.innerHTML = html;
+  };
+  const safeJson = async (url) => {
+    try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); }
+    catch { return null; }
+  };
+
+  // 🔵 知识系统：方法 SKILL ↔ DB 镜像漂移。
+  // 2026-08-31：skew 现区分两级——dim_skew=维度级真漂移（需处理）；mapped=模板 id 已由 MIRROR_ID 显式映射（已治理，非断点）。
+  // 仅以 dim_skew 判闭环，避免把「SKILL 缩写码 ↔ DB 语义名」的已登记别名映射误报为断点。
+  (async () => {
+    const j = await safeJson('/api/methodology/skew');
+    if (!j || !Array.isArray(j.skew)) { setState('loop-knowledge', 'na', 'na', '数据不可用'); return; }
+    const dimSkew = j.skew.filter((s) => s.dim_skew).length;      // 维度级真漂移
+    const mapped = j.skew.filter((s) => s.mapped).length;          // 已映射的模板 id 命名漂移
+    const closed = dimSkew === 0;
+    setState('loop-knowledge', closed ? 'closed' : 'break', closed ? 'closed' : 'break', closed ? '已闭环' : '有漂移');
+    setDesc('loop-knowledge', closed
+      ? `方法 SKILL ↔ DB 镜像维度<b>完全一致</b>（${mapped ? `另有 ${mapped} 个模板 id 命名差异，已由 MIRROR_ID 显式映射` : '无模板 id 差异'}）。可往 <b>skills.html</b> 查看启停。`
+      : `${dimSkew} 个方法 SKILL 存在<b>维度级漂移</b>（missing_in_db / missing_in_skill），可往 <b>skills.html</b> 或 <b>/api/methodology/sync</b> 同步。`);
+  })();
+
+  // 🟢 记忆系统：先例引用计数（listDecisions 的 referenced_precedents 数组累加；决策图中 REFERENCED_PRECEDENT 边即映射）
+  (async () => {
+    const pj = await safeJson('/api/monitor/decisions?limit=200');
+    const items = (pj && pj.items) || [];
+    const pcs = items.reduce((s, d) => s + (Array.isArray(d.referenced_precedents) ? d.referenced_precedents.length : 0), 0);
+    const closed = pcs > 0;
+    setState('loop-memory', closed ? 'closed' : 'break', closed ? 'closed' : 'break', closed ? '已闭环' : '断点');
+    setDesc('loop-memory', Array.isArray(pj && pj.items)
+      ? `决策图引用先例边 <b>${pcs}</b> 条（REFERENCED_PRECEDENT → 记忆→决策闭环）。可往 <b>memory.html</b> 看记忆流水/快照/蒸馏。`
+      : '记忆数据不可用（/api/monitor/decisions 无返回）。');
+  })();
+
+  // 🟠 决策系统：L1 拦截 + L2 结果 + L3 校准（L1/L2 登录可读；L3 校准 sysadmin-only，非 admin 显示「—」）
+  // L2 场景清单不再硬编码，统一从 /api/monitor/gates 取闸门唯一事实源（7 闸门，含此前漏掉的 POST_CONTRACT）
+  (async () => {
+    const gatesJ = await safeJson('/api/monitor/gates');
+    const SCS = (gatesJ && Array.isArray(gatesJ.gates) && gatesJ.gates.length)
+      ? gatesJ.gates.map((g) => g.scenario_id)
+      : ['LEAD_FOLLOW_UP', 'OPP_QUALIFY', 'SOLUTION_VALUE', 'QUOTE_PRICING', 'SIGN_RISK', 'POST_CONTRACT', 'LOSS_REVIEW', 'DEAL_REOPEN'];
+    const [ga, ...gos] = await Promise.all([
+      safeJson('/api/monitor/gate-attribution'),
+      ...SCS.map((s) => safeJson('/api/monitor/gate-outcome?scenario_id=' + s)),
+    ]);
+    const cp = await safeJson('/api/calibration/patches?status=PENDING');
+    const l1 = (ga && ga.gates || []).reduce((s, g) => s + (g.total || 0), 0);
+    const okScn = gos.filter((g) => g && g.business_success_rate != null && g.business_success_rate > 0).length;
+    const l2 = okScn;
+    const l3 = (cp && Array.isArray(cp.patches)) ? cp.patches.length : null; // null = 端点不可达/非 admin
+    const closed = l1 > 0 && l2 > 0;
+    setState('loop-decision', closed ? 'closed' : 'break', closed ? 'closed' : 'break', closed ? '已闭环' : '断点（缺数据）');
+    setDesc('loop-decision', `L1 拦截样本 <b>${l1}</b> · L2 有业务结果的场景 <b>${l2}/${SCS.length}</b> · L3 校准待批 <b>${l3 == null ? '—（需 admin）' : l3}</b>。可往 <b>decision-scenarios.html</b> 重跑场景。`);
+    // 2026-09-04：总览总体指标条「闭环状态」（与三闭环条同一数据源，零新增接口）
+    const mClosed = document.getElementById('m-closed-loops');
+    if (mClosed) mClosed.textContent = closed ? '三闭环' : (l1 > 0 ? '决策闭环' : '未闭环');
+  })();
+}
+// 3-TAB 重构：loadLoops 首拉+轮询交 _POLL_SPEC.overview（TAB1 激活时触发），不再启动即拉（懒加载契约）
+
+// ─── Task F.1 闭环活度看板（P2/P3 真实流量；空显暂无数据，不造假）───
+async function loadClosureLoop() {
+  const safeJson = async (url) => { try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); } catch { return null; } };
+  // ① 偏差处方 (C3)
+  const dv = await safeJson('/api/decision/monitor/deviation?windowDays=90');
+  const dvBox = document.querySelector('#cl-deviation .cl-body');
+  if (dv && dv.deviation) {
+    const d = dv.deviation;
+    const rate = d.rate != null ? (d.rate * 100).toFixed(1) : '—';
+    const thr = d.threshold != null ? (d.threshold * 100).toFixed(0) : '—';
+    const over = d.over != null && d.total ? d.over / d.total : 0;
+    const cls = (d.total && over > (d.threshold || 0)) ? 'bad' : 'good';
+    dvBox.className = 'cl-body';
+    dvBox.innerHTML = `<span class="sdim ${cls}">偏差率 ${rate}%</span> / 阈值 ${thr}%<br>超阈 ${d.over || 0} / 共 ${d.total || 0}`;
+  } else if (dvBox) { dvBox.textContent = '窗口内无决策，暂无偏差率'; }
+  // ② Q(Skill,T) 改善 (C5)
+  const qs = await safeJson('/api/decision/monitor/q-skill?windowDays=90');
+  const qsBox = document.querySelector('#cl-qskill .cl-body');
+  if (qs && Array.isArray(qs.skills) && qs.skills.length) {
+    qsBox.className = 'cl-body';
+    qsBox.innerHTML = qs.skills.map((s) => `<div class="cl-row"><code>${_esc(s.scenario_id || '')}·${_esc(s.skill || '')}</code> q0→qN <b class="${s.improved ? 'good' : 'warn'}">${s.improved ? '改善' : '停滞'}</b></div>`).join('');
+  } else if (qsBox) { qsBox.textContent = '暂无采样'; }
+  // ③ 知识概念覆盖 (D3)
+  const cs = document.querySelector('#scenario-filter')?.value || '';
+  const cv = cs ? await safeJson('/api/knowledge/concept-vectors?scenario_id=' + encodeURIComponent(cs)) : null;
+  const cvBox = document.querySelector('#cl-concept .cl-body');
+  if (cv && cv.count != null) {
+    cvBox.className = 'cl-body';
+    cvBox.innerHTML = `概念向量 <b>${cv.count}</b> 条` + (cv.vectors ? '<br>' + cv.vectors.slice(0, 8).map((v) => `<span class="sdim neutral">${_esc(v.methodology_id)}·${_esc(v.dim_key)}</span>`).join('') : '');
+  } else if (cvBox) { cvBox.textContent = cs ? '无概念向量' : '选择一个场景查看概念覆盖'; }
+}
+// 3-TAB 重构：loadClosureLoop 首拉改由治理 TAB 激活时触发（_POLL_SPEC.governance 30s 轮询），不再启动即拉（懒加载契约）
+window.loadClosureLoop = loadClosureLoop;
+
+// ─── 决策网络视图（§9 收敛：调 canonical /api/graph/{trace,impact,provenance}；monitor 旧端点已 deprecated）───
+// 三视图共用：摘要头（链完整性 + 上下游计数）+ 三 tab 切换 + 可读渲染，原始 JSON 折叠在末尾「调试用」。
+let dnOut = document.getElementById('dn-output');
+const DN_CACHE = { root: '', trace: null, impact: null, audit: null, audit4q: null, rc: null, loop: null };
+// T-AUDIT4Q 简化：仅保留 4 个 TAB，每个 TAB 把「问题摘要卡 + 深度视图」整合在一起：
+// Q1 直接原因 = 摘要卡 + cytoscape 上游子图
+// Q2 源头溯源 = 摘要卡 + PROV-O 链 + Turtle 导出
+// Q3 冲突事实 = 摘要卡 + 双值并陈列
+// Q4 下游影响 = 摘要卡 + cytoscape 影响地图
+// T3（2026-08-31 合并修复）：恢复旧版 5 视图中的 rc（溯源归因 J→M→K）与 loop（三图闭环 K/M/J）。
+// 二者函数（dnRootCause/dnLoop/_rootCauseHtml/_loopHtml）始终存在，仅入口被 269f577 删除 → 补回入口，合并非删除。
+const DN_VIEWS = [
+  { v: 'ctx', label: '当时的上下文 ★' },
+  { v: 'q1', label: 'Q1 直接原因' },
+  { v: 'q2', label: 'Q2 源头溯源' },
+  { v: 'q3', label: 'Q3 冲突事实' },
+  { v: 'q4', label: 'Q4 下游影响' },
+  { v: 'rc', label: '溯源归因（J→M→K）', group: 'other' },
+  { v: 'loop', label: '三图闭环（K/M/J）', group: 'other' },
+];
+
+const _esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const _short = (s) => (s ? String(s).slice(0, 8) + '…' : '—');
+// 【C 方案 2026-09-03】决策可读名称（与后端 deriveDisplayName 同优先级）：
+//   display_name(新写) → trigger_context.name(历史兼容) → 场景+deal_id 拼接兜底，杜绝空「—」。
+function decisionName(d) {
+  if (d && typeof d.display_name === 'string' && d.display_name.trim()) return d.display_name;
+  const tc = (d && d.trigger_context) || {};
+  if (tc && typeof tc.name === 'string' && tc.name.trim()) return tc.name;
+  const scn = (d && d.scenario_id) || '决策';
+  const deal = tc.deal_id ? '#' + String(tc.deal_id).slice(0, 8) : '';
+  const extra = tc.customer || tc.action || tc.reason || tc.project || '';
+  const parts = [scn, deal, typeof extra === 'string' ? extra : ''].filter(Boolean);
+  return parts.length ? parts.join(' · ') : '—';
+}
+const _pill = (text, cls) => `<span class="pill ${cls || ''}">${_esc(text)}</span>`;
+const _badge = (text, cls) => `<span class="badge ${cls || ''}">${_esc(text)}</span>`;
+
+function _summaryHtml() {
+  if (!DN_CACHE.root) return '';
+  const t = DN_CACHE.trace || {};
+  const a = DN_CACHE.audit || {};
+  const up = (t.upstream || []).length;
+  const down = (t.downstream || []).length;
+  const cs = a.chainStatus || (DN_CACHE.audit ? 'UNKNOWN' : '—');
+  const csCls = cs === 'OK' ? 'ok' : cs === 'TAMPERED' ? 'tampered' : 'warn';
+  const csText = cs === 'OK' ? '✅ 链完整性 OK'
+                : cs === 'TAMPERED' ? `⛔ 链被篡改`
+                : cs === 'UNKNOWN' ? '链状态：尚未查询审计' : `链状态：${cs}`;
+  return `<div class="dn-summary">
+    <span class="id">根决策 <code title="${_esc(DN_CACHE.root)}">${_esc(_short(DN_CACHE.root))}</code></span>
+    ${_badge(csText, csCls)}
+    <span>上游 ${up} 条 · 下游 ${down} 条</span>
+  </div>${_healthStrip()}`;
+}
+
+// 可审计性 4/4 健康条（首屏摘要下常驻；色值走 tokens.css）
+function _healthStrip() {
+  const a4 = DN_CACHE.audit4q;
+  if (!a4 || a4.error) return '';
+  const h = a4.health;
+  const cls = (s) => (s === 'pass' ? 'ok' : s === 'fail' ? 'err' : 'warn');
+  const mark = (s) => (s === 'pass' ? '✓' : s === 'fail' ? '✗' : '!');
+  const order = ['Q1', 'Q2', 'Q3', 'Q4'];
+  return `<div class="dn-health">
+    <span class="dn-health-title">可审计性 <b>${h.score}/${h.total}</b></span>
+    ${order.map((q) => {
+      const st = h.statuses[q];
+      const qq = a4.questions[q];
+      return `<span class="dn-health-q ${cls(st)}" title="${_esc(qq.question)}">${mark(st)} ${_esc(q)}</span>`;
+    }).join('')}
+  </div>`;
+}
+
+// 单个问题的摘要卡（整合进对应 TAB 顶部）
+function _qHeaderHtml(a4, q) {
+  const qq = a4.questions[q];
+  if (!qq) return '';
+  const cls = (s) => (s === 'pass' ? 'ok' : s === 'fail' ? 'err' : 'warn');
+  const mark = (s) => (s === 'pass' ? '✓' : s === 'fail' ? '✗' : '⚠');
+  return `<div class="dn-qcard ${cls(qq.status)}">
+    <div class="dn-qcard-head"><span class="dn-qcard-badge ${cls(qq.status)}">${mark(qq.status)}</span><b>${_esc(q)}</b> ${_esc(qq.question)}</div>
+    <div class="dn-qcard-ans">${_esc(qq.answer)}</div>
+  </div>`;
+}
+
+function _tabsHtml(active) {
+  // T3：两 Tab 组（四问审计 / 其它视图），组间加 .dn-tabgroup-label 分隔；rc/loop 归入其它视图组
+  const main = DN_VIEWS.filter((x) => !x.group);
+  const other = DN_VIEWS.filter((x) => x.group);
+  const btn = (x) => `<crm-button class="dn-tab ${x.v === active ? 'active' : ''}" data-v="${x.v}" onclick="dnSwitch('${x.v}')">${x.label}</crm-button>`;
+  return `<div class="dn-tabrow">${main.map(btn).join('')}${other.length ? `<span class="dn-tabgroup-label">其它视图</span>${other.map(btn).join('')}` : ''}</div>`;
+}
+
+function _nodeRow(n, kind) {
+  return `<tr>
+    <td><code title="${_esc(n.decision_id)}">${_esc(_short(n.decision_id))}</code></td>
+    <td>${_pill(kind === 'UPSTREAM' ? '上游' : '下游', kind === 'UPSTREAM' ? 'up' : 'down')}</td>
+    <td>${n.state ? _pill(n.state, n.state === 'CONFIRMED' ? 'state-confirmed' : 'state-other') : '—'}</td>
+    <td>${_esc(n.disposition || '—')}</td>
+    <td>${n.distance != null ? n.distance + ' 跳' : '—'}</td>
+    <td>${n.confidence != null ? (Number(n.confidence) * 100).toFixed(1) + '%' : '—'}</td>
+  </tr>`;
+}
+function _nodeTable(nodes, kind) {
+  if (!nodes.length) return `<div class="dn-empty">没有${kind === 'UPSTREAM' ? '上游先例' : '下游影响'}节点</div>`;
+  return `<table class="dn-table"><thead><tr>
+    <th>决策 ID</th><th>方向</th><th>状态</th><th>处置</th><th>距离</th><th>置信度</th>
+  </tr></thead><tbody>${nodes.map((n) => _nodeRow(n, kind)).join('')}</tbody></table>`;
+}
+function _rawJsonSection(data) {
+  return `<details class="dn-json-toggle"><summary>查看原始 JSON（调试用）</summary><pre>${_esc(JSON.stringify(data, null, 2))}</pre></details>`;
+}
+function _payloadBrief(p) {
+  if (!p || typeof p !== 'object') return '（空）';
+  const keys = Object.keys(p);
+  if (!keys.length) return '（空）';
+  return keys.slice(0, 5).map((k) => {
+    let v = p[k];
+    if (typeof v === 'object' && v) v = JSON.stringify(v);
+    else v = String(v);
+    if (v.length > 60) v = v.slice(0, 60) + '…';
+    return `<b>${_esc(k)}</b>: ${_esc(v)}`;
+  }).join('　·　');
+}
+
+function dnRender(active) {
+  // T3 收尾（2026-08-31 修复）：rc / loop 两视图此前只有入口（DN_LOADERS 映射 + tab 标签），
+  //   但 dnRender 缺对应分支 → body 恒为空串，点击后只剩「摘要头 + tab」，是看不见内容的死区；
+  //   已有的 _rootCauseHtml() / _loopHtml() 从未被调用。二者数据来自 /trace 与 /closure，
+  //   不依赖 4 问审计（a4），故必须【先于】a4 守卫判定，否则 a4 缺失时会被拦成「请先加载 4 问审计」。
+  if (active === 'rc') {
+    dnOut.innerHTML = _summaryHtml() + _tabsHtml(active)
+      + (DN_CACHE.rc ? _rootCauseHtml(DN_CACHE.rc) : '<div class="dn-view"><div class="dn-empty">请先选择决策</div></div>');
+    return;
+  }
+  if (active === 'loop') {
+    dnOut.innerHTML = _summaryHtml() + _tabsHtml(active)
+      + (DN_CACHE.loop ? _loopHtml(DN_CACHE.loop) : '<div class="dn-view"><div class="dn-empty">请先选择决策</div></div>');
+    return;
+  }
+  // Phase4 A-T6 页签②「当时的上下文」：读决策最新上下文供给快照（文章核心命题：决策依据不能重新生成）
+  if (active === 'ctx') {
+    dnOut.innerHTML = _summaryHtml() + _tabsHtml(active) + _ctxHtml(DN_CACHE.ctx);
+    return;
+  }
+  let body = '';
+  const a4 = DN_CACHE.audit4q;
+  if (!a4 || a4.error) {
+    body = `<div class="dn-empty">${!a4 ? '请先选择决策并加载 4 问审计' : '审计聚合失败：' + _esc(a4.error)}</div>`;
+  } else if (active === 'q1') {
+    body = _qHeaderHtml(a4, 'Q1')
+      + _panelCyHtml('up', '直接原因 · 上游子图')
+      + _rawJsonSection(a4);
+    setTimeout(() => { _drawCyPanel('up'); }, 0);
+  } else if (active === 'q2') {
+    body = _qHeaderHtml(a4, 'Q2') + _panelBHtml();
+  } else if (active === 'q3') {
+    const q3 = a4.questions && a4.questions.Q3;
+    body = _qHeaderHtml(a4, 'Q3') + (q3 ? _q3Html(q3) : '<div class="dn-empty">无冲突数据</div>');
+  } else if (active === 'q4') {
+    body = _qHeaderHtml(a4, 'Q4')
+      + _panelCyHtml('down', '下游影响 · 影响地图')
+      + _rawJsonSection(a4);
+    setTimeout(() => { _drawCyPanel('down'); }, 0);
+  }
+  dnOut.innerHTML = _summaryHtml() + _tabsHtml(active) + body;
+}
+// 每个 TAB 点击经对应 loader 自取数据（缓存就绪后 dnRender）；避免重复 fetch / 缓存缺失
+const DN_LOADERS = {
+  ctx: () => dnLoadCtx(),
+  q1: () => dnLoadQ('q1'), q2: () => dnLoadQ('q2'), q3: () => dnLoadQ('q3'), q4: () => dnLoadQ('q4'),
+  // T3：补回 rc/loop 视图入口（函数始终存在，仅入口被删）——合并非删除
+  rc: () => dnRootCause(), loop: () => dnLoop(),
+};
+window.dnSwitch = (v) => { const fn = DN_LOADERS[v]; if (fn) fn(); };
+
+async function dnLoadQ(q) {
+  const id = DN_CACHE.root || (document.getElementById('dn-select') && document.getElementById('dn-select').value);
+  if (!id) { dnOut.innerHTML = `<div class="dn-empty">请先选择决策</div>`; return; }
+  DN_CACHE.root = id;
+  if (!DN_CACHE.audit4q) {
+    dnOut.innerHTML = _summaryHtml() + _tabsHtml(q) + `<div class="dn-loading">加载 4 问审计…</div>`;
+    try {
+      const r = await fetch(`/api/decision/${encodeURIComponent(id)}/audit-4q`);
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('HTTP ' + r.status)); }
+      DN_CACHE.audit4q = await r.json();
+    } catch (e) { DN_CACHE.audit4q = { error: e.message }; }
+  }
+  if (q === 'q2' && !DN_CACHE.audit) {
+    try { const r = await fetch(`/api/graph/provenance?decision_id=${encodeURIComponent(id)}`); DN_CACHE.audit = await r.json(); } catch {}
+  }
+  dnRender(q);
+}
+window.dnLoadQ = dnLoadQ;
+window.dnAudit4q = () => dnSwitch('q1'); // 别名兼容：弹窗与钻取入口默认进 Q1
+
+// ─── Phase4 A-T6 页签②「当时的上下文」：读决策最新上下文供给快照 ───
+// Q7：sysadmin 角色标记（initTabs 赋值），控制普通用户/管理员装配触发可见性
+// 3-TAB 重构：DN_IS_ADMIN 原为 block0 局部 let，而 initTabs 在 module 块内赋值 → 跨 script 块不共享（既有缺陷）。
+// 改为统一读写 window.DN_IS_ADMIN，保证装配按钮可见性契约生效。
+let DN_IS_ADMIN = false;
+Object.defineProperty(window, 'DN_IS_ADMIN', {
+  get: () => DN_IS_ADMIN,
+  set: (v) => { DN_IS_ADMIN = !!v; },
+  configurable: true,
+});
+async function dnLoadCtx() {
+  const id = DN_CACHE.root || (document.getElementById('dn-select') && document.getElementById('dn-select').value);
+  if (!id) { dnOut.innerHTML = '<div class="dn-empty">请先选择决策</div>'; return; }
+  DN_CACHE.root = id;
+  dnOut.innerHTML = _summaryHtml() + _tabsHtml('ctx') + '<div class="dn-loading">加载上下文快照…</div>';
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(id)}/context-snapshot`);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); DN_CACHE.ctx = { error: j.error || ('HTTP ' + r.status), action: j.action || null }; }
+    else DN_CACHE.ctx = await r.json();
+  } catch (e) { DN_CACHE.ctx = { error: e.message }; }
+  dnRender('ctx');
+}
+window.dnLoadCtx = dnLoadCtx;
+
+// Q7：sysadmin 主动触发装配（调试用）；普通用户无此入口（后端 POST 亦 403 双保险）
+window.dnReassemble = async () => {
+  const id = DN_CACHE.root || (document.getElementById('dn-select') && document.getElementById('dn-select').value);
+  if (!id) return;
+  dnOut.innerHTML = _summaryHtml() + _tabsHtml('ctx') + '<div class="dn-loading">触发装配中…</div>';
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(id)}/context-reassemble`, { method: 'POST' });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); DN_CACHE.ctx = { error: j.error || ('HTTP ' + r.status), action: j.action || null }; }
+    else { const j = await r.json(); DN_CACHE.ctx = j.snapshot; }
+  } catch (e) { DN_CACHE.ctx = { error: e.message }; }
+  dnRender('ctx');
+};
+
+// 7×7 边格 → 回跳页签②并聚焦对应供给操作（校验侧 ↔ 供给侧 闭环；同步显示 BG-04 双口径）
+const _EDGE_TO_OP = {
+  DECIDED_ON: 'S1', REFERENCED_PRECEDENT: 'S2', DERIVED_FROM_EXCEPTION: 'S5',
+  ESTABLISHES_FRAME: 'S3', OVERRIDES: 'S4', CAUSED: 'S5', INFLUENCED: 'S5',
+};
+window.jumpToCtx = async (edgeType) => {
+  const id = DN_CACHE.root || (document.getElementById('dn-select') && document.getElementById('dn-select').value);
+  if (!id) return;
+  DN_CACHE.ctxFocus = _EDGE_TO_OP[edgeType] || null;
+  DN_CACHE.ctxFocusEdge = edgeType || null;
+  // 缓存平台供给健康（含 BG-04 边双口径），供回跳横幅显示
+  if (!DN_CACHE.supplyHealth) {
+    try { const r = await fetch('/api/monitor/supply-health'); if (r.ok) DN_CACHE.supplyHealth = await r.json(); } catch { /* 不影响回跳 */ }
+  }
+  openDnModal(id);
+  dnSwitch('ctx');
+};
+
+function _ctxItemsHtml(items) {
+  if (!Array.isArray(items) || !items.length) return '<div class="dn-empty">无条目</div>';
+  return items.slice(0, 10).map((it) => {
+    try {
+      if (it && typeof it === 'object') {
+        const label = it.label || it.name || it.id || it.scenario || it.entity_id || it.decision_id || '项';
+        const src = it.source ? ` · 来源:${_esc(it.source)}` : '';
+        const ts = it.collected_at ? ` · ${_esc(String(it.collected_at).slice(0, 10))}` : '';
+        return `<div class="dn-77-row"><span class="name">${_esc(String(label))}</span><span class="det">${src}${ts}</span></div>`;
+      }
+      return `<div class="dn-77-row"><span class="name">${_esc(String(it).slice(0, 60))}</span></div>`;
+    } catch { return ''; }
+  }).join('');
+}
+
+function _ctxHtml(snap) {
+  if (!snap) return '<div class="dn-view"><div class="dn-empty">该决策无上下文供给快照（装配未落库或尚未触发）</div></div>';
+  if (snap.error) {
+    if (snap.action === 'context-reassemble') {
+      const btn = DN_IS_ADMIN ? `<crm-button class="btn" onclick="dnReassemble()">触发装配（sysadmin）</crm-button>` : '';
+      return `<div class="dn-view"><div class="dn-empty">快照未生成，需 sysadmin 触发装配。${btn}</div></div>`;
+    }
+    return `<div class="dn-view"><div class="dn-empty">快照加载失败：${_esc(snap.error)}</div></div>`;
+  }
+  const ops = Array.isArray(snap.ops) ? snap.ops : [];
+  const focusOp = DN_CACHE.ctxFocus || null;
+  const focusEdge = DN_CACHE.ctxFocusEdge || null;
+  const banner = focusEdge
+    ? `<div class="ctx-focus-banner">7×7 回跳：边 <b>${_esc(focusEdge)}</b> → 供给操作 <b>${_esc(focusOp || '—')}</b>${DN_CACHE.supplyHealth && DN_CACHE.supplyHealth.edge_caliber ? ` · 平台运行时边 ${DN_CACHE.supplyHealth.edge_caliber.runtime} / 演示边 ${DN_CACHE.supplyHealth.edge_caliber.demo}` : ''}</div>`
+    : '';
+  const opHtml = ops.map((o) => {
+    const stColor = o.status === 'hit' ? 'var(--ok)' : (o.status === 'degraded' || o.status === 'timeout') ? 'var(--warn)' : (o.status === 'blocked' ? 'var(--err)' : 'var(--mut)');
+    const focused = focusOp && (o.op === focusOp || (o.serves_dims || []).includes(focusOp)) ? ' style="outline:2px solid var(--ac);"' : '';
+    const items = _ctxItemsHtml(o.items);
+    return `<div class="snap"${focused}>
+      <div class="snap-head">
+        <span class="name">${_esc(o.op || '?')} ${_esc(o.name || '')}</span>
+        <span class="state" style="color:${stColor}">● ${_esc(o.status || '?')}</span>
+        <span class="det">${_esc((o.serves_dims || []).join(','))}</span>
+      </div>
+      <div style="font-size:11px;color:var(--mut)">${o.cost_ms || 0}ms · ${(Array.isArray(o.items) ? o.items.length : 0)} 项 · 来源:${_esc(o.provenance && o.provenance.source || '—')}${o.note ? ' · ' + _esc(o.note) : ''}</div>
+      ${items}
+    </div>`;
+  }).join('') || '<div class="dn-empty">暂无供给操作记录</div>';
+  const hashBadge = snap.tamper === 'OK' ? '<span class="dn-badge ok">✓ 哈希完整</span>'
+    : (snap.tamper === 'TAMPERED' ? '<span class="dn-badge err">✗ 已篡改</span>' : '<span class="dn-badge warn">哈希未知</span>');
+  return `<div class="dn-view">
+    ${banner}
+    <div class="dn-panel-head">快照 ${_esc((snap.snapshot_id || '').slice(0, 8))}… · 装配 ${snap.cost_ms || 0}ms · 供给 ${snap.supplied_dims || 0}/7 ${hashBadge}${snap.degraded ? '<span class="dn-badge warn">降级</span>' : ''}</div>
+    ${opHtml}
+    <details class="dn-json-toggle"><summary>逐字 Prompt 原文（SHA-256 校验）</summary><pre>${_esc(snap.prompt_block || '（空）')}</pre></details>
+  </div>`;
+}
+
+// ─── T2（2026-08-31 合并修复）：复活页面级「#true-graph」真图 ───
+// 容器一直存在（:300 #cy），但 269f577 删掉了 renderTrueGraph() 渲染调用 → 页面该区死区。
+// 复用 _drawCyPanel('all')（全图 = 根 + 上下游 + 7 类 typed 边），着色/图例走同一渲染器。
+async function renderTrueGraph() {
+  const sel = document.getElementById('dn-select');
+  const id = DN_CACHE.root || (sel && sel.value);
+  if (!id) {
+    const doc = document.getElementById('true-graph');
+    if (doc) doc.querySelector('#cy').innerHTML = '<div class="dn-empty">请先在下方选择决策</div>';
+    return;
+  }
+  DN_CACHE.root = id;
+  const tag = document.getElementById('true-graph-root');
+  if (tag) tag.textContent = _short(id);
+  const box = document.getElementById('cy');
+  if (box) box.innerHTML = '<div class="dn-loading" style="padding:24px;text-align:center;color:var(--mut);">加载全图…</div>';
+  await _drawCyPanel('all'); // kind='all': 根+up+down + 全部 typed 边；容器 id=cy（页面级唯一）
+}
+window.renderTrueGraph = renderTrueGraph;
+
+// ─── 页面级决策网络内联摘要（2026-08-31 修复「下边是空的」）───────────────────────────
+// 旧版 #dn-output 是【永不更新】的占位：决策网络内容只走弹窗，页面级容器常年停在
+// 「— 等待查询 —」→ 用户在页面下方看到一片空白（本次反馈的首要现象）。
+// 合并非删除：完整交互仍在弹窗（Q1-Q4 / rc / loop 全部保留），页面级另渲染一份只读内联摘要，
+// 让「图模型」在页面上直接可见。数据同源于 GET /api/graph/trace（与 Q1/Q4 cytoscape、
+// decision-graph.html 三处共用同一事实源），配色经 _readTokResolved 读 token，零硬编码。
+function _edgeInlineColor(rt) {
+  const i = REL_TYPES_ORDER.indexOf(rt);
+  const base = _readTokResolved('--ac');
+  if (i < 0 || !base) return _readTokResolved('--mut') || 'currentColor';
+  return _rotateHue(base, i * 51); // 与 _drawCy 的 palette 同算法，保证图文配色一致
+}
+async function renderDnInline(id) {
+  const box = document.getElementById('dn-output');
+  if (!box) return;
+  if (!id) {
+    box.innerHTML = '<div class="dn-view"><div class="dn-empty">请先在上方选择一个决策</div></div>';
+    return;
+  }
+  box.innerHTML = '<div class="dn-view"><div class="dn-loading">加载决策网络摘要…</div></div>';
+  let t = null;
+  try {
+    const r = await fetch('/api/graph/trace?decisionId=' + encodeURIComponent(id));
+    if (!r.ok) {
+      let msg = 'HTTP ' + r.status;
+      try { msg = (await r.json()).error || msg; } catch (_) { /* 非 JSON 响应沿用状态码 */ }
+      throw new Error(msg);
+    }
+    t = await r.json();
+  } catch (e) {
+    box.innerHTML = `<div class="dn-view"><div class="dn-empty">决策网络加载失败：${_esc(e.message)}</div></div>`;
+    return;
+  }
+  const up = t.upstream || [];
+  const down = t.downstream || [];
+  const typed = t.typedEdges || [];
+  // 7 类边齐备度：按 REL_TYPES_ORDER 固定顺序展示（缺哪一类一眼可见），零边的类半透明置底
+  const byType = {};
+  typed.forEach((e) => { byType[e.rel_type] = (byType[e.rel_type] || 0) + 1; });
+  const covered = REL_TYPES_ORDER.filter((rt) => byType[rt] > 0).length;
+  const edgeGrid = REL_TYPES_ORDER.map((rt) => {
+    const n = byType[rt] || 0;
+    const dims = [...new Set(typed.filter((e) => e.rel_type === rt).map((e) => e.serves_dimension).filter(Boolean))];
+    return `<div class="dn-inline-edge${n ? '' : ' is-zero'}" title="${_esc(rt)}">
+      <span class="dn-inline-dot" style="background:${_esc(_edgeInlineColor(rt))}"></span>
+      <span class="dn-inline-rt">${_esc(rt)}</span>
+      <span class="dn-inline-n">${n} 条</span>
+      ${dims.length ? `<span class="dn-inline-dim">${_esc(dims.join(' / '))}</span>` : ''}
+    </div>`;
+  }).join('');
+  const chip = (d, dir) => `<span class="dn-inline-chip" onclick="openDnModal('${_esc(d.decision_id)}')"
+      title="${dir} · 距离 ${_esc(d.distance)} · 置信度 ${_esc(d.confidence)}">${_esc(_short(d.decision_id))}</span>`;
+  box.innerHTML = `<div class="dn-view">
+    <div class="dn-inline-head">
+      <span class="dn-inline-id">根决策 ${_esc(_short(id))}</span>
+      <span class="pill ${covered === REL_TYPES_ORDER.length ? 'up' : 'state-other'}">本决策涉及 ${covered}/${REL_TYPES_ORDER.length} 类边</span>
+      <span class="dn-inline-n">上游 ${up.length} 条 · 下游 ${down.length} 条 · 关联边 ${typed.length} 条</span>
+      <crm-button class="btn" style="margin-left:auto;" onclick="openDnModal('${_esc(id)}')">打开完整决策网络</crm-button>
+    </div>
+    <div class="dn-inline-sect">决策边按类型分布（7 类 · 与图视图同源同色 · 单决策视角，未涉及的类不代表全网缺失）</div>
+    <div class="dn-inline-grid">${edgeGrid}</div>
+    <div class="dn-inline-sect">上游（为什么这么定）</div>
+    <div class="dn-inline-list">${up.length ? up.map((d) => chip(d, '上游')).join('') : '<span class="dn-inline-empty">无上游决策</span>'}</div>
+    <div class="dn-inline-sect">下游（导致了什么）</div>
+    <div class="dn-inline-list">${down.length ? down.map((d) => chip(d, '下游')).join('') : '<span class="dn-inline-empty">无下游决策</span>'}</div>
+  </div>`;
+  // T8 联动：把当前决策带进两个「重跑场景」出口，避免跳过去丢失上下文
+  const q = '?decisionId=' + encodeURIComponent(id);
+  const loopLink = document.getElementById('loop-decision');
+  if (loopLink) loopLink.setAttribute('href', '/decision-scenarios.html' + q);
+  const retroLink = document.getElementById('retro-rerun-link');
+  if (retroLink) retroLink.setAttribute('href', '/decision-scenarios.html' + q);
+}
+window.renderDnInline = renderDnInline;
+
+// Q3 冲突事实深度视图（复用 DN_CACHE.audit4q.questions.Q3 的 conflicts）
+function _q3Html(q3) {
+  if (!q3.conflicts || !q3.conflicts.length)
+    return `<div class="dn-view"><div class="dn-empty">该决策关联实体（${q3.entities_scanned} 个）无未裁决冲突（多源事实已一致或已裁决）。</div></div>`;
+  return `<div class="dn-view">
+    <h4 style="margin:8px 0;color:var(--ink);">冲突事实（${q3.unresolved_count} 条未裁决 · 保留不静默覆盖）</h4>
+    ${q3.conflicts.map((c) => `<div class="dn-block"><h4>${_esc(c.entity_id)} · ${_esc(c.attr)}</h4>
+      <ul>${c.sources.map((s) => `<li><span class="pill ${s.valid ? 'state-confirmed' : 'state-other'}">${s.valid ? '权威' : '保留'}</span> ${_esc(s.value)} <span style="color:var(--mut)">来源 ${_esc(s.source_id)}</span></li>`).join('')}</ul>
+    </div>`).join('')}
+    ${_rawJsonSection(q3)}
+  </div>`;
+}
+
+// ─── T-AUDIT4Q 重排：4 面板渲染辅助（cytoscape 复用 / PROV-O + Turtle 导出 / 冲突双值）───
+function _panelCyHtml(kind, title) {
+  // T1（2026-08-31 合并修复）：容器 id 唯一化 —— 弹窗内 Q1/Q4 各用自己的 cy id，
+  //   杜绝与页面级 #true-graph 的 #cy 重名（原 getElementById('cy') 恒命中页面级容器 → 弹窗下部空白）。
+  const cyId = kind === 'up' ? 'dn-cy-up' : kind === 'down' ? 'dn-cy-down' : 'dn-cy-all';
+  const lgId = kind === 'up' ? 'dn-cy-up-legend' : kind === 'down' ? 'dn-cy-down-legend' : 'dn-cy-all-legend';
+  return `<div class="dn-view dn-cy-wrap">
+    <div class="dn-panel-head"><h4 style="margin:0;color:var(--ink);">${_esc(title)}</h4></div>
+    <div id="${cyId}" class="dn-cy"></div>
+    <div id="${lgId}" class="dn-legend"></div>
+  </div>`;
+}
+function _panelBHtml() {
+  const a = DN_CACHE.audit;
+  if (!a) return `<div class="dn-view"><div class="dn-empty">请先点击「B · 源头溯源」查询</div></div>`;
+  const d = a.decision; const entries = a.entries || []; const precs = a.referenced_precedents || [];
+  const cs = a.chainStatus || 'UNKNOWN';
+  const csCls = cs === 'OK' ? 'ok' : cs === 'TAMPERED' ? 'err' : 'warn';
+  const csText = cs === 'OK' ? '✅ 链完整性 OK（SHA-256 验证通过）' : cs === 'TAMPERED' ? '⛔ 链被篡改' : `链状态：${cs}`;
+  const decisionCard = (d && d.decision_id) ? `
+    <dl class="dn-meta">
+      <div><dt>决策 ID</dt><dd><code>${_esc(_short(d.decision_id))}</code></dd></div>
+      <div><dt>场景</dt><dd>${_esc(d.scenario_id || '—')}</dd></div>
+      <div><dt>处置</dt><dd>${_esc(d.disposition || '—')}</dd></div>
+      <div><dt>状态</dt><dd>${d.state ? _pill(d.state, d.state === 'CONFIRMED' ? 'state-confirmed' : 'state-other') : '—'}</dd></div>
+      <div><dt>业务分级</dt><dd>${_esc(d.business_tier || '—')}</dd></div>
+      <div><dt>决策时间</dt><dd>${_esc((d.decided_at || '—').toString().slice(0, 19).replace('T', ' '))}</dd></div>
+      <div style="grid-column:1/-1"><dt>理由</dt><dd>${_esc(d.rationale || '—')}</dd></div>
+    </dl>` : `<div style="color:var(--mut)">该决策不存在或已被擦除（append-only 用墓碑标记）</div>`;
+  return `<div class="dn-view">
+    <div class="dn-panel-head"><h4 style="margin:0;color:var(--ink);">B · 源头溯源（W3C PROV-O 链）</h4>
+      <span class="dn-badge ${csCls}">${_esc(csText)}</span>
+      <crm-button class="dn-export-btn" onclick="dnExportTurtle()">导出 Turtle（RDF）</crm-button>
+    </div>
+    ${decisionCard}
+    ${precs.length ? `<div class="dn-block"><h4>本决策引用的先例（${precs.length} 条）</h4>
+      <ul>${precs.map((p) => `<li><code>${_esc(_short(p.precedent_id))}</code>　·　相似度 ${p.similarity != null ? (Number(p.similarity) * 100).toFixed(1) + '%' : '—'}</li>`).join('')}</ul></div>` : ''}
+    <div class="dn-block"><h4>审计条目时间线（${entries.length} 条 · append-only）</h4>
+      ${entries.length ? `<div class="dn-timeline">${entries.map((e, i) => `
+        <div class="dn-timeline-item">
+          <div class="head"><span class="entry-type">#${i + 1}　${_esc(e.entry_type)}</span>
+            <span class="checksum" title="${_esc(e.checksum || '')}">SHA-256: ${_esc((e.checksum || '').slice(0, 12))}…</span>
+            <time>${_esc((e.created_at || '').toString().slice(0, 19).replace('T', ' '))}</time></div>
+          <div class="payload">${_payloadBrief(e.payload)}</div>
+        </div>`).join('')}</div>` : '<div style="color:var(--mut)">无审计条目</div>'}
+    </div>
+    ${_rawJsonSection(a)}
+  </div>`;
+}
+// 共享 cytoscape 渲染器（图视图 / 面板A / 面板D 复用；配色源自 tokens.css，零硬编码 hex）
+// 注：_cy / REL_TYPES_ORDER / _readTok / _rotateHue 等基础量在文件下方 token 助手区统一定义（单一事实源，避免重复声明）
+function _drawCy(elements, containerId, legendId) {
+  const base = _readTokResolved('--ac');
+  const panel = _readTokResolved('--panel');
+  const ink = _readTokResolved('--ink');
+  const palette = REL_TYPES_ORDER.map((_, i) => _rotateHue(base, i * 51));
+  const colorOf = {}; REL_TYPES_ORDER.forEach((t, i) => (colorOf[t] = palette[i]));
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (_cy) { try { _cy.destroy(); } catch {} _cy = null; }
+  _cy = cytoscape({
+    container: el, elements,
+    style: [
+      { selector: 'node', style: { 'background-color': panel, 'label': 'data(label)', 'color': ink, 'font-size': 10, 'text-valign': 'center', 'text-halign': 'center', 'border-width': 2, 'border-color': base, 'width': 46, 'height': 46 } },
+      { selector: 'node.root', style: { 'background-color': base, 'color': '#fff', 'border-color': base } },
+      { selector: 'edge', style: { 'width': 2.5, 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'label': 'data(rel)', 'font-size': 8, 'color': ink, 'text-rotation': 'autorotate', 'text-background-color': panel, 'text-background-opacity': 0.8, 'text-background-padding': 2 } },
+    ],
+    layout: { name: 'cose', animate: true, padding: 30, nodeRepulsion: 12000, idealEdgeLength: 120 },
+  });
+  _cy.edges().forEach((e) => { const c = colorOf[e.data('rel')] || base; e.style({ 'line-color': c, 'target-arrow-color': c, 'color': c }); });
+  if (legendId) { const lg = document.getElementById(legendId); if (lg) lg.innerHTML = REL_TYPES_ORDER.map((t, i) => `<span><i style="background:${palette[i]}"></i>${t}</span>`).join(''); }
+  // T5（2026-08-31 合并修复）：点节点 → 右侧 7×7 巡检卡抽屉（左 7 维 + 右 7 边 + 交叉校验）
+  _cy.on('tap', 'node', (evt) => { const n = evt.target; if (n && n.id()) openDnDrawer(n.id()); });
+}
+// kind: 'up'=上游子图 / 'down'=下游影响 / 'all'=全图；节点取自 trace，边取自 /api/graph/edges 按 keep 过滤
+async function _drawCyPanel(kind) {
+  const id = DN_CACHE.root;
+  if (!id) return;
+  if (!DN_CACHE.trace) {
+    try { const r = await fetch(`/api/graph/trace?decisionId=${encodeURIComponent(id)}&max_depth=4`); DN_CACHE.trace = await r.json(); } catch { DN_CACHE.trace = { upstream: [], downstream: [] }; }
+  }
+  const t = DN_CACHE.trace || { upstream: [], downstream: [] };
+  const keep = new Set([id]);
+  if (kind !== 'down') (t.upstream || []).forEach((n) => keep.add(n.decision_id));
+  if (kind !== 'up') (t.downstream || []).forEach((n) => keep.add(n.decision_id));
+  const nodes = [{ id, label: _short(id), cls: 'root' }];
+  (t.upstream || []).forEach((n) => { if (keep.has(n.decision_id)) nodes.push({ id: n.decision_id, label: _short(n.decision_id), cls: 'up' }); });
+  (t.downstream || []).forEach((n) => { if (keep.has(n.decision_id)) nodes.push({ id: n.decision_id, label: _short(n.decision_id), cls: 'down' }); });
+  let edges = [];
+  try {
+    const j = await (await fetch(`/api/graph/edges?entityId=${encodeURIComponent(id)}&direction=both`)).json();
+    edges = (j.edges || []).map((e) => ({ data: { id: e.rel_id || `${e.from_id}~${e.rel_type}~${e.to_id}`, source: e.from_id, target: e.to_id, rel: e.rel_type, sd: e.serves_dimension } }))
+      .filter((e) => keep.has(e.data.source) && keep.has(e.data.target));
+  } catch (e) { /* 边查询失败不阻断构图 */ }
+  // T1（2026-08-31 合并修复）：容器 id 按 kind 唯一化（dn-cy-up/down/all），杜绝与页面级 #cy 重名；
+  //    图渲染进正确容器，弹窗下部不再空白。
+  const cyId = kind === 'up' ? 'dn-cy-up' : kind === 'down' ? 'dn-cy-down' : 'dn-cy-all';
+  const lgId = cyId + '-legend';
+  _drawCy([...nodes.map((n) => ({ data: n })), ...edges], cyId, lgId);
+}
+
+// ─── T5（2026-08-31 合并修复）：每决策 7×7 巡检卡（设计 §1.1 硬性要求）───
+// 数据源：
+//   - 决策行: GET /api/decision/:id（返回 decision 含 attribution.required_fill）
+//   - 7 维:    edgeDimensionSpec 七维度（identity/structure/semantics/time_config/decision_history/operational_state/governance）
+//   - 7 边:    GET /api/graph/edges?entityId=:id（decision_relation 7 类 typed 边）
+const _77_DIM = [
+  { key: 'identity',           name: '身份',     def: '业务实体定位（客户/商机/报价）' },
+  { key: 'structure',          name: '结构',     def: '结构化属性完整性' },
+  { key: 'semantics',          name: '语义',     def: '业务语义一致、无歧义' },
+  { key: 'time_config',        name: '时间配置', def: '时效与时机窗口' },
+  { key: 'decision_history',   name: '决策历史', def: '引用先例/历史决策' },
+  { key: 'operational_state',  name: '运行状态', def: '系统/业务运行支撑' },
+  { key: 'governance',         name: '治理',     def: '权限/合规/组织治理' },
+];
+const _77_EDGE = [
+  { key: 'DECIDED_ON',             name: '针对',       def: '决策作用于业务实体（客户/商机/报价）' },
+  { key: 'REFERENCED_PRECEDENT',   name: '参考先例',   def: '引用历史先例作为依据' },
+  { key: 'DERIVED_FROM_EXCEPTION', name: '由异常触发', def: '由异常/告警事件触发升级' },
+  { key: 'ESTABLISHES_FRAME',      name: '确立标杆',   def: '确立新的判定框架/标杆' },
+  { key: 'OVERRIDES',              name: '推翻翻案',   def: '后续决策推翻/覆盖本决策' },
+  { key: 'CAUSED',                 name: '直接引发',   def: '直接引发下游决策/业务动作' },
+  { key: 'INFLUENCED',             name: '间接影响',   def: '间接影响其他上下文' },
+];
+// 7 边 × 7 维绑定（edgeDimensionSpec 默认映射，用于交叉校验「维度应有边支撑但边缺失」）
+const _77_EDGE_SERVES = {
+  DECIDED_ON: ['identity', 'structure'],
+  REFERENCED_PRECEDENT: ['decision_history'],
+  DERIVED_FROM_EXCEPTION: ['operational_state'],
+  ESTABLISHES_FRAME: ['semantics', 'governance'],
+  OVERRIDES: ['governance', 'decision_history'],
+  CAUSED: ['time_config'],
+  INFLUENCED: ['time_config'],
+};
+
+function _77State(ok) { return ok ? '<span class="state ok">✅</span>' : '<span class="state bad">❌</span>'; }
+
+// 拉取单决策详情 + 7 类边（幂等缓存；失败降级不阻断）
+async function _fetch77(id) {
+  const [dr, ge] = await Promise.all([
+    (async () => { try { const r = await fetch(`/api/decision/${encodeURIComponent(id)}`); return r.ok ? await r.json() : null; } catch { return null; } })(),
+    (async () => { try { const r = await fetch(`/api/graph/edges?entityId=${encodeURIComponent(id)}&direction=both`); return r.ok ? await r.json() : null; } catch { return null; } })(),
+  ]);
+  return { decision: dr, edges: (ge && ge.edges) || [] };
+}
+
+// 生成 7×7 巡检卡 HTML
+async function dnInspect77(id) {
+  const d = document.getElementById('dn-77-body');
+  if (!d) return;
+  d.innerHTML = '<div class="dn-empty">加载 7×7 巡检卡…</div>';
+  if (!id) { d.innerHTML = '<div class="dn-empty">决策不存在</div>'; return; }
+  const { decision: dec, edges } = await _fetch77(id);
+  const attr = (dec && dec.attribution) || {};
+  const provided = new Set(attr.required_fill && attr.required_fill.provided || []);
+  const missing = new Set(attr.required_fill && attr.required_fill.missing || []);
+  const edgeKeys = new Set(edges.map((e) => e.rel_type));
+
+  // 左 7 维：required_fill.provided → ✅；missing → ❌ 红；无数据 → — 灰
+  const dimRows = _77_DIM.map((dim) => {
+    let st;
+    if (provided.has(dim.key)) st = _77State(true) + '<span class="det">已装配</span>';
+    else if (missing.has(dim.key)) st = _77State(false) + '<span class="det" style="color:var(--err)">缺失</span>';
+    else st = '<span class="state na" style="background:var(--panel);color:var(--mut);border:1px solid var(--line);">—</span>';
+    return `<div class="dn-77-row">${st}<span class="name">${dim.name}</span><span class="det">${dim.def}</span></div>`;
+  }).join('');
+
+  // 右 7 边：存在 → ✅；应存缺（serves 任一维在 missing）→ ❌ 红；无关 → — 灰；点击回跳页签②（校验侧↔供给侧闭环）
+  const edgeRows = _77_EDGE.map((e) => {
+    const exists = edgeKeys.has(e.key);
+    const should = (e.serves || []).some((d) => missing.has(d));
+    let st;
+    if (exists) st = _77State(true) + '<span class="det">存在</span>';
+    else if (should) st = _77State(false) + '<span class="det" style="color:var(--err)">应存缺</span>';
+    else st = '<span class="state na">—</span>';
+    return `<div class="dn-77-row jump" title="点击回跳页签②「当时的上下文」对应供给操作" onclick="jumpToCtx('${_esc(e.key)}')">${st}<span class="name">${e.name}</span><span class="det">${e.def}</span><span class="jumphint">↩回跳</span></div>`;
+  }).join('');
+
+  // 交叉校验：维度缺失但服务该维度的边存在 → 「有边支撑但维度仍缺」提示
+  const cross = _77_DIM.filter((dim) => missing.has(dim.key))
+    .map((dim) => {
+      const serving = _77_EDGE.filter((e) => (e.serves || []).includes(dim.key));
+      const hasEdge = serving.some((e) => edgeKeys.has(e.key));
+      return `${dim.name} ${hasEdge ? '（已有边支撑但仍缺）' : '（无边支撑）'}`;
+    }).join('；');
+  const crossHtml = cross
+    ? `<div class="dn-77-cross"><b>⚠ 维度缺口（应有边支撑但缺）</b>：${cross}</div>`
+    : (missing.size ? '' : '<div class="dn-77-cross" style="border-left-color:var(--ok)"><b>✓ 7 维装配完整</b></div>');
+
+  d.innerHTML = `
+    <div class="dn-drawer-head">
+      <div class="dn-drawer-title">7×7 巡检卡 · <code>${(id || '').slice(0, 8)}…</code></div>
+      <crm-button class="dn-drawer-close" onclick="closeDnDrawer()">×</crm-button>
+    </div>
+    <div class="dn-drawer-body">
+      <div class="dn-77">
+        <div class="dn-77-col"><h5>左 · 7 维（上下文装配）</h5>${dimRows}</div>
+        <div class="dn-77-col"><h5>右 · 7 边（决策关系）</h5>${edgeRows}</div>
+      </div>
+      ${crossHtml}
+    </div>`;
+}
+window.dnInspect77 = dnInspect77;
+
+// 抽屉开合（2026-08-31：同步 aria-hidden —— 此前只切 .open，aria-hidden 恒为 true，
+//   内容虽已渲染，辅助技术仍判定为隐藏，与视觉状态不一致）
+function openDnDrawer(id) {
+  dnInspect77(id);
+  const d = document.getElementById('dn-77-drawer');
+  if (d) { d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
+}
+function closeDnDrawer() {
+  const d = document.getElementById('dn-77-drawer');
+  if (d) { d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
+}
+window.openDnDrawer = openDnDrawer; window.closeDnDrawer = closeDnDrawer;
+async function dnExportTurtle() {
+  const id = DN_CACHE.root;
+  if (!id) return;
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(id)}/provenance-turtle?download=1`);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('HTTP ' + r.status)); }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `provenance-${id}.ttl`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) { alert('Turtle 导出失败：' + e.message); }
+}
+
+// ─── T30 溯源归因：拉 /api/decision/:id/trace（四层链 J→M→K→粒子库 + 七类根因）───
+async function dnRootCause() {
+  const sel = document.getElementById('dn-select');
+  const id = DN_CACHE.root || (sel && sel.value);
+  if (!id) { dnOut.innerHTML = `<div class="dn-empty">请先选择决策</div>`; return; }
+  DN_CACHE.root = id; DN_CACHE.rc = null;
+  dnOut.innerHTML = _summaryHtml() + _tabsHtml('rc') + `<div class="dn-loading">加载四层溯源链…</div>`;
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(id)}/trace`);
+    if (!r.ok) {
+      let msg = 'HTTP ' + r.status;
+      try { msg = (await r.json()).error || msg; } catch (_) { /* 非 JSON 响应沿用状态码 */ }
+      throw new Error(msg);
+    }
+    DN_CACHE.rc = await r.json();
+  } catch (e) {
+    DN_CACHE.rc = { error: e.message };
+  }
+  dnRender('rc');
+}
+
+// ─── T-D7 单决策三图闭环穿透视图：拉 /api/decision/:id/closure（K/M/J 区 + D1-D5 跨环映射）───
+async function dnLoop() {
+  const sel = document.getElementById('dn-select');
+  const id = DN_CACHE.root || (sel && sel.value);
+  if (!id) { dnOut.innerHTML = `<div class="dn-empty">请先选择决策</div>`; return; }
+  DN_CACHE.root = id; DN_CACHE.loop = null;
+  dnOut.innerHTML = _summaryHtml() + _tabsHtml('loop') + `<div class="dn-loading">加载三图闭环…</div>`;
+  try {
+    const r = await fetch(`/api/decision/${encodeURIComponent(id)}/closure`);
+    if (!r.ok) {
+      let msg = 'HTTP ' + r.status;
+      try { msg = (await r.json()).error || msg; } catch (_) { /* 非 JSON 响应沿用状态码 */ }
+      throw new Error(msg);
+    }
+    DN_CACHE.loop = await r.json();
+  } catch (e) {
+    DN_CACHE.loop = { error: e.message };
+  }
+  dnRender('loop');
+}
+
+// 三图闭环渲染：cross-loop 状态条（D1-D5）+ K/M/J 三区容器。色值全走 tokens.css 语义变量，零硬编码。
+function _loopHtml(loop) {
+  if (loop.error) return `<div class="dn-view"><div class="dn-empty">闭环加载失败：${_esc(loop.error)}</div></div>`;
+  const m = loop.m || {};
+  const j = loop.j || {};
+  const k = loop.k || {};
+  const cl = loop.crossLoopMap || {};
+
+  // D1-D5 跨环映射状态条
+  const dOrder = ['D1', 'D2', 'D3', 'D4', 'D5'];
+  const dLabel = { D1: 'K→M', D2: 'M→J', D3: 'J→K', D4: 'J→M', D5: 'K↔M' };
+  const loopBar = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    ${dOrder.map((d) => {
+      const ok = cl[d] && cl[d].exists;
+      return `<div title="${_esc((cl[d] && cl[d].carrier) || '')}" style="flex:1;min-width:90px;padding:8px 10px;border-radius:8px;border:1px solid ${ok ? 'var(--ok)' : 'var(--err)'};background:var(--panel);">
+        <div style="font-size:12px;color:var(--mut);">${d} ${dLabel[d]}</div>
+        <div style="font-size:13px;font-weight:600;color:${ok ? 'var(--ok)' : 'var(--err)'};">${ok ? '✓ 闭合' : '✗ 断点'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  const card = (title, body) => `<section class="sect" style="margin-bottom:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;">
+    <h4 style="margin:0 0 8px;color:var(--ac);font-size:13px;">${title}</h4>${body}</section>`;
+
+  // K 区：involved_entities → particles + meta_attr 约束
+  const ents = (k.entities || []).map((e) => `<code>${_esc(e.type || '?')}</code> <code>${_esc(_short(e.id))}</code>`).join('　') || '<span style="color:var(--mut)">无</span>';
+  const parts = (k.particles || []).map((p) => `<code>${_esc(_short(p.id))}</code> ${_esc(p.title || p.type || '')}`).join('　') || '<span style="color:var(--mut)">（未解析到粒子）</span>';
+  const cons = (k.constraints || []).length ? `${k.constraints.length} 条约束（required=${k.constraints.filter((c) => c.required).length}）` : '<span style="color:var(--mut)">无</span>';
+  const kBody = `<div style="font-size:12px;color:var(--ink);line-height:1.9;">
+    <div>关联实体：${ents}</div>
+    <div>解析粒子：${parts}</div>
+    <div>写时约束：${cons}</div>
+  </div>`;
+
+  // M 区：decision 行 + 7 边 + edge_compliance + 记忆
+  const ec = m.edge_compliance || {};
+  const ecKeys = Object.keys(ec);
+  const ecPresent = ecKeys.filter((k2) => ec[k2] === 'present').length;
+  const edgesList = (m.edges || []).map((e) => `<span class="pill">${_esc(e.rel_type)}</span>`).join(' ') || '<span style="color:var(--mut)">无边</span>';
+  const mBody = `<div style="font-size:12px;color:var(--ink);line-height:1.9;">
+    <div>处置 <b>${_esc(m.disposition || '—')}</b>　·　置信度 ${m.confidence != null ? (Number(m.confidence) * 100).toFixed(0) + '%' : '—'}（${_esc(m.confidence_source || '—')}）</div>
+    <div>评估条件：${(Array.isArray(m.conditions_evaluated) ? m.conditions_evaluated.length : 0)} 条　·　记忆沉淀：${(m.memory || []).length} 条</div>
+    <div>决策边（decision_relation）：${edgesList}</div>
+    <div>边合规 E1-E7：<b style="color:${ecPresent === ecKeys.length && ecKeys.length ? 'var(--ok)' : 'var(--warn)'};">${ecPresent}/${ecKeys.length} 存在</b></div>
+  </div>`;
+
+  // J 区：判定 + 业务结果 + 校准处方
+  const outs = (j.outcomes || []).map((o) => `<span class="pill ${o.outcome_type === 'won' || o.outcome_type === 'paid' ? 'state-confirmed' : 'state-other'}">${_esc(o.outcome_type)}</span>`).join(' ') || '<span style="color:var(--mut)">无业务结果</span>';
+  const cals = (j.calibration_patches || []).map((c) => `<code>${_esc(c.knob)}</code> → <b style="color:var(--ok)">${_esc(c.status)}</b>`).join('　') || '<span style="color:var(--mut)">无</span>';
+  const jBody = `<div style="font-size:12px;color:var(--ink);line-height:1.9;">
+    <div>状态 <b>${_esc(j.state || '—')}</b>　·　业务结果核验：${_esc(j.outcome_verified || '—')}</div>
+    <div>业务结果（J2）：${outs}</div>
+    <div>反馈（J2）：${j.feedback ? _esc(typeof j.feedback === 'object' ? JSON.stringify(j.feedback) : j.feedback) : '<span style="color:var(--mut)">无</span>'}</div>
+    <div>根因（J3）：${j.root_cause ? _esc(typeof j.root_cause === 'object' ? JSON.stringify(j.root_cause) : j.root_cause) : '<span style="color:var(--mut)">无</span>'}</div>
+    <div>校准处方（第0闸写回）：${cals}</div>
+  </div>`;
+
+  return `<div class="dn-view">
+    ${loopBar}
+    ${card('K 知识系统（决策原料）', kBody)}
+    ${card('M 记忆系统（决策留存）', mBody)}
+    ${card('J 决策脊柱（问责闭环）', jBody)}
+    ${_rawJsonSection(loop)}
+  </div>`;
+}
+
+// 严重度 → 语义色（零硬编码，全部走 tokens.css 变量）
+function _rcSevColor(sev) {
+  return sev === 'major' ? 'var(--err)'
+    : sev === 'minor' ? 'var(--warn)'
+      : sev === 'none' ? 'var(--ok)' : 'var(--mut)';
+}
+
+// 四层溯源面板 + J3 根因归因条
+function _rootCauseHtml(rc) {
+  if (rc.error) return `<div class="dn-view"><div class="dn-empty">溯源加载失败：${_esc(rc.error)}</div></div>`;
+  const t = rc.trace || {};
+  const cause = rc.root_cause || {};
+  const checks = t.particle_checks || {};
+  const ec = t.edge_compliance || {};
+  const parts = (t.layer_k && t.layer_k.particles) || [];
+  const edges = (t.layer_m && t.layer_m.edges) || [];
+  const sev = cause.severity || 'unknown';
+
+  const chk = (label, on) => `<span style="display:inline-block;margin-right:10px;padding:3px 10px;border-radius:10px;font-size:12px;border:1px solid ${on ? 'var(--err)' : 'var(--line)'};color:${on ? 'var(--err)' : 'var(--mut)'};background:var(--panel);">${on ? '⚠ ' : '✓ '}${label}</span>`;
+
+  // J3 根因归因条：code + layer + severity + evidence 链 + 处方旋钮
+  const causeBar = `
+    <div style="border:1px solid var(--line);border-left:4px solid ${_rcSevColor(sev)};border-radius:8px;padding:10px 12px;margin-bottom:12px;background:var(--panel);">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <b style="color:${_rcSevColor(sev)};font-size:14px;">${_esc(cause.code || 'UNKNOWN')}</b>
+        <span style="color:var(--mut);font-size:12px;">层 ${_esc(cause.layer || '—')}　·　严重度 ${_esc(sev)}　·　处方旋钮 ${_esc(cause.knob || '—')}</span>
+      </div>
+      <div style="color:var(--ink);font-size:12px;margin-top:6px;">${_esc(cause.name || '')}</div>
+      ${(cause.evidence || []).length ? `<ul style="margin:8px 0 0 18px;color:var(--mut);font-size:12px;">${cause.evidence.map((e) => `<li>${_esc(e)}</li>`).join('')}</ul>` : ''}
+    </div>`;
+
+  // ② M 层 E1–E7 边合规（内联样式：弹窗内 #dn-output 作用域外的表格不受 #dn-output table.dn-table 影响）
+  const ecHtml = Object.keys(ec).length
+    ? `<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;">
+        <tr><th style="text-align:left;padding:6px 8px;color:var(--mut);border-bottom:1px solid var(--line);">边（E1–E7）</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--mut);border-bottom:1px solid var(--line);">状态</th></tr>
+        ${Object.entries(ec).map(([k, v]) => `<tr>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--line);"><code>${_esc(k)}</code></td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--line);color:${v === 'present' ? 'var(--ok)' : 'var(--err)'};">${v === 'present' ? '✓ 存在' : '✗ 缺失'}</td></tr>`).join('')}
+      </table>`
+    : '<div style="color:var(--mut)">无边合规数据</div>';
+
+  // ③④ K → 粒子库字段级 diff（⚠不一致 / ❌缺失 / ⏰陈旧）
+  const partsHtml = parts.length ? parts.map((p) => {
+    if (p.missing) return `<div style="color:var(--warn);font-size:12px;">粒子 ${_esc(_short(p.id))} 未找到</div>`;
+    const c = p.checks || {};
+    const flags = [];
+    if (c.field_mismatch) flags.push('<span style="color:var(--err)">⚠ 字段不一致</span>');
+    if (c.info_incomplete) flags.push('<span style="color:var(--err)">❌ 信息不完整</span>');
+    if (c.input_stale) flags.push('<span style="color:var(--warn)">⏰ 输入不及时</span>');
+    return `<div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+      <div><code>${_esc(_short(p.id))}</code>　<span style="color:var(--mut);font-size:12px;">类型 ${_esc(p.type || '—')}</span></div>
+      <div style="font-size:12px;margin-top:4px;">${flags.length ? flags.join('　') : '<span style="color:var(--ok)">✓ 字段级三检通过</span>'}</div>
+      ${(c.orphanFields || []).length ? `<div style="font-size:12px;color:var(--mut);margin-top:4px;">孤儿字段：${c.orphanFields.map(_esc).join(', ')}</div>` : ''}
+      ${(c.missingRequired || []).length ? `<div style="font-size:12px;color:var(--mut);margin-top:4px;">缺失必填：${c.missingRequired.map(_esc).join(', ')}</div>` : ''}
+    </div>`;
+  }).join('') : '<div style="color:var(--mut);font-size:12px;">该决策未关联粒子</div>';
+
+  return `<div class="dn-view">
+    ${causeBar}
+    <div style="margin-bottom:10px;">${chk('字段不一致', checks.field_mismatch)}${chk('信息不完整', checks.info_incomplete)}${chk('输入不及时', checks.input_stale)}</div>
+    <div class="dn-block"><h4>① J 决策脊柱（判定与信号）</h4>
+      <dl class="dn-meta">
+        <div><dt>人工处置</dt><dd>${_esc((t.layer_j && t.layer_j.human_disposition) || '—')}</dd></div>
+        <div><dt>业务结果</dt><dd>${_esc((t.layer_j && t.layer_j.outcome_verified) || '—')}</dd></div>
+        <div><dt>决策时间</dt><dd>${_esc(((t.layer_j && t.layer_j.decided_at) || '—').toString().slice(0, 19).replace('T', ' '))}</dd></div>
+      </dl>
+    </div>
+    <div class="dn-block"><h4>② M 记忆系统（E1–E7 边合规，实存 ${edges.length} 条）</h4>${ecHtml}</div>
+    <div class="dn-block"><h4>③④ K 知识系统 → 粒子库（字段级 diff）</h4>${partsHtml}</div>
+    ${_rawJsonSection(t)}
+  </div>`;
+}
+
+// ─── T12 Cytoscape 真图：渲染当前所选决策的 7 类决策边力导向图 ───
+// 配色全部源自 tokens.css（JS 经 getComputedStyle 读取 --ac 后做色相环旋转生成 7 类边色），零硬编码 hex。
+let _cy = null;
+const REL_TYPES_ORDER = ['DECIDED_ON','REFERENCED_PRECEDENT','DERIVED_FROM_EXCEPTION','ESTABLISHES_FRAME','OVERRIDES','CAUSED','INFLUENCED'];
+function _readTok(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+// 2026-08-31 UI 铁律修复：此前 _readTok() 的调用点普遍写成 `|| '<十六进制兜底色>'` 形式的硬编码兜底（灰/深板岩/浅灰蓝），
+//   属「危险 fallback」——token 未加载时会渲染出与主题相反的深色块（当前为浅色主题）。
+//   改为 _readTokResolved()：先直接读变量；读不到时借浏览器自身解析 var()（临时探针元素 → computed color），
+//   返回 rgb(...) 实值。全程零硬编码 hex，且与主题一致。
+function _readTokResolved(name) {
+  const direct = _readTok(name);
+  if (direct) return direct;
+  try {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(' + name + ')';
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    (document.body || document.documentElement).appendChild(probe);
+    const c = getComputedStyle(probe).color;
+    probe.remove();
+    return (c && c !== '' && c !== 'rgba(0, 0, 0, 0)') ? c : '';
+  } catch { return ''; }
+}
+// 兼容 rgb()/rgba() 输入（_readTokResolved 解析结果是 rgb(...)，不再是 hex）
+function _hexToRgb(h) {
+  const s = String(h || '').trim();
+  const m = s.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+  if (m) return [Math.round(+m[1]), Math.round(+m[2]), Math.round(+m[3])];
+  let x = s.replace('#','');
+  if (x.length === 3) x = x.split('').map((c) => c + c).join('');
+  const n = parseInt(x, 16);
+  if (!isFinite(n)) return [0, 0, 0];
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+function _rgbToHex(r) { return '#' + r.map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join(''); }
+function _rgbToHsl(r, g, b) { r /= 255; g /= 255; b /= 255; const max = Math.max(r, g, b), min = Math.min(r, g, b); let h, s, l = (max + min) / 2; if (max === min) h = s = 0; else { const d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4; } h /= 6; } return [h * 360, s, l]; }
+function _hslToRgb(h, s, l) { h /= 360; let r, g, b; if (s === 0) r = g = b = l; else { const q = l < 0.5 ? l * (1 + s) : l + s - l * s; const p = 2 * l - q; const hue = (t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }; r = hue(h + 1 / 3); g = hue(h); b = hue(h - 1 / 3); } return [r * 255, g * 255, b * 255]; }
+function _rotateHue(hex, deg) { const [r, g, b] = _hexToRgb(hex); const [h, s, l] = _rgbToHsl(r, g, b); const [nr, ng, nb] = _hslToRgb((h + deg + 360) % 360, s, l); return _rgbToHex([nr, ng, nb]); }
+
+// ─── 决策网络弹窗（任务列表行点击打开；默认进入 Q1 直接原因）───
+const dnModalEl = () => document.getElementById('dn-modal');
+function openDnModal(id) {
+  let modal = dnModalEl();
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'dn-modal';
+    modal.className = 'dn-modal';
+    modal.innerHTML = `
+      <div class="dn-modal-panel">
+        <div class="dn-modal-head">
+          <div class="dn-modal-title">决策网络<crm-button class="dn-close" onclick="closeDnModal()">×</crm-button></div>
+          <div class="dn-modal-sub" id="dn-modal-id"></div>
+        </div>
+        <div class="dn-modal-body" id="dn-modal-body"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  document.getElementById('dn-modal-id').textContent = '决策：' + (id || '').slice(0, 8) + '…';
+  // 弹窗容器作为视图渲染目标
+  dnOut = document.getElementById('dn-modal-body');
+  DN_CACHE.root = id; DN_CACHE.trace = DN_CACHE.impact = DN_CACHE.audit = DN_CACHE.audit4q = null;
+  dnOut.innerHTML = `<div class="dn-loading">加载决策网络…</div>`;
+  dnAudit4q();
+  // 2026-08-31：弹窗与页面级内联摘要保持同一决策（页面下方不再是「— 等待查询 —」死区）
+  renderDnInline(id);
+}
+function closeDnModal() {
+  const modal = dnModalEl();
+  if (modal) modal.style.display = 'none';
+}
+
+// 闸门「钻取决策」按钮 → 打开该 scenario 下首个决策的决策网络弹窗
+async function openScenarioModal(scenarioId) {
+  // 3-TAB 重构（2026-09-04）：#detail 区已删除，失败路径改 alert（不再依赖 #detail id）
+  try {
+    const r = await fetch(`/api/monitor/decisions?scenario_id=${encodeURIComponent(scenarioId)}&limit=1`);
+    const j = await r.json();
+    const items = j.items || j.decisions || [];
+    if (!items.length) {
+      alert(`${scenarioId} 暂无决策，无法打开决策网络`);
+      return;
+    }
+    openDnModal(items[0].decision_id);
+  } catch (e) {
+    alert(`加载失败：${_esc(e.message)}`);
+  }
+}
+
+// ─── Phase4 A-T6 Layer0 平台问责健康头（双口径防假绿）───
+// ① 可审计性 N/4（/api/monitor/auditability） ② 上下文供给 N/7（/api/monitor/supply-health，演示边不计入分母）
+// ③ 三闭环（/api/monitor/gates 决策闭环 + 下方三闭环卡片）
+async function loadSupplyHealth() {
+  // 修复：safeJson 此前仅在 loadLoops() 局部定义，本函数作用域缺失 → 三处调用 ReferenceError 被空 catch 吞掉，
+  // 三个 Layer0 卡永远停在模板初始「加载中…」（2026-09-01 修复）
+  const safeJson = async (url) => {
+    try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); }
+    catch { return null; }
+  };
+  try {
+    const a = await safeJson('/api/monitor/auditability');
+    if (a) {
+      const scored = a.scored || (a.decisions && a.decisions.length) || 0;
+      const full = a.full || 0;
+      const pct = a.auditability_pct != null ? a.auditability_pct : (scored ? Math.round((full / scored) * 100) : null);
+      const el = document.getElementById('l0-audit');
+      if (el) el.innerHTML = scored === 0 ? `0<small> /4 · 未触发</small>` : `${full}<small> /${scored} 全绿</small>`;
+      const bar = document.getElementById('l0-audit-bar');
+      if (bar) {
+        if (scored === 0) {
+          bar.innerHTML = `<span class="layer0-q warn">决策子系统尚未触发 · 无评分素材</span>`;
+        } else {
+          const ps = a.per_status || {};
+          const mk = (q) => { const s = ps[q] || {}; const cls = s.fail > 0 ? 'err' : (s.pass >= (s.warn || 0) ? 'ok' : 'warn'); return `<span class="layer0-q ${cls}">${q} ${s.pass || 0}✓</span>`; };
+          bar.innerHTML = ['Q1', 'Q2', 'Q3', 'Q4'].map(mk).join('');
+        }
+      }
+      const sub = document.getElementById('l0-audit-sub');
+      if (sub) sub.textContent = scored === 0
+        ? '决策子系统尚未触发 · 可审计性 — · 全绿 0/0'
+        : `可审计性 ${pct != null ? pct + '%' : '—'} · 全绿 ${full}/${scored}`;
+      // 2026-09-04：总览总体指标条「整体可审计率」（与 L0 同一接口，零新增）
+      const mAudit = document.getElementById('m-audit-rate');
+      if (mAudit) mAudit.textContent = (pct != null ? pct + '%' : scored === 0 ? '—' : '—') + `（${full}/${scored}）`;
+    }
+  } catch { /* 不影响其余加载 */ }
+  try {
+    const h = await safeJson('/api/monitor/supply-health');
+    if (h) {
+      const snapN = h.decisions_with_snapshot || 0;
+      const el = document.getElementById('l0-supply');
+      if (el) el.innerHTML = snapN === 0 ? `0<small>% · 未装配</small>` : `${h.supply_n7_pct}<small>%</small>`;
+      const sub = document.getElementById('l0-supply-sub');
+      if (sub) sub.textContent = snapN === 0
+        ? '尚未装配任何上下文快照 · 真实快照 0 个决策'
+        : `真实快照 ${h.decisions_with_snapshot} 个决策 · 供给维合计 ${h.supplied_dims_total}/${(h.decisions_with_snapshot || 0) * 7 || '—'}${h.degraded_count ? ' · ' + h.degraded_count + ' 降级' : ''}`;
+      const rt = document.getElementById('l0-edge-rt'); if (rt) rt.textContent = (h.edge_caliber && h.edge_caliber.runtime != null) ? h.edge_caliber.runtime : '—';
+      const demo = document.getElementById('l0-edge-demo'); if (demo) demo.textContent = (h.edge_caliber && h.edge_caliber.demo != null) ? h.edge_caliber.demo : '—';
+      // 2026-09-04：总览总体指标条「整体供给率」（与 L0 同一接口，零新增）
+      const mSupply = document.getElementById('m-supply-rate');
+      if (mSupply) mSupply.textContent = snapN === 0 ? '—（未装配）' : `${h.supply_n7_pct}% · ${h.decisions_with_snapshot} 快照`;
+    }
+  } catch { /* 不影响其余加载 */ }
+  try {
+    const gates = await safeJson('/api/monitor/gates');
+    const sub = document.getElementById('l0-loops');
+    if (sub && gates) {
+      // 3-TAB 重构（2026-09-04）：Layer0 卡③已删除（与三闭环条同指标双份），
+      // 此处合并为一条汇总注入三闭环条（#loop-strip 头部），不再渲染独立卡。
+      const total = (gates.gates || []).reduce((acc, g) => acc + ((g.metrics && g.metrics.total) || 0), 0);
+      const strip = document.getElementById('loop-strip');
+      if (strip) {
+        const head = document.createElement('div');
+        head.className = 'loop-pending';
+        head.style.cssText = 'grid-column:1/-1;font-size:12px;margin:0;';
+        head.innerHTML = total === 0
+          ? `决策闭环：7 闸门累计 <b>0</b> 决策 · 知识/记忆闭环见下方三卡`
+          : `决策闭环：7 闸门累计 <b>${total}</b> 决策 · 知识/记忆闭环见下方三卡`;
+        strip.appendChild(head);
+      }
+    }
+  } catch { /* 不影响其余加载 */ }
+}
+window.loadSupplyHealth = loadSupplyHealth;
+
+// ─── 待办/决策任务列表 + 隐藏选择器（3-TAB 重构 2026-09-04）───
+// 契约：dn-select 已从可见 UI 移除（设计 §4 去重删除），但 10+ 处 JS 引用其 id，
+// 故保留隐藏元素承接 value + change 联动（零函数删除、id 契约不破坏）。
+const _dnHiddenSelect = () => document.getElementById('dn-select');
+function _dnSyncHiddenSelect(items) {
+  const sel = _dnHiddenSelect();
+  if (!sel) return;
+  try {
+    // dn-select 为 <crm-select> 自定义元素（非原生 select）：无 options 属性，用 querySelectorAll('option') 判定
+    const cur = sel.querySelectorAll('option').length;
+    if (cur !== items.length) {
+      sel.innerHTML = items.map((d) =>
+        `<option value="${_esc(d.decision_id)}">${_esc((decisionName(d) || '').slice(0, 40))}</option>`).join('');
+    }
+    if (!sel.__dnBound) {
+      sel.__dnBound = true;
+      sel.addEventListener('change', () => {
+        if (sel.value) renderDnInline(sel.value);
+      });
+    }
+  } catch { /* 隐藏选择器同步失败不阻断清单渲染（非关键路径） */ }
+}
+// 3-TAB 重构：TAG 2 决策档案激活才首拉（设计 §3.3 懒加载/按 TAB 轮询契约）
+let _tasklistLoaded = false;
+async function loadTaskList() {
+  const out = document.getElementById('tasklist');
+  const sel = _dnHiddenSelect();
+  let items = [];
+  try {
+    const r = await fetch('/api/monitor/decisions?limit=200');
+    const j = await r.json();
+    items = Array.isArray(j.items) ? j.items : (j.decisions || []);
+  } catch (e) {
+    out.innerHTML = `<div class="dn-empty">决策列表加载失败：${_esc(e.message)}</div>`;
+    return;
+  }
+  if (!items.length) { out.innerHTML = `<div class="dn-empty">暂无决策记录</div>`; return; }
+  _tasklistLoaded = true;
+  _dnSyncHiddenSelect(items);
+  // 3-TAB 重构：整行点击打开决策网络弹窗（设计 §4 待办行联动；替代原可见下拉选决策）
+  const filterOpts = (list, k) => {
+    const v = new Set(list.map((d) => d[k]).filter(Boolean));
+    return [...v].map((x) => `<option value="${_esc(x)}">${_esc(x)}</option>`).join('');
+  };
+  const selScenario = document.getElementById('task-filter-scenario');
+  const selDisp = document.getElementById('task-filter-disposition');
+  const inputName = document.getElementById('task-filter-name');
+  if (selScenario && !selScenario.__filled) {
+    selScenario.innerHTML = '<option value="">全部场景</option>' + filterOpts(items, 'scenario_id');
+    selScenario.__filled = true;
+  }
+  if (selDisp && !selDisp.__filled) {
+    const kept = ['escalated', 'autonomous', 'confirmed', 'reversed'].filter((x) => items.some((d) => d.disposition === x));
+    selDisp.innerHTML = '<option value="">全部处置</option>' + kept.map((x) => `<option value="${x}">${x}</option>`).join('');
+    selDisp.__filled = true;
+  }
+  // 行内联：场景 + 处置 + 名称三条件同时命中（AND）
+  const qScenario = selScenario ? selScenario.value : '';
+  const qDisp = selDisp ? selDisp.value : '';
+  const qName = (inputName ? inputName.value : '').trim().toLowerCase();
+  const rows = items.filter((d) => {
+    if (qScenario && d.scenario_id !== qScenario) return false;
+    if (qDisp && d.disposition !== qDisp) return false;
+    if (qName && !(decisionName(d) || '').toLowerCase().includes(qName)) return false;
+    return true;
+  });
+  out.innerHTML = `<div class="dn-list-meta">共 <b>${items.length}</b> 条 · 当前显示 <b>${rows.length}</b> 条（点击行打开决策网络）</div>` +
+    `<table class="task-table"><thead><tr>
+      <th>决策 ID</th><th>场景</th><th>名称</th><th>处置 / 状态</th><th>业务分级</th><th></th>
+    </tr></thead><tbody>` + (rows.length ? rows.map((d) => `
+    <tr class="task-row" style="cursor:pointer" onclick="openDnModal('${_esc(d.decision_id)}')">
+      <td><code title="${_esc(d.decision_id)}">${_esc(_short(d.decision_id))}</code></td>
+      <td>${_esc(d.scenario_id || '—')}</td>
+      <td>${_esc(decisionName(d))}</td>
+      <td>${_esc(d.disposition || '—')} / ${_esc(d.state || '—')}</td>
+      <td>${_esc(d.business_tier || '—')}</td>
+      <td><crm-button onclick="event.stopPropagation();openDnModal('${_esc(d.decision_id)}')">查看决策网络</crm-button></td>
+    </tr>`).join('') : `<tr><td colspan="6" class="dn-empty">无匹配决策（可调整筛选）</td></tr>`) + `</tbody></table>`;
+  // 2026-08-31：页面级内联摘要默认渲染首个决策（TAG 2 激活时由 onActivateTab 联动渲染）
+  if (items.length && !DN_CACHE.root) DN_CACHE.root = items[0].decision_id;
+  renderDnInline(DN_CACHE.root);
+}
+window.loadTaskList = loadTaskList;
+// 筛选控件联动（HTML 挂载的 onclick 入口）
+window.applyTaskFilters = () => loadTaskList();
+window.clearTaskFilters = () => {
+  const ss = document.getElementById('task-filter-scenario');
+  const sd = document.getElementById('task-filter-disposition');
+  const si = document.getElementById('task-filter-name');
+  if (ss) ss.value = '';
+  if (sd) sd.value = '';
+  if (si) si.value = '';
+  loadTaskList();
+};
+// 3-TAB 重构：loadTaskList 首拉改由 TAB2 激活时触发（懒加载契约，不再启动即拉）
+loadSupplyHealth();
+
+// ─── 夜间决策复盘浮卡：渲染 + 拉取 + SSE 订阅（J3 校准层实时出口）───
+// 数据来源：GET /api/calibration/retro/latest（返回 {report} 包装，前端读 j.report.*）+ SSE calibration 域 retro-suggestions
+function renderRetroFab(data) {
+  const fab = document.getElementById('retro-fab');
+  const body = document.getElementById('retro-fab-body');
+  if (!fab || !body) return;
+  if (fab.style.display === 'none') return; // 非管理员（fab 未开放）跳过渲染
+  const clusters = data?.clusters || [];
+  const patches = data?.draft_patches || data?.draftPatches || [];
+  if (!clusters.length && !patches.length) {
+    body.innerHTML = '<div class="retro-fab-empty">暂无复盘建议。夜间定时跑批后自动出现；也可在「决策校准」页手动生成处方。</div>';
+    return;
+  }
+  const ranAt = data.run_at || data.runAt || data.window_end || '';
+  let html = `<div class="retro-fab-badge">最近复盘：${_esc((ranAt || '').toString().slice(0, 19).replace('T', ' '))} · 扫描 ${data.decisions_scanned ?? 0} 条</div>`;
+  if (patches.length) {
+    html += patches.slice(0, 6).map((p) => {
+      const scenario = p.scenario_id || '全局';
+      const cls = p.root_cause_class || p.rootCauseClass || '—';
+      const layer = p.target_layer || p.targetLayer || '—';
+      const knob = p.recommended_knob || p.recommendedKnob || '';
+      const impact = p.expected_impact || p.expectedImpact || '';
+      const note = p.llm_notes || p.llmNotes || '';
+      return `<div class="retro-fab-cluster">
+        <h4>${_esc(scenario)}</h4>
+        <div class="retro-fab-rc">根因：<b>${_esc(cls)}</b> · 修复层：<b>${_esc(layer)}</b></div>
+        ${knob ? `<div class="retro-fab-rc"><span class="retro-fab-knob">${_esc(knob)}</span></div>` : ''}
+        ${impact ? `<div class="retro-fab-impact">预期影响：${_esc(impact)}</div>` : ''}
+        ${note ? `<div class="retro-fab-impact">${_esc(note)}</div>` : ''}
+      </div>`;
+    }).join('');
+  } else {
+    html += clusters.slice(0, 6).map((c) => {
+      const errs = c.error_types || {};
+      const errStr = Object.entries(errs).filter(([, v]) => v > 0).map(([k, v]) => `${_esc(k)}:${v}`).join(' ') || '无';
+      return `<div class="retro-fab-cluster">
+        <h4>${_esc(c.scenario_id || '全局')}</h4>
+        <div class="retro-fab-rc">决策 <b>${c.decisions ?? 0}</b> 条 · 偏误分布：${errStr}</div>
+      </div>`;
+    }).join('');
+  }
+  body.innerHTML = html;
+}
+async function loadRetroLatest() {
+  try {
+    const r = await fetch('/api/calibration/retro/latest');
+    if (!r.ok) return;
+    const j = await r.json();
+    const rep = j?.report || {};
+    if (j && (rep.clusters?.length || rep.draft_patches?.length)) renderRetroFab(rep);
+    else {
+      const body = document.getElementById('retro-fab-body');
+      if (body && document.getElementById('retro-fab').style.display !== 'none')
+        body.innerHTML = '<div class="retro-fab-empty">暂无复盘建议。</div>';
+    }
+  } catch {}
+}
+function toggleRetroFab() {
+  const body = document.getElementById('retro-fab-body');
+  const foot = document.querySelector('.retro-fab-foot');
+  if (!body) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  if (foot) foot.style.display = hidden ? '' : 'none';
+}
+// ─── 参数体检浮卡（P2 2026-09-05）：22 项算法参数每夜体检的实时出口 ───
+// 数据来源：SSE calibration 域 param-inspection（summary 含 inspected/healthy/drift/
+//   degraded/unknown/patches_created）兜底 /api/calibration/retro/latest 的 report.param_inspection。
+// 渲染：概要 pills（健康/漂移/冷却/未知）+ 漂移/未知明细行 + 处方入口（/my-todo.html?view=tuning）。
+function _p2badge(h) {
+  const map = { healthy: 'healthy', drift: 'drift', degraded: 'drift', cooling: 'cooling', unknown: 'unknown' };
+  const label = { healthy: '健康', drift: '漂移', degraded: '漂移', cooling: '冷却', unknown: '未知' };
+  const k = map[h] || 'unknown';
+  return `<span class="pf-badge ${k}">${label[h] || h}</span>`;
+}
+function renderParamFab(data) {
+  const fab = document.getElementById('param-fab');
+  const body = document.getElementById('param-fab-body');
+  if (!fab || !body) return;
+  if (fab.style.display === 'none') return; // 非管理员未开放，跳过渲染
+  const items = (data && (data.items || data.param_inspection?.items)) || [];
+  if (!items.length && !data?.inspected) {
+    body.innerHTML = '<div class="retro-fab-empty">暂无参数体检数据。夜间定时跑批后自动出现；也可去「决策校准」页触发。</div>';
+    return;
+  }
+  const ranAt = data?.inspected_at || data?.run_at || '';
+  let html = `<div class="retro-fab-badge">最近体检：${_esc(String(ranAt).slice(0, 19).replace('T', ' ')) || '—'} · ${data?.inspected ?? items.length} 项</div>`;
+  html += `<div class="param-fab-summary">
+    <span class="param-fab-pill ok">健康 <b>${data?.healthy ?? items.filter((i) => i.health === 'healthy').length}</b></span>
+    <span class="param-fab-pill drift">漂移 <b>${data?.drift ?? items.filter((i) => ['drift', 'degraded'].includes(i.health)).length}</b></span>
+    <span class="param-fab-pill cool">冷却 <b>${data?.cooling ?? items.filter((i) => i.health === 'cooling').length}</b></span>
+    <span class="param-fab-pill unk">未知 <b>${data?.unknown ?? items.filter((i) => i.health === 'unknown').length}</b></span>
+    <span class="param-fab-pill">处方 <b>${data?.patches_created ?? data?.patches?.length ?? 0}</b></span>
+  </div>`;
+  const detail = items.filter((i) => i.health !== 'healthy').slice(0, 8);
+  if (detail.length) {
+    html += `<div class="param-fab-details">`;
+    html += detail.map((i) => `<div class="param-fab-row">
+      <span class="pf-key">${_esc(i.group || '')}·<b>${_esc(i.param || i.key || '')}</b></span>
+      ${i.current != null ? `<span class="pf-val">现 ${_esc(String(i.current))}</span>` : ''}
+      ${i.suggested != null ? `<span class="pf-val">→ ${_esc(String(i.suggested))}</span>` : ''}
+      ${_p2badge(i.health)}
+    </div>`).join('');
+    html += `</div>`;
+  } else {
+    html += '<div class="retro-fab-empty">全部 22 项参数处于健康走廊，无需调整。</div>';
+  }
+  body.innerHTML = html;
+}
+async function loadParamFab() {
+  try {
+    const r = await fetch('/api/calibration/retro/latest');
+    if (!r.ok) return;
+    const j = await r.json();
+    const pi = j?.report?.param_inspection;
+    if (pi && typeof pi === 'object' && pi.inspected) renderParamFab(pi);
+    else {
+      const body = document.getElementById('param-fab-body');
+      if (body && document.getElementById('param-fab').style.display !== 'none')
+        body.innerHTML = '<div class="retro-fab-empty">暂无参数体检数据。</div>';
+    }
+  } catch {}
+}
+function toggleParamFab() {
+  const body = document.getElementById('param-fab-body');
+  if (!body) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  const foot = body.nextElementSibling;
+  if (foot) foot.style.display = hidden ? '' : 'none';
+}
+// SSE：仅订阅 calibration 域 retro-suggestions，复盘跑批后浮卡实时刷新
+// 契约（bus.js:17-19）：emit(domain,type,payload) 包装成 { domain, type, ts, summary }，
+// SSE 帧 event=msg.domain / data={domain,type,ts,summary}——所以判 msg.type、读 msg.summary。
+try {
+  const es = new EventSource('/events');
+  es.addEventListener('calibration', (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg?.type === 'retro-suggestions') renderRetroFab(msg.summary || {});
+      if (msg?.type === 'param-inspection') renderParamFab(msg.summary || {});
+    } catch {}
+  });
+} catch {}
+
+</script>
+<script type="module">
+import { get, post, me } from '/portal/api.js';
+import { renderCalibration } from '/portal/calibrationRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+
+// ─── 总览汇总卡 → 决策档案明细下钻（2026-09-04 用户确认：总览只有总体数据，明细点进去）───
+// 设计 §2.1/§2.2：gate 质量卡 9 卡与 L2 双环明细集中在「决策档案」tab，总览只放汇总卡。
+// goArchive('gates'|'l2')：切到 archive tab 并滚动到对应明细区（懒加载由 _activateTab 触发）。
+window.goArchive = (anchor) => {
+  // 找到并点击「决策档案」tab（触发 _activateTab('archive') → 懒加载 + URL ?tab=archive）
+  const tab = [...document.querySelectorAll('crm-tab')].find((x) => x.dataset.pageTab === 'archive');
+  if (tab) tab.click();
+  // 切 tab 后 DOM 显示，滚动到目标明细区（页面级唯一目标：gates / l2-feedback）
+  const target = anchor === 'l2' ? document.getElementById('l2-feedback') : document.getElementById('gates');
+  if (target) {
+    setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }
+};
+
+// ─── 页面级 tab（3-TAB 重构 2026-09-04）：总览监控 / 决策档案 / 校准治理 ───
+// 设计 §3.2 URL 状态保持：?tab=overview|archive|governance，history.replaceState 不刷新。
+// 设计 §3.3 懒加载 + 按 TAB 轮询：仅激活 TAB 首拉并轮询，未激活不触发接口。
+const _PAGE_TAB_MAP = { overview: 'page-overview', archive: 'page-archive', governance: 'page-governance' };
+const _POLL_SPEC = {
+  overview:   [{ fn: 'load', ms: 5000 }, { fn: 'loadL2', ms: 10000 }, { fn: 'loadAttribution', ms: 5000 }, { fn: 'loadLoops', ms: 15000 }],
+  archive:    [{ fn: 'loadTaskList', ms: 15000 }],
+  governance: [{ fn: 'loadCalib', ms: 30000 }, { fn: 'loadClosureLoop', ms: 30000 }],
+};
+const _tabPolls = {};
+function _setTabPolling(tab, on) {
+  const spec = _POLL_SPEC[tab]; if (!spec) return;
+  if (!on) {
+    Object.keys(_tabPolls).forEach((k) => { if (_tabPolls[k] === tab) { clearInterval(+k); delete _tabPolls[k]; } });
+    return;
+  }
+  spec.forEach((s) => {
+    const key = tab + ':' + s.fn;
+    if (_tabPolls[key]) return;
+    const id = setInterval(() => { const f = window[s.fn]; if (f) f(); }, s.ms);
+    _tabPolls[key] = tab;
+  });
+}
+const _tabFirstLoaded = {};
+function _activateTab(tab) {
+  document.querySelectorAll('crm-tab').forEach((x) => x.toggleAttribute('active', x.dataset.pageTab === tab));
+  Object.entries(_PAGE_TAB_MAP).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = k === tab ? '' : 'none';
+  });
+  // 懒加载：首进 TAB 才首拉（overview 五个模块 / archive 清单+真图 / governance 校准+活度）
+  if (!_tabFirstLoaded[tab]) {
+    _tabFirstLoaded[tab] = true;
+    if (tab === 'overview') { load(); loadL2(); loadAttribution(); loadLoops(); loadSupplyHealth(); }
+    if (tab === 'archive') { loadTaskList(); renderTrueGraph(); }
+    if (tab === 'governance') { loadCalib(); loadClosureLoop(); }
+  }
+  // 按 TAB 轮询：只保活激活 TAB 的 interval
+  Object.keys(_PAGE_TAB_MAP).forEach((k) => _setTabPolling(k, k === tab));
+  const query = new URLSearchParams(window.location.search);
+  if (query.get('tab') !== tab) {
+    query.set('tab', tab);
+    history.replaceState(null, '', window.location.pathname + '?' + query.toString());
+  }
+}
+async function initTabs() {
+  // me() 返回 { role, display_name, username }（直接透传，无 ok 包装 —— 前端守卫契约铁律）
+  const u = await me().catch(() => null);
+  const isAdmin = u && (u.role === 'admin' || u.role === 'sysadmin');
+  window.DN_IS_ADMIN = !!isAdmin; // 写 window（跨 script 块共享，block0 经 defineProperty getter 同步到局部读取端）
+  const tabGov = document.getElementById('page-tab-governance');
+  if (isAdmin) {
+    if (tabGov) tabGov.style.display = '';
+    const fab = document.getElementById('retro-fab');
+    if (fab) { fab.style.display = 'flex'; loadRetroLatest(); }
+    const pfab = document.getElementById('param-fab');
+    if (pfab) { pfab.style.display = 'flex'; loadParamFab(); }
+  }
+  const tabs = document.querySelectorAll('crm-tab');
+  tabs.forEach((t) => t.addEventListener('click', () => _activateTab(t.dataset.pageTab)));
+  // 初始 TAB：URL ?tab= 优先；无/非法则 overview；governance 需 admin 才可达
+  let initial = new URLSearchParams(window.location.search).get('tab');
+  if (!_PAGE_TAB_MAP[initial]) initial = 'overview';
+  if (initial === 'governance' && !isAdmin) initial = 'overview';
+  _activateTab(initial);
+}
+
+// ─── 决策校准（P2 四段式：指标卡 / 归因 / 处方卡 / 历史）───
+const out = document.getElementById('cal-output');
+const scn = document.getElementById('cal-scenario');
+const win = document.getElementById('cal-window');
+
+async function loadCalib() {
+  if (!out) return;
+  const q = `scenario_id=${encodeURIComponent(scn.value)}&window_days=${encodeURIComponent(win.value)}`;
+  out.textContent = '加载中…';
+  try {
+    const [att, list] = await Promise.all([
+      get(`/api/calibration/attribution?${q}`),
+      get('/api/calibration/patches'),
+    ]);
+    out.innerHTML = renderCalibration(
+      { metrics: att.metrics, attribution: att.attribution },
+      list.patches || [],
+    );
+    bindActions();
+  } catch (e) {
+    out.textContent = `加载失败：${e.message || e}（本段需 sysadmin）`;
+  }
+}
+window.loadCalib = loadCalib; // 治理 TAB 轮询经 window[fn] 调度（同 loadClosureLoop）
+
+function bindActions() {
+  const wire = (attr, fn) => out.querySelectorAll(`[data-cal-${attr}]`).forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true;
+      try { await fn(b.dataset[`cal${attr[0].toUpperCase()}${attr.slice(1)}`]); }
+      catch (e) { alert(`操作失败：${e.message || e}`); }
+      await loadCalib();
+    };
+  });
+  wire('approve', async (id) => {
+    const card = document.querySelector(`[data-cal-approve="${id}"]`)?.closest('[data-patch]');
+    const risk = card?.dataset?.risk;
+    if (risk === 'HIGH' && !confirm('此处方将放宽拦截（block→warn / 移除 dim 要求），确认？')) return;
+    await post(`/api/calibration/patches/${id}/approve`, {});
+  });
+  wire('reject', (id) => post(`/api/calibration/patches/${id}/reject`, {}));
+  wire('rollback', (id) => post(`/api/calibration/patches/${id}/rollback`, {}));
+}
+
+document.getElementById('cal-refresh').addEventListener('click', loadCalib);
+document.getElementById('cal-generate').addEventListener('click', async () => {
+  const btn = document.getElementById('cal-generate');
+  btn.disabled = true;
+  try {
+    const r = await post('/api/calibration/patches/generate', {
+      scenario_id: scn.value || null,
+      window_days: Number(win.value),
+    });
+    if (r.blocked_by?.length) alert(`未生成处方：${r.blocked_by.map((b) => b.reason).join('；')}`);
+    else if (r.created > 0) alert(`已生成 ${r.created} 条处方${r.skipped_duplicates ? `（重复跳过 ${r.skipped_duplicates}）` : ''}`);
+    else alert(r.skipped_duplicates ? `处方已存在（跳过 ${r.skipped_duplicates}）` : '当前无候选处方（规则未命中）');
+  } catch (e) { alert(`生成失败：${e.message || e}`); }
+  btn.disabled = false;
+  await loadCalib();
+});
+
+initTabs();
+</script>
+
+<!-- ─── 夜间决策复盘浮卡（J3 校准层实时出口：偏差→根因→建议；订阅 SSE calibration 域 retro-suggestions）─── -->
+<aside id="retro-fab" class="retro-fab" aria-live="polite">
+  <div class="retro-fab-head">
+    <span class="retro-fab-title">夜间决策复盘</span>
+    <crm-button class="retro-fab-collapse" onclick="toggleRetroFab()" title="折叠/展开">—</crm-button>
+  </div>
+  <div class="retro-fab-body" id="retro-fab-body">
+    <div class="retro-fab-loading">加载中…</div>
+  </div>
+  <div class="retro-fab-foot">
+    <a class="retro-fab-link" id="retro-rerun-link" href="/decision-scenarios.html">去重跑场景 →</a>
+  </div>
+</aside>
+
+<!-- ─── 参数体检浮卡（P2 2026-09-05：22 项算法参数每夜体检出口；订阅 SSE calibration 域 param-inspection）─── -->
+<aside id="param-fab" class="retro-fab" aria-live="polite">
+  <div class="retro-fab-head">
+    <span class="retro-fab-title">参数体检（22 项）</span>
+    <crm-button class="retro-fab-collapse" onclick="toggleParamFab()" title="折叠/展开">—</crm-button>
+  </div>
+  <div class="retro-fab-body" id="param-fab-body">
+    <div class="retro-fab-loading">加载中…</div>
+  </div>
+  <div class="retro-fab-foot">
+    <a class="retro-fab-link" href="/my-todo.html?view=tuning">去参数调优 →</a>
+  </div>
+</aside>
+
+<!-- ─── 7×7 巡检卡抽屉（T5：决策图节点 tap → 逐决策巡检 7 维装配 × 7 类边）─── -->
+<div id="dn-77-drawer" class="dn-drawer" aria-hidden="true">
+  <div id="dn-77-body"></div>
+</div>
+<!-- ─── B6/B7 决策三卡：已移入 TAB2 决策档案（#page-archive>#decision-cards 457 行单份承载）───
+     旧全局残骸已删除（2026-09-04 3-TAB 重构）：此区块与 TAB2 内同 id 重复，属「同源双份」删除项。
+     dcLoad/dcEsc/dcStatus/dcLevel 函数声明保留于下方 script（零删函数铁律），TAB2 按钮引用不变。 -->
+<script>
+function dcEsc(s){ if(s==null) return ''; return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function dcStatus(s){ return s==='pass'?'ok':(s==='warn'?'warn':'err'); }
+function dcLevel(s){ return s==='good'?'pass':(s==='poor'?'err':'warn'); }
+async function dcLoad(){
+  const id = document.getElementById('dc-id').value.trim();
+  const msg = document.getElementById('dc-msg');
+  if(!id){ msg.textContent='请输入 decision_id'; return; }
+  msg.textContent='加载中…';
+  try {
+    const [sc, rb, th] = await Promise.all([
+      fetch(`/api/decision/${encodeURIComponent(id)}/selfcheck`).then(r=>r.ok?r.json():{error:r.status}),
+      fetch(`/api/decision/${encodeURIComponent(id)}/rubric`).then(r=>r.ok?r.json():{error:r.status}),
+      fetch(`/api/decision/${encodeURIComponent(id)}/thinking`).then(r=>r.ok?r.json():{error:r.status}),
+    ]);
+    if(sc.error){ msg.textContent='自检卡：'+sc.error; document.getElementById('dc-selfcheck').innerHTML='<div class="dn-empty">'+dcEsc(String(sc.error))+'</div>'; }
+    else {
+      const sum = sc.summary||{};
+      document.getElementById('dc-selfcheck').innerHTML =
+        `<div class="dn-meta"><dt>总体</dt><dd class="acc ${dcStatus(sum.overall)}">${sum.overall}</dd><dt>pass/warn/fail</dt><dd>${sum.pass||0}/${sum.warn||0}/${sum.fail||0}</dd></div>` +
+        '<ul>' + (sc.questions||[]).map(q=>`<li><span class="acc ${dcStatus(q.status)}">[${q.status}]</span> Q${q.no}. ${dcEsc(q.ask)} <span style="color:var(--mut)">— ${dcEsc(q.evidence)}</span></li>`).join('') + '</ul>';
+    }
+    if(rb.error){ document.getElementById('dc-rubric').innerHTML='<div class="dn-empty">'+dcEsc(String(rb.error))+'</div>'; }
+    else {
+      const sc2 = rb.rubric||{};
+      const det = (rb.details||[]).map(d=>`<li>${dcEsc(d.rubric_key)}: ${d.score}/${d.max_score} (${d.level})${d.degraded?' · degraded':''}</li>`).join('');
+      document.getElementById('dc-rubric').innerHTML =
+        `<div class="dn-meta"><dt>加权总分</dt><dd>${typeof sc2.weighted_total==='number'?sc2.weighted_total.toFixed(2):'—'}</dd><dt>level</dt><dd class="acc ${dcStatus(dcLevel(sc2.level))}">${sc2.level||'—'}</dd></div>` +
+        (det?`<ul>${det}</ul>`:'<div class="dn-empty">无尺子明细</div>');
+    }
+    if(th.error){ document.getElementById('dc-thinking').innerHTML='<div class="dn-empty">'+dcEsc(String(th.error))+'</div>'; }
+    else {
+      const el = th.elements||{}; const story = th.story||{};
+      const elHtml = Object.keys(el).filter(k=>el[k]&&(Array.isArray(el[k])?el[k].length:Object.keys(el[k]).length)).map(k=>`<li><b>${k}</b>: ${dcEsc(JSON.stringify(el[k]).slice(0,240))}</li>`).join('');
+      const storyHtml = `<div class="dn-meta"><dt>角色(characters)</dt><dd>${story.characters?story.characters.length:0}</dd><dt>动态(dynamics)</dt><dd>${story.dynamics?story.dynamics.length:0}</dd><dt>轨迹(trajectory)</dt><dd>${story.trajectory?story.trajectory.length:0}</dd></div>`;
+      document.getElementById('dc-thinking').innerHTML = (elHtml?`<ul>${elHtml}</ul>`:'<div class="dn-empty">八要素未物化</div>') + storyHtml;
+    }
+    msg.textContent = (sc.error||rb.error||th.error)?'部分加载失败（详见各卡）':'已加载真实三卡';
+  } catch(e){ msg.textContent='加载异常：'+e.message; }
+}
+</script>
+</body>
+</html>

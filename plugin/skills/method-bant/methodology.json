@@ -1,0 +1,13 @@
+{
+  "methodology_id": "BANT",
+  "name": "BANT 商机资质方法论",
+  "role": "sales",
+  "dimensions": [
+    {"dim_key":"B","label":"预算 Budget","weight":1.0,"required":true,"desc":"客户预算是否明确、金额是否在可覆盖范围，有无预算线"},
+    {"dim_key":"A","label":"决策权限 Authority","weight":1.0,"required":true,"desc":"接入的是决策人/影响者/使用者，决策链长度与复杂度"},
+    {"dim_key":"N","label":"需求 Need","weight":1.0,"required":true,"desc":"痛点是否真实紧迫，有无替代方案/竞品在竞争"},
+    {"dim_key":"T","label":"时间线 Timeline","weight":0.8,"required":false,"desc":"购买时间窗是否明确，有无可推进的下一步时间点"}
+  ],
+  "priority_rule": "硬维度优先：B/A/N 任一不达标即低资质，先补缺口再谈投入；事实优先于客户口头意向",
+  "gate_rule": "任一 required 维度评分 <0.6 → 禁止推进（advance 到 S2 前先补证）"
+}

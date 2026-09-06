@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>决策图谱 · 受控渲染 · CRM</title>
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <link rel="stylesheet" href="/portal/page.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+  
+</script>
+
+  <main class="portal-shell">
+    <header class="page-head">
+      <h1>决策图谱</h1>
+      
+    </header>
+    <section id="graph-root" class="portal-content">
+      <div class="pg-loading">加载决策图谱…</div>
+    </section>
+  </main>
+
+  <script type="module">
+    const q = new URLSearchParams(location.search);
+    const fromPath = location.pathname.match(/\/decision-graph\/([^/]+)/);
+    const id = q.get('id') || q.get('decisionId') || (fromPath ? fromPath[1] : '');
+    const url = id ? `/api/page/decision-graph?decisionId=${encodeURIComponent(id)}` : '/api/page/decision-graph';
+    (async () => {
+      try {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${localStorage.getItem('crm_token') || ''}` } });
+        const j = await res.json();
+        const root = document.getElementById('graph-root');
+        if (!res.ok || !j.html) { root.innerHTML = `<div class="pg-empty">决策图谱加载失败：${j.error || '未知错误'}</div>`; return; }
+        root.innerHTML = j.html;
+        // 决策清单行内「切换决策」：点击决策 ID 链接重新加载本页（?decisionId= 联动邻居/溯源链）
+        root.querySelectorAll('a[href^="/decision-graph-board.html?decisionId="]').forEach((a) => {
+          if (!a.dataset.__wired) {
+            a.dataset.__wired = '1';
+            a.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              const href = a.getAttribute('href');
+              const u = new URL(href, location.href);
+              // SPA 化：仅替换 query 并重新拉取，避免整页刷新丢失滚动位置（受控渲染契约：html 由服务端出，客户端只负责换数据重渲染）
+              if (u.pathname === location.pathname) {
+                location.href = u.href;
+              } else {
+                location.href = href; // 跨页（决策链追溯/作战室）走整页
+              }
+            });
+          }
+        });
+      } catch (e) {
+        document.getElementById('graph-root').innerHTML = `<div class="pg-error">渲染错误：${e.message}</div>`;
+      }
+    })();
+
+</script>
+</body>
+</html>

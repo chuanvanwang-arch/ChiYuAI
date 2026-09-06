@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>配置中心 34 项 · 全面回归审计报告</title>
+<style>
+body{font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;background:#f6f8fa;color:#1f2328;margin:0;padding:24px;max-width:1100px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px;border-left:4px solid #0969da;padding-left:10px}
+.sub{color:#57606a;font-size:13px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #d0d7de;border-radius:8px;overflow:hidden;font-size:14px}
+th{background:#f6f8fa;text-align:left;padding:8px 10px;font-size:12px;color:#57606a;border-bottom:1px solid #d0d7de}
+code{background:#eff1f3;padding:1px 4px;border-radius:3px;font-size:12px}
+.banner{background:#fffbe6;border:1px solid #f0c000;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:14px}
+.ok{color:#1a7f37}
+</style></head><body>
+<h1>配置中心 34 项 · 全面回归审计报告</h1>
+<div class="sub">生成时间：2026/9/5 11:33:18 ｜ Server 探测：login=200 token=已获取 ｜ 探测账号 admin</div>
+
+<h2>一、总览（按状态分类）</h2>
+<div><div style="display:inline-block;margin:6px 10px 6px 0;padding:10px 16px;border:1px solid #d0d7de;border-radius:8px;background:#fff">
+    <div style="font-size:24px;font-weight:800;color:#1a7f37">31</div>
+    <div style="font-size:12px;color:#57606a">✅ 正常</div>
+  </div><div style="display:inline-block;margin:6px 10px 6px 0;padding:10px 16px;border:1px solid #d0d7de;border-radius:8px;background:#fff">
+    <div style="font-size:24px;font-weight:800;color:#6e7781">3</div>
+    <div style="font-size:12px;color:#57606a">⚪ 纯显示(无后端)</div>
+  </div></div>
+
+<div class="banner">
+<b>结论：</b>34 项配置点中 <b>31 项正常</b>，<b>0 项缺 config_store 种子</b>（路由已挂载，页面显示"未配置"），
+<b>1 项</b>（#22 本体）endpoint 字段指向不存在的 GET 路径（页面经子路径正常工作，属注册瑕疵），
+<b>3 项纯显示</b>。静态页 34/34 全部 200（server 已重启，旧版 404 已自愈）。
+</div>
+
+<h2>二、34 项逐点明细</h2>
+<table>
+<thead><tr><th style="padding:8px 10px">ID</th><th style="padding:8px 10px">配置名</th><th style="padding:8px 10px">层级</th><th style="padding:8px 10px">静态页</th><th style="padding:8px 10px">端点(带token实测)</th><th style="padding:8px 10px">结论</th></tr></thead>
+<tbody><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#11</td>
+    <td style="padding:6px 10px">LLM 配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/llm</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#12</td>
+    <td style="padding:6px 10px">用户管理</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/users</code> <span style="color:#1a7f37">200</span> OBJ keys=users</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#13</td>
+    <td style="padding:6px 10px">权限 / RBAC 矩阵</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/rbac</code> <span style="color:#1a7f37">200</span> OBJ keys=profiles,particles</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#27</td>
+    <td style="padding:6px 10px">连接器 / MCP 配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/mcp-identities</code> <span style="color:#1a7f37">200</span> OBJ keys=rows,roles</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#28</td>
+    <td style="padding:6px 10px">系统设置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/system</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#40</td>
+    <td style="padding:6px 10px">租户管理</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/tenants</code> <span style="color:#1a7f37">200</span> OBJ keys=tenants</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#41</td>
+    <td style="padding:6px 10px">平台套餐管理</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/billing/plans</code> <span style="color:#1a7f37">200</span> OBJ keys=plans,settings,known_entitlements</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#42</td>
+    <td style="padding:6px 10px">全局复用与经验蔓延</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">propagation</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/propagation/suggestions</code> <span style="color:#1a7f37">200</span> OBJ keys=ok,config_store,memory</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#14</td>
+    <td style="padding:6px 10px">销售决策场景配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/decision-scenarios</code> <span style="color:#1a7f37">200</span> OBJ keys=scenarios</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#15</td>
+    <td style="padding:6px 10px">七维设计</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/seven-dim</code> <span style="color:#1a7f37">200</span> OBJ keys=dims,scenarios,default_strictness</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#16</td>
+    <td style="padding:6px 10px">方法论 SKILL 注册表</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/skill-registry</code> <span style="color:#1a7f37">200</span> OBJ keys=skills,total</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#17</td>
+    <td style="padding:6px 10px">审批流配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/approval-flows</code> <span style="color:#1a7f37">200</span> OBJ keys=flows</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#18</td>
+    <td style="padding:6px 10px">业务分级配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/business-tier-config</code> <span style="color:#1a7f37">200</span> OBJ keys=rows</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#19</td>
+    <td style="padding:6px 10px">粒子属性 Schema 配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><span style="color:#6e7781">— 无后端 —</span></td>
+    <td style="padding:6px 10px"><span style="color:#6e7781;font-weight:700">⚪ 纯显示(无后端)</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#20</td>
+    <td style="padding:6px 10px">池配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/pool-config</code> <span style="color:#1a7f37">200</span> OBJ keys=orgId,config</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#21</td>
+    <td style="padding:6px 10px">预警规则配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/alert-rules</code> <span style="color:#1a7f37">200</span> OBJ keys=rules</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#22</td>
+    <td style="padding:6px 10px">业务词汇配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/ontology/vocabulary</code> <span style="color:#1a7f37">200</span> OBJ keys=vocabulary</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#23</td>
+    <td style="padding:6px 10px">智能体配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/agent-config</code> <span style="color:#1a7f37">200</span> OBJ keys=agents,specs,assembly</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#24</td>
+    <td style="padding:6px 10px">门户 / 页面生成配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><span style="color:#6e7781">— 无后端 —</span></td>
+    <td style="padding:6px 10px"><span style="color:#6e7781;font-weight:700">⚪ 纯显示(无后端)</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#26</td>
+    <td style="padding:6px 10px">记忆 / 先例管理</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/memory</code> <span style="color:#1a7f37">200</span> OBJ keys=logs,notes,snapshots</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#29</td>
+    <td style="padding:6px 10px">财务应收配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/finance-receivables</code> <span style="color:#1a7f37">200</span> OBJ keys=payment_overdue_days,gap_threshold_pct,aging_buckets</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#30</td>
+    <td style="padding:6px 10px">指名客户目标指标配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/named-account-targets</code> <span style="color:#1a7f37">200</span> OBJ keys=tiers,window_days,metrics</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#31</td>
+    <td style="padding:6px 10px">销售行为标准配置</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/behavior-standard</code> <span style="color:#1a7f37">200</span> OBJ keys=daily_visit_count,weekly_visit_customer,weekly_new_customer</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#32</td>
+    <td style="padding:6px 10px">判定阈值</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/sales-thresholds</code> <span style="color:#1a7f37">200</span> OBJ keys=bantcc,behavior,coverage</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#33</td>
+    <td style="padding:6px 10px">销售决策思维要素（8要素×九尺子）</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/decision/thinking-templates</code> <span style="color:#1a7f37">200</span> OBJ keys=ok,items</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#35</td>
+    <td style="padding:6px 10px">事件触发复盘配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/event-retro</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#43</td>
+    <td style="padding:6px 10px">夜间批量复盘配置</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/decision-retro</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#34</td>
+    <td style="padding:6px 10px">审批业务参数</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/approval-config</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#36</td>
+    <td style="padding:6px 10px">场景路由（故事线/图谱）</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/context-routing</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#37</td>
+    <td style="padding:6px 10px">审计链巡检</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/provenance-patrol</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#38</td>
+    <td style="padding:6px 10px">先例检索（C4 四分量）</td>
+    <td style="padding:6px 10px"><span style="background:#fff8c5;padding:2px 6px;border-radius:4px;font-size:12px">tenant</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/precedent-conf</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#39</td>
+    <td style="padding:6px 10px">事件触发智能体派发</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/agent-event-trigger</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#44</td>
+    <td style="padding:6px 10px">路由实验（routing-explore）</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><code>/api/config/routing-explore</code> <span style="color:#1a7f37">200</span> OBJ keys=key,value,decision</td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37;font-weight:700">✅ 正常</span></td>
+  </tr><tr style="border-bottom:1px solid #eee">
+    <td style="padding:6px 10px;font-weight:600">#45</td>
+    <td style="padding:6px 10px">粒子本体总览（只读）</td>
+    <td style="padding:6px 10px"><span style="background:#ddf4ff;padding:2px 6px;border-radius:4px;font-size:12px">system</span></td>
+    <td style="padding:6px 10px"><span style="color:#1a7f37">200</span></td>
+    <td style="padding:6px 10px;font-size:13px"><span style="color:#6e7781">— 无后端 —</span></td>
+    <td style="padding:6px 10px"><span style="color:#6e7781;font-weight:700">⚪ 纯显示(无后端)</span></td>
+  </tr></tbody>
+</table>
+
+<h2>三、缺种子清单（P1：补 config_store 种子即可恢复）</h2>
+<table><thead><tr><th style="padding:8px 10px">ID</th><th style="padding:8px 10px">配置名</th><th style="padding:8px 10px">端点</th><th style="padding:8px 10px">当前返回</th></tr></thead>
+<tbody></tbody></table>
+<div class="sub">说明：以上 4 项路由已在 routes.js 挂载，仅 crm.config_store 缺对应 key 的出厂种子；补种子（仿 decision-retro 的 WHERE NOT EXISTS 幂等 INSERT）后页面即恢复。注：id22 本体页经 /vocabulary、/model 子路径正常，无需种子。</div>
+
+<h2>四、前端 fetch 裸调用清单（P2：浏览器 401 致空白）</h2>
+<div class="sub">以下 32 个页面直接 fetch 鉴权 /api 但无 Authorization header（未走 api.js 封装），在浏览器打开会因 401 显示空白。审批流页已修，其余待批量改造。</div>
+<table><thead><tr><th style="padding:8px 10px">页面文件</th><th style="padding:8px 10px">裸调用端点</th></tr></thead>
+<tbody><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">agent-config.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/agent-config</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">agent-dashboard.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/agent-dashboard</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">agent-workbench.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/agent-workbench<br>/api/agent-monitor/trace/<br>/api/agent-monitor/success<br>/api/agent/dispatch</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">alert-rules.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/alert-rules<br>/api/alert-rules/${p.kind}</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">billing.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/billing/plans<br>/api/billing/summary?period=${curPeriod(<br>/api/billing/token-usage?period=${curPeriod(<br>/api/billing/reconcile?period=${curPeriod(<br>/api/billing/subscription<br>/api/billing/live-cost<br>/api/billing/module-usage${tenantQuery(<br>/api/billing/entitlements${tenantQuery(<br>/api/billing/module-usage/toggle<br>/api/billing/subscribe<br>/api/billing/subscribe/simulate-confirm<br>/api/billing/pay<br>/api/billing/export?period=${curPeriod(<br>/api/admin/tenant-plan</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">business-tier.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/business-tier-config</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">decision-thinking.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/decision/thinking-templates</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">dict-entries.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/particles?type=CRM_DICT_ENTRY&includeInactive=1<br>/api/particles/<br>/api/particles</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">funnel-quality.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/funnel-quality</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">home.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/agents<br>/api/kanban/tasks<br>/api/particles<br>/api/business/board<br>/api/auth/login</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">kanban.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/kanban/tasks</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">landing.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/auth/register<br>/api/auth/activate<br>/api/auth/resend-code<br>/api/auth/login</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">mcp-identities.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/mcp-identities<br>/api/mcp-identities/</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">memory.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/memory<br>/api/memory/distill?dryRun=1<br>/api/memory/distill</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">meta-attr-drawer.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/meta-attr</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">offer-policy.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/particles?type=CRM_OFFER_POLICY&includeInactive=1<br>/api/particles/<br>/api/particles</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">ontology.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/config/ontology/vocabulary<br>/api/config/ontology/model</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">page-market.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page-market<br>/api/page-market/${id}</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">payment-policy.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/particles?type=CRM_OFFER_POLICY&includeInactive=1<br>/api/particles/<br>/api/particles</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">portal-stage3-mockup.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/from-nl<br>/api/business/board</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">price-list.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/particles?type=CRM_PRICE_LIST&includeInactive=1<br>/api/particles/<br>/api/particles</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">product-catalog.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/particles?type=CRM_PRODUCT&includeInactive=1<br>/api/particles/<br>/api/particles</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">propagation-hub.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/propagation/suggestions<br>/api/propagation/accept<br>/api/propagation/reject<br>/api/config/broadcast</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">rbac.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/rbac</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">seven-dim.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/config/seven-dim<br>/api/calibration/patches/generate</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">skill-registry-board.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/skill-registry</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">skills.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/config/skill-registry</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">system-status.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/system-status</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">tenant-management.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/tenants</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">today-priority.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/today-priority?dim=</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">todo.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/page/todo</td>
+</tr><tr style="border-bottom:1px solid #eee">
+  <td style="padding:5px 10px;font-family:monospace;font-size:13px">users.html</td>
+  <td style="padding:5px 10px;font-size:12px;color:#57606a">/api/config/users<br>/api/config/users/batch</td>
+</tr></tbody></table>
+
+<h2>五、回归测试</h2>
+<div class="sub">8 套件 / 97 用例 <span class="ok">全部通过 ✅</span>：configCenter(20) · permission(16) · configRouter(12) · approvalFlow(11) · pageFetchAuth(2) · retro-realenv(18) · llmConfigStore · memoryConfig(13)。</div>
+
+<h2>六、修复优先级</h2>
+<table><thead><tr><th style="padding:8px 10px">优先级</th><th style="padding:8px 10px">动作</th><th style="padding:8px 10px">影响</th></tr></thead><tbody>
+<tr style="border-bottom:1px solid #eee"><td style="padding:6px 10px"><b>P0</b></td><td style="padding:6px 10px">确认 server 已重启（PID 52976 已是最新，此前旧版 404 已自愈）</td><td style="padding:6px 10px">tenant-subscriptions / decision-retro / routing-explore / 静态配置页 全部恢复 200</td></tr>
+<tr style="border-bottom:1px solid #eee"><td style="padding:6px 10px"><b>P1</b></td><td style="padding:6px 10px">补 4 个 config_store 种子（system / event-retro / agent-event-trigger / routing-explore）</td><td style="padding:6px 10px">消除 4 处"未配置"空白</td></tr>
+<tr style="border-bottom:1px solid #eee"><td style="padding:6px 10px"><b>P1</b></td><td style="padding:6px 10px">修正 #22 本体 endpoint 字段为 /api/config/ontology/vocabulary（或保留 null）</td><td style="padding:6px 10px">消除 configCenter 注册瑕疵（页面本不空白）</td></tr>
+<tr style="border-bottom:1px solid #eee"><td style="padding:6px 10px"><b>P2</b></td><td style="padding:6px 10px">32 个页面 fetch → api.js 的 get/post/put 封装（分批，配 pageFetchAuth 守卫）</td><td style="padding:6px 10px">消除浏览器 401 空白（你原话"好几个都空白"主因）</td></tr>
+</tbody></table>
+</body></html>

@@ -1,0 +1,40 @@
+# 生产数据库镜像：Apache AGE 1.6.0 + pgvector 0.8.6 + pgcrypto（PG16）
+#
+# ══════════════════════════════════════════════════════════════════════════
+# ⚠ 构造方向不可颠倒（2026-09-04 两次实测踩坑的结论）
+# ══════════════════════════════════════════════════════════════════════════
+#
+# 【错误方向】FROM pgvector/pgvector:pg16 + COPY AGE 的 .so  → 加载失败
+#   pgvector:pg16   基于 Debian bookworm (glibc 2.36)
+#   apache/age 1.6.0 基于 Debian trixie   (glibc 2.41)，其 age.so 需要 GLIBC_2.38
+#   实测报错：could not load library "age.so": version `GLIBC_2.38' not found
+#
+# 【正确方向】FROM apache/age (trixie) + COPY pgvector 的 .so  → 成功
+#   glibc 向前兼容：低版本(2.36)编译的 vector.so 可在高版本(2.41)系统加载；
+#   反之不行。故必须以 glibc 更高的镜像为基础。
+#
+# 版本依据：
+#   - AGE 必须 1.6.0：代码 ageGraph.js:6「AGE 1.6.0 实测约定」依赖 ag_catalog.agtype_to_json()。
+#     1.5.0 缺该函数 → ensureGraph() 成功(available=true) 但所有 cypher 查询抛错，
+#     比「无 AGE 走递归 CTE 降级」更糟。
+#   - PG：apache/age 内置 16.10，pgvector 镜像内置 16.15，同为 major 16 → 扩展 ABI 兼容。
+#   - pgcrypto：apache/age 镜像自带（contrib），无需额外注入。
+#
+# 构建：
+#   docker pull apache/age:release_PG16_1.6.0
+#   docker build -f Dockerfile.pg-age -t crm-pg-age:pg16 .
+
+FROM apache/age:release_PG16_1.6.0
+
+# 从 pgvector 官方镜像抽取 vector 扩展（.so + control + 全部版本 sql）
+COPY --from=pgvector/pgvector:pg16 /usr/lib/postgresql/16/lib/vector.so /usr/lib/postgresql/16/lib/vector.so
+COPY --from=pgvector/pgvector:pg16 /usr/share/postgresql/16/extension/vector.control /usr/share/postgresql/16/extension/
+COPY --from=pgvector/pgvector:pg16 /usr/share/postgresql/16/extension/vector--*.sql /usr/share/postgresql/16/extension/
+
+# 校验：三类扩展文件齐全（构建期即失败，避免运行期才发现缺失）
+RUN test -f /usr/lib/postgresql/16/lib/age.so \
+ && test -f /usr/lib/postgresql/16/lib/vector.so \
+ && test -f /usr/share/postgresql/16/extension/age.control \
+ && test -f /usr/share/postgresql/16/extension/vector.control \
+ && grep -q 'agtype_to_json' /usr/share/postgresql/16/extension/age--1.6.0.sql \
+ && echo "AGE 1.6.0 + pgvector + pgcrypto ready (base: trixie/glibc 2.41)"

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>智能体配置</title>
+<style>
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color:var(--ink); }
+  h2 { margin:0 0 4px; }
+  .sub { color:var(--mut); font-size:13px; margin-bottom:16px; }
+  .err { color:#c00; font-size:12px; }
+  .assembly { display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:var(--panel); margin-bottom:16px; font-size:12px; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; }
+
+  .meta { color:var(--mut); font-size:12px; margin-bottom:8px; }
+  .seg { margin-top:10px; border-top:1px solid var(--panel); padding-top:8px; }
+  .seg-title { font-size:12px; font-weight:600; color:var(--mut); margin-bottom:4px; }
+  .chips { display:flex; gap:4px; flex-wrap:wrap; margin:4px 0; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  td { padding:2px 6px; border-bottom:1px solid var(--panel); }
+  td.k { color:var(--mut); width:70px; }
+  .empty { color:var(--mut); padding:24px; }
+</style>
+<link rel="stylesheet" href="/portal/tokens.css" />
+<link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">智能体配置</h1></div></header>
+<div id="err" class="err"></div>
+<div id="board">加载中…</div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+  import * as ac from '/portal/agentConfigRender.js';
+  window.renderAgentConfig = ac.renderAgentConfig;
+  async function load(){
+    try{
+      const r = await get('/api/agent-config');
+      if (!r.ok) { document.getElementById('err').textContent = `加载失败 ${r.status} ${await r.text()}`; return; }
+      const data = await r.json();
+      document.getElementById('board').innerHTML = window.renderAgentConfig(data);
+    }catch(e){ document.getElementById('err').textContent='加载失败: '+e.message; }
+  }
+  load();
+</script>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body>
+</html>

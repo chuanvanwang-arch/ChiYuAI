@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>先例检索配置（C4 四分量）</title>
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/tokens.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  /* 页面私有样式：只复用 tokens 语义变量，零硬编码色值（审计 tmp/audit_css_vars.py） */
+  .pc-wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px; }
+  .pc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .pc-head h1 { font-size: 20px; margin: 0; }
+  .pc-desc { font-size: 12px; opacity: 0.8; }
+  .pc-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .pc-card h2 { font-size: 14px; margin: 0 0 12px; }
+  table.pc-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pc-tbl th, .pc-tbl td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  .pc-tbl th { background: var(--panel-head); font-weight: 600; }
+  .pc-tbl crm-input { width: 120px; box-sizing: border-box; }
+  .btn-save { background: var(--ac); color: var(--on-ac); border: none; border-radius: 4px; padding: 6px 16px; cursor: pointer; font-size: 12px; }
+  .btn-save:hover { opacity: 0.85; }
+  .pc-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .dn-empty { color: var(--muted); font-size: 12px; padding: 12px 0; }
+</style>
+</head>
+<body>
+<div class="pc-wrap">
+  <div class="pc-head">
+    <div>
+      <h1>先例检索配置（C4 四分量）</h1>
+      <div class="pc-desc">先例相似度四分量权重与检索阈值；写入 config_store['precedent-conf']，写经决策第 0 闸 + sysadmin</div>
+    </div>
+    <crm-button id="save-btn">保存</crm-button>
+  </div>
+
+  <div class="pc-card">
+    <h2>四分量权重（保存时按「实际使用权重」再归一，权重和为 1）</h2>
+    <table class="pc-tbl" id="w-tbl">
+      <thead><tr><th>分量</th><th>权重</th><th>说明</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="pc-hint">结构分量（jaccard/category/graphDepth）主导；向量（vector）为哈希签名噪声，provider='model' 才启用真 embedding，否则恒 0 不参与稀释。</div>
+  </div>
+
+  <div class="pc-card">
+    <h2>检索阈值</h2>
+    <table class="pc-tbl" id="c-tbl">
+      <thead><tr><th>参数</th><th>当前值</th><th>说明</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="dn-empty" id="msg"></div>
+</div>
+
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api } from '/portal/api.js';
+  injectLayout();
+
+  // 出厂默认（与 precedentScoring.js DEFAULT_WEIGHTS/DEFAULT_CONF 对齐；未 seed 时兜底）
+  const FACTORY = {
+    weights: { jaccard: 0.4, category: 0.2, graphDepth: 0.2, vector: 0.2 },
+    minSimilarity: 0.45,
+    candidatePool: 40,
+    graphMaxDepth: 3,
+  };
+  const WEIGHT_META = [
+    ['jaccard', '条件集合 Jaccard（达标/未达标/未知三态键）'],
+    ['category', '方法论类别匹配'],
+    ['graphDepth', '决策因果图深度'],
+    ['vector', '向量余弦（哈希签名噪声，provider=model 才启用）'],
+  ];
+  const CONF_META = [
+    ['minSimilarity', '相似度门槛（低于此不计为先例）', '0.05'],
+    ['candidatePool', '候选池大小（召回上限）', '1'],
+    ['graphMaxDepth', '图最大递归深度', '1'],
+  ];
+  const state = { value: null };
+  const escSS = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function val() {
+    return state.value || JSON.parse(JSON.stringify(FACTORY));
+  }
+
+  async function load() {
+    const msg = document.getElementById('msg');
+    try {
+      const j = await api('/api/config/precedent-conf');
+      if (j && j.value) {
+        state.value = j.value;
+        msg.textContent = '';
+      } else {
+        state.value = JSON.parse(JSON.stringify(FACTORY));
+        msg.textContent = '（未 seed，已加载出厂默认；可调整后保存写入）';
+      }
+      render();
+    } catch (e) {
+      state.value = JSON.parse(JSON.stringify(FACTORY));
+      render();
+      msg.textContent = '加载失败，已用出厂默认：' + e.message + '（403=需 admin；401=先登录；保存即经决策第0闸写入）';
+    }
+  }
+
+  function render() {
+    const v = val();
+    const wTb = document.querySelector('#w-tbl tbody');
+    wTb.innerHTML = WEIGHT_META.map(([k, desc]) => `<tr>
+      <td><code>${k}</code></td>
+      <td><crm-input id="w-${k}" type="number" step="0.05" min="0" max="1" value="${Number(v.weights?.[k] ?? FACTORY.weights[k])}"></crm-input></td>
+      <td>${escSS(desc)}</td>
+    </tr>`).join('');
+
+    const cTb = document.querySelector('#c-tbl tbody');
+    cTb.innerHTML = CONF_META.map(([k, desc, step]) => `<tr>
+      <td><code>${k}</code></td>
+      <td><crm-input id="c-${k}" type="number" step="${step}" min="0" value="${Number(v[k] ?? FACTORY[k])}"></crm-input></td>
+      <td>${escSS(desc)}</td>
+    </tr>`).join('');
+  }
+
+  document.getElementById('save-btn')?.addEventListener('click', savePrecedent);
+
+  async function savePrecedent() {
+    const weights = {};
+    for (const [k] of WEIGHT_META) weights[k] = Number(document.getElementById('w-' + k).value);
+    const out = {
+      weights,
+      minSimilarity: Number(document.getElementById('c-minSimilarity').value),
+      candidatePool: Number(document.getElementById('c-candidatePool').value),
+      graphMaxDepth: Number(document.getElementById('c-graphMaxDepth').value),
+    };
+    try {
+      const j = await api('/api/config/precedent-conf', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: out }) });
+      state.value = out;
+      document.getElementById('msg').textContent = '已保存（决策产证 id: ' + (j.decision || '无') + '）';
+      load();
+    } catch (e) {
+      document.getElementById('msg').textContent = '保存失败：' + e.message;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

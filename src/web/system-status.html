@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>系统状态墙</title>
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <link rel="stylesheet" href="/portal/page.css" />
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+  </script>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <div id="system-status-root">
+    <div class="pg-loading">系统状态墙加载中…</div>
+  </div>
+  <script type="module">
+    import { get } from '/portal/api.js';
+    const root = document.getElementById('system-status-root');
+    async function load() {
+      try {
+        const { html } = await get('/api/page/system-status');
+        root.innerHTML = html;
+      } catch (e) {
+        root.innerHTML = `<div class="pg-error">系统状态墙加载失败：${e.message}（PG 未启动或端点未就绪）</div>`;
+      }
+    }
+    load();
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>

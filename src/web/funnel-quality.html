@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>漏斗质量看板</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">漏斗质量看板</h1><span class="mut" id="scope"></span></div></header>
+<!-- 受控渲染唯一出口：S36 schema 产物注入于此。页面不自造 KPI/表格样式，
+     全部卡片外壳与色彩复用 common.css / tokens.css（UI 零硬编码铁律）。 -->
+<div id="funnel-root"><p class="mut">加载中…</p></div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { get, me } from '/portal/api.js';
+  injectLayout();
+
+  const root = document.getElementById('funnel-root');
+  const fail = (msg) => { root.innerHTML = `<p class="mut">${msg}</p>`; };
+
+  (async () => {
+    let r; try { r = await me(); } catch { r = {}; }
+    if (!r?.ok) return fail('请先登录。');
+    try {
+      // 受控出片：GET /api/page/funnel-quality → renderPage(S36_SCHEMA, data).html
+      // 不再直连 /api/funnel/*（设计 §5.3：受控渲染，不写自由 HTML）
+      const j = await get('/api/page/funnel-quality');
+      root.innerHTML = j.html || '<p class="mut">暂无数据</p>';
+    } catch (e) {
+      fail('加载失败：' + (e?.message || e));
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>彩盒报价单（初稿）</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color:#222; background:#f5f6f8; margin:0; padding:20px; }
+  .page { max-width:760px; margin:0 auto; background:#fff; padding:32px 36px; box-shadow:0 2px 8px rgba(0,0,0,.08); }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:#888; font-size:13px; margin-bottom:20px; }
+  table { width:100%; border-collapse:collapse; margin-bottom:18px; font-size:14px; }
+  th, td { border:1px solid #ccc; padding:8px 10px; text-align:left; }
+  th { background:#f0f2f5; width:130px; font-weight:600; }
+  .price { background:#f7fbff; }
+  .price th { background:#e8f0fa; }
+  .total { font-weight:bold; background:#fff8e6; }
+  .total td { font-size:16px; }
+  .group { font-weight:bold; border-left:4px solid #2d6cdf; background:#eef3fb; padding:6px 12px; margin:20px 0 8px; }
+  .note { background:#fffbe6; border:1px solid #e8d48a; padding:12px 14px; font-size:13px; margin-bottom:14px; }
+  .warn { color:#c00; }
+  .planA { border-left:4px solid #4caf50; }
+  .planB { border-left:4px solid #2d6cdf; }
+  .plan-head { font-weight:bold; font-size:15px; padding:6px 12px; background:#f5faf5; margin:16px 0 8px; }
+  .plan-head.b { background:#f0f5fc; }
+  @media print { body { background:#fff; padding:0; } .page { box-shadow:none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>彩盒报价单</h1>
+  <div class="sub">报价单号：＿＿＿＿＿＿　日期：2026-08-26　业务员：＿＿＿＿＿＿　有效期：30 天</div>
+
+  <div class="group">1. 产品与规格</div>
+  <table>
+    <tr><th>产品名称</th><td>彩盒（礼盒 / 包装盒）</td></tr>
+    <tr><th>数量</th><td>5,000 只</td></tr>
+    <tr><th>成品尺寸</th><td>20 × 15 × 8 cm（展开含出血 3mm 另计）</td></tr>
+    <tr><th>纸张</th><td>300g 白卡</td></tr>
+    <tr><th>表面处理</th><td>覆哑膜</td></tr>
+    <tr><th>印刷</th><td>四色印刷（CMYK）</td></tr>
+    <tr><th>后道</th><td>模切 + 粘盒</td></tr>
+    <tr><th>交货地</th><td>杭州（运费已含）</td></tr>
+    <tr><th>开票</th><td>增值税专用发票 13%</td></tr>
+  </table>
+
+  <div class="plan-head">方案 A · 经济型（走量让利）</div>
+  <table class="price planA">
+    <tr><th>项目</th><th>计算</th><th>金额</th></tr>
+    <tr><td>不含税单价</td><td>—</td><td><b>¥1.57 / 只</b></td></tr>
+    <tr><td>不含税总价</td><td>5,000 × 1.57</td><td>¥7,841</td></tr>
+    <tr><td>税额（13%）</td><td>7,841 × 13%</td><td>¥1,019.33</td></tr>
+    <tr class="total"><td>价税合计</td><td>—</td><td><b>¥8,860.33</b></td></tr>
+  </table>
+  <div class="note">适用：预算敏感、首批试单；长期量大可另谈阶梯价。</div>
+
+  <div class="plan-head b">方案 B · 常规商务版</div>
+  <table class="price planB">
+    <tr><th>项目</th><th>计算</th><th>金额</th></tr>
+    <tr><td>不含税单价</td><td>—</td><td><b>¥1.84 / 只</b></td></tr>
+    <tr><td>不含税总价</td><td>5,000 × 1.84</td><td>¥9,200</td></tr>
+    <tr><td>税额（13%）</td><td>9,200 × 13%</td><td>¥1,196.00</td></tr>
+    <tr class="total"><td>价税合计</td><td>—</td><td><b>¥10,396.00</b></td></tr>
+  </table>
+  <div class="note">适用：常规商务合作，含品质管控、优先排产、样品与售后支持。</div>
+
+  <div class="group">2. 商务备注（版费 · 损耗 · 改稿）</div>
+  <table>
+    <tr><th>版费</th><td>版费 ¥800（印刷版+模切版一套）首单随货款收取；<b>归客户所有，返单同版不再取费</b>；改版重制另计。</td></tr>
+    <tr><th>损耗</th><td>报价已含行业标准放损 <b>3-5%</b>，按 5,000 只足额交货；客户指定更高损耗率需上调。</td></tr>
+    <tr><th>改稿</th><td>首轮修改免费 1 次；第二次起 <b>¥150/次</b>；打样确认后改稿另承担重制版费 + 已耗材料；客户文件规范问题返工不属免费范围。</td></tr>
+    <tr><th>付款</th><td>预付 50% 定金，货到验收后付清尾款。</td></tr>
+    <tr><th>交期</th><td>规格与稿子确认后 ＿＿＿ 个工作日（未确认前不承诺）。</td></tr>
+    <tr><th>打样</th><td>上机打样费另计，大货下单后抵扣。</td></tr>
+  </table>
+
+  <div class="group">3. 待确认事项</div>
+  <table>
+    <tr><th>需确认</th><td>交货时间与杭州具体地址｜是否需我方设计｜粘盒方式｜环保材料（FSC 认证纸）需求｜付款比例｜打样类型</td></tr>
+  </table>
+
+  <div class="note"><b>注意事项</b>：本报价为初稿，规格与条款确认后出正式报价单；报价有效期 30 天。</div>
+</div>
+</body>
+</html>

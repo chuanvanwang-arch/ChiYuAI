@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>粒子模型 / 本体 / 词汇 · CRM 配置中心</title>
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background:var(--bg); color: var(--ink); }
+  main { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+  h2 { margin: 0 0 12px; }
+  .muted, .muted2 { color: var(--mut); font-size: 13px; }
+  .err { color: var(--err); }
+  input, select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; margin: 3px 4px 3px 0; }
+  #form { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 12px 0; }
+
+  .model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+  .model-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+  .model-card.core { border-color: var(--ac); background: var(--as); }
+  .model-card h4 { margin: 2px 0 4px; font-size: 13px; }
+  .model-meta, .model-attrs { margin: 2px 0; font-size: 12px; color: var(--mut); }
+.tag { display: inline-block; background: var(--panel); border-radius: 6px; padding: 2px 8px; margin: 2px 3px 2px 0; font-size: 12px; }
+  table.vocab-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.vocab-tbl th, table.vocab-tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel); }
+  .empty { color: var(--mut); padding: 20px; text-align: center; }
+</style>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<main id="ont-root"><p class="muted">加载中…</p></main>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+import * as oc from '/portal/ontologyConfigRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+
+const TOKEN = localStorage.getItem('crm_token') || '';
+const root = document.getElementById('ont-root');
+let vocab = [];
+
+async function load() {
+  try {
+    const [v, m] = await Promise.all([
+      fetch('/api/config/ontology/vocabulary', { headers: { Authorization: `Bearer ${TOKEN}` } }),
+      fetch('/api/config/ontology/model', { headers: { Authorization: `Bearer ${TOKEN}` } }),
+    ]);
+    if (!v.ok) { root.innerHTML = `<p class="err">词汇加载失败 ${v.status} ${await v.text()}</p>`; return; }
+    const vj = await v.json();
+    vocab = vj.vocabulary || [];
+    let modelHtml = '<div class="panel"><h3>粒子模型（只读快照，代码常量事实源）</h3><p class="muted">加载失败或未授权</p></div>';
+    if (m.ok) {
+      const mj = await m.json();
+      modelHtml = oc.renderModelSnapshot(mj.model);
+    }
+    root.innerHTML = `<h2>粒子模型 / 本体 / 词汇</h2>
+      ${modelHtml}
+      <div class="panel">
+        <h3>词汇表（CRM_KNOWLEDGE 粒子，写时同源登记）<crm-button id="addBtn" class="btn" style="float:right">+ 新增词汇</crm-button></h3>
+        <div id="form" style="display:none"></div>
+        ${oc.renderVocabulary(vocab)}
+        <p class="muted">每 15s 自动刷新 · 写经决策第0闸 · sysadmin 权限 · 绝对禁删（停用=软标记）</p>
+      </div>`;
+    bind();
+  } catch (e) { root.innerHTML = `<p class="err">${e.message}</p>`; }
+}
+
+function formHtml(v = {}) {
+  const mode = v.id ? 'edit' : 'create';
+  return `<form id="vf" data-mode="${mode}" data-id="${v.id || ''}">
+    <crm-input name="term" placeholder="词汇（必填）" value="${v.term || ''}" ${mode === 'edit' ? '' : 'required'}></crm-input>
+    <crm-select name="type">
+      <option value="业务术语" ${v.type === '业务术语' ? 'selected' : ''}>业务术语</option>
+      <option value="ordered-enum" ${v.type === 'ordered-enum' ? 'selected' : ''}>有序枚举</option>
+      <option value="专有名词" ${v.type === '专有名词' ? 'selected' : ''}>专有名词</option>
+    </crm-select>
+    <crm-select name="layer">
+      <option value="L1" ${v.layer === 'L1' ? 'selected' : ''}>L1 图种子</option>
+      <option value="L2" ${v.layer === 'L2' ? 'selected' : ''}>L2 决策历史</option>
+    </crm-select>
+    ${mode === 'edit' ? `<label><crm-checkbox name="state" value="INACTIVE" ${v.state === 'INACTIVE' ? 'checked' : ''}></crm-checkbox> 停用（软标记）</label>` : ''}
+    <crm-button class="btn" type="submit">${mode === 'edit' ? '保存' : '创建'}</crm-button>
+    <crm-button class="btn ghost" type="button" onclick="document.getElementById('form').style.display='none'">取消</crm-button>
+  </form>`;
+}
+
+function bind() {
+  const addBtn = document.getElementById('addBtn');
+  if (addBtn) addBtn.onclick = () => {
+    const f = document.getElementById('form');
+    f.style.display = 'block';
+    f.innerHTML = formHtml();
+    document.getElementById('vf').onsubmit = onSubmit;
+  };
+  root.querySelectorAll('.edit').forEach((b) => (b.onclick = () => {
+    const v = vocab.find((x) => x.id === b.dataset.id);
+    const f = document.getElementById('form');
+    f.style.display = 'block';
+    f.innerHTML = formHtml(v);
+    document.getElementById('vf').onsubmit = onSubmit;
+  }));
+}
+
+async function onSubmit(e) {
+  e.preventDefault();
+  const f = e.target;
+  const mode = f.dataset.mode;
+  const fd = Object.fromEntries(new FormData(f).entries());
+  const body = mode === 'edit'
+    ? { id: f.dataset.id, patch: { state: fd.state ? 'INACTIVE' : 'ACTIVE' } }
+    : { patch: { term: fd.term, type: fd.type, layer: fd.layer, state: 'ACTIVE' } };
+  const r = await fetch('/api/config/ontology/vocabulary', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!r.ok) { alert('失败：' + (j.error || r.status)); return; }
+  f.style.display = 'none';
+  f.reset();
+  load();
+}
+
+if (!TOKEN) location.href = '/home.html';
+else load();
+setInterval(() => { if (TOKEN) load(); }, 15000);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>客户跟踪 · CRM</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  #app { padding: 20px 24px; max-width: 1280px; margin: 0 auto; }
+  .page-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  .page-actions { display: flex; gap: 12px; align-items: center; }
+
+  /* TAB 栏（沿用 common.css .tabs/.tab/.tab.on,.tab.active，删除本地重声明，回落单源） */
+
+  /* KPI 卡片 */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--panel-bd, rgba(148,163,184,.25)); border-radius: 10px; padding: 14px 16px; }
+  .kpi .k-label { font-size: 12px; color: var(--mut); }
+  .kpi .k-val { font-size: 24px; font-weight: 700; margin-top: 4px; color: var(--ink); }
+  .kpi.warn .k-val { color: var(--err); }
+  .kpi.ok .k-val { color: var(--ok); }
+
+  /* 表格 */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--panel-bd, rgba(148,163,184,.25)); }
+  th { color: var(--mut); font-weight: 600; background: var(--panel-head); }
+  tr.row:hover td { background: var(--hover); cursor: pointer; }
+  tr.row.selected td { background: var(--sel); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--err); }
+  .gap { color: var(--err); font-size: 12px; }
+  .muted { color: var(--mut); font-size: 12px; }
+  .tier { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--tier-bg); color: var(--tier-ink); }
+
+  /* 详情面板 */
+  .detail-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .detail-head h2 { margin: 0; font-size: 18px; }
+  .locked { padding: 40px; text-align: center; color: var(--mut); background: var(--panel); border-radius: 10px; border: 1px dashed var(--panel-bd, rgba(148,163,184,.4)); }
+
+  /* 空状态增强提示（引导用户切换销售视角） */
+  .empty-hint { display: flex; gap: 14px; align-items: flex-start; background: var(--panel); border: 1px solid var(--panel-bd, rgba(148,163,184,.25)); border-radius: 10px; padding: 18px 20px; }
+  .empty-hint.warn { border-color: var(--err); }
+  .eh-icon { font-size: 28px; line-height: 1; }
+  .eh-body { flex: 1; }
+  .eh-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .eh-desc { font-size: 13px; color: var(--mut); line-height: 1.6; }
+  .eh-desc b { color: var(--ac); }
+  /* 下拉框引导脉冲（空表时提示用户注意右上角切换） */
+  .page-actions.pulse { animation: pa-pulse 1.6s ease-in-out infinite; border-radius: 8px; }
+  @keyframes pa-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,.0); } 50% { box-shadow: 0 0 0 4px rgba(99,102,241,.35); } }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ncard { background: var(--panel); border: 1px solid var(--panel-bd, rgba(148,163,184,.25)); border-radius: 10px; padding: 14px 16px; }
+  .ncard h3 { margin: 0 0 10px; font-size: 14px; color: var(--mut); }
+  .kv { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px solid var(--panel-bd, rgba(148,163,184,.18)); }
+  .kv:last-child { border-bottom: none; }
+  .visit-item { padding: 10px 0; border-bottom: 1px solid var(--panel-bd, rgba(148,163,184,.18)); font-size: 13px; }
+  .visit-item:last-child { border-bottom: none; }
+  .visit-date { color: var(--mut); font-size: 12px; }
+  .visit-fields { margin-top: 4px; line-height: 1.6; }
+  .visit-fields b { color: var(--ink); }
+
+  /* 客户360目标卡（对齐 account-360 .pg-target-card 视觉） */
+  .pg-target-card { background: var(--panel); border: 1px solid var(--panel-bd, rgba(148,163,184,.25)); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+  .pg-target-card.ok { border-left: 4px solid var(--ok); }
+  .pg-target-card.warn { border-left: 4px solid var(--err); }
+  .pg-target-card h3 { margin: 0 0 6px; font-size: 15px; color: var(--ink); }
+  .pg-target-meta { margin: 0; font-size: 13px; color: var(--mut); }
+  .pg-target-meta b { color: var(--ink); }
+  .dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .dim { background: var(--panel); border: 1px solid var(--panel-bd, rgba(148,163,184,.25)); border-radius: 10px; padding: 12px 14px; text-align: center; }
+  .dim .d-label { font-size: 12px; color: var(--mut); }
+  .dim .d-val { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .dim.ok .d-val { color: var(--ok); }
+  .dim.warn .d-val { color: var(--err); }
+
+  /* 提示条 */
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 9999;
+    padding: 10px 18px; border-radius: 8px; font-size: 13px; color: #fff; background: rgba(30,41,59,.92);
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .22s; }
+  #toast.show { opacity: 1; }
+
+  /* §5 防呆预警条：未正确归属的商机（孤儿/错绑）表面化，不改主数据 */
+  .orphan-banner { display: flex; gap: 14px; align-items: flex-start; background: var(--panel); border: 1px solid var(--err); border-left: 4px solid var(--err); border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; }
+  .orphan-banner .ob-icon { font-size: 26px; line-height: 1; }
+  .orphan-banner .ob-body { flex: 1; }
+  .orphan-banner .ob-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .orphan-banner .ob-desc { font-size: 13px; color: var(--mut); line-height: 1.6; }
+  .orphan-banner ul { margin: 6px 0 0; padding-left: 18px; }
+  .orphan-banner li { font-size: 13px; color: var(--ink); padding: 2px 0; }
+  .orphan-banner li .tag { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .orphan-banner li .tag.missing { background: var(--err); color: #fff; }
+  .orphan-banner li .tag.mismatch { background: #b45309; color: #fff; }
+  .orphan-banner .ob-foot { font-size: 12px; color: var(--mut); margin-top: 8px; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div id="app">
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">客户跟踪</h1></div>
+    <div class="page-actions">
+      <crm-select id="owner-select" title="按销售切换"><option value="">当前销售（本人）</option></crm-select>
+      <crm-select id="account-select" title="选择客户"><option value="">选择客户…</option></crm-select>
+      <div id="tenant-bar" class="ts-bar"></div>
+    </div>
+  </header>
+
+  <section id="follow-table-host" class="follow-host"></section>
+
+  <nav class="tabs">
+    <crm-button class="tab active" data-tab="list" id="tab-list">客户列表</crm-button>
+    <crm-button class="tab locked" data-tab="overview" id="tab-overview">客户360</crm-button>
+    <crm-button class="tab locked" data-tab="visits" id="tab-visits">拜访明细</crm-button>
+    <crm-button class="tab locked" data-tab="profile" id="tab-profile">画像</crm-button>
+    <crm-button class="tab locked" data-tab="insight" id="tab-insight">洞察</crm-button>
+  </nav>
+
+  <section id="panel-list">
+    <div class="kpis" id="kpis"><span class="muted">加载中…</span></div>
+    <div id="orphan-root"></div>
+    <div id="board-root"><p class="muted">加载中…</p></div>
+  </section>
+
+  <section id="panel-overview" hidden>
+    <div id="overview-root"><div class="locked">请选择客户：在「客户列表」点选一行，或使用页面右上角「选择客户」下拉</div></div>
+  </section>
+
+  <section id="panel-visits" hidden>
+    <div id="visits-root"><div class="locked">请选择客户：在「客户列表」点选一行，或使用页面右上角「选择客户」下拉</div></div>
+  </section>
+
+  <section id="panel-profile" hidden>
+    <div id="profile-root"><div class="locked">请选择客户：在「客户列表」点选一行，或使用页面右上角「选择客户」下拉</div></div>
+  </section>
+
+  <section id="panel-insight" hidden>
+    <div id="insight-root"><div class="locked">请选择客户：在「客户列表」点选一行，或使用页面右上角「选择客户」下拉</div></div>
+  </section>
+<!-- 2026-08-31 根因修复：admin/manager 视角下若命名看板 API 返回 unassigned 分桶，渲染「无主待分配」面板 -->
+<section id="panel-unassigned" hidden>
+  <div id="unassigned-root"><p class="muted">加载中…</p></div>
+</section>
+</div>
+<div id="toast"></div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api, me } from '/portal/api.js';
+  import { renderFollowTable } from '/portal/followReminder.js';
+  import { mountTenantScopeBar, tenantQuery, tenantMap, tenantCell } from '/portal/tenantScopeBar.js';
+  injectLayout();
+
+  const ownerSelect = document.getElementById('owner-select');
+  const accountSelect = document.getElementById('account-select');
+  const kpisEl = document.getElementById('kpis');
+  const boardRoot = document.getElementById('board-root');
+  const overviewRoot = document.getElementById('overview-root');
+  const visitsRoot = document.getElementById('visits-root');
+  const profileRoot = document.getElementById('profile-root');
+  const insightRoot = document.getElementById('insight-root');
+  const tabBtns = { list: document.getElementById('tab-list'), overview: document.getElementById('tab-overview'), visits: document.getElementById('tab-visits'), profile: document.getElementById('tab-profile'), insight: document.getElementById('tab-insight') };
+  const panels = { list: document.getElementById('panel-list'), overview: document.getElementById('panel-overview'), visits: document.getElementById('panel-visits'), profile: document.getElementById('panel-profile'), insight: document.getElementById('panel-insight') };
+
+  let currentRows = [];
+  let lastSummary = null; // 最近一次 summary（renderBoard/renderBehaviorCard 读行为合格率阈值阈值）
+  let selected = null;
+  let canSwitchOwner = false;   // 当前角色是否可切换其他销售（admin/manager 且接口返回了用户）
+  let ownerSelectError = null;  // /api/config/users 调用失败时的错误信息
+  let currentOwner = '';        // 当前加载的销售 owner（空=本人）
+  let currentMe = null;         // 当前登录身份 {role,...}（admin/manager 视角下展示「无主待分配」面板用）
+  const ownerMap = new Map();   // username -> display_name
+  let tenantNameMap = {};       // admin 视角下租户 id→name 映射（渲染「租户」列）
+  let showTenantCol = false;   // 仅 admin/sysadmin 渲染租户列
+
+  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  // 客户跟踪页顶部告警表（2026-08-31 抽离复用，数据源 = /api/board/named-account-manage）
+  async function mountFollowTable() {
+    const host = document.getElementById('follow-table-host');
+    if (!host) return;
+    try {
+      const j = await api('/api/board/named-account-manage');
+      host.innerHTML = renderFollowTable(j.rows);
+    } catch { host.innerHTML = '<div class="muted">告警加载失败</div>'; }
+  }
+  function fmtDate(iso) { if (!iso) return '—'; const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+  // 未选客户时的统一锁定提示：引导用户在列表点行 / 右上角全局下拉
+  const LOCK_MSG = '请选择客户：在「客户列表」点选一行，或使用页面右上角「选择客户」下拉';
+
+  const loaded = { profile: false, insight: false };
+
+  function showToast(text) {
+    const t = document.getElementById('toast');
+    t.textContent = text; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  function switchTab(name) {
+    if (name !== 'list' && !selected) { showToast('请先选择客户：列表点行，或右上角「选择客户」下拉'); return; }
+    Object.keys(tabBtns).forEach(k => {
+      tabBtns[k].classList.toggle('active', k === name);
+      // 未选客户时仅降透明度（可点，点击后 toast 提示），不用 disabled：disabled 会吞掉点击、用户以为坏了
+      if (k !== 'list') tabBtns[k].classList.toggle('locked', !selected);
+    });
+    Object.keys(panels).forEach(k => { panels[k].hidden = (k !== name); });
+    if (name === 'overview') renderOverview();
+    if (name === 'visits') renderVisits();
+    if (name === 'profile' && !loaded.profile) { renderProfile(); loaded.profile = true; }
+    if (name === 'insight' && !loaded.insight) { renderInsight(); loaded.insight = true; }
+  }
+
+  // ── TAB1 客户列表：KPI + 可点选表 ──
+  function renderKpis(summary) {
+    if (!summary) { kpisEl.innerHTML = ''; return; }
+    lastSummary = summary; // 供 renderBoard 21 条合格率阈值着色读取
+    const kpi = (label, val, cls = '') => `<div class="kpi ${cls}"><div class="k-label">${esc(label)}</div><div class="k-val">${val}</div></div>`;
+    kpisEl.innerHTML =
+      kpi('目标客户数', summary.targetCustomers) +
+      kpi('今日拜访/目标·个人', `${summary.todayVisits}/${summary.dailyVisitTarget ?? 2}`, (summary.todayVisits ?? 0) >= (summary.dailyVisitTarget ?? 2) ? 'ok' : 'warn') +
+      kpi('今日电话/目标·个人', `${summary.todayCalls ?? 0}/${summary.dailyCallTarget ?? 10}`, (summary.todayCalls ?? 0) >= (summary.dailyCallTarget ?? 10) ? 'ok' : 'warn') +
+      kpi('本周拜访客户/目标·个人', `${summary.weekVisitCustomers ?? 0}/${summary.weeklyVisitCustomerTarget ?? 8}`, (summary.weekVisitCustomers ?? 0) >= (summary.weeklyVisitCustomerTarget ?? 8) ? 'ok' : 'warn') +
+      kpi('本周新客户/目标·个人', `${summary.weekNewCustomers ?? 0}/${summary.weeklyNewCustomerTarget ?? 5}`, (summary.weekNewCustomers ?? 0) >= (summary.weeklyNewCustomerTarget ?? 5) ? 'ok' : 'warn') +
+      kpi('本周拜访数', summary.weekVisits) +
+      kpi('本月拜访数', summary.monthVisits) +
+      kpi('21条合格率', (summary.behaviorPassRate ?? 0) + '%', (summary.behaviorPassRate ?? 0) >= (summary.behaviorPassRateThreshold ?? 80) ? 'ok' : 'warn') +
+      // 2026-08-30 三分类 B 类：标准达标（cov* 六键，走 sales-thresholds 出厂标准，非 id31 个人目标）
+      kpi('客户数≥', `${summary.covCustomerCountMin ?? 60}（当前 ${summary.targetCustomers ?? 0}）`, (summary.covCustomerOk ? 'ok' : 'warn')) +
+      kpi('日均拜访≥', summary.covDailyVisitTarget ?? 3, (summary.covVisitsOk ? 'ok' : 'warn')) +
+      kpi('周拜访≥', summary.covWeeklyVisitTarget ?? 15, (summary.covWeekVisitsOk ? 'ok' : 'warn')) +
+      kpi('信息收集/周≥', summary.covInfoCollectWeekly ?? 5, 'ok');
+  }
+
+  function renderBoard(rows, summary) {
+    if (!rows.length) {
+      let hint;
+      // owner 显示名：优先从 ownerMap 取 display_name；未选则显示「本人」
+      const ownerLabel = currentOwner ? (ownerMap.get(currentOwner) || currentOwner) : '当前销售（本人）';
+      if (canSwitchOwner) {
+        hint = `<div class="empty-hint">
+          <div class="eh-icon">🔍</div>
+          <div class="eh-body">
+            <div class="eh-title">${esc(ownerLabel)} 名下暂无指名客户</div>
+            <div class="eh-desc">如需查看客户，请在右上角「<b>按销售切换</b>」下拉中选择其他销售，或在「基础数据门户」为客户分配指名销售。</div>
+            <crm-button class="btn primary" id="jump-owner">去切换销售</crm-button>
+          </div>
+        </div>`;
+      } else if (ownerSelectError) {
+        hint = `<div class="empty-hint warn"><div class="eh-icon">⚠️</div>
+          <div class="eh-body"><div class="eh-title">无法加载销售列表</div>
+          <div class="eh-desc">接口 /api/config/users 调用失败，无法切换销售视角。请检查网络或后端日志。</div></div></div>`;
+      } else {
+        hint = `<div class="empty-hint"><div class="eh-icon">📭</div>
+          <div class="eh-body"><div class="eh-title">您当前名下暂无指名客户</div>
+          <div class="eh-desc">请联系管理员在「客户分档配置」中为您分配指名客户，或切换到其他销售查看。</div></div></div>`;
+      }
+      boardRoot.innerHTML = hint;
+      const jump = document.getElementById('jump-owner');
+      if (jump) jump.addEventListener('click', () => { ownerSelect.focus(); ownerSelect.scrollIntoView({ block: 'center' }); });
+      return;
+    }
+    boardRoot.innerHTML = `
+      <table>
+        <thead><tr><th>客户名</th><th>销售</th><th>档位</th><th>拜访(窗口)</th><th>21条</th><th>线索</th><th>商机</th><th>合同</th><th>缺口提示</th>${showTenantCol ? '<th>租户</th>' : ''}</tr></thead>
+        <tbody>${rows.map((r, i) => {
+          const bh = r.behavior || {};
+          const bhPct = bh.total ? Math.round((bh.pass / bh.total) * 100) : 0;
+          return `<tr class="row ${selected && selected.id === r.id ? 'selected' : ''}" data-i="${i}">
+          <td><a href="/account-360.html?id=${esc(r.slug || r.id)}" onclick="event.stopPropagation()">${esc(r.name)}</a></td>
+          <td>${esc(r.owner)}</td>
+          <td><span class="tier">${esc(r.tier)}</span></td>
+          <td class="${r.visitPass ? 'pass' : 'warn'}">${r.visits30 ?? 0}${r.visitPass ? ' ✅' : ' ⚠️'}</td>
+          <td class="${bhPct >= (summary?.behaviorPassRateThreshold ?? 80) ? 'pass' : 'warn'}">${bh.pass ?? 0}/${bh.total ?? 21}</td>
+          <td>${r.leads ?? 0}</td>
+          <td>${r.opps ?? 0}</td>
+          <td>${r.contracts ?? 0}</td>
+          <td class="gap">${Array.isArray(r.gaps) && r.gaps.length ? esc(r.gaps.join('；')) : ''}</td>
+          ${showTenantCol ? tenantCell(r.tenant_id, tenantNameMap) : ''}
+        </tr>`;}).join('')}</tbody>
+      </table>`;
+    boardRoot.querySelectorAll('tr.row').forEach(tr => {
+      tr.addEventListener('click', () => selectRow(Number(tr.dataset.i)));
+    });
+  }
+
+  function selectRow(i) {
+    selected = currentRows[i];
+    loaded.profile = false;
+    loaded.insight = false;
+    accountSelect.value = selected.slug || selected.id;
+    profileRoot.innerHTML = `<div class="locked">${LOCK_MSG}</div>`;
+    insightRoot.innerHTML = `<div class="locked">${LOCK_MSG}</div>`;
+    // 高亮选中行
+    boardRoot.querySelectorAll('tr.row').forEach(tr => tr.classList.toggle('selected', Number(tr.dataset.i) === i));
+    // 启用并切到概览 TAB
+    switchTab('overview');
+  }
+
+  // 全局下拉选客户：任意 TAB 均可直接选，选中后刷新当前所在 TAB（而非强切列表/概览）
+  function selectBySlug(slug) {
+    const row = currentRows.find(r => String(r.slug ?? r.id) === String(slug));
+    if (!row) return;
+    selected = row;
+    loaded.profile = false; loaded.insight = false;
+    // 解锁详情 TAB
+    Object.keys(tabBtns).forEach(k => { if (k !== 'list') tabBtns[k].classList.remove('locked'); });
+    // 当前可见 TAB
+    const active = Object.keys(panels).find(k => !panels[k].hidden) || 'overview';
+    if (active === 'list') {
+      boardRoot.querySelectorAll('tr.row').forEach(tr => tr.classList.toggle('selected', String(currentRows[Number(tr.dataset.i)]?.slug ?? currentRows[Number(tr.dataset.i)]?.id) === String(slug)));
+      switchTab('overview'); // 列表下选客户后进入概览，等同点行
+    } else if (active === 'overview') renderOverview();
+    else if (active === 'visits') renderVisits();
+    else if (active === 'profile') { renderProfile(); loaded.profile = true; }
+    else if (active === 'insight') { renderInsight(); loaded.insight = true; }
+  }
+
+  // 21 条行为标准 mini 卡（BH-01~07 合格率 + 缺项列表）
+  function renderBehaviorCard(behavior, summary) {
+    if (!behavior || !behavior.total) return '';
+    const pass = behavior.pass || 0;
+    const total = behavior.total || 21;
+    const pct = Math.round((pass / total) * 100);
+    const gaps = Array.isArray(behavior.gaps) ? behavior.gaps : [];
+    const thr = summary?.behaviorPassRateThreshold ?? 80; // 2026-08-30 三分类 B 类：合格率着色阈值读配置
+    return `
+      <div class="ncard ${pct >= thr ? 'ok' : 'warn'}" style="margin-top:12px; border-left:4px solid var(--${pct >= thr ? 'ok' : 'err'}, #c0392b)">
+        <h3>21 条行为标准合格率（BH-01~07）</h3>
+        <div class="kv"><span>合规格数</span><b>${pass}/${total}（${pct}%）</b></div>
+        ${gaps.length ? `<div class="kv" style="align-items:flex-start"><span>缺口项</span><div class="gap" style="text-align:right">${gaps.map(g => esc(g)).join('<br>')}</div></div>` : '<div class="muted">无缺口</div>'}
+      </div>`;
+  }
+
+  // ── TAB2 客户360全景（对齐 account-360 目标卡 + 四维 + 缺口）──
+  function renderOverview() {
+    if (!selected) { overviewRoot.innerHTML = `<div class="locked">${LOCK_MSG}</div>`; return; }
+    const r = selected;
+    const winLabel = { week: '周', month: '月', quarter: '季' }[r.visitWindow] || r.visitWindow || '月';
+    const targetLabel = (r.visitTarget != null ? r.visitTarget : 1) + ' 次/' + winLabel;
+    const gapHtml = Array.isArray(r.gaps) && r.gaps.length
+      ? r.gaps.map(g => `<div class="kv"><span class="gap">${esc(g)}</span></div>`).join('')
+      : '<div class="muted">无缺口</div>';
+    overviewRoot.innerHTML = `
+      <div class="detail-head">
+        <h2>${esc(r.name)}</h2>
+        <span class="tier">${esc(r.tier)}</span>
+        <a href="/account-360.html?id=${esc(r.slug || r.id)}">打开完整 360 视图 →</a>
+      </div>
+      <div class="pg-target-card ${r.visitPass ? 'ok' : 'warn'}" data-kind="target-card">
+        <h3 class="pg-comp-title">目标达标 · ${esc(r.tier)}</h3>
+        <p class="pg-target-meta">目标频率：<b>${esc(targetLabel)}</b>｜实际：<b>${r.visits30 ?? 0}</b> 次｜${r.visitPass ? '✅ 达标' : '⚠️ 未达标'}</p>
+      </div>
+      <div class="dim-grid">
+        <div class="dim ${r.visitPass ? 'ok' : 'warn'}"><div class="d-label">窗口拜访</div><div class="d-val">${r.visits30 ?? 0}</div></div>
+        <div class="dim"><div class="d-label">线索</div><div class="d-val">${r.leads ?? 0}</div></div>
+        <div class="dim"><div class="d-label">商机</div><div class="d-val">${r.opps ?? 0}</div></div>
+        <div class="dim"><div class="d-label">合同</div><div class="d-val">${r.contracts ?? 0}</div></div>
+      </div>
+      <div class="ncard">
+        <h3>缺口提示（监测）</h3>
+        ${gapHtml}
+      </div>
+      ${renderBehaviorCard(r.behavior, lastSummary)}`;
+  }
+
+  // ── TAB3 拜访明细 ──
+  function renderVisits() {
+    if (!selected) { visitsRoot.innerHTML = `<div class="locked">${LOCK_MSG}</div>`; return; }
+    const visits = Array.isArray(selected.visits) ? selected.visits : [];
+    if (!visits.length) { visitsRoot.innerHTML = '<div class="locked">该客户暂无拜访记录</div>'; return; }
+    visitsRoot.innerHTML = `
+      <div class="detail-head"><h2>${esc(selected.name)} · 拜访记录（${visits.length}）</h2></div>
+      <div class="ncard">${visits.map(v => `<div class="visit-item">
+        <div class="visit-date">${fmtDate(v.at)}</div>
+        <div class="visit-fields">
+          <div><b>目的：</b>${esc(v.objective || '—')}</div>
+          <div><b>结果：</b>${esc(v.result || '—')}</div>
+          <div><b>下一步：</b>${esc(v.next || '—')}</div>
+        </div>
+      </div>`).join('')}</div>`;
+  }
+
+  // ── TAB4/TAB5 画像+洞察（复用 account-360.html 受控渲染接口）──
+  function accountIdForSelected() { return selected ? (selected.slug || selected.id) : ''; }
+
+  async function renderProfile() {
+    if (!selected) { profileRoot.innerHTML = `<div class="locked">${LOCK_MSG}</div>`; return; }
+    profileRoot.innerHTML = '<div class="muted" style="padding:20px">加载画像…</div>';
+    try {
+      const j = await api('/api/page/account-360?accountId=' + encodeURIComponent(accountIdForSelected()));
+      profileRoot.innerHTML = j.html || '<div class="locked">画像暂无内容</div>';
+    } catch (e) {
+      profileRoot.innerHTML = `<div class="warn" style="padding:20px">画像加载失败：${esc(e.message)}</div>`;
+    }
+  }
+
+  async function renderInsight() {
+    if (!selected) { insightRoot.innerHTML = `<div class="locked">${LOCK_MSG}</div>`; return; }
+    insightRoot.innerHTML = '<div class="muted" style="padding:20px">加载洞察…</div>';
+    try {
+      const j = await api('/api/page/account-insight?accountId=' + encodeURIComponent(accountIdForSelected()));
+      insightRoot.innerHTML = j.html || '<div class="locked">洞察暂无内容</div>';
+    } catch (e) {
+      insightRoot.innerHTML = `<div class="warn" style="padding:20px">洞察加载失败：${esc(e.message)}</div>`;
+    }
+  }
+
+  async function load(owner, meArg) {
+    currentOwner = owner || '';
+    kpisEl.innerHTML = '<span class="muted">加载中…</span>';
+    boardRoot.innerHTML = '<p class="muted">加载中…</p>';
+    try {
+      // 2026-08-31：admin/manager 视角自动追加 includeUnassigned=1，渲染「无主待分配」面板
+      const me = meArg || currentMe || {};
+      const isMgmt = me?.role && ['admin', 'manager', 'sysadmin'].includes(me.role);
+      // 租户作用域条（方案 A）：admin/sysadmin 可经下拉 ?tenant= 收窄到单租户，并渲染「租户」列
+      showTenantCol = (me?.role === 'admin' || me?.role === 'sysadmin');
+      tenantNameMap = showTenantCol ? (await tenantMap().catch(() => ({}))) : {};
+      const params = [];
+      if (owner) params.push('owner=' + encodeURIComponent(owner));
+      else if (isMgmt) params.push('includeUnassigned=1');
+      const tq = tenantQuery(); // '&tenant=x' 或 ''
+      if (tq) params.push(tq.slice(1));
+      const url = '/api/board/named-accounts' + (params.length ? '?' + params.join('&') : '');
+      const j = await api(url);
+      currentRows = Array.isArray(j.rows) ? j.rows : [];
+      selected = null;
+      loaded.profile = false;
+      loaded.insight = false;
+      // 同步全局「选择客户」下拉：有数据时列出客户，无数据时禁用并提示
+      if (currentRows.length) {
+        accountSelect.innerHTML = '<option value="">选择客户…</option>' +
+          currentRows.map(r => `<option value="${esc(r.slug || r.id)}">${esc(r.name)}（${esc(r.tier)}·${esc(r.owner)}）</option>`).join('');
+        accountSelect.disabled = false;
+      } else {
+        accountSelect.innerHTML = '<option value="">当前视角无客户</option>';
+        accountSelect.disabled = true;
+      }
+      accountSelect.value = '';
+      // 重置详情 TAB 为禁用
+      // 详情 TAB 回到降透明度（可点，点击后 toast 提示）
+      Object.keys(tabBtns).forEach(k => { if (k !== 'list') tabBtns[k].classList.add('locked'); });
+      renderKpis(j.summary);
+      renderBoard(currentRows, lastSummary);
+      renderOrphans(j.orphans); // §5 防呆：表面化未正确归属商机（孤儿/错绑）
+      mountFollowTable(); // 顶部告警表（独立于主看板，并行填充）
+      // 2026-08-31：root cause fix — admin/manager 视角下若有 unassigned 分桶，挂一个「无主待分配」面板
+      renderUnassigned(j.unassigned, me);
+      // 空表且可切换销售：引导用户注意右上角下拉框
+      document.querySelector('.page-actions')?.classList.toggle('pulse', currentRows.length === 0 && canSwitchOwner);
+      switchTab('list');
+    } catch (e) {
+      boardRoot.innerHTML = `<p class="warn">看板加载失败：${esc(e.message)}</p>`;
+      accountSelect.innerHTML = '<option value="">加载失败</option>';
+      accountSelect.disabled = true;
+    }
+  }
+
+  // 2026-08-31 root cause fix：admin/manager 视角下展示「无主待分配」账户（AI 写账户无 named_owner 时），
+  // 引导用户经 named-account-manage.html 一键分配 owner。
+  function renderUnassigned(unassigned, me) {
+    const panel = document.getElementById('panel-unassigned');
+    if (!panel) return;
+    const root = document.getElementById('unassigned-root');
+    if (!unassigned || !(me?.role && ['admin','manager','sysadmin'].includes(me.role))) {
+      panel.hidden = true;
+      if (root) root.innerHTML = '';
+      return;
+    }
+    if (!unassigned.count) { panel.hidden = true; return; }
+    panel.hidden = false;
+    const items = unassigned.rows.map(r => `
+      <tr>
+        <td>${esc(r.name)}</td>
+        <td><span class="tier">${esc(r.tier)}</span></td>
+        <td>${esc(String(r.state || 'potential'))}</td>
+        <td>${esc(fmtDate(r.created_at))}</td>
+        <td><a href="/named-account-manage.html?id=${esc(r.id)}" target="_blank">→ 前往分配</a></td>
+      </tr>`).join('');
+    root.innerHTML = `
+      <div class="empty-hint warn">
+        <div class="eh-icon">📦</div>
+        <div class="eh-body">
+          <div class="eh-title">无主待分配：${unassigned.count} 个</div>
+          <div class="eh-desc">这些账户尚未指派销售（<b>named_owner</b> 为空），所以未出现在上方任何销售名下的「客户清单」中。
+            通常是 AI 助手写路径漏带 <b>named_owner</b> 导致。请到<b>指名客户管理</b>批量分配。</div>
+          <a class="btn primary" href="/named-account-manage.html" target="_blank">打开指名客户管理 →</a>
+        </div>
+      </div>
+      <table style="margin-top:12px">
+        <thead><tr><th>客户名</th><th>档位</th><th>状态</th><th>创建日</th><th>操作</th></tr></thead>
+        <tbody>${items}</tbody>
+      </table>`;
+  }
+
+  // §5 防呆预警条（2026-09-02）：表面化「未正确归属」的商机——孤儿(account_missing)/错绑(account_mismatch)。
+  // 数据源 = /api/board/named-accounts 的 orphans 字段（listOrphanDeals 纯函数产出，不改主数据）。
+  // 仅提示，不阻断主看板；与 unassigned 面板同属「管理面可见性」增强。
+  function renderOrphans(orphans) {
+    const host = document.getElementById('orphan-root');
+    if (!host) return;
+    if (!Array.isArray(orphans) || !orphans.length) { host.innerHTML = ''; host.hidden = true; return; }
+    const miss = orphans.filter(o => o.reason === 'account_missing');
+    const mismatch = orphans.filter(o => o.reason === 'account_mismatch');
+    const li = (o) => {
+      if (o.reason === 'account_mismatch') {
+        return `<li><span class="tag mismatch">错绑</span>商机「<b>${esc(o.name)}</b>」customer=<b>${esc(o.customer)}</b> 但归属账户=<b>${esc(o.account_name)}</b>（疑似客户记忆串档）</li>`;
+      }
+      return `<li><span class="tag missing">孤儿</span>商机「<b>${esc(o.name)}</b>」未正确归属账户（account_id 缺失或指向不存在的账户${(o.customer ? '，customer=' + esc(o.customer) : '')}）</li>`;
+    };
+    host.hidden = false;
+    host.innerHTML = `
+      <div class="orphan-banner">
+        <div class="ob-icon">⚠️</div>
+        <div class="ob-body">
+          <div class="ob-title">客户归属异常：${orphans.length} 条商机未正确归属（${mismatch.length} 错绑 / ${miss.length} 孤儿）</div>
+          <div class="ob-desc">以下商机存在账户错绑或缺失归属，可能污染客户记忆与看板统计。请到<b>指名客户管理</b>修正归属，或重新走受治理写入（写前账户归属守护已默认拦截同类错绑）。</div>
+          <ul>${orphans.map(li).join('')}</ul>
+          <div class="ob-foot">提示：本预警为只读表面化，不影响主数据；历史 seed/demo 数据（props.demo=true）若仍绑印通属正常现象。</div>
+        </div>
+      </div>`;
+  }
+
+  Object.values(tabBtns).forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  ownerSelect.addEventListener('change', () => { if (ownerSelect.value) load(ownerSelect.value); });
+
+  // 全局「选择客户」下拉：任意 TAB 选客户即时刷新当前视图
+  accountSelect.addEventListener('change', () => { if (accountSelect.value) selectBySlug(accountSelect.value); });
+
+  (async () => {
+    const r = await me().catch(() => ({}));
+    currentMe = r; // 2026-08-31 root cause fix：admin/manager 视角下渲染「无主待分配」面板用
+    const role = r.role;
+    if (role === 'manager' || role === 'admin') {
+      const resp = await api('/api/config/users?tenant=me').catch((e) => ({ __err: e?.message }));
+      if (resp.__err) { ownerSelectError = resp.__err; }
+      const items = Array.isArray(resp.users) ? resp.users : [];
+      canSwitchOwner = items.length > 0;
+      if (items.length) {
+        items.forEach(u => ownerMap.set(u.username || u, u.display_name || u.username || u));
+        ownerSelect.innerHTML = '<option value="">当前销售（本人）</option>' +
+          items.map(u => `<option value="${esc(u.username || u)}">${esc(u.display_name || u.username || u)}</option>`).join('');
+      }
+    }
+    await load('', currentMe);
+    mountTenantScopeBar(document.getElementById('tenant-bar'), () => load('', currentMe));
+  })();
+</script>
+</body>
+</html>

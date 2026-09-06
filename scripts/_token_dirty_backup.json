@@ -1,0 +1,56 @@
+[
+  {
+    "id": "82",
+    "tenant_id": "system",
+    "actor": "chem_sales01",
+    "action": "data-particle-create",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "created_at": "2026-09-03T11:02:29.956Z"
+  },
+  {
+    "id": "86",
+    "tenant_id": "system",
+    "actor": "chem_sales01",
+    "action": "data-particle-create",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "created_at": "2026-09-03T11:55:10.948Z"
+  },
+  {
+    "id": "88",
+    "tenant_id": "system",
+    "actor": "chem_sales01",
+    "action": "data-particle-create",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "created_at": "2026-09-04T03:26:24.734Z"
+  },
+  {
+    "id": "89",
+    "tenant_id": "system",
+    "actor": "chem_sales01",
+    "action": "data-particle-create",
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "created_at": "2026-09-04T03:26:26.932Z"
+  },
+  {
+    "id": "91",
+    "tenant_id": "acme-chem",
+    "actor": "alice",
+    "action": "agent-think",
+    "tokens_in": 12000,
+    "tokens_out": 8000,
+    "created_at": "2026-09-04T10:56:57.847Z"
+  },
+  {
+    "id": "92",
+    "tenant_id": "acme-chem",
+    "actor": "bob",
+    "action": "crm-deal-advance",
+    "tokens_in": 5000,
+    "tokens_out": 2000,
+    "created_at": "2026-09-04T10:56:57.847Z"
+  }
+]

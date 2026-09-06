@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>用户管理 · CRM 配置中心</title>
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background:var(--bg); color: var(--ink); }
+  main { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+  h2 { margin: 0 0 12px; }
+  .muted { color: var(--mut); font-size: 13px; }
+  .err { color: var(--err); }
+  form input, form select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; margin: 3px 4px 3px 0; }
+  #form { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 12px 0; }
+  .user-group { background: var(--panel); border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+  .user-group h3 { margin: 4px 0 8px; font-size: 14px; display:flex; align-items:center; gap:6px; }
+  .cnt { color: var(--mut); font-weight: 400; font-size: 12px; }
+  table.user-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.user-tbl th, table.user-tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel); }
+  .role-tag { background: var(--as); color: var(--ac); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+  .empty { color: var(--mut); padding: 20px; text-align: center; }
+  .toolbar { position: sticky; top: 0; z-index: 5; background: var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:12px 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .toolbar .sel { font-weight:600; }
+  .spacer { flex:1; }
+  .batch-actions { display:flex; gap:6px; align-items:center; }
+  .batch-actions input[type=datetime-local] { font-size:13px; }
+  </style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<main id="users-root"><p class="muted">加载中…</p></main>
+<script type="module">
+import { post, put } from '/portal/api.js';
+import * as um from '/portal/userManagementRender.js';
+import { ROLE_TAGS as ROLES } from '/portal/userManagementRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+
+const TOKEN = localStorage.getItem('crm_token');
+const root = document.getElementById('users-root');
+let users = [];
+let selectedTenant = 'all';
+
+function toLocalInput(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/config/users', { headers: { Authorization: `Bearer ${TOKEN}` } });
+    if (!r.ok) { root.innerHTML = `<p class="err">加载失败：${r.status} ${await r.text()}</p>`; return; }
+    const j = await r.json();
+    users = j.users || [];
+    selectedTenant = 'all';
+    render();
+  } catch (e) { root.innerHTML = `<p class="err">${e.message}</p>`; }
+}
+
+function tenantOptions() {
+  const ts = Array.from(new Set(users.map((u) => u.tenant_id || 'system'))).sort();
+  return `<option value="all">全部租户 (${users.length})</option>` +
+    ts.map((t) => `<option value="${t}">${t} (${users.filter((u) => (u.tenant_id || 'system') === t).length})</option>`).join('');
+}
+
+function render() {
+  root.innerHTML = `<h2>用户管理</h2>
+    <div style="display:flex;gap:10px;align-items:center;margin:8px 0;flex-wrap:wrap">
+      <crm-button id="addBtn" class="btn">+ 新建用户</crm-button>
+      <label class="muted">租户筛选
+        <crm-select id="tenantSel">${tenantOptions()}</crm-select>
+      </label>
+    </div>
+    <div id="form" style="display:none"></div>
+    <div class="toolbar">
+      <span class="sel">已选 <b id="selCount">0</b> 个用户</span>
+      <div class="batch-actions">
+        <crm-button class="btn" id="batchEnable">批量启用</crm-button>
+        <crm-button class="btn" id="batchFreeze">批量冻结</crm-button>
+        <crm-input type="datetime-local" id="expInput" title="有效期至"></crm-input>
+        <crm-button class="btn" id="batchExpire">设置有效期</crm-button>
+      </div>
+      <span class="spacer"></span>
+      <crm-button class="btn ghost" id="clearSel">清空选择</crm-button>
+    </div>
+    <div id="userList"></div>
+    <p class="muted">每 60s 自动刷新 · 写操作经决策第0闸（config_change 事件）· 绝对禁删，禁用/冻结=软标记 · 零信任：成批操作前二次确认</p>`;
+  document.getElementById('tenantSel').value = selectedTenant;
+  renderList();
+  bind();
+}
+
+function visibleUsers() {
+  if (selectedTenant === 'all') return users;
+  return users.filter((u) => (u.tenant_id || 'system') === selectedTenant);
+}
+
+function renderList() {
+  document.getElementById('userList').innerHTML = um.renderUsers(visibleUsers());
+  root.querySelectorAll('.tenant-all').forEach((cb) => (cb.onchange = () => {
+    const t = cb.dataset.tenant;
+    root.querySelectorAll(`.user-group[data-tenant="${t}"] .ucheck`).forEach((x) => (x.checked = cb.checked));
+    updateCount();
+  }));
+  root.querySelectorAll('.ucheck').forEach((cb) => (cb.onchange = updateCount));
+  root.querySelectorAll('.edit').forEach((b) => (b.onclick = () => {
+    const u = users.find((x) => x.user_id === b.dataset.id);
+    const f = document.getElementById('form');
+    f.style.display = 'block';
+    f.innerHTML = formHtml('edit', u);
+    document.getElementById('uf').onsubmit = onSubmit;
+  }));
+  updateCount();
+}
+
+function updateCount() {
+  const n = root.querySelectorAll('.ucheck:checked').length;
+  const el = document.getElementById('selCount');
+  if (el) el.textContent = n;
+}
+
+function checkedUids() {
+  return Array.from(root.querySelectorAll('.ucheck:checked')).map((x) => x.dataset.uid);
+}
+
+function formHtml(mode, u = {}) {
+  const roleOpts = ROLES.map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('');
+  const enChecked = u.enabled === false ? '' : 'checked';
+  return `<form id="uf" data-mode="${mode}" data-uid="${u.user_id || ''}">
+    <crm-input name="username" placeholder="用户名" value="${u.username || ''}" ${mode === 'edit' ? 'readonly' : ''} required></crm-input>
+    <crm-input name="display_name" placeholder="显示名" value="${u.display_name || ''}"></crm-input>
+    <crm-input name="password" type="password" placeholder="${mode === 'edit' ? '留空=不改密' : '密码(≥8)'}" autocomplete="new-password"></crm-input>
+    <crm-select name="role">${roleOpts}</crm-select>
+    <crm-input name="org_id" placeholder="org_id" value="${u.org_id || ''}"></crm-input>
+    ${mode === 'edit' ? `<label><crm-checkbox name="enabled" value="true" ${enChecked}></crm-checkbox> 启用</label>` : ''}
+    <label>有效期至<crm-input type="datetime-local" name="expires_at" value="${toLocalInput(u.expires_at)}"></crm-input></label>
+    <crm-button class="btn" type="submit">${mode === 'edit' ? '保存' : '创建'}</crm-button>
+    <crm-button class="btn ghost" type="button" onclick="document.getElementById('form').style.display='none'">取消</crm-button>
+  </form>`;
+}
+
+function bind() {
+  const add = document.getElementById('addBtn');
+  if (add) add.onclick = () => {
+    const f = document.getElementById('form');
+    f.style.display = 'block';
+    f.innerHTML = formHtml('create');
+    document.getElementById('uf').onsubmit = onSubmit;
+  };
+  const sel = document.getElementById('tenantSel');
+  if (sel) sel.onchange = () => { selectedTenant = sel.value; renderList(); };
+  document.getElementById('clearSel').onclick = () => {
+    root.querySelectorAll('.ucheck').forEach((x) => (x.checked = false));
+    root.querySelectorAll('.tenant-all').forEach((x) => (x.checked = false));
+    updateCount();
+  };
+  document.getElementById('batchEnable').onclick = () => batchAct('enable');
+  document.getElementById('batchFreeze').onclick = () => batchAct('freeze');
+  document.getElementById('batchExpire').onclick = () => batchAct('set_expiry');
+}
+
+async function batchAct(action) {
+  const ids = checkedUids();
+  if (!ids.length) { alert('请先勾选要操作的用户（可按租户「全选」）'); return; }
+  let expires_at = null;
+  if (action === 'set_expiry') {
+    const v = document.getElementById('expInput').value;
+    if (!v) { alert('请先填写有效期（设置有效期操作）'); return; }
+    expires_at = new Date(v).toISOString();
+  }
+  const verb = { enable: '启用', freeze: '冻结', set_expiry: '设置有效期' }[action];
+  if (!confirm(`确认对选中的 ${ids.length} 个用户执行「${verb}」？\n（操作经决策第0闸留痕，零信任二次确认）`)) return;
+  try {
+    const r = await fetch('/api/config/users/batch', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, user_ids: ids, expires_at }),
+    });
+    const j = await r.json();
+    if (!r.ok) { alert('失败：' + (j.error || r.status)); return; }
+    alert(`已${verb} ${j.updated} 个用户（决策 ${j.decision || ''}）`);
+    load();
+  } catch (e) { alert('请求失败：' + e.message); }
+}
+
+async function onSubmit(e) {
+  e.preventDefault();
+  const f = e.target;
+  const mode = f.dataset.mode;
+  const fd = Object.fromEntries(new FormData(f).entries());
+  const body = mode === 'edit' ? { user_id: f.dataset.uid, patch: {} } : { username: fd.username, password: fd.password, role: fd.role };
+  if (mode === 'edit') {
+    if (fd.display_name) body.patch.display_name = fd.display_name;
+    if (fd.password) body.patch.password = fd.password;
+    if (fd.role) body.patch.role = fd.role;
+    body.patch.org_id = fd.org_id || null;
+    body.patch.enabled = fd.enabled === 'true';
+    body.patch.expires_at = fd.expires_at ? new Date(fd.expires_at).toISOString() : null;
+  } else {
+    if (fd.display_name) body.display_name = fd.display_name;
+    body.org_id = fd.org_id || null;
+  }
+  const r = await fetch('/api/config/users', {
+    method: mode === 'edit' ? 'PUT' : 'POST',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!r.ok) { alert('失败：' + (j.error || r.status)); return; }
+  f.style.display = 'none';
+  f.reset();
+  load();
+}
+
+if (!TOKEN) location.href = '/home.html';
+else load();
+setInterval(() => { if (TOKEN) load(); }, 60000);
+</script>
+</body>
+</html>

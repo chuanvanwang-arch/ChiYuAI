@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>参数传播中枢</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<script defer src="/portal/components.js"></script>
+<style>
+  /* 仅本页私有组件（pg-* 已由 page.css 接管，shell 由 common.css 接管） */
+  .ph-sub{color:var(--mut);font-size:13px;margin-bottom:14px}
+  .ph-section{display:none;margin-top:14px}
+  .ph-section.show{display:block}
+  .risk-LOW{color:var(--ok);font-weight:600} .risk-MEDIUM{color:var(--warn);font-weight:600} .risk-HIGH{color:var(--err);font-weight:600}
+  .phi-status{cursor:pointer;user-select:none;border-radius:6px;padding:3px 8px;font-size:13px;transition:background .15s,border-color .15s;background:var(--panel);border:1px solid var(--line)}
+  .phi-status:hover{background:var(--hover);outline:1px solid var(--ac);box-shadow:0 0 0 2px rgba(99,102,241,.1)}
+  .phi-row{display:flex;flex-wrap:wrap;gap:8px 14px;border-bottom:1px dashed var(--line);padding:8px 0;align-items:center}
+  .phi-row:last-child{border-bottom:0}
+  .phi-key{width:180px;font-weight:600;flex-shrink:0;color:var(--ink)}
+  .phi-statuses{display:flex;gap:8px;flex-wrap:wrap}
+  .phi-chip{font-size:12px;color:var(--ac);background:rgba(99,102,241,.12);border:1px solid transparent;border-radius:999px;padding:2px 9px}
+  code.inh-code{background:var(--bg2);padding:1px 5px;border-radius:4px;font-size:12px;color:var(--mut)}
+  .inh-detail{font-size:12.5px;color:var(--mut);margin-top:4px;white-space:pre-wrap;background:var(--bg2);padding:8px;border-radius:var(--radius)}
+  .no-data{color:var(--mut);padding:14px 0;font-size:13px}
+  .presc{font-size:12px;color:var(--mut);margin-top:6px;white-space:pre-wrap;background:var(--bg2);padding:8px;border-radius:var(--radius)}
+  #bresult,#done-body{font-size:13px;margin-top:8px}
+  /* 自绘下拉（绕过 crm-input shadow DOM 内 datalist 跨 tree 关联失效） */
+  .ph-field{position:relative;display:inline-block}
+  .ph-suggest{position:absolute;top:calc(100% + 4px);left:0;min-width:200px;max-height:230px;overflow:auto;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 6px 20px rgba(0,0,0,.22);padding:4px}
+  .ph-suggest:empty{display:none}
+  .ph-suggest-item{padding:6px 10px;font-size:13px;color:var(--ink);cursor:pointer;border-radius:6px}
+  .ph-suggest-item:hover{background:var(--hover)}
+  .ph-hide{display:none !important}
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">参数传播中枢</h1></div></header>
+<div class="ph-sub">继承（自动回退）· 强制下发（上下贯通·ADMIN）· 上行推广（任务→租户 / 租户→系统）。所有写操作经决策第0闸 + HITL。</div>
+<div class="tabs">
+  <div class="tab on" id="t-inherit" onclick="show('inherit')">继承视图</div>
+  <div class="tab" id="t-broadcast" onclick="show('broadcast')">下发草稿</div>
+  <div class="tab" id="t-promote" onclick="show('promote')">推广候选</div>
+  <div class="tab" id="t-done" onclick="show('done')">已落地</div>
+</div>
+
+<section id="inherit" class="ph-section show">
+  <h3>继承视图（系统默认 → 租户覆盖）</h3>
+  <p class="no-data">租户键状态：<span class="phi-chip">定制</span> = 租户真定制值；<span class="phi-chip">继承</span> = 从系统模板拷贝（读时 autoSeed）；<span class="phi-chip">无</span> = 租户未落配置。点击键查看详情。</p>
+  <div id="inherit-body">加载中…</div>
+</section>
+
+<section id="broadcast" class="ph-section">
+  <h3>强制下发（上下贯通 · 须 ADMIN）</h3>
+  <div class="panel" style="padding:12px 14px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <label style="font-weight:600;font-size:13px">key:</label>
+      <div class="ph-field">
+        <crm-input id="bk" placeholder="选择或输入配置键…" style="width:200px" oninput="onBkInput()"></crm-input>
+        <div id="bk-suggest" class="ph-suggest"></div>
+      </div>
+      <label style="font-weight:600;font-size:13px">value(JSON):</label>
+      <crm-input id="bv" placeholder='{"minSimilarity":0.4}' style="width:240px"></crm-input>
+      <label style="font-weight:600;font-size:13px">mode:</label>
+      <crm-select id="bm" style="width:150px"><option value="fill-only">fill-only（仅未定制）</option><option value="override">override（全量覆盖）</option></crm-select>
+      <crm-button onclick="doBroadcast()">下发</crm-button>
+    </div>
+    <div id="bref" class="inh-detail ph-hide" style="margin-top:8px"></div>
+  </div>
+  <div id="bresult"></div>
+</section>
+
+<section id="promote" class="ph-section">
+  <h3>推广候选（复盘 knob=config_store + 记忆 + SKILL 借鉴）</h3>
+  <div id="promote-body">加载中…</div>
+</section>
+
+<section id="done" class="ph-section">
+  <h3>已落地（经决策第0闸留痕）</h3>
+  <div id="done-body">加载中…</div>
+</section>
+
+<script>
+const TOKEN = localStorage.getItem('crm_token') || localStorage.getItem('token') || '';
+async function api(p, opt={}) {
+  const needsJson = opt.body && typeof opt.body === 'string' && /^(POST|PUT|PATCH)$/i.test(opt.method || 'GET');
+  const headers = {
+    Authorization: `Bearer ${TOKEN}`,
+    ...(needsJson ? { 'Content-Type': 'application/json' } : {}),
+    ...(opt.headers || {}),
+  };
+  const r = await fetch(p, { ...opt, headers });
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = { ok: false, error: 'HTTP ' + r.status + '（非 JSON 响应）' }; }
+  if (!r.ok && j && !j.error) j.error = 'HTTP ' + r.status;
+  return j;
+}
+function show(t) {
+  ['inherit','broadcast','promote','done'].forEach(id => {
+    document.getElementById(id).classList.toggle('show', id === t);
+    document.getElementById('t-'+id).classList.toggle('on', id === t);
+  });
+  if (t === 'promote') loadPromote();
+  if (t === 'inherit') loadInherit();
+  if (t === 'done') loadDone();
+}
+function renderPatch(x) {
+  const p = x.patch || {};
+  const label = p.label || x.title || x.ref;
+  const risk = p.risk || 'LOW';
+  const target = p.target || '';
+  const toVal = p.to_value != null ? JSON.stringify(p.to_value) : '';
+  const presc = p.prescription ? `<div class="presc">${escapeHtml(p.prescription.reason || '')}${p.prescription.predicted_impact ? '\n预期: ' + JSON.stringify(p.prescription.predicted_impact) : ''}${p.prescription.bounds ? '\n边界: 不低于 ' + p.prescription.bounds.do_not_below + ' / 不高于 ' + p.prescription.bounds.do_not_above : ''}</div>` : '';
+  const tenantId = x.tenant_id || null;
+  const meta = JSON.stringify({ kind: x.kind, ref: x.ref, patch: x.patch || null, memoryId: x.memoryId || null, tenantId }).replace(/'/g,"&#39;");
+  return `<div class="panel"><b>${x.kind}</b> · <span class="risk-${risk}">${risk}</span> · ${escapeHtml(label)}
+    <br>ref:<code>${escapeHtml(x.ref)}</code>${target ? ` → <code>${escapeHtml(target)} = ${escapeHtml(toVal)}</code>` : ''}${tenantId ? ` · 租户 <code>${escapeHtml(tenantId)}</code>` : ''}
+    <br><crm-button onclick='acceptMeta(${meta})'>采纳</crm-button>
+    <crm-button onclick="reject('${x.kind}','${x.ref}')">驳回</crm-button>${presc}</div>`;
+}
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+async function loadPromote() {
+  const body = document.getElementById('promote-body');
+  try {
+    const j = await api('/api/propagation/suggestions');
+    if (j && j.ok === false) { body.textContent = '加载失败: ' + (j.error || '未登录或无权限'); return; }
+    const items = [...(j.config_store || []), ...(j.memory || [])];
+    body.innerHTML = items.length ? items.map(renderPatch).join('') : '暂无可推广候选';
+  } catch (e) { body.textContent = '加载失败: ' + e.message; }
+}
+async function acceptMeta(m) {
+  const payload = { ...m };
+  if (payload.tenant_id != null && payload.tenantId == null) payload.tenantId = payload.tenant_id;
+  const j = await api('/api/propagation/accept', { method: 'POST', body: JSON.stringify(payload) });
+  alert(j.ok ? '已采纳（决策 ' + (j.decisionId || '') + '）' : '失败: ' + j.error);
+  loadPromote(); show('done'); loadDone();
+}
+// 保留旧签名兼容（已由 acceptMeta 取代，renderPatch 不再调用）
+async function accept(kind, ref, patch) {
+  return acceptMeta({ kind, ref, patch, memoryId: null });
+}
+async function reject(kind, ref) {
+  const j = await api('/api/propagation/reject', { method: 'POST', body: JSON.stringify({ kind, ref }) });
+  alert(j.ok ? '已驳回' : '失败: ' + j.error);
+  loadPromote();
+}
+// ① 继承视图：矩阵（每键一个展开行，展开→查看租户详情）——零写操作（GET 只读）
+async function loadInherit() {
+  const body = document.getElementById('inherit-body');
+  body.innerHTML = '加载中…';
+  try {
+    const j = await api('/api/config/inherit-matrix');
+    if (j && j.ok === false) { body.textContent = '加载失败: ' + (j.error || '未登录或无权限'); return; }
+    const entries = j.entries || {};
+    const tenants = j.tenants || [];
+    const keys = [...new Set(Object.values(entries).flat().map(e => e.key))].sort();
+    if (!keys.length) { body.textContent = '暂无可展示的键（各租户未有 config_store 覆盖配置）'; return; }
+    body.innerHTML = keys.map((key, ki) => {
+      const states = tenants.map(tid => {
+        const row = (entries[tid] || []).find(e => e.key === key);
+        const st = row ? row.status : 'absent';
+        const label = st === 'custom' ? '定制' : (st === 'seeded' ? '继承' : '无');
+        const chipCls = st === 'custom' ? 'custom' : (st === 'seeded' ? 'seeded' : 'absent');
+        return `<span class="phi-status" data-k="${ki}" data-t="${escapeHtml(tid)}" onclick="event.stopPropagation();detailForChip(this,'${escapeHtml(key)}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')detailForChip(this,'${escapeHtml(key)}')"><span class="phi-chip chip-${chipCls}">${label}</span> ${escapeHtml(tid)} <small style="opacity:.5">▸</small></span>`;
+      }).join('');
+      return `<div class="phi-row"><span class="phi-key">${escapeHtml(key)}</span><span class="phi-statuses">${states}</span></div>`;
+    }).join('');
+  } catch (e) { body.textContent = '加载失败: ' + e.message; }
+}
+// 展开键 → 单键继承详情（插入整行之后；用 openDetails Map 跟踪展开态，避免依赖相邻兄弟位置）
+const openDetails = new Map();
+async function detailForChip(chip, key) {
+  const row = chip.closest('.phi-row');
+  if (!row) return;
+  if (openDetails.has(row)) { openDetails.get(row).remove(); openDetails.delete(row); return; }
+  const d = document.createElement('div');
+  d.className = 'inh-detail';
+  d.textContent = '加载中…';
+  row.insertAdjacentElement('afterend', d);
+  openDetails.set(row, d);
+  try {
+    const j = await api('/api/config/inherit?key=' + encodeURIComponent(key));
+    const detailChips = (j.entries || []).map(en => {
+      const label = en.status === 'custom' ? '定制' : '继承';
+      return `<span class="phi-chip">${escapeHtml(en.tenantId)}:${label}</span><code class="inh-code">${escapeHtml(JSON.stringify(en.value))}</code>`;
+    }).join(' ');
+    d.innerHTML = `<b>${escapeHtml(key)}</b><br>${detailChips || '各租户均未落配置'}`;
+  } catch (e) {
+    d.textContent = '加载失败: ' + e.message;
+  }
+}
+// ④ 已落地：留痕列表（accept/reject/broadcast 全量）
+async function loadDone() {
+  const body = document.getElementById('done-body');
+  body.innerHTML = '加载中…';
+  try {
+    const j = await api('/api/propagation/actions');
+    if (j && j.ok === false) { body.textContent = '加载失败: ' + (j.error || '未登录或无权限'); return; }
+    const items = j.items || [];
+    if (!items.length) { body.textContent = '暂无已落地留痕（尚未有 采纳/驳回/下发 动作）'; return; }
+    body.innerHTML = items.map(a => {
+      const badge = a.kind === 'broadcast' ? '<span class="badge read">下发</span>'
+        : (a.status === 'accepted' ? '<span class="badge ok">已采纳</span>' : '<span class="badge off">已驳回</span>');
+      const refText = escapeHtml(a.ref || '');
+      const byText = escapeHtml(a.by || '');
+      const time = a.createdAt ? new Date(a.createdAt).toLocaleString('zh-CN', { hour12: false }) : '';
+      const dec = a.decisionId ? ` · 决策 <code class="inh-code">${escapeHtml(a.decisionId)}</code>` : '';
+      return `<div class="panel">${badge} <code class="inh-code">${refText}</code> · ${byText} · ${time}${dec}</div>`;
+    }).join('');
+  } catch (e) { body.textContent = '加载失败: ' + e.message; }
+}
+async function doBroadcast() {
+  try {
+    const key = document.getElementById('bk').value.trim();
+    const value = JSON.parse(document.getElementById('bv').value);
+    const mode = document.getElementById('bm').value;
+    const j = await api('/api/config/broadcast', { method: 'POST', body: JSON.stringify({ key, value, mode }) });
+    document.getElementById('bresult').textContent = j.ok ? `已写:${j.written?.join(',')||'无'} 跳过(已定制):${j.skipped?.join(',')||'无'}` : '失败: ' + (j.error || '未知错误（未登录或无权限？）');
+    loadDone();
+  } catch (e) { document.getElementById('bresult').textContent = 'JSON 解析错误或请求失败: ' + e.message; }
+}
+// 初始加载：默认 show 的「继承视图」必须立即可见（修复卡「加载中…」），推广候选一并预取
+loadInherit();
+loadPromote();
+// 填充下发草稿的 key 候选池（从 inherit-matrix 提取已知的配置键）
+let KNOWN_KEYS = [];
+async function loadBroadcastKeys() {
+  try {
+    const j = await api('/api/config/inherit-matrix');
+    if (!j || j.ok === false) return;
+    const entries = j.entries || {};
+    KNOWN_KEYS = [...new Set(Object.values(entries).flat().map(e => e.key))].sort();
+  } catch (_) { /* 静默降级：候选为空时仍可手输 */ }
+}
+// 自绘下拉：不依赖 datalist / shadow，规避 crm-input shadow DOM 内 datalist 跨 tree 关联失效
+function onBkInput() {
+  const box = document.getElementById('bk-suggest');
+  if (!box) return;
+  const v = (document.getElementById('bk').value || '').trim().toLowerCase();
+  const matches = v ? KNOWN_KEYS.filter(k => k.toLowerCase().includes(v)).slice(0, 12) : KNOWN_KEYS.slice(0, 12);
+  box.innerHTML = matches.length
+    ? matches.map(k => `<div class="ph-suggest-item" data-k="${escapeHtml(k)}" onclick="pickKey(this.dataset.k)">${escapeHtml(k)}</div>`).join('')
+    : '';
+  onBkChange();
+}
+function pickKey(k) {
+  document.getElementById('bk').value = k;
+  document.getElementById('bk-suggest').innerHTML = '';
+  onBkChange();
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest || !e.target.closest('.ph-field')) {
+    const box = document.getElementById('bk-suggest');
+    if (box) box.innerHTML = '';
+  }
+});
+// 选中/输入 key 后，拉取 system 模板值作为参考（避免用户手打 JSON）
+async function onBkChange() {
+  const key = document.getElementById('bk').value.trim();
+  const refEl = document.getElementById('bref');
+  if (!key) { refEl.classList.add('ph-hide'); return; }
+  try {
+    const j = await api('/api/config/effective?key=' + encodeURIComponent(key) + '&tenant_id=system');
+    if (j && j.value != null) {
+      refEl.innerHTML = `<b>system 当前值</b>（参考模板，可在此基础上修改）：<code class="inh-code">${escapeHtml(JSON.stringify(j.value, null, 2))}</code>`;
+      refEl.classList.remove('ph-hide');
+      // 若 value 为空则自动填入模板（crm-input 未升级时 .value 为 undefined，需防御）
+      const bvEl = document.getElementById('bv');
+      const bvVal = (bvEl && bvEl.value) || '';
+      if (!bvVal.trim()) {
+        if (bvEl) bvEl.value = JSON.stringify(j.value, null, 2);
+      }
+    } else {
+      refEl.innerHTML = '<span style="color:var(--mut)">该键尚无 system 模板值</span>';
+      refEl.classList.remove('ph-hide');
+    }
+  } catch (_) { refEl.classList.add('ph-hide'); }
+}
+loadBroadcastKeys();
+</script>
+<script type="module">
+  // 统一 layout 壳（nav-path 全量契约）：注入全局顶栏/侧栏，与本页局部 TAB 共存
+  import { injectLayout } from '/portal/layout.js';
+  injectLayout();
+</script>
+</body>
+</html>

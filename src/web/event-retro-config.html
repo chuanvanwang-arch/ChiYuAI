@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>事件触发复盘配置 · 配置中心</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+  .wrap { padding: 18px 20px; max-width: 1180px; margin: 0 auto; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .note { background: var(--warn); border: 1px solid var(--warn); color: #fff; padding: 10px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px; }
+  .note a { color: #fff; text-decoration: underline; }
+  .field { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+  .field label { width: 260px; font-size: 13px; color: var(--mut); }
+  .field input, .field select, .field crm-input, .field crm-select, .field crm-checkbox { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: var(--panel); color: var(--ink); }
+  .field input[type="number"], .field crm-input[type="number"] { width: 180px; }
+  table.cfg-table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+  table.cfg-table th, table.cfg-table td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  table.cfg-table thead th { background: var(--panel); color: #fff; }
+  .muted { color: var(--mut); font-size: 12px; }
+  #status { font-size: 12px; color: var(--mut); }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">事件触发复盘配置</h1></div></header>
+<div class="wrap">
+  <div class="note">重大决策<b>确认（CONFIRMED）</b>后，系统自动为复盘智能体建一条复盘待办，无需人工发起。本页控制触发条件，数据存入 <b>config_store['event-retro']</b>，写操作经决策第0闸 + sysadmin 权限。复盘产出可在 <a href="/agent-workbench.html">「智能体工作台」</a> 查看。全部阈值后台可配，代码零硬编码。</div>
+
+  <div class="panel sect">
+    <div class="sect-title">触发条件</div>
+    <div class="field"><label>启用事件触发复盘</label><crm-checkbox id="enabled"></crm-checkbox></div>
+    <div class="field"><label>触发下限分级（≥ 该级才触发）</label>
+      <crm-select id="minTier">
+        <option value="NORMAL">NORMAL（全部决策都复盘，量最大）</option>
+        <option value="HIGH">HIGH（重大及以上，出厂默认）</option>
+        <option value="CRITICAL">CRITICAL（仅关键决策）</option>
+      </crm-select>
+    </div>
+    <div class="field"><label>冷却窗（小时，同租户窗口内只建一次）</label><crm-input type="number" id="cooldown" min="0" max="720" step="1"></crm-input></div>
+    <div class="field"><label>建单后立即派发（否则等下一调度周期）</label><crm-checkbox id="autoPump"></crm-checkbox></div>
+  </div>
+
+  <div class="panel sect">
+    <div class="sect-title">生效说明（只读）</div>
+    <table class="cfg-table">
+      <thead><tr><th>环节</th><th>行为</th></tr></thead>
+      <tbody>
+        <tr><td>触发信号</td><td>决策被人工确认（HITL 确认 → 状态 CONFIRMED）</td></tr>
+        <tr><td>分级判定</td><td>取决策自身业务分级（NORMAL &lt; HIGH &lt; CRITICAL），低于上面所选下限则不触发</td></tr>
+        <tr><td>去重</td><td>同租户在冷却窗内已有复盘待办（含人工发起的）则跳过，避免复盘刷单</td></tr>
+        <tr><td>执行方</td><td>复盘智能体（决策复盘 + 整改处方），待办不再走评审闸门</td></tr>
+        <tr><td>失败策略</td><td>配置读失败按出厂默认执行；触发环节任何异常都不影响决策本身落库</td></tr>
+      </tbody>
+    </table>
+    <div class="muted">出厂默认：启用 · HIGH 起触发 · 24 小时冷却 · 建单后立即派发。</div>
+  </div>
+
+  <div class="toolbar">
+    <crm-button id="saveBtn">保存变更</crm-button>
+    <crm-button class="sec" id="reloadBtn">重新加载</crm-button>
+    <span id="status">就绪</span>
+  </div>
+</div>
+
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+import { get, put } from '/portal/api.js';
+injectLayout();   // 统一门户壳（顶栏+侧栏），对齐 UI/导航标准 spec
+
+// 出厂默认与后端 src/decision/retroTrigger.js DEFAULT_EVENT_RETRO_CFG 一致（未配置时页面回显该组值）
+const DEFAULTS = { enabled: true, min_tier: 'HIGH', cooldown_hours: 24, auto_pump: true };
+let current = null;   // 完整 config 对象，保存时整体回写（保留未在本页编辑的字段）
+
+function setStatus(s) { document.getElementById('status').textContent = s; }
+
+function fill() {
+  const v = { ...DEFAULTS, ...(current || {}) };
+  document.getElementById('enabled').checked = v.enabled !== false;
+  document.getElementById('minTier').value = v.min_tier || 'HIGH';
+  document.getElementById('cooldown').value = v.cooldown_hours != null ? v.cooldown_hours : 24;
+  document.getElementById('autoPump').checked = v.auto_pump !== false;
+}
+
+async function load() {
+  setStatus('加载中…');
+  try {
+    const data = await get('/api/config/event-retro');
+    current = (data && data.value) ? data.value : {};
+    fill();
+    setStatus('已加载');
+  } catch (e) {
+    current = {};
+    fill();
+    setStatus('未配置或加载失败，显示出厂默认：' + (e.message || e));
+  }
+}
+
+async function save() {
+  setStatus('保存中…');
+  if (!current) current = {};
+  const hours = Number(document.getElementById('cooldown').value);
+  if (!Number.isFinite(hours) || hours < 0 || hours > 720) {
+    setStatus('冷却窗需为 0–720 小时之间的数值');
+    return;
+  }
+  current.enabled = document.getElementById('enabled').checked;
+  current.min_tier = document.getElementById('minTier').value;
+  current.cooldown_hours = hours;
+  current.auto_pump = document.getElementById('autoPump').checked;
+  try {
+    await put('/api/config/event-retro', { value: current });
+    setStatus('已保存（写经决策第0闸），下一次决策确认即按新条件生效');
+  } catch (e) {
+    setStatus('保存失败：' + (e.message || e));
+  }
+}
+
+document.getElementById('saveBtn').addEventListener('click', save);
+document.getElementById('reloadBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

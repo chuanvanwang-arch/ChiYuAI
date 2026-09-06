@@ -1,0 +1,30 @@
+# AGE 决策网络图启用层（Compose override）
+#
+# 作用：仅覆盖 db 服务的镜像，把「纯 pgvector」换成「pgvector + Apache AGE」。
+#      其余配置（env / volumes / healthcheck / 端口绑定）全部从主文件继承。
+#
+# 为什么用 override 而不是直接改主文件：
+#   - 默认路径保持 pgvector/pgvector:pg16，本地开发不会被 2.23GB 的 apache/age 镜像拖累
+#   - 启用 AGE 是「按需叠加」，不是所有环境都需要（AGE 仅服务决策网络图，有递归 CTE 降级路径）
+#
+# 启用（服务端已预构建 crm-pg-age:pg16；未预构建时会自动按 Dockerfile.pg-age 构建）：
+#   docker compose -f docker-compose.yml -f docker-compose.age.yml --env-file .env up -d --force-recreate db
+#   docker compose -f docker-compose.yml -f docker-compose.age.yml --env-file .env restart app
+#
+# 前置：需先拉取 AGE 基础镜像（用于抽取已编译的 age.so）
+#   docker pull apache/age:release_PG16_1.5.0
+#
+# 验证：
+#   docker compose exec -T db psql -U agent2b -d crm_native -c "select extname,extversion from pg_extension order by extname"
+#   # 期望出现 age | 1.5.0 与 vector | 0.8.6
+#
+# 生效链路：镜像提供 .so → server.js:116 启动调用 ensureGraph()
+#           → CREATE EXTENSION IF NOT EXISTS age + create_graph('crm_decision_network')
+#           → ageGraph.js 从递归 CTE 降级路径切换到 AGE 主路径
+
+services:
+  db:
+    image: crm-pg-age:pg16
+    build:
+      context: .
+      dockerfile: Dockerfile.pg-age

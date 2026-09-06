@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI原生销售管理·青羽ChiYu · Stage 3 门户（原型）</title>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+<style>
+  /* 2026-08-30：删除本页 :root 浅色重定义（--bg:#f7f8fb / --panel:#fff / --ink:#0f172a…）。
+     原定义会覆盖 tokens.css 的深色主题，使本页在深色门户里显示为白底。
+     现统一由 tokens.css 提供：--bg/--panel/--ink/--muted/--line/--accent(--ac 别名)/
+     --accent-soft/--good(--ok)/--warn/--bad(--err)；圆角用 --radius-lg（=14px，与本页原值一致）。 */
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  /* sidebar (Attio 副骨架) */
+  .side{background:#0f172a;color:#cbd5e1;padding:18px 14px;display:flex;flex-direction:column;gap:4px}
+  .side .brand{color:#fff;font-weight:700;font-size:15px;margin:4px 8px 14px;display:flex;align-items:center;gap:8px}
+  .side .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(16,185,129,.25)}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav a{color:#cbd5e1;text-decoration:none;padding:9px 12px;border-radius:9px;font-size:13px;display:flex;align-items:center;gap:9px}
+  .nav a.active{background:#1e293b;color:#fff}
+  .nav a:hover{background:#1e293b}
+  .side .foot{margin-top:auto;font-size:11px;color:var(--mut);padding:10px 12px;border-top:1px solid #1e293b}
+  .side .foot b{color:var(--ink)}
+  /* main */
+  .main{padding:22px 26px 40px;overflow:auto}
+  /* copilot bar (主轴交互) */
+  .copilot{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px 14px;box-shadow:var(--shadow);position:relative}
+  .copilot .kbd{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 7px;background:var(--bg2)}
+  .copilot input{flex:1;border:none;outline:none;font-size:14px;background:transparent;color:var(--ink)}
+  .copilot button{border:none;background:var(--accent);color:#fff;border-radius:9px;padding:8px 16px;font-weight:600;cursor:pointer}
+  .copilot button:active{transform:translateY(1px)}
+  .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .genPreview{margin-top:12px;background:var(--accent-soft);border:1px dashed var(--ac-hover);border-radius:12px;padding:14px;display:none}
+  .genPreview.show{display:block}
+  .genPreview .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+  /* hero 今日优先 */
+  .secTitle{display:flex;align-items:center;justify-content:space-between;margin:26px 0 12px}
+  .secTitle h2{font-size:15px;margin:0;display:flex;align-items:center;gap:8px}
+  .secTitle .sub{font-size:12px;color:var(--muted)}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+
+  .dims{margin:14px 0 6px;display:flex;flex-direction:column;gap:8px}
+  .dim{font-size:12px}
+  .dim .lab{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:3px}
+  .bar{height:6px;background:var(--bg2);border-radius:4px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:4px}
+  .how{font-size:12.5px;color:var(--ink);background:var(--bg2);border-left:3px solid var(--accent);padding:9px 11px;border-radius:6px;margin:10px 0}
+  .cta{width:100%;border:1px solid var(--accent);color:var(--accent);background:var(--panel);border-radius:9px;padding:8px;font-weight:600;cursor:pointer}
+  .cta:active{background:var(--accent-soft)}
+  /* lower grid */
+  .lower{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px;margin-top:14px}
+
+  /* L2C pipeline */
+  .l2c{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .stage{flex:1;min-width:84px;text-align:center;position:relative;padding:10px 4px}
+  .stage .n{font-size:20px;font-weight:700}
+  .stage .t{font-size:11px;color:var(--muted);margin-top:2px}
+  .stage:not(:last-child)::after{content:"→";position:absolute;right:-6px;top:14px;color:var(--line);font-size:14px}
+  .stage .pill{font-size:10px;color:var(--good);display:block;margin-top:3px}
+  /* approval inbox */
+  .appr{display:flex;flex-direction:column;gap:9px}
+  .appr .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:8px 10px;background:var(--bg2);border-radius:8px}
+
+  /* sse */
+  .sse{font-size:12px;max-height:150px;overflow:auto}
+  .sse .e{padding:6px 8px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+  .sse .e .tag{font-size:10px;color:#fff;border-radius:5px;padding:1px 6px;background:var(--accent);white-space:nowrap}
+  .sse .e .tag.p{background:var(--good)}.sse .e .tag.a{background:var(--warn)}.sse .e .tag.d{background:#8b5cf6}
+  summary{cursor:pointer;font-size:12px;color:var(--muted);margin-bottom:8px}
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="app">
+  <!-- 侧边栏（Attio 副骨架） -->
+  <aside class="side">
+    <div class="brand"><span class="dot"></span> AI原生销售管理·青羽ChiYu</div>
+    <nav class="nav">
+      <a class="active" href="#">🏠 首页</a>
+      <a href="#">🎯 线索池</a>
+      <a href="#">💼 商机</a>
+      <a href="#">📊 L2C 看板</a>
+      <a href="#">✅ 审批</a>
+      <a href="#">🕸 决策网络</a>
+      <a href="#">📈 报告</a>
+    </nav>
+    <div class="foot">
+      <div>连接：<b>SSE 已连</b> · 装配 <b>✓</b></div>
+      <div style="margin-top:6px"><a href="index.html" style="color:var(--mut)">↩ 返回 Stage1 观测页</a></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- copilot 命令栏（主轴交互） -->
+    <div class="copilot">
+      <span class="kbd">⌘K</span>
+      <crm-input id="nl" placeholder="一句话驱动动作：给 30 天未跟进的商机生成唤醒邮件 / 生成本周 pipeline 一页报告" ></crm-input>
+      <crm-button id="gen">生成动作</crm-button>
+    </div>
+    <div class="chips">
+      <span class="chip" data-nl="给沉寂客户写唤醒邮件">💡 给沉寂客户写唤醒邮件</span>
+      <span class="chip" data-nl="生成本周 pipeline 一页报告">💡 本周 pipeline 报告</span>
+      <span class="chip" data-nl="推进所有已报价未签约的商机">💡 推进报价未签约</span>
+    </div>
+    <div class="genPreview" id="genPreview">
+      <div class="meta" id="genMeta">生成预览</div>
+      <div id="genBody" style="font-size:13px;color:var(--ink)"></div>
+    </div>
+
+    <!-- 今日优先（英雄区） -->
+    <div class="secTitle">
+      <h2>⭐ 今日优先</h2>
+      <span class="sub">AI 按 FIT / TIMING / CONNECTION 推送该追的人 · 同面跳转行动</span>
+    </div>
+    <div class="cards" id="cards"><!-- 由 JS 渲染 --></div>
+
+    <!-- 下区：L2C / 审批 / SSE -->
+    <div class="lower">
+      <div class="panel">
+        <h3>🧭 L2C 六段主线</h3>
+        <div class="l2c" id="l2c"></div>
+      </div>
+      <div class="panel">
+        <h3>✅ 审批收件箱（HITL 四域）</h3>
+        <div class="appr" id="appr"></div>
+      </div>
+      <div class="panel">
+        <h3>📡 实时事件流</h3>
+        <details open><summary>折叠 / 展开</summary>
+          <div class="sse" id="sse"></div>
+        </details>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const COLORS = { FIT:'#4f46e5', TIMING:'#f59e0b', CONN:'#10b981' };
+const STAGES = ['线索','报价','合同','回款','发票','订单'];
+
+// ── 今日优先打分（§6 启发式，纯函数）──
+function scoreDeal(d, decisions){
+  const idleDays = Math.max(0,(Date.now()-new Date(d.updated_at||Date.now()))/86400000);
+  const FIT = clamp((d.budget_fit??0.5)*100);
+  const TIMING = clamp(100 - idleDays*4);
+  const CONN = clamp((decisions.length/5)*100);
+  const total = 0.3*FIT + 0.4*TIMING + 0.3*CONN;
+  return { FIT, TIMING, CONN, total, idleDays };
+}
+function clamp(v){return Math.max(0,Math.min(100,Math.round(v)));}
+function suggestAction(s, stage){
+  if(s.idleDays>30) return `已沉寂 ${Math.round(s.idleDays)} 天，建议发送唤醒邮件`;
+  if(stage==='报价' && s.idleDays>3) return '报价未跟进，推进合同签署';
+  if(s.CONN<40) return '关系薄弱，安排一次高层拜访';
+  return '状态健康，按节奏推进下一阶段';
+}
+
+// 渲染英雄区（带 mock 兜底；优先真实 /api/business/board）
+const MOCK_DEALS = [
+  {name:'云图科技', stage:'报价', updated_at:new Date(Date.now()-26*864e5).toISOString(), budget_fit:0.8, decisions:3},
+  {name:'恒锐制造', stage:'线索', updated_at:new Date(Date.now()-41*864e5).toISOString(), budget_fit:0.6, decisions:1},
+  {name:'晨曦医疗', stage:'合同', updated_at:new Date(Date.now()-5*864e5).toISOString(), budget_fit:0.9, decisions:6},
+];
+function renderCards(deals){
+  const el = document.getElementById('cards');
+  el.innerHTML = deals.map(d=>{
+    const s = scoreDeal(d, d.decisions||0);
+    const how = suggestAction(s, d.stage);
+    const nl = `给「${d.name}」${how}`;
+    return `<div class="card">
+      <div class="top"><div class="name">${d.name}</div><div class="stage">${d.stage}</div></div>
+      <div class="dims">
+        ${dimBar('FIT',s.FIT)}${dimBar('TIMING',s.TIMING)}${dimBar('CONN',s.CONN)}
+      </div>
+      <div class="how">💡 ${how}</div>
+      <crm-button class="cta" data-nl="${nl}">怎么切入 → 命令栏</crm-button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.cta').forEach(b=>b.onclick=()=>{document.getElementById('nl').value=b.dataset.nl;document.getElementById('nl').focus();});
+}
+function dimBar(lab,v){
+  return `<div class="dim"><div class="lab"><span>${lab}</span><span>${v}</span></div>
+    <div class="bar"><i style="width:${v}%;background:${COLORS[lab]}"></i></div></div>`;
+}
+
+// ── copilot 命令栏：接 POST /api/page/from-nl ──
+async function runCopilot(){
+  const nl = document.getElementById('nl').value.trim();
+  if(!nl) return;
+  const pv = document.getElementById('genPreview');
+  const meta = document.getElementById('genMeta');
+  const body = document.getElementById('genBody');
+  meta.textContent = '生成中…'; pv.classList.add('show'); body.textContent='';
+  try{
+    const r = await fetch('/api/page/from-nl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nl})});
+    const j = await r.json();
+    if(!r.ok){ meta.textContent='需要澄清'; body.textContent=j.error||'请补全指令'; return; }
+    meta.textContent = `已生成 draft · 置信度 ${(j.confidence??0).toFixed(2)}` + (j.needsClarification?' · 需澄清':'');
+    body.innerHTML = `<div style="margin-bottom:8px">page_id: <code>${j.page_id}</code></div>` + (j.previewHtml?`<iframe srcdoc="${encodeURIComponent(j.previewHtml)}" style="width:100%;height:180px;border:1px solid var(--line);border-radius:8px"></iframe>`:'（无预览）');
+  }catch(e){ meta.textContent='本地 NL 引擎离线'; body.textContent='无法连接 /api/page/from-nl，请稍后重试'; }
+}
+document.getElementById('gen').onclick = runCopilot;
+document.getElementById('nl').addEventListener('keydown',e=>{if(e.key==='Enter')runCopilot();});
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.getElementById('nl').focus();}});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.getElementById('nl').value=c.dataset.nl;runCopilot();});
+
+// ── L2C 主线（mock 兜底，真实接 /api/business/board）──
+function renderL2c(counts){
+  document.getElementById('l2c').innerHTML = STAGES.map((t,i)=>
+    `<div class="stage"><div class="n">${counts[i]??0}</div><div class="t">${t}</div><span class="pill">${(counts[i]??0)>0?'●':'○'}</span></div>`
+  ).join('');
+}
+// ── 审批收件箱（降级：mock）──
+function renderAppr(){
+  const d=[['报价',2],['合同',1],['发票',0],['订单',1]];
+  document.getElementById('appr').innerHTML = d.map(([k,v])=>
+    `<div class="row ${v?'':'empty'}"><span>${k}</span><span class="badge">${v?v+' 待审':'无'}</span></div>`
+  ).join('');
+}
+// ── SSE 实时流 ──
+function connectSSE(){
+  const box=document.getElementById('sse');
+  try{
+    const es=new EventSource('/events');
+    es.onmessage=ev=>{const d=JSON.parse(ev.data);const tag=d.domain==='particle'?'p':d.domain==='approval'?'a':d.domain==='decision'?'d':'';
+      const div=document.createElement('div');div.className='e';
+      div.innerHTML=`<span class="tag ${tag}">${d.domain||'event'}</span><span>${d.type||''} · ${new Date().toLocaleTimeString()}</span>`;
+      box.prepend(div);if(box.children.length>20)box.lastChild.remove();};
+    es.onerror=()=>{es.close();box.prepend(Object.assign(document.createElement('div'),{className:'e',innerHTML:'<span class="tag">×</span><span>SSE 断开，重连中…</span>'}));setTimeout(connectSSE,3000);};
+  }catch(e){}
+}
+
+// 启动
+renderCards(MOCK_DEALS);
+renderL2c([1,2,1,1,0,1]);
+renderAppr();
+connectSSE();
+// 真实数据拉取（覆盖 mock）
+fetch('/api/business/board').then(r=>r.json()).then(j=>{
+  if(j.grouped){
+    const map={'线索':0,'报价':0,'合同':0,'回款':0,'发票':0,'订单':0};
+    Object.entries(j.grouped).forEach(([t,arr])=>{const k=({CRM_DEAL:'线索',CRM_QUOTATION:'报价',CRM_CONTRACT:'合同',CRM_PAYMENT_PLAN:'回款',CRM_INVOICE:'发票',CRM_ORDER:'订单'})[t];if(k)map[k]=arr.length;});
+    renderL2c(STAGES.map(s=>map[s]));
+    const deals=(j.grouped.CRM_DEAL||[]).slice(0,3).map(p=>({name:p.name||p.slug||'商机',stage:'报价',updated_at:p.updated_at,decisions:0,budget_fit:0.6}));
+    if(deals.length)renderCards(deals);
+  }
+}).catch(()=>{});
+</script>
+<footer class="app-footer">
+  <span>北京青羽智行科技有限公司 © 2023-2026 版权所有</span>
+  <span class="f-sep">｜</span><span>chiyuai.com</span>
+  <span class="f-sep">·</span><span>本平台相关内容同步更新</span>
+</footer>
+</body>
+</html>

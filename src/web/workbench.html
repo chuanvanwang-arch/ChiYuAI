@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>待办工作台 · 四视角</title>
+  <link rel="stylesheet" href="/portal/page.css">
+<style>
+  /* 浅色主题（IDE light 对齐）；四视角标签 + 渲染器容器 */
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 6px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 14px; }
+  /* tab 统一收敛为 common.css .tabs/.tab（下划线式），不再本地覆盖 */
+  #view-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+  #view-count { font-size: 12px; color: var(--mut); margin-bottom: 8px; }
+  #wb-container { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 14px; min-height: 120px; }
+  /* 复用渲染器产出样式（pg-* 类；与 page/renderer.js 输出契约一致的最小样式） */
+  .pg-page h2 { display: none; } /* 页面标题已由外层 #view-title 呈现，避免重复 */
+  .pg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pg-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--line); color: var(--mut); }
+  .pg-table td { padding: 6px 8px; border-bottom: 1px solid var(--panel); }
+  .pg-state { padding: 16px; text-align: center; color: var(--mut); font-size: 13px; }
+  #sse-status { font-size: 11px; color: var(--mut); margin-top: 10px; }
+</style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">待办工作台</h1></div></header>
+
+<div class="tabs" id="tabs">
+  <crm-tab data-view="approval" active>待我审批</crm-tab>
+  <crm-tab data-view="processing">我处理的</crm-tab>
+  <crm-tab data-view="initiated">我发起的</crm-tab>
+  <crm-tab data-view="cc">抄送我的</crm-tab>
+</div>
+
+<div id="view-title">待我审批</div>
+<div id="view-count"></div>
+<div id="wb-container">加载中…</div>
+<div id="sse-status">SSE 未连接</div>
+
+<script type="module">
+import { get } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+
+// 四视角切换：view → /api/workbench?view= → 渲染器 HTML 注入容器
+const VIEW_ORDER = ['approval', 'processing', 'initiated', 'cc'];
+let currentView = 'approval';
+
+async function loadView(view) {
+  currentView = view;
+  document.querySelectorAll('crm-tab').forEach(t => t.toggleAttribute('active', t.dataset.view === view));
+  const title = document.querySelector(`crm-tab[data-view="${view}"]`).textContent;
+  document.getElementById('view-title').textContent = title;
+  document.getElementById('wb-container').textContent = '加载中…';
+  try {
+    const j = await get(`/api/workbench?view=${view}`);
+    const rows = j.data?.components?.table?.rows || [];
+    document.getElementById('view-count').textContent = `${j.alias || title} · ${rows.length} 条`;
+    document.getElementById('wb-container').innerHTML = j.html || '<div class="pg-state">暂无数据</div>';
+  } catch (e) {
+    document.getElementById('wb-container').innerHTML = `<div class="pg-state" data-state="error">请求失败：${e.message}</div>`;
+  }
+}
+
+document.getElementById('tabs').addEventListener('click', (ev) => {
+  const view = ev.target.dataset.view;
+  if (view) loadView(view);
+});
+
+// SSE 实时刷新：task/approval 域事件 → 重载当前视角
+function connectSse() {
+  const es = new EventSource('/events');
+  es.onopen = () => { document.getElementById('sse-status').textContent = 'SSE 已连接（实时刷新）'; };
+  es.onerror = () => { document.getElementById('sse-status').textContent = 'SSE 连接中断（重试中）'; };
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (['task', 'approval'].includes(msg.domain)) loadView(currentView);
+    } catch (e) { /* 忽略非 JSON 心跳 */ }
+  };
+}
+
+loadView('approval');
+connectSse();
+injectLayout();
+</script>
+</body>
+</html>

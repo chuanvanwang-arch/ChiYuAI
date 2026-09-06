@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>待办工作台 · CRM</title>
+  <link rel="stylesheet" href="/portal/page.css">
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <div class="app">
+    <div id="todo-root" data-schema="S05">
+      <div class="pg-state" data-state="loading">加载中…</div>
+    </div>
+  </div>
+
+  <script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+</script>
+
+  <script type="module">
+    import { get } from '/portal/api.js';
+    const root = document.getElementById('todo-root');
+
+    async function loadTodo(role) {
+      try {
+        const j = await get('/api/page/todo' + (role ? '?role=' + encodeURIComponent(role) : ''));
+        if (j.html) root.innerHTML = j.html;
+        // 角色切换：select 变更 → 重新取数（受控声明式，无内联脚本）
+        const sel = root.querySelector('select[data-select]');
+        if (sel && !sel.dataset.bound) {
+          sel.dataset.bound = '1';
+          sel.addEventListener('change', () => loadTodo(sel.value));
+        }
+      } catch (e) {
+        root.innerHTML = '<div class="pg-state" data-state="error">待办工作台加载失败：' + e.message + '（既有手写区仍可用）</div>';
+      }
+    }
+
+    loadTodo();
+
+</script>
+</body>
+</html>

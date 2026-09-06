@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>CRM 销售管道</title>
+<!-- 批2（2026-08-27 UI/导航/规范重构）：统一设计系统 tokens/common；删页内重复 style 主色 -->
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+ /* 主色/背景等设计变量已由 tokens.css 提供（--ac:#6366f1），页面私有组件样式保留在下方 */
+ *{box-sizing:border-box}body{margin:0;font-family:system-ui,"PingFang SC",sans-serif;background:var(--bg);color:var(--ink)}
+ /* 已移除：顶部过滤 chip 与下方看板（方案 A，2026-08-29）*/
+ .empty{padding:30px;text-align:center;color:var(--mut);font-size:13px}
+ /* P4（2026-08-28）：新建商机入口 + 模态表单（终结"新增不落库"） */
+ .toolbar{display:flex;justify-content:flex-end;padding:0 20px 12px}
+ .btn-primary{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer}
+ .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50}
+ .modal.hidden{display:none}
+ .sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;width:380px;max-width:92vw}
+ .sheet h3{margin:0 0 14px;font-size:15px}
+ .field{margin-bottom:10px}
+ .field label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+ .field input,.field select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box}
+ .sheet .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+ .sheet .acts button{border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer;border:1px solid var(--ac)}
+ .sheet .acts .cancel{color:var(--mut);background:var(--panel)}
+  .sheet .acts .ok{background:var(--ac);color:#fff}
+  /* 决策3乙（2026-08-29 completion plan Task 5）：顶部 LTC 价值流指标概览（kpi-strip×2 + pipeline 六段） */
+ .insight-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+ @media(max-width:780px){.insight-overview{grid-template-columns:1fr}}
+ .kpi-block{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+ .kpi-block h3{margin:0 0 10px;font-size:13px;color:var(--mut);font-weight:600}
+ .col h3 .col-amt{color:var(--mut);font-weight:400}
+ /* 方案 A（2026-08-29）：L2C 数字可点击 + 阶段清单抽屉浮层 */
+ .pg-stage{cursor:pointer;transition:transform .12s,box-shadow .12s;border-radius:10px}
+ .pg-stage:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(99,102,241,.18)}
+ .pg-stage:focus{outline:2px solid var(--ac);outline-offset:2px}
+ .drawer-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.38);z-index:80}
+ .stage-drawer{position:fixed;top:0;right:0;height:100%;width:420px;max-width:92vw;background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(15,23,42,.18);transform:translateX(100%);transition:transform .22s ease;z-index:90;display:flex;flex-direction:column}
+ .stage-drawer.open{transform:translateX(0)}
+ .stage-drawer .page-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600}
+ .drawer-close{border:0;background:transparent;font-size:16px;color:var(--mut);cursor:pointer;line-height:1}
+ .drawer-close:hover{color:var(--ac)}
+ .drawer-body{padding:10px 12px;overflow-y:auto;flex:1}
+ .drawer-row{padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--panel)}
+ .drawer-row:hover{border-color:var(--ac);background:var(--as)}
+ .dr-name{font-size:13px;font-weight:600}
+ .dr-meta{font-size:11px;color:var(--mut);margin-top:3px}
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="toolbar"><crm-button id="newDealBtn" class="btn-primary">＋新建商机</crm-button></div>
+<div id="tenant-bar" class="ts-bar"></div>
+<section class="insight-overview" id="overview">
+  <div class="kpi-block"><h3>管道总览</h3><div id="kpiOverview"></div></div>
+  <div class="kpi-block"><h3>L2C 价值流（数量 · 金额 · 段间转化率）</h3><div id="l2cPipeline"></div></div>
+</section>
+<!-- 看板已移除：L2C 数字下钻抽屉为唯一清单入口（方案 A，2026-08-29） -->
+<div class="modal hidden" id="newDealModal">
+  <div class="sheet">
+    <h3>新建商机</h3>
+    <div class="field"><label>商机名称 *</label><crm-input id="ndName" placeholder="如：半导体产线一期"></crm-input></div>
+    <div class="field"><label>客户 ID（可选）</label><crm-input id="ndCustomer" placeholder="CRM_ACCOUNT id"></crm-input></div>
+    <div class="field"><label>负责人（可选）</label><crm-input id="ndOwner" placeholder="默认当前登录用户"></crm-input></div>
+    <div class="field"><label>预计金额（可选）</label><crm-input id="ndAmount" type="number" placeholder="0"></crm-input></div>
+    <div class="field"><label>客户分级（可选）</label><crm-select id="ndCustTier"><option value="">默认</option><option>STRATEGIC</option><option>KEY</option><option>NORMAL</option></crm-select></div>
+    <div class="field"><label>项目分级（可选）</label><crm-select id="ndProjTier"><option value="">默认</option><option>A</option><option>B</option><option>C</option></crm-select></div>
+    <div class="acts"><crm-button class="cancel" id="ndCancel">取消</crm-button><crm-button class="ok" id="ndSubmit">创建</crm-button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<!-- 阶段清单抽屉浮层（方案 A：L2C 数字下钻，2026-08-29） -->
+<div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+<aside class="stage-drawer" id="stageDrawer" aria-hidden="true">
+  <header class="page-head"><span id="drawerTitle"></span><crm-button id="drawerClose" class="drawer-close" aria-label="关闭">✕</crm-button></header>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+  import { fmtMoney } from '/portal/util.js';
+  import { injectLayout } from '/portal/layout.js';
+  import { mountTenantScopeBar, tenantQuery, tenantMap, fetchMe } from '/portal/tenantScopeBar.js';
+  injectLayout();
+  import { pipelineStages as STAGES, LOST_STAGES as LOST, dealStageOf, pipelineMetrics } from '/portal/scoring.js';
+  let all = []; let role = 'guest'; let tenantNameMap = {}; let isAdminScope = false;
+  const esc = s => String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+  // 商机金额：对齐卡片直显字段（expected_amount 优先，回退 amount）；sales 角色由调用方按角色掩码
+  const dealAmountOf = p => { const n = Number(p?.payload?.expected_amount ?? p?.payload?.amount); return Number.isFinite(n) ? n : 0; };
+  // 决策3乙：sales 对金额类字段无可见权限 → 一律 🔒；其余角色可见
+  const canSeeAmount = () => role !== 'sales';
+
+  async function ensureRole() {
+    try { const me = await get('/api/auth/me'); role = me?.role || 'guest'; }
+    catch { role = 'guest'; }
+  }
+
+  // ── 顶部 LTC 价值流概览（kpi-strip×2 + pipeline 六段），复用 scoring.js pipelineMetrics 与 page.css 样式 ──
+  function renderOverview() {
+    const m = pipelineMetrics(all);
+    // 两组 kpi-strip：总览四联 + 健康度；金额派生项对 sales 隐藏
+    const strip1 = [
+      { label: '在管商机', value: String(m.inPipelineCount), unit: '个', hidden: false },
+      { label: '管道总额', value: fmtMoney(m.totalAmount), unit: '', hidden: !canSeeAmount() },
+      { label: '加权预测', value: fmtMoney(Math.round(m.weightedForecast)), unit: '', hidden: !canSeeAmount() },
+      { label: '加权胜率', value: String(m.weightedWinRate), unit: '%', hidden: !canSeeAmount() },
+    ];
+    const strip2 = [
+      { label: '停滞商机', value: String(m.staleCount), unit: '个', hidden: false },
+      { label: '停滞金额占比', value: String(m.staleAmountPct), unit: '%', hidden: !canSeeAmount() },
+      { label: '胜率', value: String(m.winRate), unit: '%', hidden: false },
+      { label: '平均客单', value: fmtMoney(Math.round(m.avgDealAmount)), unit: '', hidden: !canSeeAmount() },
+    ];
+    const kpiHtml = items => `<div class="pg-kpi-strip">${items.map(it => it.hidden
+      ? `<div class="pg-kpi" data-state="hidden"><div class="pg-kpi-label">${esc(it.label)}</div><div class="pg-kpi-value" data-state="partial">🔒</div><div class="pg-kpi-hint">字段对当前角色隐藏</div></div>`
+      : `<div class="pg-kpi" data-state="neutral"><div class="pg-kpi-label">${esc(it.label)}</div><div class="pg-kpi-value">${esc(it.value)}${it.unit ? `<span class="pg-kpi-unit">${esc(it.unit)}</span>` : ''}</div></div>`).join('')}</div>`;
+    document.getElementById('kpiOverview').innerHTML = kpiHtml(strip1) + kpiHtml(strip2);
+
+    const grid = `grid-template-columns:repeat(${m.stages.length},minmax(0,1fr))`;
+    const cells = m.stages.map(s => {
+      const amt = canSeeAmount() ? fmtMoney(Number(s.amount)) : '🔒';
+      return `<div class="pg-stage" data-stage="${s.key}" role="button" tabindex="0" title="查看${esc(s.name)}清单（${s.count} 条）"><div class="pg-stage-n">${s.count}</div><div class="pg-stage-name">${esc(s.name)}</div><div class="pg-stage-amt">${amt}</div></div>`;
+    }).join('');
+    const convRow = m.stages.map((s, i) => i === 0 ? '<div class="pg-stage-conv"></div>'
+      : `<div class="pg-stage-conv">${m.conversions[i - 1] == null ? '—' : Math.round(m.conversions[i - 1]) + '%'}</div>`).join('');
+    document.getElementById('l2cPipeline').innerHTML = `<div class="pg-pipeline" style="${grid}">${cells}</div><div class="pg-pipeline-conv" style="${grid}">${convRow}</div>`;
+    // 方案 A（2026-08-29）：点击阶段数字 → 抽屉下钻该阶段清单
+    document.querySelectorAll('#l2cPipeline .pg-stage').forEach(el => {
+      el.onclick = () => openStageDrawer(el.dataset.stage);
+      el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStageDrawer(el.dataset.stage); } };
+    });
+  }
+
+  async function load() {
+    try {
+      await ensureRole();
+      const me = await fetchMe();
+      isAdminScope = me.role === 'admin' || me.role === 'sysadmin';
+      if (isAdminScope) tenantNameMap = await tenantMap();
+      const j = await get('/api/particles?type=CRM_DEAL' + tenantQuery());
+      all = j.items || [];
+      renderOverview();
+    } catch (e) { document.getElementById('l2cPipeline').innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>'; }
+  }
+
+  // ── 方案 A（2026-08-29）：L2C 数字下钻抽屉 ──
+  function openStageDrawer(stageKey) {
+    const list = all.filter(p => dealStageOf(p) === stageKey);
+    const st = STAGES.find(s => s.key === stageKey);
+    const name = (st && st.title) || stageKey;
+    document.getElementById('drawerTitle').textContent = name + '（' + list.length + ' 条）';
+    const body = document.getElementById('drawerBody');
+    if (!list.length) {
+      body.innerHTML = '<div class="empty">该阶段暂无商机</div>';
+    } else {
+      body.innerHTML = list.map(p => {
+        const amtRaw = p.payload?.expected_amount ?? p.payload?.amount;
+        const amt = !canSeeAmount() ? '🔒' : (amtRaw == null || amtRaw === '' ? '—' : fmtMoney(Number(amtRaw)));
+        return `<div class="drawer-row" data-id="${esc(p.id)}">` +
+          `<div class="dr-name">${esc(p.payload?.name || p.slug || '商机')}</div>` +
+          `<div class="dr-meta">${amt} · ${(p.updated_at || '').slice(0, 10)}${isAdminScope ? ' · ' + esc(tenantNameMap[p.tenant_id] || p.tenant_id || 'system') : ''}</div></div>`;
+      }).join('');
+      body.querySelectorAll('.drawer-row').forEach(r => r.onclick = () => { location.href = '/deal-detail.html?id=' + encodeURIComponent(r.dataset.id); });
+    }
+    document.getElementById('stageDrawer').classList.add('open');
+    document.getElementById('drawerBackdrop').hidden = false;
+  }
+  function closeDrawer() {
+    document.getElementById('stageDrawer').classList.remove('open');
+    document.getElementById('drawerBackdrop').hidden = true;
+  }
+  document.getElementById('drawerClose').onclick = closeDrawer;
+  document.getElementById('drawerBackdrop').onclick = closeDrawer;
+
+  // P4（2026-08-28）：新建商机 → POST /api/particles（写通道第0闸 LEAD_FOLLOW_UP，无决策不落库）
+  const modal = document.getElementById('newDealModal');
+  const toast = document.getElementById('toast');
+  let toastTimer;
+  function showToast(msg) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2600); }
+  document.getElementById('newDealBtn').onclick = () => modal.classList.remove('hidden');
+  document.getElementById('ndCancel').onclick = () => modal.classList.add('hidden');
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+  document.getElementById('ndSubmit').onclick = async () => {
+    const name = document.getElementById('ndName').value.trim();
+    if (!name) { showToast('请填写商机名称'); return; }
+    const token = localStorage.getItem('token');
+    const payload = { name, stage: 'lead' };
+    const cid = document.getElementById('ndCustomer').value.trim();
+    const oid = document.getElementById('ndOwner').value.trim();
+    const amt = document.getElementById('ndAmount').value.trim();
+    const ct = document.getElementById('ndCustTier').value;
+    const pt = document.getElementById('ndProjTier').value;
+    if (cid) payload.customer_id = cid;
+    if (oid) payload.owner_id = oid;
+    if (amt) payload.expected_amount = Number(amt); // 对齐既有数据字段名（详情页按 expected_amount 读取）
+    if (ct) payload.customer_tier = ct;
+    if (pt) payload.project_tier = pt;
+    try {
+      const j = await post('/api/particles', { type: 'CRM_DEAL', payload });
+      modal.classList.add('hidden');
+      showToast('商机已创建（决策 ' + (j.decision || 'auto') + '）');
+      await load();
+    } catch (e) { showToast('创建异常：' + e.message); }
+  };
+
+  load();
+  mountTenantScopeBar(document.getElementById('tenant-bar'), () => load());
+
+</script>
+</body>
+</html>

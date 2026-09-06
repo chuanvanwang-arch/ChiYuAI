@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LLM 多实例配置</title>
+  <style>
+    /* 仅本页私有类（lc-*）；全局样式一律走 tokens.css / common.css，零硬编码色值 */
+    .lc-msg { margin: 10px 0; font-size: 13px; color: var(--mut); min-height: 18px; }
+    .lc-msg.ok { color: var(--ok); }
+    .lc-msg.err { color: var(--err); }
+    .lc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .lc-table th, .lc-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    .lc-table th { color: var(--mut); font-weight: 600; }
+    .lc-ops { display: flex; gap: 6px; flex-wrap: wrap; }
+    .lc-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+    .lc-field { display: flex; flex-direction: column; gap: 4px; }
+    .lc-field > span { font-size: 12px; color: var(--mut); }
+    .lc-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .lc-badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; border: 1px solid var(--line); color: var(--mut); }
+    .lc-badge.on { border-color: var(--ac); color: var(--ac); }
+  </style>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">LLM 多实例配置</h1></div></header>
+  <p class="page-sub">多条 LLM 配置（多 Provider / 多模型 / 多凭据）· 运行时按默认或轮询选取 · 写经决策第 0 闸 + sysadmin</p>
+
+  <crm-card>
+    <div class="lc-ops" style="margin-bottom:10px">
+      <crm-button id="lc-new" class="btn-primary">新增配置</crm-button>
+      <crm-button id="lc-reload">刷新</crm-button>
+    </div>
+    <div id="lc-msg" class="lc-msg"></div>
+    <crm-table id="lc-table"><div id="lc-list">加载中…</div></crm-table>
+  </crm-card>
+
+  <crm-card id="lc-editor" style="display:none">
+    <h3 id="lc-form-title" style="margin:0 0 4px;font-size:14px">新增配置</h3>
+    <div class="lc-form">
+      <label class="lc-field"><span>配置名（唯一）</span><crm-input id="f-name" placeholder="如 siliconflow-main"></crm-input></label>
+      <label class="lc-field"><span>Provider</span>
+        <crm-select id="f-provider">
+          <option value="siliconflow">siliconflow</option>
+          <option value="deepseek">deepseek</option>
+          <option value="openai">openai</option>
+        </crm-select>
+      </label>
+      <label class="lc-field"><span>模型</span><crm-input id="f-model" placeholder="如 deepseek-ai/DeepSeek-V4-Flash"></crm-input></label>
+      <label class="lc-field"><span>Base URL</span><crm-input id="f-base" placeholder="如 https://api.siliconflow.cn/v1"></crm-input></label>
+      <label class="lc-field"><span>API Key（留空保留既有）</span><crm-input id="f-key" type="password" placeholder="sk-…"></crm-input></label>
+      <label class="lc-field"><span>Temperature</span><crm-input id="f-temp" type="number" placeholder="0.7"></crm-input></label>
+      <label class="lc-field"><span>Max Tokens</span><crm-input id="f-max" type="number" placeholder="1024"></crm-input></label>
+      <label class="lc-field"><span>默认</span><crm-checkbox id="f-default">设为默认配置</crm-checkbox></label>
+    </div>
+    <div class="lc-actions">
+      <crm-button id="lc-save" class="btn-primary">保存</crm-button>
+      <crm-button id="lc-cancel">取消</crm-button>
+    </div>
+  </crm-card>
+
+  <script type="module">
+import { api, get, post, put } from '/portal/api.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+
+const $ = (id) => document.getElementById(id);
+const listEl = $('lc-list'), msgEl = $('lc-msg'), editor = $('lc-editor');
+const BASE = '/api/config/llm-configs';
+let rows = [];
+let editingId = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function msg(text, kind) {
+  msgEl.textContent = text || '';
+  msgEl.className = 'lc-msg' + (kind ? ' ' + kind : '');
+}
+
+async function load() {
+  try {
+    const j = await get(BASE);
+    rows = Array.isArray(j.items) ? j.items : [];
+    render();
+    msg(`共 ${rows.length} 条配置`, 'ok');
+  } catch (e) {
+    msg('加载失败：' + (e.message || e), 'err');
+    listEl.innerHTML = '<p class="lc-msg err">无法加载配置列表</p>';
+  }
+}
+
+function render() {
+  if (!rows.length) {
+    listEl.innerHTML = '<p class="lc-msg">暂无 LLM 配置。点击「新增配置」添加第一条（支持多条并存）。</p>';
+    return;
+  }
+  const body = rows.map((r) => `
+    <tr>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.provider)}</td>
+      <td>${esc(r.model)}</td>
+      <td>${esc(r.base_url || '—')}</td>
+      <td><span class="lc-badge ${r.is_default ? 'on' : ''}">${r.is_default ? '默认' : '候选'}</span></td>
+      <td class="lc-ops">
+        <crm-button data-act="edit" data-id="${esc(r.id)}">编辑</crm-button>
+        <crm-button data-act="default" data-id="${esc(r.id)}">设默认</crm-button>
+        <crm-button data-act="test" data-id="${esc(r.id)}">测试连通</crm-button>
+        <crm-button data-act="del" data-id="${esc(r.id)}" ${r.is_default ? 'disabled' : ''}>删除</crm-button>
+      </td>
+    </tr>`).join('');
+  listEl.innerHTML = `<table class="lc-table"><thead><tr>
+      <th>名称</th><th>Provider</th><th>模型</th><th>Base URL</th><th>状态</th><th>操作</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+// 事件委托：表格内所有操作按钮（crm-button 为自定义元素，统一 closest 取 data-act）
+listEl.addEventListener('click', async (e) => {
+  const btn = e.target.closest('crm-button');
+  if (!btn || btn.disabled) return;
+  const id = btn.getAttribute('data-id');
+  const act = btn.getAttribute('data-act');
+  try {
+    if (act === 'edit') return openEdit(id);
+    if (act === 'default') { await post(`${BASE}/${encodeURIComponent(id)}/set-default`, {}); msg('已设为默认配置', 'ok'); }
+    if (act === 'test') {
+      msg('测试中…');
+      const r = await post(`${BASE}/${encodeURIComponent(id)}/test`, {});
+      msg(r.ok ? `连通成功（${r.ms ?? '—'}ms）` : `连通失败：${r.error || ('HTTP ' + r.status)}`, r.ok ? 'ok' : 'err');
+    }
+    if (act === 'del') {
+      await api(`${BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      msg('已删除（软删）', 'ok');
+    }
+    await load();
+  } catch (err) {
+    msg('操作失败：' + (err.message || err), 'err');
+  }
+});
+
+function openEdit(id) {
+  editingId = id || null;
+  const r = id ? rows.find((x) => x.id === id) : null;
+  $('lc-form-title').textContent = r ? `编辑配置：${r.name}` : '新增配置';
+  $('f-name').value = r ? r.name : '';
+  $('f-provider').value = r ? r.provider : 'siliconflow';
+  $('f-model').value = r ? r.model : '';
+  $('f-base').value = r ? r.base_url || '' : '';
+  $('f-key').value = '';
+  $('f-temp').value = r && r.temp != null ? String(r.temp) : '0.7';
+  $('f-max').value = r && r.max_tokens != null ? String(r.max_tokens) : '1024';
+  $('f-default').checked = r ? !!r.is_default : rows.length === 0; // 首条默认勾选，避免无默认
+  editor.style.display = '';
+  editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeEdit() { editingId = null; editor.style.display = 'none'; }
+
+$('lc-new').addEventListener('click', () => openEdit(null));
+$('lc-cancel').addEventListener('click', closeEdit);
+$('lc-reload').addEventListener('click', () => load());
+
+$('lc-save').addEventListener('click', async () => {
+  const body = {
+    name: $('f-name').value.trim(),
+    provider: $('f-provider').value,
+    model: $('f-model').value.trim(),
+    base_url: $('f-base').value.trim() || null,
+    temp: $('f-temp').value === '' ? undefined : Number($('f-temp').value),
+    max_tokens: $('f-max').value === '' ? undefined : Number($('f-max').value),
+    is_default: $('f-default').checked,
+  };
+  const key = $('f-key').value.trim();
+  if (key) body.api_key = key; // 留空 → 后端保留既有密钥
+  if (!body.name) return msg('配置名必填', 'err');
+  if (!editingId && !body.model) return msg('模型必填', 'err');
+  try {
+    if (editingId) await put(`${BASE}/${encodeURIComponent(editingId)}`, body);
+    else await post(BASE, body);
+    msg(editingId ? '已保存' : '已新增', 'ok');
+    closeEdit();
+    await load();
+  } catch (e) {
+    msg('保存失败：' + (e.message || e), 'err');
+  }
+});
+
+load();
+</script>
+</body>
+</html>

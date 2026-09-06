@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>财务应收配置 · S05</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  /* S05 T5：财务应收配置编辑页（config_store['finance-receivables'] 承载；admin/sysadmin 守卫） */
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .row label { width: 140px; font-size: 13px; color: var(--mut); }
+  .row crm-input, .row crm-textarea {
+    flex: 1; max-width: 420px;
+  }
+  .row textarea { min-height: 88px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .actions { margin-top: 18px; display: flex; gap: 12px; align-items: center; }
+  /* 保存按钮外观由 crm-button shadow 内 .btn-primary 提供（var(--ac) 主色） */
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+  .hint { font-size: 12px; color: var(--mut); margin-top: 4px; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">财务应收配置</h1></div></header>
+<div id="forbidden"><h3>需要 admin 权限</h3><p>请用管理员账号 <a href="/home.html">重新登录</a>。</p></div>
+<div id="app" style="display:none">
+  <p class="sub">逾期天数 / 差额阈值 / 账龄分档，落 config_store['finance-receivables']，写经决策第0闸。</p>
+
+  <div class="row">
+    <label>逾期天数 (天)</label>
+    <crm-input id="overdue_days" type="number"></crm-input>
+  </div>
+  <div class="row">
+    <label>差额阈值 (%)</label>
+    <crm-input id="gap_threshold" type="number"></crm-input>
+    <span class="hint">应收余额 / 计划总额 ≥ 该占比 → 触发 payment_gap 预警</span>
+  </div>
+  <div class="row">
+    <label>账龄分档</label>
+    <crm-textarea id="aging_buckets" spellcheck="false"></crm-textarea>
+  </div>
+  <div class="hint">格式：JSON 数组，每项 [起始天, 结束天]，如 [[0,30],[31,60],[61,90],[91,9999]]</div>
+
+  <div class="actions">
+    <crm-button id="save" class="btn-primary">保存</crm-button>
+    <span class="msg" id="msg"></span>
+  </div>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  injectLayout();
+
+  async function guard() {
+    try {
+      const r = await me();
+      // me() 成功响应为 {role, display_name, username}（无 ok 字段）；失败为 {ok:false}
+      // 仅 admin/sysadmin 可编辑（对齐 config.html 铁律：只判 role）
+      if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('forbidden').style.display = 'block';
+        return false;
+      }
+      return true;
+    } catch (e) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('forbidden').style.display = 'block';
+      return false;
+    }
+  }
+
+  const $ = (id) => document.getElementById(id);
+  function setMsg(text, kind) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); }
+
+  async function load() {
+    // api() 直接透传后端 JSON（成功响应无 ok 字段），异常会抛掷；取到对象即成功
+    const b = await api('/api/config/finance-receivables').catch((e) => {
+      setMsg('读取配置失败：' + (e.message || '未知错误'), 'err');
+      return null;
+    });
+    if (!b) return;
+    $('overdue_days').value = b.payment_overdue_days ?? 7;
+    $('gap_threshold').value = b.gap_threshold_pct ?? 5;
+    $('aging_buckets').value = JSON.stringify(b.aging_buckets || [[0, 30], [31, 60], [61, 90], [91, 9999]], null, 0);
+  }
+
+  $('save').addEventListener('click', async () => {
+    const overdue = Number($('overdue_days').value);
+    const gap = Number($('gap_threshold').value);
+    let buckets;
+    try { buckets = JSON.parse($('aging_buckets').value); }
+    catch { setMsg('账龄分档不是合法 JSON', 'err'); return; }
+    if (!Number.isFinite(overdue) || !Number.isFinite(gap)) { setMsg('逾期天数 / 差额阈值须为数字', 'err'); return; }
+    $('save').setAttribute('disabled', ''); setMsg('保存中…');
+    try {
+      const r = await api('/api/config/finance-receivables', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_overdue_days: overdue, gap_threshold_pct: gap, aging_buckets: buckets }),
+      });
+      $('save').removeAttribute('disabled');
+      if (r?.updated) setMsg('已保存（决策凭证 ' + (r.decision || '-') + '）', 'ok');
+      else setMsg('保存失败：' + (r?.error || '未知错误'), 'err');
+    } catch (e) {
+      $('save').removeAttribute('disabled');
+      setMsg('保存失败：' + (e.message || '未知错误'), 'err');
+    }
+  });
+
+  (async () => {
+    if (!(await guard())) return;
+    document.getElementById('app').style.display = 'block';
+    await load();
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM-ai-native 测试报告 2026-08-26</title>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--ink:#1f2937;--mut:#6b7280;--ok:#16a34a;--line:#e5e7eb;--accent:#2563eb}
+*{box-sizing:border-box}body{margin:0;font:14px/1.6 -apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1080px;margin:0 auto;padding:28px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mut);margin-bottom:20px}
+.cards{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}
+.card{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card .k{font-size:12px;color:var(--mut);letter-spacing:.5px}
+.card .v{font-size:26px;font-weight:700;margin-top:4px}
+.v.ok{color:var(--ok)}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#f0f4f8;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+td.g{font-weight:600;white-space:nowrap;width:180px}
+td.n{width:50px;color:var(--mut);text-align:center}
+code{background:#eef2f7;border-radius:5px;padding:1px 6px;font-size:12px;margin:0 4px 4px 0;display:inline-block;color:#334155}
+.badge{display:inline-block;background:var(--ok);color:#fff;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}
+.note{margin-top:18px;font-size:12px;color:var(--mut);border-top:1px dashed var(--line);padding-top:12px}
+</style></head><body><div class="wrap">
+<h1>CRM-ai-native · 测试报告</h1>
+<div class="sub">生成日期 2026-08-26 · 全量 vitest 实测 · 工作树（含未提交改动）</div>
+<div class="cards">
+  <div class="card"><div class="k">测试文件</div><div class="v">64</div></div>
+  <div class="card"><div class="k">用例总数</div><div class="v">466</div></div>
+  <div class="card"><div class="k">通过</div><div class="v ok">466</div></div>
+  <div class="card"><div class="k">失败</div><div class="v">0</div></div>
+  <div class="card"><div class="k">耗时</div><div class="v">27.34s</div></div>
+</div>
+<p><span class="badge">通过率 100%</span> &nbsp; 退出码 0（此前记录的"退出码1 空闲池保活"本轮未复现）</p>
+<table><thead><tr><th>模块域</th><th>文件数</th><th>测试文件</th></tr></thead><tbody>
+  <tr><td class="g">其他</td><td class="n">3</td><td><code>ai-attributes.test.js</code> <code>attr-form-schema.test.js</code> <code>http.test.js</code></td></tr>
+  <tr><td class="g">决策网络/AGE/溯源</td><td class="n">12</td><td><code>age-bootstrap.test.js</code> <code>age-causal.test.js</code> <code>age-graph.test.js</code> <code>age-sync.test.js</code> <code>conflict.test.js</code> <code>decision-trace.test.js</code> <code>decision.test.js</code> <code>graph-analytics.test.js</code> <code>graph-rest.test.js</code> <code>mcp-gateway.test.js</code> <code>provenance-chain.test.js</code> <code>provenance.test.js</code></td></tr>
+  <tr><td class="g">审批/HITL</td><td class="n">4</td><td><code>approval-engine.test.js</code> <code>approval-flow.test.js</code> <code>approval-seqcheck.test.js</code> <code>decision-gate.test.js</code></td></tr>
+  <tr><td class="g">粒子元模型</td><td class="n">7</td><td><code>meta-attr-actions.test.js</code> <code>meta-attr-ai-closure.test.js</code> <code>meta-attr-field-permission.test.js</code> <code>meta-attr-model.test.js</code> <code>meta-attr-page.test.js</code> <code>meta-attr-repo.test.js</code> <code>meta-attr-schema.test.js</code></td></tr>
+  <tr><td class="g">粒子底座</td><td class="n">7</td><td><code>attio-attributes.test.js</code> <code>attio-inheritance.test.js</code> <code>dedup.test.js</code> <code>interaction-index.test.js</code> <code>memory.test.js</code> <code>ontology-hooks.test.js</code> <code>particles.test.js</code></td></tr>
+  <tr><td class="g">编排/智能体</td><td class="n">7</td><td><code>agent-episodes.test.js</code> <code>agentLoop.test.js</code> <code>agentSpec.test.js</code> <code>context.test.js</code> <code>dispatch.test.js</code> <code>kanban.test.js</code> <code>sse.test.js</code></td></tr>
+  <tr><td class="g">销售L2C业务闭环</td><td class="n">14</td><td><code>business-title.test.js</code> <code>connectors.test.js</code> <code>contract-service.test.js</code> <code>data-origin.test.js</code> <code>import-service.test.js</code> <code>invoice-service.test.js</code> <code>order-service.test.js</code> <code>payment-service.test.js</code> <code>pool-config.test.js</code> <code>pool.test.js</code> <code>price-calc.test.js</code> <code>quote-service.test.js</code> <code>stage-config.test.js</code> <code>tender-connector.test.js</code></td></tr>
+  <tr><td class="g">门户NL→Page</td><td class="n">2</td><td><code>action.test.js</code> <code>page.test.js</code></td></tr>
+  <tr><td class="g">集成/E2E</td><td class="n">3</td><td><code>db.test.js</code> <code>e2e.test.js</code> <code>skills-methodology.test.js</code></td></tr>
+  <tr><td class="g">预警/反馈闭环</td><td class="n">5</td><td><code>alert.test.js</code> <code>monitor-graph.test.js</code> <code>monitor.test.js</code> <code>observability-risk-scan.test.js</code> <code>timers.test.js</code></td></tr></tbody></table>
+<div class="note">说明：本报告为聚合视图，不含逐用例明细。逐用例结论以 <code>node node_modules/vitest/vitest.mjs run</code> 运行时输出为准。
+覆盖缝隙：<code>/meta-attr-drawer</code> 路由无专属 HTTP 测试（抽屉 HTML 由 meta-attr-page.test.js 覆盖）；
+<code>skills/crm-*</code> 与 <code>skills/method-*</code> 为知识资产，经 skills-methodology(11/11) + mcp-gateway(9/9) 间接覆盖。</div>
+</div></body></html>

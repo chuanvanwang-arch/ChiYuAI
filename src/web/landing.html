@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>AI原生销售管理·青羽ChiYu</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+:root{
+  --bg:#0b1220; --bg2:#0f172a; --panel:#16233b; --panel2:#1e293b;
+  --ink:#e2e8f0; --mut:#94a3b8; --line:#27364f;
+  --ac:#6366f1; --ac-hover:#818cf8; --on-ac:#fff;
+  --ok:#22c55e; --warn:#f59e0b; --err:#f87171;
+  --radius-lg:14px; --shadow:0 8px 30px rgba(0,0,0,.35);
+  --font:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);color:var(--ink);line-height:1.6;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+a{color:var(--ac-hover);text-decoration:none}
+section{padding:54px 0;border-bottom:1px solid var(--line)}
+h2{font-size:26px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+h2::before{content:"";width:4px;height:22px;background:var(--ac);border-radius:3px;display:inline-block}
+.sub{color:var(--mut);margin:0 0 26px;font-size:14px}
+.eyebrow{color:var(--ac-hover);font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:10px}
+
+/* hero */
+.hero{padding:72px 0 60px;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(620px 320px at 50% -10%,rgba(99,102,241,.22),transparent 70%);pointer-events:none}
+.badge-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;position:relative}
+.tag{font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--mut)}
+.hero h1{font-size:40px;line-height:1.25;margin:0 0 16px;font-weight:800;letter-spacing:-.5px;position:relative}
+.hero h1 .g{background:linear-gradient(90deg,#a5b4fc,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:17px;color:var(--mut);max-width:760px;margin:0 auto 26px;position:relative}
+.cta{display:flex;gap:12px;justify-content:center;position:relative}
+.landing-btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+.landing-btn:hover{border-color:var(--ac)}
+.landing-btn.primary{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.landing-btn.primary:hover{background:var(--ac-hover)}
+
+/* pillars */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.landing-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.landing-card h3{margin:0 0 4px;font-size:17px}
+.landing-card .src{font-size:12px;color:var(--ac-hover);font-weight:600;margin-bottom:10px}
+.landing-card ul{margin:8px 0 0;padding-left:18px;color:var(--mut);font-size:13.5px}
+.landing-card ul li{margin:5px 0}
+.moat{background:linear-gradient(180deg,rgba(99,102,241,.10),transparent);border-color:var(--ac)}
+
+/* value list */
+.vlist{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.vlist .landing-card .src{margin-bottom:6px}
+
+/* industry */
+.ind{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.ind .landing-card{position:relative;overflow:hidden}
+.ind .score{position:absolute;top:16px;right:16px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.score.hi{background:rgba(34,197,94,.15);color:var(--ok)}
+.score.mid{background:rgba(245,158,11,.15);color:var(--warn)}
+.ind .why{font-size:13px;color:var(--mut);margin-top:8px}
+.ind .map{font-size:12px;color:var(--ac-hover);margin-top:10px;border-top:1px dashed var(--line);padding-top:9px}
+
+/* pricing */
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:8px}
+.tier{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column}
+.tier.feat{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac) inset}
+.tier .name{font-size:15px;font-weight:700}
+.tier .price{font-size:22px;font-weight:800;margin:8px 0 2px}
+.tier .price small{font-size:12px;color:var(--mut);font-weight:500}
+.tier ul{margin:12px 0 0;padding-left:16px;font-size:12.5px;color:var(--mut);flex:1}
+.tier ul li{margin:5px 0}
+.legend{font-size:12.5px;color:var(--mut);margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.legend b{color:var(--ink)}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;background:var(--panel2)}
+tr:hover td{background:rgba(99,102,241,.05)}
+td b{color:var(--ink)}
+td.center,th.center{text-align:center}
+
+/* auth */
+.auth-card{max-width:560px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px}
+.landing-tabs{display:flex;gap:6px;margin-bottom:16px}
+.landing-tabs button{flex:1;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--mut);font-weight:600;cursor:pointer;font-size:14px}
+.landing-tabs button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.auth-card label{display:block;font-size:12.5px;color:var(--mut);margin:10px 0 4px}
+.auth-card input{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--ink);font-size:14px}
+.auth-card .submit{width:100%;margin-top:16px;padding:11px;border:none;border-radius:8px;background:var(--ac);color:#fff;font-weight:600;cursor:pointer;font-size:14px}
+.auth-card .submit:hover{background:var(--ac-hover)}
+.auth-msg{min-height:18px;font-size:13px;margin-top:10px;text-align:center}
+.auth-msg.err{color:var(--err)}
+.auth-msg.ok{color:var(--ok)}
+.logged{text-align:center;font-size:14px;color:var(--mut)}
+.logged a{font-weight:600}
+
+/* pitch */
+.pitch{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:12px;padding:20px 22px;font-size:14px}
+.pitch h4{margin:0 0 10px;font-size:15px;color:var(--ac-hover)}
+.pitch p{margin:8px 0;color:var(--ink)}
+.pitch .q{color:var(--mut);font-style:italic}
+footer{padding:34px 0;text-align:center;color:var(--mut);font-size:13px}
+@media(max-width:880px){.grid3,.ind,.tiers,.vlist{grid-template-columns:1fr}.hero h1{font-size:30px}}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero" style="border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="badge-row">
+      <span class="tag">客户记忆</span>
+      <span class="tag">可溯源的自主决策</span>
+      <span class="tag">越用越聪明</span>
+    </div>
+    <h1>AI原生销售管理·青羽ChiYu<br><span class="g">记住每个客户、决策可溯源、越用越聪明的销售平台</span></h1>
+    <p class="lead">不是给老 CRM 外挂 AI 插件，而是以「客户记忆 × 可溯源的自主决策 × 越用越聪明」重构销售管理。
+    系统记住每个客户的来龙去脉，重要决定自动留痕可审计，并在每次交互中持续进化——让销售团队的经验复利沉淀，而非随人离职蒸发。</p>
+    <div class="cta">
+      <a class="landing-btn primary" href="#start">免费注册 / 登录 →</a>
+      <a class="landing-btn" href="#industry">看适合哪些行业 →</a>
+    </div>
+  </div>
+</section>
+
+<!-- PILLARS -->
+<section id="dna">
+  <div class="wrap">
+    <div class="eyebrow">平台核心能力</div>
+    <h2>三大支柱 · 重构销售管理</h2>
+    <p class="sub">以"客户记忆 + 可溯源的自主决策 + 越用越聪明"重构销售管理。长周期、多角色、强合规 B2B 销售需要的不是更花哨的 UI，而是记得住、说得清、长本事的系统。</p>
+    <div class="grid3">
+      <div class="landing-card" id="pillar-memory">
+        <div class="src">支柱一 · 客户记忆</div>
+        <h3>系统替你记住每个客户的来龙去脉</h3>
+        <ul>
+          <li><b>客户 360 时间线</b>：四源融合（商机 / 合同 / 决策事件 / 交互记录），按时间轴还原真实轨迹</li>
+          <li>关键拍板自动挂<b>决策事件</b>：谁批的、依据哪版政策、参考哪次先例、真实理由</li>
+          <li>跨历史回溯"为什么"，而非只记录"做了什么"</li>
+          <li>销售易手不丢上下文，新人秒接老客户</li>
+        </ul>
+        <p style="color:var(--mut);font-size:12.5px;margin:10px 0 0;border-top:1px dashed var(--line);padding-top:9px">支撑：柔性粒子数据底座承载，行业字段零代码生长。</p>
+      </div>
+      <div class="landing-card" id="pillar-decision">
+        <div class="src">支柱二 · 可溯源的自主决策</div>
+        <h3>重要决定自动留痕、可解释、可审计</h3>
+        <ul>
+          <li><b>决策主轴贯穿 L1–L4</b>：写操作必挂 decision_id，记条件 / 政策版本 / 先例 / 真实理由</li>
+          <li><b>零信任 HITL</b>：写通道三闸（规则层 → action-confirm → 审批流），绝无绕过闸门的写</li>
+          <li><b>自主决策引擎</b>：置信度 ≥ 0.8 且有先例时自主放行，高危场景强制升级人工</li>
+          <li>每个决定可继承为 precedent，形成可复用的先例网络</li>
+        </ul>
+        <p style="color:var(--mut);font-size:12.5px;margin:10px 0 0;border-top:1px dashed var(--line);padding-top:9px">支撑：决策问责护城河（decision_id + C2 哈希链溯源）。</p>
+      </div>
+      <div class="landing-card moat" id="pillar-evolve">
+        <div class="src">支柱三 · 越用越聪明</div>
+        <h3>系统随每次交互持续进化</h3>
+        <ul>
+          <li><b>事件驱动进化</b>：多步任务后自动沉淀 SKILL / 修正 / 反思，避免重复踩坑</li>
+          <li><b>先例检索</b>：新决策自动匹配历史先例，推荐更稳的路径</li>
+          <li><b>反馈闭环</b>：业务结果回接决策质量，校准置信度与放行策略</li>
+          <li>租户知识持续复利，行业适配零代码上线</li>
+        </ul>
+        <p style="color:var(--mut);font-size:12.5px;margin:10px 0 0;border-top:1px dashed var(--line);padding-top:9px">即"用得越多，决策越准"。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY US (self-contained, no competitor comparison) -->
+<section id="why">
+  <div class="wrap">
+    <div class="eyebrow">为什么选我们</div>
+    <h2>长周期 B2B 销售，记住、说清、长本事是刚需</h2>
+    <p class="sub">强合规、多角色决策、报价折扣层层审批——这些场景里，"系统记得住客户、每个决定说得清、还越用越聪明"比"AI 多聪明"更重要。</p>
+    <div class="vlist">
+      <div class="landing-card">
+        <div class="src">新人秒接老客户 · 客户记忆</div>
+        <h3>记忆可继承</h3>
+        <p style="color:var(--mut);font-size:13.5px;margin:6px 0 0">客户历史决策与上下文随租户沉淀，销售离职/易手不丢盘，先例网络持续复利。</p>
+      </div>
+      <div class="landing-card">
+        <div class="src">报价折扣不再黑箱 · 可溯源的自主决策</div>
+        <h3>破例放行全程留痕</h3>
+        <p style="color:var(--mut);font-size:13.5px;margin:6px 0 0">"折扣是谁批的、依据哪版价格政策、参考了哪次先例"——系统用书面决策链根治"口头预算批准 ≠ 落地预算"的教训。</p>
+      </div>
+      <div class="landing-card">
+        <div class="src">行业零代码接入 · 越用越聪明</div>
+        <h3>你的行业字段自己长出来</h3>
+        <p style="color:var(--mut);font-size:13.5px;margin:6px 0 0">元模型 + 动态属性，新行业后台配置即可上线，不污染既有架构、不二次开发，知识随使用持续复利。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INDUSTRY -->
+<section id="industry">
+  <div class="wrap">
+    <div class="eyebrow">行业适配分析</div>
+    <h2>最适合本平台的行业</h2>
+    <p class="sub">筛选逻辑：销售周期长、决策角色多、报价/折扣/回款需审批、合规审计要求高、可配置化差异明显 —— 这些正好命中本平台的三大支柱：客户记忆、可溯源的自主决策、越用越聪明。</p>
+    <div class="ind">
+      <div class="landing-card">
+        <span class="score hi">适配度 ●●●●○</span>
+        <h3>工业装备 / 智能制造 B2B</h3>
+        <div class="why">长周期、招投标、决策委员会、报价折扣层层审批、回款分期。粒子四级定价链（产品→价格表→报价→合同）+ 审批流 + 回款计划/记录对账天然贴合。</div>
+        <div class="map">映射：quotation / contract / payment-plan / approval-flow / decision(DISCOUNT_OVER)</div>
+      </div>
+      <div class="landing-card">
+        <span class="score hi">适配度 ●●●●○</span>
+        <h3>医疗器械 / 医药</h3>
+        <div class="why">强合规、招标备案、长周期、多院区多角色。provenance 哈希链 + 审计留痕 + 决策先例网络，直接对齐行业审计与飞检要求。</div>
+        <div class="map">映射：decision provenance / audit_event / policy_version / named-account</div>
+      </div>
+      <div class="landing-card">
+        <span class="score hi">适配度 ●●●●○</span>
+        <h3>企业软件 / SaaS</h3>
+        <div class="why">agent-native 买家、land-expand、订阅续费。GTM Skills 银行（建管道→懂商机→赢单→跑增长）+ 客户记忆复利最契合，AI 原生买家接受度高。</div>
+        <div class="map">映射：Skills 银行 / Knowledge(ICP·异议) / 复利式外呼</div>
+      </div>
+      <div class="landing-card">
+        <span class="score mid">适配度 ●●●○○</span>
+        <h3>专业服务 / 咨询 / 培训中介</h3>
+        <div class="why">项目制、按租户自有数据、行业 Know-How 配置化。本平台"每租户独立主数据/知识 + 零代码行业上线"正好支撑中介型多租户经营。</div>
+        <div class="map">映射：tenant 自有 / industry-onboarding / knowledge.* 命名空间</div>
+      </div>
+      <div class="landing-card">
+        <span class="score mid">适配度 ●●●○○</span>
+        <h3>金融 / 保险 B2B</h3>
+        <div class="why">强合规、零信任、审计留痕、敏感脱敏。写通道三闸 + 决策第 0 闸 + 行级隔离，满足金融级治理；敏感受限上下文天然支持。</div>
+        <div class="map">映射：zero-trust HITL / RBAC data_scope / 脱敏</div>
+      </div>
+      <div class="landing-card">
+        <span class="score mid">适配度 ●●●○○</span>
+        <h3>电子 / 半导体供应链</h3>
+        <div class="why">复杂定价链、多产品目录、多套价格表、价格有效期与权限。四级定价 + 价格变更日志 + 动态 meta_attr 适配 BOM/替代料等行业语义。</div>
+        <div class="map">映射：price-list(N 套) / product / meta_attr 动态扩展</div>
+      </div>
+    </div>
+
+    <h3 style="margin:30px 0 12px;font-size:16px;color:var(--mut)">诚实边界 · 暂不适合</h3>
+    <table>
+      <thead><tr><th>行业</th><th>原因</th></tr></thead>
+      <tbody>
+        <tr><td><b>纯 C 端高频零售</b></td><td>无复杂决策/审批，问责护城河用不上，价值密度低</td></tr>
+        <tr><td><b>极小微 / 个体户</b></td><td>配置化与多租户 overhead 大于收益，轻量 SaaS 更划算</td></tr>
+        <tr><td><b>短周期纯线上小额</b></td><td>无需要被解释的"重要决定"，记忆/先例网络无意义</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- START / AUTH -->
+<section id="start">
+  <div class="wrap">
+    <div class="eyebrow">开始使用</div>
+    <h2>免费注册，按公司名自动开通租户</h2>
+    <p class="sub">填写公司名称即自动判定所属企业租户：新公司自动开通、成为管理员；已有公司的同事加入后归入同一租户。注册后须通过邮箱/手机激活方可登录；已有账号请点上方「登录 →」前往登录页进入作战室。</p>
+    <div id="authWrap" class="auth-card">
+      <div class="logged" id="loggedBox" style="display:none">
+        您已登录：<b id="lkName"></b> ｜ <a href="/index.html">进入作战室 →</a>
+      </div>
+      <div id="formBox">
+        <div class="landing-tabs">
+          <crm-button id="tabReg" class="on" onclick="switchTab('reg')">注册</crm-button>
+          <crm-button id="tabLogin" onclick="location.href='/home.html'">登录 →</crm-button>
+        </div>
+
+        <form id="regForm" onsubmit="return doReg(event)">
+          <label>公司名称</label>
+          <crm-input id="r_company" placeholder="如：北京青羽智行科技有限公司" autocomplete="organization"></crm-input>
+          <label>邮箱（登录账号）</label>
+          <crm-input id="r_email" type="email" placeholder="you@company.com" autocomplete="email"></crm-input>
+          <label>显示名</label>
+          <crm-input id="r_name" placeholder="您的姓名" autocomplete="name"></crm-input>
+          <label>手机号（选填，填写则走短信激活）</label>
+          <crm-input id="r_phone" placeholder="选填，用于短信激活" autocomplete="tel"></crm-input>
+          <label>密码（≥8 位）</label>
+          <crm-input id="r_pwd" type="password" placeholder="设置登录密码" autocomplete="new-password"></crm-input>
+          <label>推荐人（新公司注册必填）</label>
+          <crm-input id="r_referrer" placeholder="请填写你的推荐人，享受专属服务"></crm-input>
+          <crm-button class="landing-btn primary" type="submit">注册</crm-button>
+        </form>
+
+        <form id="activateForm" onsubmit="return doActivate(event)" style="display:none">
+          <p id="actHint" class="sub" style="margin:2px 0 10px;font-size:13px"></p>
+          <label>激活码（邮箱 / 手机收到的 6 位数字）</label>
+          <crm-input id="a_code" inputmode="numeric" placeholder="6 位激活码" autocomplete="one-time-code"></crm-input>
+          <crm-button class="landing-btn primary" type="submit">激活并进入</crm-button>
+          <crm-button class="landing-btn ghost" type="button" onclick="doResend()">重新发送激活码</crm-button>
+        </form>
+
+        <div class="auth-msg" id="msg"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="eyebrow">收费模式设计</div>
+    <h2><span id="pricing-headline">选择您的套餐</span><span id="pricing-tier-names" style="color:var(--mut);font-size:18px;font-weight:500"></span></h2>
+    <p class="sub" id="pricing-subtitle">档位与价格均由后台配置驱动（配置中心 · 套餐管理），改配置即改页面。</p>
+
+    <!-- 套餐卡片：全部由 /api/billing/plans 动态生成（无硬编码档位/价格/项目） -->
+    <div class="tiers" id="tiers" style="margin-top:18px">
+      <div class="tier" id="tiers-loading"><div class="name" style="color:var(--mut)">套餐信息加载中…</div></div>
+    </div>
+
+    <h3 style="margin:26px 0 12px;font-size:16px;color:var(--mut)">功能权益矩阵（套餐门禁）</h3>
+    <table>
+      <thead id="ent-matrix-head"></thead>
+      <tbody id="ent-matrix-body"></tbody>
+    </table>
+
+    <div class="legend" id="pricing-legend">
+      <b>定价逻辑说明：</b>
+      <div id="pricing-legend-body">加载中…</div>
+    </div>
+  </div>
+</section>
+
+<!-- PITCH -->
+<section id="pitch">
+  <div class="wrap">
+    <div class="eyebrow">可直接发送</div>
+    <h2>一页客户沟通要点（销售可复制）</h2>
+    <p class="sub">面向"长周期、多角色决策、强合规"的 B2B 客户，用业务语言讲清差异，不堆功能。</p>
+    <div class="pitch">
+      <h4>开场 · 我们不一样在哪</h4>
+      <p>市面上两类"AI CRM"：一类是老系统外挂 AI 插件（数据模型没变，AI 在现实的影子上推理）；一类是只做自动摘要的速记员（capture 不是 understanding）。<b>我们是第三类——以"客户记忆 + 可溯源的自主决策 + 越用越聪明"为地基：系统记得住每个客户、每个重要决定都可解释可审计、还随使用持续进化。</b></p>
+      <h4>痛点 · 为什么客户需要问责层</h4>
+      <p class="q">"折扣是谁批的、依据哪版价格政策、参考了哪次先例、为什么这个单子破例放行？"——传统 CRM 答不出"为什么"，只能答"批了/拒了"。</p>
+      <p>本平台把报价折扣、合同金额变更、输单原因等每个拍板自动挂决策事件：记当时生效政策版本、结构化条件、真实理由、引用先例。口头预算批准 ≠ 落地预算的教训，系统用书面决策链根治。</p>
+      <h4>适配 · 你们行业为什么合身</h4>
+      <p>贵司（工业装备/医疗器械/企业软件…）销售周期长、决策角色多、报价回款需层层审批、合规审计要求高——正好命中我们的三大支柱：<b>客户记忆</b>（来龙去脉随租户沉淀）、<b>可溯源的自主决策</b>（审批全程留痕、可审计）、<b>越用越聪明</b>（行业 Know-How 零代码长出来、知识持续复利）。</p>
+      <h4>行动 · 下一步</h4>
+      <p>建议先做一次<b>行业模板试点</b>：我们把贵司的定价链/审批规则/ICP 配置成一个可复用包，2 周内部署试用，用真实商机跑通"报价→审批→合同→回款"全链路。报价一律走系统流程，杜绝线下口头报价造成的治理缺口。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    AI原生销售管理·青羽ChiYu ｜ 决策问责闭环 × 零信任写入 × 行业配置化<br>
+    北京青羽智行科技有限公司 © 2023-2026 版权所有 ｜ chiyuai.com · 本平台相关内容同步更新
+  </div>
+</footer>
+
+<script>
+function switchTab(t){
+  const reg = t === 'reg';
+  document.getElementById('tabReg').classList.toggle('on', reg);
+  document.getElementById('regForm').style.display = reg ? '' : 'none';
+  document.getElementById('activateForm').style.display = 'none';
+  document.getElementById('msg').textContent = '';
+  document.getElementById('msg').className = 'auth-msg';
+}
+function setMsg(text, ok){
+  const m = document.getElementById('msg');
+  m.textContent = text; m.className = 'auth-msg ' + (ok ? 'ok' : 'err');
+}
+let pendingUser = '';
+async function doReg(e){
+  e.preventDefault();
+  const company = document.getElementById('r_company').value.trim();
+  const email = document.getElementById('r_email').value.trim();
+  const name = document.getElementById('r_name').value.trim();
+  const phone = document.getElementById('r_phone').value.trim();
+  const pwd = document.getElementById('r_pwd').value;
+  const referrer = document.getElementById('r_referrer').value.trim();
+  setMsg('注册中…', false);
+  try{
+    const r = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ companyName: company, email, displayName: name, password: pwd, phone, referrer }) });
+    const j = await r.json();
+    if(!r.ok){ setMsg(j.error || '注册失败', false); return false; }
+    // 注册闭环：未激活 → 展示激活表单（不发 token）
+    if(j.requiresActivation){
+      pendingUser = email;
+      document.getElementById('regForm').style.display = 'none';
+      document.getElementById('activateForm').style.display = '';
+      const dev = j.devCode ? `（开发环境验证码：${j.devCode}）` : '';
+      document.getElementById('actHint').textContent = `激活码已发送至 ${j.contact}，请查收并输入。${dev}`;
+      setMsg('注册成功，请先激活账号', true);
+      return false;
+    }
+    // 兜底：若后端直发 token（存量逻辑），仍按原路径进入
+    localStorage.setItem('crm_token', j.token);
+    localStorage.setItem('crm_role', j.role);
+    localStorage.setItem('crm_name', j.display_name);
+    localStorage.setItem('crm_tenant', j.tenantId);
+    setMsg(j.isNewTenant ? '已为您开通企业租户，正在进入作战室…' : '已加入企业租户，正在进入作战室…', true);
+    setTimeout(() => location.href = '/index.html', 700);
+  }catch(err){ setMsg('网络错误：' + err.message, false); }
+  return false;
+}
+async function doActivate(e){
+  e.preventDefault();
+  const code = document.getElementById('a_code').value.trim();
+  if(!pendingUser){ setMsg('会话已失效，请重新注册', false); return false; }
+  setMsg('激活中…', false);
+  try{
+    const r = await fetch('/api/auth/activate', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username: pendingUser, code }) });
+    const j = await r.json();
+    if(!r.ok){ setMsg(j.error || '激活失败', false); return false; }
+    localStorage.setItem('crm_token', j.token);
+    localStorage.setItem('crm_role', j.role);
+    localStorage.setItem('crm_name', j.display_name);
+    localStorage.setItem('crm_tenant', j.tenantId);
+    setMsg('激活成功，正在进入作战室…', true);
+    setTimeout(() => location.href = '/index.html', 600);
+  }catch(err){ setMsg('网络错误：' + err.message, false); }
+  return false;
+}
+async function doResend(){
+  if(!pendingUser){ setMsg('请先完成注册', false); return; }
+  try{
+    const r = await fetch('/api/auth/resend-code', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username: pendingUser }) });
+    const j = await r.json();
+    if(!r.ok){ setMsg(j.error || '重发失败', false); return; }
+    const dev = j.devCode ? `（开发环境验证码：${j.devCode}）` : '';
+    document.getElementById('actHint').textContent = `激活码已重新发送至 ${j.contact}。${dev}`;
+    setMsg('已重新发送激活码', true);
+  }catch(err){ setMsg('网络错误：' + err.message, false); }
+}
+// 已登录则直接展示入口
+(function(){
+  const t = localStorage.getItem('crm_token');
+  if(t){
+    document.getElementById('formBox').style.display = 'none';
+    document.getElementById('loggedBox').style.display = 'block';
+    document.getElementById('lkName').textContent = localStorage.getItem('crm_name') || '用户';
+  }
+})();
+// ── 套餐区全动态渲染（单一事实源 = config_store['billing-plans'] + 后端权益目录）──
+// 铁律：本页不含任何硬编码档位/价格/项目/权益标签；DOM 全部由 /api/billing/plans 生成。
+//       管理台改配置 → 本页（卡片、标题、权益矩阵）即刻对齐，无需改代码或重新发布。
+(function renderPricing(){
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tiersEl = document.getElementById('tiers');
+  const head = document.getElementById('ent-matrix-head');
+  const body = document.getElementById('ent-matrix-body');
+  const namesEl = document.getElementById('pricing-tier-names');
+  const shortName = (p) => String(p.name || p.plan_id).split(' · ')[0];
+  const featuresOf = (p) => Array.isArray(p.features)
+    ? p.features.filter((s) => typeof s === 'string' && s.trim())
+    : (typeof p.features === 'string' ? p.features.split(/\s*[\/+]\s*/).map((s) => s.trim()).filter(Boolean) : []);
+  // 卡片功能 bullet = 营销 features + 权益 entitlements 翻译（语义去重）。
+  // 设计意图：用户勾选/取消权益（配置真相）应即时反映在 landing 卡片，避免 features 与 entitlements 两张皮。
+  const firstChineseRun = (s) => { const m = String(s).match(/[\u4e00-\u9fa5]+/); return m ? m[0] : ''; };
+  const coveredByFeatures = (label, features) => {
+    if (features.some((f) => f.includes(label))) return true;
+    const run = firstChineseRun(label);
+    if (!run || run.length < 2) return false;
+    const prefix = run.slice(0, Math.max(2, run.length - 2));
+    return features.some((f) => f.includes(prefix));
+  };
+  const bulletItems = (p, catalog) => {
+    const items = featuresOf(p).map((s) => s.trim());
+    const seen = new Set(items.map((s) => s.toLowerCase().replace(/\s+/g, '')));
+    (p.entitlements || []).forEach((key) => {
+      const label = (catalog.find((e) => e.key === key)?.label || key).trim();
+      if (!label) return;
+      if (coveredByFeatures(label, items)) return;
+      const norm = label.toLowerCase().replace(/\s+/g, '');
+      if (!seen.has(norm)) { seen.add(norm); items.push(label); }
+    });
+    return items;
+  };
+  const fmtMoney = (n) => {
+    const v = Number(n);
+    return Number.isFinite(v) ? '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '—';
+  };
+  const seatPriceText = (p) => {
+    // 主价：单席月价（-1=不限，0/不可用 = 「售前联系」兜底——中性格，避免与套餐配置值字面冲突）
+    const sp = Number(p.seat_unit_price);
+    if (!Number.isFinite(sp)) return '售前联系';
+    if (sp === -1) return '不限';
+    if (sp === 0) return '售前联系';
+    return fmtMoney(sp);
+  };
+  const tagTextOf = (p) => (typeof p.tag_text === 'string' && p.tag_text.trim()) ? p.tag_text.trim() : '';
+  fetch('/api/billing/plans').then((r) => { if(!r.ok) throw new Error('http ' + r.status); return r.json(); }).then((d) => {
+    const plans = (d.plans || []).filter((p) => p && p.plan_id && p.enabled !== false);
+    const intro = (d.settings && d.settings.billing_intro) || {};
+    // 标题/副标题：后台配置驱动（settings.billing_intro），缺省回落最小可信文案
+    const headlineEl = document.getElementById('pricing-headline');
+    if (headlineEl) headlineEl.textContent = String(intro.headline || '套餐').trim() || '套餐';
+    const subtitleEl = document.getElementById('pricing-subtitle');
+    if (subtitleEl) subtitleEl.textContent = String(intro.subtitle || '档位与价格均由后台配置驱动（配置中心 · 套餐管理），改配置即改页面。').trim();
+    // 定价逻辑说明：每行一条，配置数组
+    const legendEl = document.getElementById('pricing-legend-body');
+    if (legendEl) {
+      const rows = Array.isArray(intro.legend) && intro.legend.length
+        ? intro.legend.filter((x) => typeof x === 'string' && x.trim())
+        : [
+            '档位与价格均由后台配置（配置中心 · 套餐管理）驱动',
+            '功能权益按档解锁，不为「AI 加价」单独收费',
+            '私有化与定制需求请联系我们另行报价'
+          ];
+      legendEl.innerHTML = rows.map((s) => '· ' + esc(s)).join('<br>');
+    }
+    if(!plans.length){
+      if(tiersEl) tiersEl.innerHTML = '<div class="tier"><div class="name" style="color:var(--mut)">暂无对外启用套餐（请至配置中心 · 套餐管理启用）</div></div>';
+      return;
+    }
+    // 1) 标题档位名（跟随配置）
+    if(namesEl) namesEl.textContent = ' · ' + plans.map(shortName).join(' / ');
+    // 2) 套餐卡片：主价（seat_unit_price）+ 副标题（quote / tag_text / original_price），全部数据驱动
+    if(tiersEl){
+      const catalog = Array.isArray(d.entitlement_catalog) ? d.entitlement_catalog : [];
+      tiersEl.innerHTML = plans.map((p) => {
+        const items = bulletItems(p, catalog);
+        const main = seatPriceText(p);
+        const was = (p.original_price != null && Number.isFinite(Number(p.original_price)) && Number(p.original_price) > 0) ? '<s class="was">' + esc(fmtMoney(p.original_price)) + '</s>' : '';
+        const unit = (Number(p.seat_unit_price) > 0) ? '<span class="unit">/ 账号·月</span>' : '';
+        const badge = tagTextOf(p) ? '<span class="badge">' + esc(tagTextOf(p)) + '</span>' : '';
+        const sub = (typeof p.quote === 'string' && p.quote.trim()) ? esc(p.quote.trim()) : '';
+        return '<div class="tier' + (p.highlight === true ? ' feat' : '') + '" data-plan-id="' + esc(p.plan_id) + '">'
+          + '<div class="name">' + esc(p.name || p.plan_id) + badge + '</div>'
+          + '<div class="price"><span class="now">' + esc(main) + '</span>' + unit + was + '</div>'
+          + (sub ? '<div class="sub">' + sub + '</div>' : '')
+          + (items.length ? '<ul>' + items.map((it) => '<li>' + esc(it) + '</li>').join('') + '</ul>' : '')
+          + '</div>';
+      }).join('');
+    }
+    // 3) 权益矩阵：行 = 后端权益目录 ∩ 现网套餐在用键；列 = 现网启用档位
+    if(head && body){
+      const used = new Set(plans.flatMap((p) => p.entitlements || []));
+      const catalog = (Array.isArray(d.entitlement_catalog) ? d.entitlement_catalog : [])
+        .filter((e) => e && e.key && (used.size === 0 || used.has(e.key)));
+      head.innerHTML = '<tr><th>本平台能力</th>'
+        + plans.map((p) => '<th class="center">' + esc(shortName(p)) + '</th>').join('') + '</tr>';
+      body.innerHTML = catalog.map((e) => '<tr><td><b>' + esc(e.label || e.key) + '</b></td>'
+        + plans.map((p) => '<td class="center">' + ((p.entitlements || []).includes(e.key) ? '✓' : '—') + '</td>').join('')
+        + '</tr>').join('');
+    }
+  }).catch(() => {
+    if(tiersEl) tiersEl.innerHTML = '<div class="tier"><div class="name" style="color:var(--mut)">套餐信息暂不可用（接口未就绪）</div></div>';
+  });
+})();
+
+</script>
+</body>
+</html>

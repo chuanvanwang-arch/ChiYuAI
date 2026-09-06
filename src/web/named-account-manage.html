@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>指名客户管理 · CRM</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  #app { padding: 20px 24px; max-width: 1280px; margin: 0 auto; }
+  .page-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  .page-actions { display: flex; gap: 12px; align-items: center; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .kpi .k-label { font-size: 12px; color: var(--mut); }
+  .kpi .k-val { font-size: 24px; font-weight: 700; margin-top: 4px; color: var(--ink); }
+  .kpi.warn .k-val { color: var(--err); }
+  .kpi.ok .k-val { color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--mut); font-weight: 600; background: var(--panel-head); }
+  tr.row:hover td { background: var(--hover); cursor: pointer; }
+  a { color: var(--ac); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--err); }
+  .muted { color: var(--mut); font-size: 12px; }
+  .tier { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--tier-bg); color: var(--tier-ink); }
+  .banner { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--err); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: none; }
+  .banner.show { display: block; }
+  .banner.ok { border-left-color: var(--ok); }
+  .form-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 10px 18px; border-radius: 8px; font-size: 13px; color: #fff; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .22s; }
+  #toast.show { opacity: 1; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div id="app">
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">指名客户管理</h1></div>
+    <div class="page-actions" id="actions">
+      <crm-select id="owner-select" title="按销售切换"><option value="">当前销售（本人）</option></crm-select>
+      <div id="tenant-bar" class="ts-bar"></div>
+    </div>
+  </header>
+  <div class="banner" id="banner"></div>
+  <crm-tabs>
+    <crm-tab active data-tab="list" id="tab-list">📋 名单总览</crm-tab>
+    <crm-tab data-tab="assign" id="tab-assign">➕ 分配管理</crm-tab>
+    <crm-tab data-tab="alerts" id="tab-alerts">🔔 告警提醒</crm-tab>
+  </crm-tabs>
+  <section id="panel-list">
+    <div class="kpis" id="kpis"><span class="muted">加载中…</span></div>
+    <div id="board-root"><p class="muted">加载中…</p></div>
+  </section>
+  <section id="panel-assign" hidden>
+    <form id="assign-form" class="card"></form>
+    <div id="assign-list" class="muted" style="margin-top:12px"></div>
+  </section>
+  <section id="panel-alerts" hidden>
+    <div id="alert-root"><p class="muted">加载中…</p></div>
+  </section>
+</div>
+<div id="toast"></div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api, me } from '/portal/api.js';
+  import { mountTenantScopeBar, tenantQuery, tenantMap, tenantCell } from '/portal/tenantScopeBar.js';
+  injectLayout();
+  const ownerSelect = document.getElementById('owner-select');
+  const banner = document.getElementById('banner');
+  const kpisEl = document.getElementById('kpis');
+  const boardRoot = document.getElementById('board-root');
+  const alertRoot = document.getElementById('alert-root');
+  const assignForm = document.getElementById('assign-form');
+  const assignList = document.getElementById('assign-list');
+  const tabBtns = { list: document.getElementById('tab-list'), assign: document.getElementById('tab-assign'), alerts: document.getElementById('tab-alerts') };
+  const panels = { list: document.getElementById('panel-list'), assign: document.getElementById('panel-assign'), alerts: document.getElementById('panel-alerts') };
+  let currentRows = [];
+  let tenantNameMap = {};       // admin 视角下租户 id→name 映射（渲染「租户」列）
+  let showTenantCol = false;   // 仅 admin/sysadmin 渲染租户列
+  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  function showToast(text) { const t = document.getElementById('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
+  function switchTab(name) {
+    // crm-tab 只响应 active 属性（observedAttributes 不含 class），故用 toggleAttribute 而非 classList
+    Object.keys(tabBtns).forEach(k => tabBtns[k].toggleAttribute('active', k === name));
+    Object.keys(panels).forEach(k => { panels[k].hidden = (k !== name); });
+  }
+  function renderKpis(summary) {
+    if (!summary) { kpisEl.innerHTML = ''; return; }
+    const kpi = (label, val, cls='') => `<div class="kpi ${cls}"><div class="k-label">${esc(label)}</div><div class="k-val">${esc(val)}</div></div>`;
+    const red = (summary.alertRed || 0), yellow = (summary.alertYellow || 0), pass = (summary.visitPassCount || 0);
+    kpisEl.innerHTML =
+      kpi('指名客户数', summary.targetCustomers || 0) +
+      kpi('应访未访(红)', red, red > 0 ? 'warn' : '') +
+      kpi('临近提醒(黄)', yellow, yellow > 0 ? 'warn' : '') +
+      kpi('达标(绿)', pass, pass > 0 ? 'ok' : '');
+  }
+  function renderBoard(rows) {
+    if (!rows.length) { boardRoot.innerHTML = '<div class="muted">暂无指名客户（请先在「分配管理」页签分配）</div>'; return; }
+    const winLabel = { week: '周', month: '月', quarter: '季' };
+    boardRoot.innerHTML = `
+      <table>
+        <thead><tr><th>客户名</th><th>销售</th><th>档位</th><th>应访次数/窗口</th><th>窗口内实际</th><th>应访日</th><th>距应访日</th><th>状态</th>${showTenantCol ? '<th>租户</th>' : ''}</tr></thead>
+        <tbody>${rows.map(r => {
+          const target = (r.visitTarget != null ? r.visitTarget : 1) + '次/' + (winLabel[r.visitWindow] || '月');
+          const due = r.visitDue ? new Date(r.visitDue).toLocaleDateString('zh-CN') : '—';
+          const od = r.overdueDays != null && r.overdueDays > 0 ? r.overdueDays + '天' : '—';
+          const st = r.alert === 'red' ? '<span class="warn">🔴 逾期</span>' : r.alert === 'yellow' ? '<span class="warn">🟡 临近</span>' : '<span class="pass">✅ 达标</span>';
+          return `<tr class="row"><td><a href="/account-360.html?id=${esc(r.id)}">${esc(r.name)}</a></td>
+            <td>${esc(r.owner)}</td><td><span class="tier">${esc(r.tier)}</span></td>
+            <td>${target}</td><td>${r.visits30 ?? 0}</td><td>${due}</td><td>${od}</td><td>${st}</td>${showTenantCol ? tenantCell(r.tenant_id, tenantNameMap) : ''}</tr>`;
+        }).join('')}</tbody>
+      </table>`;
+  }
+  // 告警区两类展示（2026-08-31）：🔴 应访未访 / 🟠 长期失联
+  // 去重：既逾期又失联的客户只出现在「应访未访」（与端点 followReminders 去重口径一致）
+  function renderAlerts(rows) {
+    const reds = (rows || []).filter(r => r.alert === 'red');
+    const losts = (rows || []).filter(r => r.lostContact && r.alert !== 'red');
+    if (!reds.length && !losts.length) { alertRoot.innerHTML = '<div class="muted">暂无逾期 / 失联提醒</div>'; return; }
+    const rowHtml = (r, kind) => `<tr class="row">
+      <td><a href="/account-360.html?id=${esc(r.id)}">${esc(r.name)}</a></td>
+      <td>${esc(r.owner)}</td>
+      <td>${kind === 'red'
+        ? `<span class="warn">逾期 ${r.overdueDays != null ? esc(r.overdueDays) + '天' : '—'}</span>`
+        : `<span class="warn">失联 ${r.lastContactDays != null ? esc(r.lastContactDays) + '天无拜访' : '—'}</span>`}</td>
+      <td>${r.visitDue ? new Date(r.visitDue).toLocaleDateString('zh-CN') : '—'}</td>
+      <td>${r.visitTarget != null ? esc(r.visitTarget) + '次' : '—'} / 实际 ${r.visits30 ?? 0}</td>
+      <td><a href="/account-360.html?id=${esc(r.id)}">去拜访 →</a></td>
+    </tr>`;
+    const table = (title, list, kind) => (list.length
+      ? `<h4 class="muted" style="margin:14px 0 6px">${title}（${list.length}）</h4>
+         <table><thead><tr><th>客户</th><th>销售</th><th>状态</th><th>应访日</th><th>应访/实际</th><th>操作</th></tr></thead>
+         <tbody>${list.map(r => rowHtml(r, kind)).join('')}</tbody></table>`
+      : '');
+    alertRoot.innerHTML = table('🔴 应访未访', reds, 'red') + table('🟠 长期失联', losts, 'lost');
+  }
+  async function load(owner) {
+    kpisEl.innerHTML = '<span class="muted">加载中…</span>';
+    try {
+      // 租户作用域条（方案 A）：admin/sysadmin 可经下拉 ?tenant= 收窄到单租户，并渲染「租户」列
+      const role = (await me().catch(() => ({})))?.role;
+      showTenantCol = (role === 'admin' || role === 'sysadmin');
+      tenantNameMap = showTenantCol ? (await tenantMap().catch(() => ({}))) : {};
+      const params = [];
+      if (owner) params.push('owner=' + encodeURIComponent(owner));
+      const tq = tenantQuery(); // '&tenant=x' 或 ''
+      if (tq) params.push(tq.slice(1));
+      const url = '/api/board/named-account-manage' + (params.length ? '?' + params.join('&') : '');
+      const j = await api(url);
+      currentRows = Array.isArray(j.rows) ? j.rows : [];
+      renderKpis({ ...(j.summary || {}), alertRed: j.alertRed || 0, alertYellow: j.alertYellow || 0 });
+      renderBoard(currentRows);
+      renderAlerts(currentRows);
+      // 横幅/页签角标取合并提醒数（逾期红 ∪ 长期失联，端点已去重）——与侧栏「客户跟踪」角标同源
+      const fr = j.followReminders || 0;
+      if (fr > 0) { banner.classList.add('show'); banner.classList.remove('ok'); banner.innerHTML = `⚠️ 有 <b>${fr}</b> 个客户需要关注（应访未访 / 长期失联），请尽快安排拜访。`; }
+      else { banner.classList.add('show'); banner.classList.add('ok'); banner.innerHTML = '✅ 当前客户拜访与接触均正常。'; }
+      const badge = document.getElementById('tab-alerts');
+      badge.innerHTML = fr > 0 ? `🔔 告警提醒 <span class="badge">${fr}</span>` : '🔔 告警提醒';
+    } catch (e) { boardRoot.innerHTML = `<p class="warn">加载失败：${esc(e.message)}</p>`; }
+  }
+  async function loadAssignOptions() {
+    try {
+      const j = await api('/api/named-account-assign/options');
+      const accounts = Array.isArray(j.accounts) ? j.accounts : [];
+      const users = Array.isArray(j.users) ? j.users : [];
+      const noAccounts = accounts.length === 0;
+      assignForm.innerHTML = `
+        <div class="form-row">
+          <b>新增分配</b>
+          <crm-select id="assign-account" ${noAccounts ? 'disabled' : ''}><option value="">选择客户…</option>${accounts.map(a => `<option value="${esc(a.id)}">${esc(a.title || a.id)}</option>`).join('')}</crm-select>
+          <crm-select id="assign-owner"><option value="">选择销售…</option>${users.map(u => `<option value="${esc(u.username)}">${esc(u.display_name || u.username)}</option>`).join('')}</crm-select>
+          <crm-select id="assign-tier"><option value="重点">重点</option><option value="目标">目标</option><option value="潜力">潜力</option></crm-select>
+          <crm-button class="btn" id="assign-submit" ${noAccounts ? 'disabled' : ''}>分配</crm-button>
+        </div>
+        ${noAccounts ? '<div class="muted" style="margin-top:8px">暂无可分配客户（全部已分配）。如需调整，请先在「名单总览」中停用现有分配。</div>' : ''}`;
+      if (!noAccounts) {
+        document.getElementById('assign-submit').addEventListener('click', async () => {
+          const account_id = document.getElementById('assign-account').value;
+          const owner = document.getElementById('assign-owner').value;
+          const tier = document.getElementById('assign-tier').value;
+          if (!account_id || !owner) { showToast('请选择客户与销售'); return; }
+          try {
+            const r = await api('/api/named-account-assign', { method: 'POST', body: JSON.stringify({ account_id, owner, tier }) });
+            if (r && r.ok === false) { showToast('分配失败：' + (r.error || '')); return; }
+            showToast('分配成功'); load(''); loadAssignOptions();
+          } catch (e) { showToast('分配失败：' + e.message); }
+        });
+      }
+      // 已分配名单
+      const used = await api('/api/board/named-account-manage');
+      assignList.innerHTML = `<div class="muted">已分配客户数：${(Array.isArray(used.rows) ? used.rows.length : 0)}</div>`;
+    } catch (e) { assignForm.innerHTML = `<div class="warn">加载分配选项失败：${esc(e.message)}</div>`; }
+  }
+  Object.values(tabBtns).forEach(b => b.addEventListener('click', () => { switchTab(b.dataset.tab); if (b.dataset.tab === 'assign') loadAssignOptions(); }));
+  ownerSelect.addEventListener('change', () => { if (ownerSelect.value) load(ownerSelect.value); });
+  (async () => {
+    const r = await me().catch(() => ({}));
+    if (r.role === 'manager' || r.role === 'admin') {
+      const resp = await api('/api/config/users?tenant=me').catch(() => ({}));
+      const items = Array.isArray(resp.users) ? resp.users : [];
+      if (items.length) {
+        ownerSelect.innerHTML = '<option value="">当前销售（本人）</option>' +
+          items.map(u => `<option value="${esc(u.username)}">${esc(u.display_name || u.username)}</option>`).join('');
+      }
+    }
+    load('');
+    mountTenantScopeBar(document.getElementById('tenant-bar'), () => load(''));
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>基础价格表 · 基础数据</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 12px; }
+  .bd-tbl { width: 100%; border-collapse: collapse; }
+  .bd-tbl th, .bd-tbl td { border-bottom: 1px solid var(--line); padding: 8px 10px; font-size: 13px; text-align: left; }
+  .bd-tbl th { color: var(--mut); font-weight: 600; }
+  .bd-tbl tbody tr:hover td { background: #16233b; }
+  .empty { color: var(--mut); font-size: 13px; padding: 8px 0; }
+  /* 工具栏 */
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 14px; }
+  .toolbar crm-input { width: 280px; }
+  .toolbar crm-select { width: 160px; }
+  .tool-count { color: var(--mut); font-size: 13px; margin-left: auto; }
+  /* 表单 */
+  .bd-form { max-width: 460px; }
+  .bd-row { margin: 10px 0; }
+  .bd-row label { display: block; margin-bottom: 4px; font-size: 13px; color: var(--mut); }
+  /* 状态徽章（私有前缀，避免与设计系统 .badge 冲突 R3） */
+  .pl-badge { display: inline-block; padding: 2px 10px; border-radius: 11px; font-size: 12px; font-weight: 600; }
+  .pl-badge-on { color: #39c07a; background: rgba(57, 192, 122, 0.12); }
+  .pl-badge-off { color: var(--mut); background: rgba(255, 255, 255, 0.06); }
+  .tag-stopped { color: var(--mut); font-size: 13px; }
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">基础价格表</h1></div></header>
+<div id="tenant-bar" class="ts-bar"></div>
+<div class="toolbar">
+  <crm-input id="pl-search" placeholder="搜索名称 / 产品"></crm-input>
+  <crm-select id="pl-status">
+    <option value="all" selected>全部状态</option>
+    <option value="active">启用</option>
+    <option value="expired">已停用</option>
+  </crm-select>
+  <span class="tool-count" id="pl-count"></span>
+</div>
+<div id="list">加载中…</div>
+<hr>
+<h3>新建价格表</h3>
+<div id="form"></div>
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+import { renderPriceList, renderPriceListForm, validatePriceListPatch } from '/portal/priceListRender.js';
+import { mountTenantScopeBar, tenantQuery, tenantMap, fetchMe } from '/portal/tenantScopeBar.js';
+const TOKEN = localStorage.getItem('crm_token');
+if (!TOKEN) location.href = '/home.html';
+const listEl = document.getElementById('list');
+const formEl = document.getElementById('form');
+const searchEl = document.getElementById('pl-search');
+const statusEl = document.getElementById('pl-status');
+const countEl = document.getElementById('pl-count');
+
+let allItems = [];
+let isAdmin = false;
+let tenantNameMap = {};
+
+// 客户端过滤（不重新拉取，避免每次按键打后端）
+function filterItems() {
+  const q = (searchEl.value || '').trim().toLowerCase();
+  const st = statusEl.value || 'all';
+  return allItems.filter((it) => {
+    const stopped = (it.state || '') === 'expired';
+    if (st !== 'all' && (st === 'expired') !== stopped) return false;
+    if (q) {
+      const name = String(it.payload?.name || '').toLowerCase();
+      const prods = Array.isArray(it.payload?.products) ? it.payload.products.join('、').toLowerCase() : String(it.payload?.products || '').toLowerCase();
+      if (!name.includes(q) && !prods.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  const items = filterItems();
+  listEl.innerHTML = renderPriceList(items, { showTenant: isAdmin, tenantMap: tenantNameMap });
+  countEl.textContent = `共 ${items.length} 条`;
+  bindState();
+}
+
+// 从后端拉全量（含已停用），再客户端过滤
+async function refresh() {
+  try {
+    const me = await fetchMe();
+    isAdmin = me.role === 'admin' || me.role === 'sysadmin';
+    const r = await fetch('/api/particles?type=CRM_PRICE_LIST&includeInactive=1' + tenantQuery(), { headers: { Authorization: `Bearer ${TOKEN}` } });
+    if (!r.ok) { listEl.innerHTML = `<p class="empty">加载失败：${r.status}</p>`; return; }
+    const j = await r.json();
+    allItems = j.items || [];
+    tenantNameMap = isAdmin ? await tenantMap() : {};
+    render();
+  } catch (e) { listEl.innerHTML = `<p class="empty">${e.message}</p>`; }
+}
+
+// 启用/停用 = state 流转（软停用，禁物理删除）
+function bindState() {
+  listEl.querySelectorAll('[data-set]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm(`确认将状态置为 ${b.dataset.state}？`)) return;
+      const r = await fetch('/api/particles/' + b.dataset.set, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: b.dataset.state, force: true }),
+      });
+      const j = await r.json().catch(() => ({}));
+      alert(r.ok ? `已置为 ${b.dataset.state}` : ('操作失败：' + (j.error || r.status)));
+      refresh();
+    };
+  });
+}
+
+formEl.innerHTML = renderPriceListForm();
+formEl.querySelector('#plf').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const v = validatePriceListPatch(Object.fromEntries(fd));
+  if (!v.ok) { alert('校验失败：' + v.errors.join('; ')); return; }
+  const r = await fetch('/api/particles', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'CRM_PRICE_LIST', payload: v.normalized }),
+  });
+  const j = await r.json().catch(() => ({}));
+  alert(r.ok ? `已创建（决策 ${String(j.decision || '').slice(0, 8)}…）` : ('失败：' + (j.error || r.status)));
+  if (r.ok) e.target.reset();
+  refresh();
+};
+
+searchEl.addEventListener('input', render);
+statusEl.addEventListener('change', render);
+mountTenantScopeBar(document.getElementById('tenant-bar'), () => refresh());
+refresh();
+setInterval(() => { if (TOKEN) refresh(); }, 15000);
+</script>
+</body>
+</html>

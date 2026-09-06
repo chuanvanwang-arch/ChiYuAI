@@ -1,0 +1,106 @@
+version: "3.9"
+
+# CRM-ai-native 一键部署（腾讯云 Lighthouse / 任意 Ubuntu+Docker 主机）
+# 用法见 README.md：bash deploy.sh
+services:
+  db:
+    image: pgvector/pgvector:pg16        # 官方镜像，自带 vector + pgcrypto 扩展
+    container_name: crm-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PGUSER:-agent2b}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE:-crm_native}
+    ports:
+      # 安全红线：仅绑定回环地址，禁止公网直接访问 PostgreSQL。
+      # 需要本地排障时用 ssh -L 5432:127.0.0.1:5432 隧道，不要放开 0.0.0.0。
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-pgvector.sh:/docker-entrypoint-initdb.d/10-init-pgvector.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-agent2b} -d ${PGDATABASE:-crm_native}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: ../..                       # 项目根（deploy.sh 会在根生成 .dockerignore）
+      dockerfile: scripts/tencent-lighthouse-deploy/Dockerfile
+    container_name: crm-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db                           # 容器网络内服务名
+      PGPORT: "5432"
+      PGUSER: ${PGUSER:-agent2b}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE:-crm_native}
+      NODE_ENV: production
+      PORT: "3000"
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+      # llm_config.api_key 的加密主密钥（生产必须设置强随机值；缺省走开发默认 'crm-dev-secret'）
+      CRM_LLM_SECRET: ${CRM_LLM_SECRET:-}
+      # ===== 激活邮件通道（自助注册→手机/邮箱激活）=====
+      # 配置了 SMTP_USER+SMTP_PASS 即真发激活邮件；缺省指向 Brevo（smtp-relay.brevo.com:587 STARTTLS）。
+      # 未配置 → 生产环境（NODE_ENV=production）不回显 devCode，仅服务端日志，用户须查收邮件。
+      # 注意：NODE_ENV=production 下若 SMTP 未配置，激活邮件不会真正发出 → 注册后无法收码，
+      #   故上线前务必在此填入真实 SMTP 凭据（Brevo 的 SMTP_USER/SMTP_PASS）。
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-${SMTP_USER:-}}
+    ports:
+      - "3000:3000"
+    # 先跑迁移（幂等），再启动 HTTP 服务
+    command: sh -c "node db/migrate.js && node src/http/server.js"
+    healthcheck:
+      # 注意：src/http/server.js 未注册 /api/health 路由（2026-09-04 生产实测返回 404），
+      #   故探活用根路径 / （返回 200 的门户首页）。若改用 /api/health，容器会恒为 unhealthy。
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # MCP 对外分发层（StreamableHTTP: 3001 /mcp）
+  # 复用 app 已构建的镜像（不重复 build），独立进程便于单独重启与故障隔离。
+  # 端口仅绑定回环：公网不暴露 3001，由 Nginx 以 /mcp 路径反代（2026-09-04 拍板方案）。
+  mcp:
+    image: tencent-lighthouse-deploy-app
+    container_name: crm-mcp
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${PGUSER:-agent2b}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE:-crm_native}
+      NODE_ENV: production
+      # 语义向量开关：'model'=走 SiliconFlow BAAI/bge-large-zh-v1.5（1024维），空/hash=走 hashVector(384)
+      # 维度匹配：decision.embedding 是 vector(1024) → model 路径；particles.embedding 是 vector(384)，
+      #   由 hooks.js 直接用 hashVector 写入，不受此开关影响，故开启 model 不会引发维度冲突。
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+      # 必须与 app 服务一致，否则 mcp 侧无法解密 api_key
+      CRM_LLM_SECRET: ${CRM_LLM_SECRET:-}
+    ports:
+      - "127.0.0.1:3001:3001"
+    command: node src/mcp/server.js --http
+    healthcheck:
+      # /mcp 无 session 的 GET 返回 404 JSON（属预期）；只要端口在监听即视为存活
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/mcp').then(r=>process.exit([200,404,406].includes(r.status)?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pgdata:

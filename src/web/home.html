@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>CRM 门户 · 登录</title>
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <link rel="stylesheet" href="/portal/common.css">
+<style>
+ body{font-family:system-ui;margin:0;background:#0f172a;color:#e2e8f0;min-height:100vh}
+ .wrap{max-width:960px;margin:0 auto;padding:32px 24px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+ .login{background:#1e293b;padding:24px;border-radius:14px}
+ .login h1{font-size:18px;margin:0 0 16px}
+ input{width:100%;padding:10px;margin:8px 0;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0}
+ button{width:100%;padding:10px;margin-top:12px;border:none;border-radius:8px;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer}
+
+ .wall h2{font-size:15px;grid-column:1/-1;color:var(--ink);margin-top:0}
+ .err{color:#f87171;font-size:13px;min-height:18px}
+ a{color:#818cf8}
+</style>  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="login">
+    <h1>🔐 CRM 门户登录</h1>
+    <div id="roleHint" style="font-size:12px;color:var(--mut);margin-bottom:8px"></div>
+    <crm-input id="u" placeholder="用户名（sales/manager/exec/finance/presales/contract_admin）"></crm-input>
+    <crm-input id="p" type="password" placeholder="密码（演示：secret123）"></crm-input>
+    <div class="err" id="err"></div>
+    <crm-button id="go">登录进入作战室</crm-button>
+    <div style="margin-top:12px;font-size:12px"><a href="/">已进入？直达作战室 →</a></div>
+  </div>
+  <div class="wall">
+    <h2>📊 系统状态墙（进入前概览）</h2>
+    <div class="card"><b>装配校验</b><div id="assembly">加载中…</div></div>
+    <div class="card"><b>看板状态</b><div id="kanban">—</div></div>
+    <div class="card"><b>最新粒子（10）</b><div id="particles">—</div></div>
+    <div class="card"><b>审批概览</b><div id="approval">—</div></div>
+  </div>
+</div>
+<footer class="app-footer">
+  <span>北京青羽智行科技有限公司 © 2023-2026 版权所有</span>
+  <span class="f-sep">｜</span><span>chiyuai.com</span>
+  <span class="f-sep">·</span><span>本平台相关内容同步更新</span>
+</footer>
+<script>
+async function wall(){
+  try{
+    const [a,t,p,b]=await Promise.all([
+      fetch('/api/agents').then(r=>r.json()),
+      fetch('/api/kanban/tasks').then(r=>r.json()),
+      fetch('/api/particles').then(r=>r.json()),
+      fetch('/api/business/board').then(r=>r.json())
+    ]);
+    document.getElementById('assembly').innerHTML=
+      `<span style="color:${a.assembly.ok?'#4ade80':'#f87171'}">${a.assembly.ok?'通过':'失败'}</span> · ${a.agents.join(', ')}`;
+    const c=['ready','running','done','failed','blocked'].map(s=>t.items.filter(x=>x.status===s).length).join(' / ');
+    document.getElementById('kanban').textContent=`ready/running/done/failed/blocked = ${c}`;
+    document.getElementById('particles').innerHTML=p.items.slice(0,10).map(x=>`<span class="badge">${x.type}·${x.payload?.name||x.title||''}</span>`).join('');
+    const g=b.grouped||{};const sub=Object.entries(g).filter(([,a])=>a.some(x=>x.status==='submitted')).length;
+    document.getElementById('approval').textContent=`${sub} 类业务粒子存在待审提交`;
+  }catch(e){}
+}
+document.getElementById('go').onclick=async()=>{
+  const err=document.getElementById('err');err.textContent='';
+  const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
+  const j=await r.json();
+  if(!r.ok){err.textContent=j.error||'登录失败';return;}
+  localStorage.setItem('crm_token',j.token);localStorage.setItem('crm_role',j.role);localStorage.setItem('crm_name',j.display_name);
+  location.href='/';
+};
+if(localStorage.getItem('crm_token'))document.getElementById('roleHint').textContent='当前已登录：'+localStorage.getItem('crm_name');
+wall();setInterval(wall,8000);
+</script>
+</body></html>

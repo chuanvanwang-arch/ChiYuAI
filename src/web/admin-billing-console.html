@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>平台计费控制台</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .ov { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .ov .rcard { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px; background: var(--panel); }
+  .ov .rcard .v { font-size: 22px; font-weight: 700; }
+  .ov .rcard .k { font-size: 12px; color: var(--mut); }
+  table.bd { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.bd th, table.bd td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  .bad { color: var(--err); font-weight: 600; }
+  .ok { color: var(--ok, #1a7f37); }
+  section { margin-bottom: 22px; }
+  section > h3 { font-size: 15px; border-left: 4px solid var(--ac); padding-left: 8px; }
+  #forbidden { display: none; padding: 24px; text-align: center; }
+  #forbidden a { color: var(--ac); }
+  .controls { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); align-items: center; justify-content: center; }
+  .modal.show { display: flex; }
+  .modal .box { background: var(--panel); padding: 20px; border-radius: var(--radius-lg); width: 420px; max-width: 92vw; }
+  .modal label { display: block; font-size: 12px; color: var(--mut); margin: 10px 0 4px; }
+  .modal .box .help { font-size: 11px; color: var(--mut); margin-top: 4px; }
+  .admin-ctl { border: 1px dashed var(--line); padding: 12px; border-radius: var(--radius-lg); margin-bottom: 18px; }
+  #settings-edit crm-textarea { display: block; width: 100%; }
+  /* 弹窗限高：内容区滚动，操作条/关闭按钮常驻 */
+  #plan-edit-modal .box { width: 560px; max-width: 92vw; max-height: 90vh; padding: 0; display: flex; flex-direction: column; }
+  #plan-edit-modal .pf-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 0; }
+  #plan-edit-modal .pf-header h3 { margin: 0; font-size: 16px; }
+  #plan-edit-modal .pf-header .close { background: transparent; border: 0; font-size: 22px; line-height: 1; color: var(--mut); cursor: pointer; }
+  #plan-edit-modal .pf-body { overflow-y: auto; padding: 8px 20px 16px; flex: 1; }
+  #plan-edit-modal .pf-footer { padding: 12px 20px 16px; background: var(--panel); border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }
+  /* 套餐表单弹窗（2026-09-05 表单化升级：两列栅格 + 权益勾选区） */
+  .pf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .pf-grid label { display: block; font-size: 12px; color: var(--mut); margin: 6px 0 2px; }
+  .pf-grid label .help { display: block; font-size: 10.5px; color: var(--ac-hover); margin-top: 1px; font-weight: 500; }
+  .pf-grid crm-input, .pf-grid crm-select { width: 100%; }
+  .pf-ents { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-top: 4px; }
+  /* 实时预览：复用 landing 卡片语义；
+     角标/划线价等结构由表单 field 驱动，单字段变化即刻更新预览 */
+  .pf-preview {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    background: var(--bg2);
+    font-size: 14px;
+  }
+  .pf-preview .name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pf-preview .price { font-size: 22px; font-weight: 800; margin: 8px 0 2px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .pf-preview .price .was { font-size: 13px; font-weight: 500; color: var(--mut); text-decoration: line-through; }
+  .pf-preview .price .unit { font-size: 12px; font-weight: 500; color: var(--mut); }
+  .pf-preview .price .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(99,102,241,.18); color: var(--ac-hover); }
+  .pf-preview .sub { font-size: 12.5px; color: var(--mut); margin: 6px 0 0; line-height: 1.5; }
+  .pf-preview ul { margin: 10px 0 0; padding-left: 16px; font-size: 13px; color: var(--mut); }
+  .pf-preview ul li { margin: 4px 0; }
+  /* Tab 容器复用 common.css 设计系统保留类 .tabs/.tab（line 84-86），不再本地重声明，避免样式漂移（ui-lint 第①类警告根因） */
+  .tabpane { display: none; }
+  .tabpane.active { display: block; }
+  /* 订阅行展开（余量明细） */
+  tr.sub-row { cursor: pointer; }
+  tr.sub-row:hover { background: var(--bg); }
+  tr.sub-detail td { background: var(--panel); }
+  .quota-grid { display: flex; gap: 16px; flex-wrap: wrap; padding: 4px 0; }
+  .quota-grid .q { font-size: 13px; }
+  .quota-grid .q b { font-size: 16px; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">平台计费控制台</h1></div><div id="tenant-bar" class="ts-bar"></div></header>
+<div id="forbidden"><h3>需要管理员权限</h3><p>计费控制台仅 admin/sysadmin 可见。请 <a href="/home.html">重新登录</a>。</p></div>
+<div id="app" style="display:none">
+  <p class="sub">套餐维护（软停用，禁物理删）+ 租户订阅全景（开通日期 / 当前套餐 / 余量）+ 计费设置。写操作经 HITL 弹窗确认后提交。</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="plans" onclick="showTab('plans')">套餐管理</div>
+    <div class="tab" data-tab="subs" onclick="showTab('subs')">租户订阅</div>
+    <div class="tab" data-tab="settings" onclick="showTab('settings')">计费设置</div>
+  </div>
+
+  <!-- Tab 1：套餐管理（定义套餐的后台入口） -->
+  <div class="tabpane active" id="pane-plans">
+    <section><h3>套餐维护</h3>
+      <div class="controls">
+        <crm-button class="btn" id="plan-add-new">新增套餐</crm-button>
+        <crm-button class="btn ghost" id="plan-refresh">刷新</crm-button>
+      </div>
+      <table class="bd" id="plan-table"></table>
+    </section>
+  </div>
+
+  <!-- Tab 2：租户订阅（查询各租户使用哪个套餐：开通日期 / 目前套餐 / 余量） -->
+  <div class="tabpane" id="pane-subs">
+    <section><h3>订阅全景</h3>
+      <p class="sub">点击任意租户行可展开 Token 余量 + 实时费用明细（额度 / 已用 / 剩余 / 超量费 / 席位费 / 实时合计）。</p>
+      <table class="bd" id="subs-table"></table>
+    </section>
+  </div>
+
+  <!-- Tab 3：计费设置（含 Stripe 凭据） -->
+  <div class="tabpane" id="pane-settings">
+    <section><h3>计费设置</h3>
+      <div class="admin-ctl">
+        <div id="settings-edit">
+          <p class="sub">当前计费设置（含 Stripe 凭据，仅 admin 可见）。编辑 JSON 后整档保存。</p>
+        </div>
+        <crm-button class="btn" id="settings-save">保存设置</crm-button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal" id="plan-edit-modal">
+  <div class="box">
+    <div class="pf-header">
+      <h3 id="plan-edit-title">编辑套餐</h3>
+      <crm-button class="close" id="plan-edit-close" aria-label="关闭">×</crm-button>
+    </div>
+    <div class="pf-body">
+      <div class="pf-grid">
+        <label>档位 ID（plan_id，保存后不可改）</label>
+        <crm-input id="pf-plan-id" placeholder="如 pro"></crm-input>
+        <label>套餐名称</label>
+        <crm-input id="pf-name" placeholder="如 增强版 · Pro"></crm-input>
+        <label>报价文案 <span class="help">卡片副标题 / 附加说明（不限字段语义）</span></label>
+        <crm-input id="pf-quote" placeholder="如 包含 50 账号"></crm-input>
+        <label>功能说明（每行一条）</label>
+        <crm-textarea id="pf-features" rows="5" placeholder="含 3 席位&#10;核心 CRM（客户/商机/合同/报价/回款）&#10;社区支持"></crm-textarea>
+        <label>单席月价（¥，-1=不限）<span class="help">卡片主价 = 此字段（¥ + 数字 + / 账号·月）</span></label>
+        <crm-input id="pf-seat-price" type="number" step="0.01"></crm-input>
+        <label>基础月费（¥，预留）</label>
+        <crm-input id="pf-base-fee" type="number" min="0" step="0.01"></crm-input>
+        <label>包含席位（-1=不限，0=不含，N=含 N 席）</label>
+        <crm-input id="pf-seats" type="number" step="1"></crm-input>
+        <label>划线原价（¥，留空=不显示）<span class="help">卡片「划线价」展示（可选字段，常与首月优惠/历史定价差异配合）</span></label>
+        <crm-input id="pf-orig-price" type="number" min="0" step="0.01"></crm-input>
+        <label>卡片角标（≤30 字，留空=不显示）<span class="help">卡片右上角小徽章，如"首月免费"/"热销"/"企业首选"</span></label>
+        <crm-input id="pf-tag-text" maxlength="30" placeholder="如 首月免费 / 热销 / 企业首选"></crm-input>
+        <label>包含 Tokens（-1=不限）</label>
+        <crm-input id="pf-tokens" type="number" step="1000"></crm-input>
+        <label>Token 硬上限（留空=不限）</label>
+        <crm-input id="pf-hard-cap" type="number" min="0" step="1000"></crm-input>
+        <label>超量模式</label>
+        <crm-select id="pf-overage-mode">
+          <option value="none">不限量 / 不计费（none）</option>
+          <option value="bill">超量计费（bill）</option>
+          <option value="block">超量停用（block）</option>
+        </crm-select>
+        <label>超量单价（¥/千 tokens）</label>
+        <crm-input id="pf-overage-price" type="number" min="0" step="0.001"></crm-input>
+      </div>
+      <label style="margin-top:12px">功能权益（entitlements）</label>
+      <div id="pf-ents" class="pf-ents"></div>
+      <div style="margin-top:10px;display:flex;gap:18px;flex-wrap:wrap">
+        <crm-checkbox id="pf-enabled">启用该套餐（取消勾选即软停用，禁止物理删除）</crm-checkbox>
+        <crm-checkbox id="pf-highlight">对外主推（landing 卡片高亮）</crm-checkbox>
+      </div>
+      <!-- 实时预览：编辑任一字段即刻看到卡片渲染；解决「我改了没生效」 -->
+      <div style="margin-top:14px;border-top:1px dashed var(--line);padding-top:12px">
+        <label style="margin-top:0">卡片实时预览（改任一字段即刻刷新）</label>
+        <div id="pf-preview" class="pf-preview"><div class="name" style="color:var(--mut)">编辑上方任意字段，立刻看到卡片怎么显示</div></div>
+      </div>
+      <div id="pf-err" class="bad" style="display:none; margin-top:8px; white-space:pre-wrap"></div>
+    </div>
+    <div class="pf-footer">
+      <crm-button class="btn ghost" id="plan-edit-cancel">取消</crm-button>
+      <crm-button class="btn" id="plan-edit-confirm">保存</crm-button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { me, api } from '/portal/api.js';
+  import { mountTenantScopeBar, tenantQuery, tenantMap, tenantCell } from '/portal/tenantScopeBar.js';
+  injectLayout();
+
+  let PLANS = [];
+  let SETTINGS = {};
+  let EDIT_INDEX = -1; // -1 = 新增
+  let ENT_LIST = [];      // 权益白名单（后端 /api/billing/plans known_entitlements 下发，前端不硬编码）
+  let ENT_CATALOG = [];   // 权益目录 [{key,label}]（后端 entitlement_catalog 下发，展示标签唯一来源）
+  let TOKEN_USAGE_CACHE = null; // 租户订阅展开复用的用量缓存（admin 全量）
+  let LIVE_COST_CACHE = [];     // 实时费用缓存（admin 全量，含席位/费用）
+  let SUBS_DATA = [];           // 租户订阅全景行数据（新端点 /api/billing/tenant-subscriptions）
+
+  function escAttr(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+  function fmtMoney(n) { const v = Number(n); return Number.isFinite(v) ? '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '—'; }
+  function fmtNum(n) { const v = Number(n); return Number.isFinite(v) ? v.toLocaleString('zh-CN') : '—'; }
+  function daysLeft(exp) { const d = new Date(exp); if (isNaN(d)) return '—'; const n = Math.ceil((d - Date.now()) / 86400000); return n > 0 ? `${n} 天` : '已到期'; }
+
+  // ── Tab 切换 ──
+  window.showTab = (id) => {
+    document.querySelectorAll('.tabpane').forEach((p) => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    document.getElementById('pane-' + id).classList.add('active');
+    const tab = document.querySelector(`.tab[data-tab="${id}"]`);
+    if (tab) tab.classList.add('active');
+  };
+  // ── 深链：从 URL hash 定位初始 tab（配置中心「租户管理」#subs / 「平台套餐管理」#plans）──
+  function initTabFromHash() {
+    const h = (location.hash || '').replace('#', '');
+    if (h && document.getElementById('pane-' + h)) showTab(h);
+  }
+  window.addEventListener('hashchange', initTabFromHash);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initTabFromHash);
+  else initTabFromHash();
+
+  async function guard() {
+    try {
+      const r = await me();
+      if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('forbidden').style.display = 'block';
+        return false;
+      }
+      document.getElementById('app').style.display = 'block';
+      return true;
+    } catch (e) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('forbidden').style.display = 'block';
+      return false;
+    }
+  }
+
+  async function loadPlans() {
+    const d = await api('/api/billing/plans');
+    PLANS = d.plans || [];
+    SETTINGS = d.settings || {};
+    ENT_LIST = Array.isArray(d.known_entitlements) ? d.known_entitlements : [];
+    renderEntCheckboxes();
+    renderPlanTable();
+    renderSettings();
+  }
+
+  async function renderPlanTable() {
+    const el = document.getElementById('plan-table');
+    if (!PLANS.length) { el.innerHTML = '<tr><td colspan="5" class="ok">暂无套餐配置</td></tr>'; return; }
+    const head = `<tr><th>档位</th><th>名称</th><th>单席月费</th><th>权益</th><th>状态</th><th></th></tr>`;
+    const body = PLANS.map((p, i) => `<tr>
+      <td>${esc(p.plan_id)}</td>
+      <td>${esc(p.name)}</td>
+      <td>${fmtMoney(p.seat_unit_price)}</td>
+      <td>${esc((p.entitlements || []).join(', ')) || '—'}</td>
+      <td class="${p.enabled === false ? 'bad' : 'ok'}">${p.enabled === false ? '停用' : '启用'}</td>
+      <td>
+        <crm-button class="btn" data-i="${i}" onclick="openPlanEdit(event)">编辑</crm-button>
+        <crm-button class="btn ghost" data-i="${i}" data-en="${p.enabled === false ? '1' : '0'}" onclick="togglePlan(event)">${p.enabled === false ? '启用' : '停用'}</crm-button>
+      </td>
+    </tr>`).join('');
+    el.innerHTML = head + body;
+  }
+
+  function renderSettings() {
+    const el = document.getElementById('settings-edit');
+    // crm-textarea 是属性驱动组件（不读子文本内容），初始值必须走 .value（2026-09-05 修复空框）
+    el.innerHTML = `<crm-textarea id="settings-json" rows="12"></crm-textarea>`;
+    const ta = el.querySelector('#settings-json');
+    if (ta) ta.value = JSON.stringify(SETTINGS ?? {}, null, 2);
+  }
+
+  async function loadSubs() {
+    const el = document.getElementById('subs-table');
+    try {
+      const d = await api(`/api/billing/tenant-subscriptions${tenantQuery()}`);
+      SUBS_DATA = Array.isArray(d?.rows) ? d.rows : [];
+      // 展开明细复用本端点已下发的 live_cost / quota，避免逐行再请求
+      TOKEN_USAGE_CACHE = SUBS_DATA.map((r) => ({ tenant_id: r.tenant_id, quota: r.quota }));
+      LIVE_COST_CACHE = SUBS_DATA.map((r) => r.live_cost).filter(Boolean);
+      if (!SUBS_DATA.length) { el.innerHTML = '<tr><td colspan="10" class="ok">暂无租户</td></tr>'; return; }
+      const head = `<tr><th>租户</th><th>推荐人</th><th>当前套餐</th><th>开通日期</th><th>到期日</th><th>剩余</th><th>席位(已用/额度/余)</th><th>已用 Token</th><th>实时费用</th><th>状态</th></tr>`;
+      const body = SUBS_DATA.map((r, idx) => {
+        const s = r.subscription;
+        const lc = r.live_cost || {};
+        const seatLimit = lc.seat_limit;
+        const seatUsed = lc.seats ?? 0;
+        const seatRemain = lc.remaining_seats === null ? '不限' : (lc.remaining_seats ?? '—');
+        const seatCell = seatLimit === -1 ? `${seatUsed}/不限` : `${seatUsed}/${seatLimit} <span class="sub">(余${seatRemain})</span>`;
+        const tokenUsed = (Number(lc.token_in) || 0) + (Number(lc.token_out) || 0);
+        const planName = s?.plan_id || r.tenant_plan || '—';
+        const started = s?.started_at ? String(s.started_at).slice(0, 10) : '—';
+        const expires = s?.expires_at ? String(s.expires_at).slice(0, 10) : '—';
+        const days = s?.expires_at ? daysLeft(s.expires_at) : '—';
+        const status = s ? s.status : '未开通';
+        const statusClass = status === 'active' ? 'ok' : (status === '未开通' ? 'sub' : 'bad');
+        return `
+        <tr class="sub-row" data-idx="${idx}" onclick="toggleSubDetail(event, '${escAttr(r.tenant_id)}')">
+          <td><b>${esc(r.tenant_name || r.tenant_id)}</b><div class="sub">${esc(r.tenant_id)}</div></td>
+          <td>${esc(r.referrer) || '—'}</td>
+          <td>${esc(planName)}</td>
+          <td>${started}</td>
+          <td>${expires}</td>
+          <td>${days}</td>
+          <td>${seatCell}</td>
+          <td>${fmtNum(tokenUsed)}</td>
+          <td>${fmtMoney(lc.total_fee)}</td>
+          <td class="${statusClass}">${esc(status)}</td>
+        </tr>
+        <tr class="sub-detail" id="sub-detail-${escAttr(r.tenant_id)}" style="display:none"><td colspan="10" data-tenant="${escAttr(r.tenant_id)}">加载中…</td></tr>
+      `;
+      }).join('');
+      el.innerHTML = head + body;
+    } catch (e) {
+      el.innerHTML = `<tr><td colspan="10" class="bad">订阅加载失败：${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  // 点击租户行 → 展开 Token 余量 + 实时费用明细
+  window.toggleSubDetail = (ev, tenantId) => {
+    if (ev.target.closest('crm-button')) return; // 避免按钮误触
+    const det = document.getElementById('sub-detail-' + tenantId);
+    if (!det) return;
+    const showing = det.style.display !== 'none';
+    if (showing) { det.style.display = 'none'; return; }
+    // Token 余量
+    const q = (TOKEN_USAGE_CACHE || []).find((t) => t.tenant_id === tenantId)?.quota || {};
+    const quotaHtml = q.unlimited
+      ? `<div class="q">额度：<b>不限</b></div><div class="q">已用：<b>${fmtNum(q.used_total)}</b></div>`
+      : `<div class="q">额度：<b>${fmtNum(q.included_tokens)}</b></div>
+         <div class="q">已用：<b>${fmtNum(q.used_total)}</b></div>
+         <div class="q">剩余：<b>${fmtNum(q.remaining)}</b></div>
+         <div class="q">超量费：<b>${fmtMoney(q.overage_fee)}</b></div>`;
+    // 实时费用（席位费 + Token 超量费 + 实时合计）
+    const lc = (LIVE_COST_CACHE || []).find((t) => t.tenant_id === tenantId) || {};
+    const costHtml = `
+      <div class="q">实时费用合计：<b>${fmtMoney(lc.total_fee)}</b></div>
+      <div class="q">席位费：<b>${fmtMoney(lc.seat_fee)}</b></div>
+      <div class="q">Token 超量费：<b>${fmtMoney(lc.token_fee)}</b></div>
+      <div class="q">Token 用量：<b>${fmtNum(lc.token_in)}</b> / <b>${fmtNum(lc.token_out)}</b> <span class="sub">(in/out)</span></div>
+      <div class="q">已用席位：<b>${fmtNum(lc.seats)}</b> / <b>${fmtNum(lc.seat_limit)}</b></div>`;
+    det.querySelector('td').innerHTML = `<div class="quota-grid">
+      <div style="min-width:260px"><div class="q" style="color:var(--mut);margin-bottom:4px">Token 余量</div>${quotaHtml || '<span class="sub">暂无用量数据</span>'}</div>
+      <div style="min-width:260px"><div class="q" style="color:var(--mut);margin-bottom:4px">实时费用</div>${costHtml || '<span class="sub">暂无费用数据</span>'}</div>
+    </div>`;
+    det.style.display = 'table-row';
+  };
+
+  // ── 套餐表单弹窗（2026-09-05 结构化表单替代整档 JSON；权益勾选清单由后端白名单动态下发）──
+  // 权益展示标签一律取后端目录（ENT_CATALOG），前端不维护 key→中文映射，避免两处漂移
+  function entLabel(k) { return (ENT_CATALOG.find((e) => e.key === k) || {}).label || k; }
+  function renderEntCheckboxes() {
+    const box = document.getElementById('pf-ents');
+    box.innerHTML = ENT_LIST.map((k) => `<crm-checkbox name="pf-ent" value="${escAttr(k)}">${esc(entLabel(k))}</crm-checkbox>`).join('');
+  }
+  function $(id) { return document.getElementById(id); }
+  function setForm(p) {
+    $('pf-plan-id').value = p?.plan_id ?? '';
+    if (p) $('pf-plan-id').setAttribute('disabled', ''); // 编辑态锁定 plan_id（档位主键，改名即换档）
+    else $('pf-plan-id').removeAttribute('disabled');
+    $('pf-name').value = p?.name ?? '';
+    $('pf-quote').value = p?.quote ?? '';
+    // features：数组形态 → textarea 按行展示；旧 string 形态兼容读
+    $('pf-features').value = Array.isArray(p?.features) ? p.features.join('\n') : (p?.features ?? '');
+    $('pf-seat-price').value = p?.seat_unit_price ?? 0;
+    $('pf-base-fee').value = p?.base_fee ?? 0;
+    $('pf-seats').value = p?.included_seats ?? 0;
+    $('pf-orig-price').value = (p?.original_price ?? '');
+    $('pf-tag-text').value = p?.tag_text ?? '';
+    $('pf-tokens').value = p?.included_tokens ?? 0;
+    $('pf-hard-cap').value = p?.token_hard_cap ?? '';
+    $('pf-overage-mode').value = p?.token_overage_mode ?? 'bill';
+    $('pf-overage-price').value = p?.token_overage_unit_price ?? 0;
+    $('pf-enabled').checked = p ? p.enabled !== false : true;
+    $('pf-highlight').checked = p ? p.highlight === true : false;
+    document.querySelectorAll('#pf-ents crm-checkbox').forEach((c) => { c.checked = (p?.entitlements || []).includes(c.value); });
+    $('pf-err').style.display = 'none';
+    $('pf-err').textContent = '';
+    // 实时预览初始化（修「我改了没生效」——编辑任一字段立刻看到卡片怎么渲染）
+    updatePlanPreview();
+  }
+  function collectPlan() {
+    const num = (el) => { const v = Number(el.value); return Number.isFinite(v) && el.value !== '' ? v : 0; };
+    // optional 数字字段：留空 → undefined（不写入，后端只显示有数值的）
+    const numOrEmpty = (el) => { if (el.value === '' || el.value === null) return undefined; const v = Number(el.value); return Number.isFinite(v) ? v : undefined; };
+    const strOrEmpty = (el) => { const v = (el.value || '').trim(); return v === '' ? undefined : v; };
+    // 合并式收集：以原档位对象为底（保留 currency 等表单未覆盖字段），表单值覆盖
+    const plan = (EDIT_INDEX >= 0 && PLANS[EDIT_INDEX]) ? { ...PLANS[EDIT_INDEX] } : {};
+    Object.assign(plan, {
+      plan_id: $('pf-plan-id').value.trim(),
+      name: $('pf-name').value.trim(),
+      quote: strOrEmpty($('pf-quote')),
+      // features：textarea 按行切分（trim/过滤空行），存为 string[]
+      features: $('pf-features').value.split('\n').map((s) => s.trim()).filter(Boolean),
+      seat_unit_price: num($('pf-seat-price')),
+      base_fee: num($('pf-base-fee')),
+      included_seats: Number.isInteger(Number($('pf-seats').value)) && $('pf-seats').value !== '' ? Number($('pf-seats').value) : 0,
+      // 新字段（向后兼容：后端 schema 允许 null/缺省；前端写出明确数值或 undefined）
+      original_price: numOrEmpty($('pf-orig-price')),
+      tag_text: strOrEmpty($('pf-tag-text')),
+      included_tokens: num($('pf-tokens')),
+      token_hard_cap: $('pf-hard-cap').value === '' ? null : Number($('pf-hard-cap').value),
+      token_overage_mode: $('pf-overage-mode').value,
+      token_overage_unit_price: num($('pf-overage-price')),
+      entitlements: [...document.querySelectorAll('#pf-ents crm-checkbox')].filter((c) => c.checked).map((c) => c.value),
+      enabled: $('pf-enabled').checked,
+    });
+    if (!plan.quote) plan.quote = plan.seat_unit_price > 0 ? `¥${plan.seat_unit_price} / 账号·月` : '¥0 / 账号';
+    // 清理 undefined（JSON.stringify 时不需要 undefined 字段），保留 null/0/'¥...'
+    Object.keys(plan).forEach((k) => { if (plan[k] === undefined) delete plan[k]; });
+    return plan;
+  }
+  // 卡片实时预览（与 landing.html 渲染语义同步）：主价/划线价/角标/副标题/项目
+  function updatePlanPreview() {
+    const el = document.getElementById('pf-preview');
+    if (!el) return;
+    const p = collectPlan();
+    const fmt = (n) => { const v = Number(n); return Number.isFinite(v) ? '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '—'; };
+    const main = (() => {
+      const sp = Number(p.seat_unit_price);
+      if (!Number.isFinite(sp)) return '售前联系';
+      if (sp === -1) return '不限';
+      if (sp === 0) return '售前联系';
+      return fmt(sp);
+    })();
+    const was = (p.original_price != null && Number(p.original_price) > 0) ? '<s class="was">' + esc(fmt(p.original_price)) + '</s>' : '';
+    const unit = (Number(p.seat_unit_price) > 0) ? '<span class="unit">/ 账号·月</span>' : '';
+    const badge = (p.tag_text && String(p.tag_text).trim()) ? '<span class="badge">' + esc(String(p.tag_text).trim()) + '</span>' : '';
+    const sub = (p.quote && String(p.quote).trim()) ? '<div class="sub">' + esc(String(p.quote).trim()) + '</div>' : '';
+    // 实时预览与 landing 卡片语义同步：features + entitlements 翻译（语义去重）
+    const firstChineseRun = (s) => { const m = String(s).match(/[\u4e00-\u9fa5]+/); return m ? m[0] : ''; };
+    const coveredByFeatures = (label, features) => {
+      if (features.some((f) => f.includes(label))) return true;
+      const run = firstChineseRun(label);
+      if (!run || run.length < 2) return false;
+      const prefix = run.slice(0, Math.max(2, run.length - 2));
+      return features.some((f) => f.includes(prefix));
+    };
+    const features = Array.isArray(p.features) ? p.features.filter(Boolean).map((s) => String(s).trim()) : [];
+    const seen = new Set(features.map((s) => s.toLowerCase().replace(/\s+/g, '')));
+    const items = features.slice();
+    (p.entitlements || []).forEach((key) => {
+      const label = String(ENT_CATALOG.find((e) => e.key === key)?.label || key).trim();
+      if (!label) return;
+      if (coveredByFeatures(label, items)) return;
+      const norm = label.toLowerCase().replace(/\s+/g, '');
+      if (!seen.has(norm)) { seen.add(norm); items.push(label); }
+    });
+    const itemsHtml = items.length ? '<ul>' + items.map((it) => '<li>' + esc(String(it)) + '</li>').join('') + '</ul>' : '';
+    el.innerHTML =
+      '<div class="name">' + esc(p.name || p.plan_id || '（未填名称）') + badge + '</div>'
+      + '<div class="price"><span>' + esc(main) + '</span>' + unit + was + '</div>'
+      + sub + itemsHtml;
+  }
+  // 监听表单字段变化实时刷新预览
+  [
+    ['pf-name','input'], ['pf-quote','input'], ['pf-seat-price','input'],
+    ['pf-orig-price','input'], ['pf-tag-text','input'], ['pf-features','input']
+  ].forEach(([id, ev]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(ev, updatePlanPreview);
+  });
+  // 权益勾选变化也触发预览（landing 卡片 bullet 由 features + entitlements 共同驱动）
+  const pfEntsBox = document.getElementById('pf-ents');
+  if (pfEntsBox) pfEntsBox.addEventListener('change', updatePlanPreview);
+  function showPlanError(msg) {
+    const el = $('pf-err');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  window.openPlanEdit = (ev) => {
+    const i = Number(ev.currentTarget.dataset.i);
+    EDIT_INDEX = i;
+    $('plan-edit-title').textContent = PLANS[i] ? `编辑套餐 ${PLANS[i].plan_id}` : '新增套餐';
+    setForm(PLANS[i] || null);
+    $('plan-edit-modal').classList.add('show');
+  };
+  window.togglePlan = async (ev) => {
+    const i = Number(ev.currentTarget.dataset.i);
+    const p = PLANS[i];
+    if (!p) return;
+    const enable = ev.currentTarget.dataset.en === '1';
+    const next = { ...p, enabled: enable };
+    if (!window.confirm(`确认${enable ? '启用' : '停用（软停用，非删除）'}套餐 ${p.plan_id}？`)) return;
+    PLANS[i] = next;
+    try {
+      await savePlans();
+      await loadPlans();
+    } catch (e) { alert('保存失败：' + e.message); }
+  };
+  document.getElementById('plan-add-new').onclick = () => openPlanEditFromNew();
+  document.getElementById('plan-refresh').onclick = () => { loadPlans(); loadSubs(); };
+  const planModal = document.getElementById('plan-edit-modal');
+  const closePlanModal = () => planModal.classList.remove('show');
+  document.getElementById('plan-edit-cancel').onclick = closePlanModal;
+  document.getElementById('plan-edit-close').onclick = closePlanModal;
+  planModal.onclick = (e) => { if (e.target === planModal) closePlanModal(); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && planModal.classList.contains('show')) closePlanModal(); });
+
+  document.getElementById('plan-edit-confirm').onclick = async () => {
+    try {
+      const next = collectPlan();
+      if (!next.plan_id || !next.name) { showPlanError('档位 ID 与套餐名称为必填项。'); return; }
+      if (EDIT_INDEX >= 0) PLANS[EDIT_INDEX] = next;
+      else PLANS.push(next);
+      await savePlans();
+      document.getElementById('plan-edit-modal').classList.remove('show');
+      await loadPlans();
+    } catch (e) { showPlanError('保存失败：' + e.message); }
+  };
+
+  async function savePlans() {
+    const r = await api('/api/admin/billing-plans', { method: 'POST', body: JSON.stringify({ plans: PLANS }) });
+    alert('套餐已保存');
+    return r;
+  }
+
+  document.getElementById('settings-save').onclick = async () => {
+    try {
+      const parsed = JSON.parse(document.getElementById('settings-json').value || '{}');
+      await api('/api/admin/billing-settings', { method: 'POST', body: JSON.stringify({ settings: parsed }) });
+      alert('计费设置已保存');
+      SETTINGS = parsed;
+    } catch (e) { alert('保存失败：' + e.message); }
+  };
+
+  function openPlanEditFromNew() {
+    EDIT_INDEX = -1;
+    document.getElementById('plan-edit-title').textContent = '新增套餐';
+    setForm({
+      plan_id: '', name: '', seat_unit_price: 0, base_fee: 0,
+      included_seats: 5, included_tokens: 100000, entitlements: ['core_crm'],
+      token_overage_mode: 'bill', token_overage_unit_price: 0, enabled: true,
+    });
+    document.getElementById('plan-edit-modal').classList.add('show');
+  }
+
+  (async () => {
+    if (!(await guard())) return;
+    await mountTenantScopeBar(document.getElementById('tenant-bar'), () => { loadSubs(); });
+    await loadPlans();
+    await loadSubs();
+  })();
+</script>
+</body>
+</html>

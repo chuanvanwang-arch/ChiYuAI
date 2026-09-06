@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>智能体工作台</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<script type="module" src="/portal/components.js"></script>
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+  body { font-family: system-ui; margin: 24px; background:var(--bg); color: var(--ink); }
+  h2 { margin: 0 0 6px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 14px; }
+  #agent-root { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 14px; min-height: 140px; }
+  .pg-page { display: grid; gap: 14px; }
+  .pg-result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+  .pg-result-card h3 { margin: 0 0 6px; font-size: 14px; }
+  .pg-result-items { margin: 0; padding-left: 18px; font-size: 13px; }
+  .pg-result-label { color: var(--mut); margin-right: 6px; }
+  .pg-result-value { font-weight: 600; }
+  .pg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pg-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--line); color: var(--mut); }
+  .pg-table td { padding: 6px 8px; border-bottom: 1px solid var(--panel); }
+  .pg-form { display: flex; gap: 8px; }
+  .pg-form input { flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .pg-form button { padding: 8px 16px; background: var(--ac); color:#fff; border: none; border-radius: 6px; cursor: pointer; }
+  .pg-trace { font-size: 13px; color: var(--mut); }
+  .pg-attr-field { font-size: 13px; }
+  .pg-attr-field input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; width: 100%; margin-top: 4px; }
+  .pg-state { padding: 16px; text-align: center; color: var(--mut); font-size: 13px; }
+  #sse-status { font-size: 11px; color: var(--mut); margin-top: 10px; }
+  .pg-tabs { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 10px; }
+  .pg-tab-nav { display: flex; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .pg-tab-btn { padding: 6px 14px; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .pg-tab-btn[data-active="true"] { background: var(--ac); color: #fff; border-color: var(--ac); }
+  .pg-tab-panel[hidden] { display: none; }
+  .pg-task-row:hover { background: var(--bg); }
+  .pg-hint { font-size: 12px; color: var(--mut); margin-top: 6px; }
+  .pg-trace li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--panel); }
+  .pg-trace li[data-status="idle"] { color: var(--mut); }
+  .pg-trace li[data-status="ok"] { color: #16a34a; }
+  .pg-trace li[data-status="running"] { color: #2563eb; }
+  .pg-trace li[data-status="failed"] { color: #dc2626; }
+  .pg-trace .pg-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-left: auto; }
+  .pg-trace-meta { font-size: 13px; color: var(--mut); margin: 6px 0; }
+  .pg-event-log { font-size: 12px; color: var(--mut); max-height: 160px; overflow: auto; border-top: 1px solid var(--line); padding-top: 6px; }
+  .pg-event-line { padding: 2px 0; }
+  .pg-step-detail { font-size: 12px; color: var(--mut); margin-top: 6px; padding-left: 6px; border-left: 2px solid var(--line); }
+  .pg-step-detail .pg-kv { margin: 2px 0; }
+  .pg-step-detail .pg-k { color: var(--mut); margin-right: 6px; }
+  .pg-step-detail .pg-v { font-weight: 600; color: var(--ink); }
+  .pg-step-empty { color: var(--mut); font-style: italic; }
+  .pg-step-detail pre { white-space: pre-wrap; font-size: 11px; background: var(--bg); padding: 6px; border-radius: 4px; max-height: 120px; overflow: auto; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">智能体工作台</h1></div></header>
+<div id="agent-root" data-schema="S03"><div class="pg-state" data-state="loading">加载中…</div></div>
+<div id="sse-status" data-page-node-id="N9pJOnYBZvHjEZgZiquRBL">SSE 未连接</div>
+
+<script>
+async function load() {
+  const root = document.getElementById('agent-root');
+  if (!root) return;
+  try {
+    const r = await fetch('/api/page/agent-workbench');
+    if (!r.ok) throw new Error((await r.json()).error || 'HTTP ' + r.status);
+    const j = await r.json();
+    if (j.html) root.innerHTML = j.html;
+  } catch (e) {
+    root.innerHTML = `<div class="pg-state" data-state="error">智能体工作台渲染失败：${e.message}</div>`;
+  }
+}
+load();
+
+let selectedTaskId = null;
+let activeTab = 'monitor';
+
+// TAB 切换（声明式 data-tab-btn）
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('[data-tab-btn]');
+  if (!btn) return;
+  activeTab = btn.getAttribute('data-tab-btn');
+  document.querySelectorAll('[data-tab-btn]').forEach((b) => b.toggleAttribute('data-active', b === btn));
+  document.querySelectorAll('[data-tab-panel]').forEach((p) =>
+    (p.hidden = p.getAttribute('data-tab-panel') !== activeTab));
+});
+
+// 任务行点击 → 进入详情 TAB + 拉回放
+document.addEventListener('click', (e) => {
+  const row = e.target.closest && e.target.closest('[data-task-id]');
+  if (!row) return;
+  selectedTaskId = row.getAttribute('data-task-id');
+  if (!selectedTaskId) return;
+  activeTab = 'detail';
+  document.querySelectorAll('[data-tab-btn]').forEach((b) => b.toggleAttribute('data-active', b.getAttribute('data-tab-btn') === 'detail'));
+  document.querySelectorAll('[data-tab-panel]').forEach((p) => (p.hidden = p.getAttribute('data-tab-panel') !== 'detail'));
+  loadTrace(selectedTaskId);
+});
+
+// 回放历史阶段 + 初始填充（补漏 SSE 内存总线已发生事件）
+async function loadTrace(taskId) {
+  const wrap = document.querySelector('.pg-trace-wrap');
+  const meta = document.querySelector('.pg-trace-meta');
+  const log = document.querySelector('[data-event-log]');
+  if (meta) meta.setAttribute('data-task-id', taskId);
+  if (log) log.innerHTML = '';
+  try {
+    const r = await fetch('/api/agent-monitor/trace/' + encodeURIComponent(taskId));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (meta) meta.textContent = `任务 ${taskId} · 状态 ${j.status || 'unknown'}`;
+    fillSteps(j.steps || {});
+    (j.phases || []).forEach((p) => applyPhase(p.phase, p.ts, log));
+  } catch (err) {
+    if (meta) meta.textContent = '回放失败: ' + err.message;
+  }
+}
+
+function esc(s) { return String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])); }
+function kv(pairs) {
+  return pairs.filter(([, v]) => v != null && v !== '').map(([k, v]) =>
+    `<div class="pg-kv"><span class="pg-k">${esc(k)}</span><span class="pg-v">${esc(String(v))}</span></div>`
+  ).join('');
+}
+// 阶段 → 三段上色（兼容 emit 总线 agent- 前缀 与 monitor_event 落库无前缀两种 event_type）
+function applyPhase(phase, ts, log) {
+  const map = {
+    'agent-intent-parsed': 'intent', 'intent-parsed': 'intent',
+    'agent-context-injected': 'context', 'context-injected': 'context',
+    'agent-loop-started': 'action', 'loop-started': 'action',
+    'agent-loop-done': 'action', 'loop-done': 'action',
+    'agent-loop-failed': 'action', 'loop-failed': 'action',
+  };
+  const step = map[phase];
+  if (step) {
+    const li = document.querySelector(`.pg-trace li[data-step="${step}"]`);
+    if (li) {
+      if (phase.endsWith('loop-failed')) li.setAttribute('data-status', 'failed');
+      else if (phase.endsWith('loop-done')) li.setAttribute('data-status', 'ok');
+      else if (step === 'action' && phase.endsWith('loop-started')) li.setAttribute('data-status', 'running');
+      else li.setAttribute('data-status', 'ok');
+    }
+  }
+  if (log) {
+    const line = document.createElement('div');
+    line.className = 'pg-event-line';
+    line.textContent = `${ts || ''} · ${phase}`;
+    log.appendChild(line);
+  }
+}
+// 用 trace 接口返回的 steps 结构化详情填充每阶段展开块（intent/context/action）
+function renderStepDetail(step, det) {
+  if (step === 'intent') {
+    return kv([['解析意图 (SKILL)', det.intent], ['关联动作', det.action], ['契约任务', det.contract_task_id]])
+      + (det.ts ? `<div class="pg-kv"><span class="pg-k">时间</span><span class="pg-v">${esc(det.ts)}</span></div>` : '');
+  }
+  if (step === 'context') {
+    const layers = Array.isArray(det.knowledge_layers_read) && det.knowledge_layers_read.length ? det.knowledge_layers_read.join(', ') : '降级（未注入）';
+    let html = kv([['注入知识层', layers], ['上下文长度', det.context_len != null ? det.context_len + ' chars' : null], ['契约任务', det.contract_task_id]]);
+    if (det.preview) html += `<pre>${esc(det.preview)}</pre>`;
+    if (det.ts) html += `<div class="pg-kv"><span class="pg-k">时间</span><span class="pg-v">${esc(det.ts)}</span></div>`;
+    return html;
+  }
+  if (step === 'action') {
+    return kv([['执行 SKILL', det.skill], ['状态', det.status], ['降级', det.degraded ? '是（规则回退）' : '否'],
+      ['耗时', det.ms != null ? det.ms + ' ms' : null], ['错误', det.error], ['契约任务', det.contract_task_id]])
+      + (det.ts ? `<div class="pg-kv"><span class="pg-k">时间</span><span class="pg-v">${esc(det.ts)}</span></div>` : '');
+  }
+  return '';
+}
+function fillSteps(steps) {
+  const render = (step, det) => {
+    const el = document.querySelector(`[data-step-detail="${step}"]`);
+    if (!el) return;
+    el.innerHTML = det ? renderStepDetail(step, det) : '<span class="pg-step-empty">（暂无执行记录）</span>';
+  };
+  render('intent', steps.intent);
+  render('context', steps.context);
+  render('action', steps.action);
+}
+
+// SSE 实时刷新（task / trace 域事件）
+function connectSse() {
+  const es = new EventSource('/events');
+  es.onopen = () => { document.getElementById('sse-status').textContent = 'SSE 已连接（实时刷新）'; };
+  es.onerror = () => { document.getElementById('sse-status').textContent = 'SSE 连接中断（重试中）'; };
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.domain === 'trace' && selectedTaskId && msg.payload?.taskId === selectedTaskId) {
+        applyPhase(msg.type, new Date().toISOString().slice(0, 19).replace('T', ' '), document.querySelector('[data-event-log]'));
+        return;
+      }
+      if (msg.domain === 'task') {
+        const row = document.querySelector(`[data-task-id="${msg.payload?.id}"]`);
+        if (row) { const c = row.querySelector('[data-status-cell]'); if (c && msg.type) c.textContent = msg.type; }
+        if (activeTab === 'monitor' && !selectedTaskId) load();
+        return;
+      }
+    } catch (e) { /* 忽略心跳 */ }
+  };
+}
+connectSse();
+
+// 契约矩阵「标记」按钮：声明式 data-action 委托（与 index.html goal-form 同范式）
+// 按钮由 renderContractMatrix 渲染，属性 data-action="POST /api/agent-monitor/success" + data-contract-task-id
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest && e.target.closest('button[data-action^="POST /api/agent-monitor/success"]');
+  if (!btn) return;
+  e.preventDefault();
+  const contractTaskId = btn.getAttribute('data-contract-task-id');
+  if (!contractTaskId) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/agent-monitor/success', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contractTaskId, marked: true }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await load(); // 重新拉取刷新契约矩阵
+  } catch (err) {
+    alert('标记成功态失败：' + err.message);
+    btn.disabled = false;
+  }
+});
+
+// 任务需求提交（S03 goal-form → POST /api/agent/dispatch）
+// 输入需求 → 智能体调度创建 kanban 任务 → 前端经 task-monitor 表 + SSE 实时事件流监控任务过程
+// 不再走 NL→Page 页面生成（那条路径已重定向到首页 copilot / ⌘K）
+// 修复（2026-08-30）：结果框锚点由 `#agent-root 外侧` 改为「紧贴当前 form 之后」，
+//   避免 box 在文档流末尾被推到页脚 + 「运行中的任务」表之下，与输入框脱节。
+function dispatchResultBox(anchor) {
+  let box = document.getElementById('dispatch-result');
+  if (box && box._anchor && box._anchor !== anchor) {
+    // 切换表单时迁移 box 到新 anchor 之后（多 form 场景对齐）
+    const a = box._anchor;
+    a && a.parentNode && a.parentNode.insertBefore(box, a.nextSibling);
+    box._anchor = anchor;
+  }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'dispatch-result';
+    box.style.cssText = 'margin:8px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;display:none';
+    anchor.parentNode && anchor.parentNode.insertBefore(box, anchor.nextSibling);
+    box._anchor = anchor;
+  }
+  return box;
+}
+function dispatchTone(box, tone) {
+  // tone: 'loading' | 'ok' | 'warn' | 'err'；状态色严格走 tokens.css 语义变量（--ok/--warn/--err）
+  const map = {
+    loading: { bg: 'var(--panel)',          bd: 'var(--line)' },
+    ok:      { bg: 'color-mix(in srgb, var(--ok)   10%, transparent)', bd: 'var(--ok)' },
+    warn:    { bg: 'color-mix(in srgb, var(--warn) 12%, transparent)', bd: 'var(--warn)' },
+    err:     { bg: 'color-mix(in srgb, var(--err)  10%, transparent)', bd: 'var(--err)' },
+  };
+  const t = map[tone] || map.loading;
+  box.style.display = 'block';
+  box.style.background = t.bg;
+  box.style.borderColor = t.bd;
+  box.style.color = 'var(--ink)';
+}
+function escHtml(s) { return String(s ?? '').replace(/[<&>]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])); }
+function notesHtml(arr) {
+  if (!Array.isArray(arr) || !arr.length) return '';
+  return '<ul style="margin:6px 0 0 18px;padding:0">' + arr.map((n) => `<li>${escHtml(n)}</li>`).join('') + '</ul>';
+}
+// 门户外壳注入的额外路由元数据（精确绑定 method-* Skill）：随派发请求透传，
+// 由 /api/agent/dispatch → routeThroughIntake 原样保留 skill_slug / targetAgent（确定性路由）
+let injectedSkill = { skillSlug: null, targetAgent: null };
+
+document.addEventListener('submit', async (e) => {
+  const form = e.target;
+  if (!(form.matches && form.matches('form.pg-form'))) return;
+  e.preventDefault();
+  const reqText = (form.querySelector('input[name="goal"]')?.value || '').trim();
+  if (!reqText) return;
+  const token = localStorage.getItem('crm_token') || '';
+  const box = dispatchResultBox(form);
+  dispatchTone(box, 'loading');
+  box.textContent = '调度中…';
+  try {
+    const r = await fetch('/api/agent/dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        requirement: reqText,
+        skillSlug: injectedSkill.skillSlug || undefined,
+        targetAgent: injectedSkill.targetAgent || undefined,
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok && j.taskId) {
+      dispatchTone(box, 'ok');
+      box.innerHTML = `<b>✅ 已派发任务</b> · 任务ID <code>${escHtml(j.taskId)}</code> · 类型 <code>${escHtml(j.intent || '')}</code> · 级别 ${escHtml(j.level || '')} · 状态 ${escHtml(j.status || '')}` +
+        `<div style="margin-top:6px;color:var(--mut)">任务已进入智能体调度队列，下方「运行中的任务」与实时事件流将刷新进度。</div>`;
+      load(); // 刷新任务监控表
+      return;
+    }
+    if (j && j.needsClarification) {
+      dispatchTone(box, 'warn');
+      box.innerHTML = `<b>⚠ 需澄清（未派发任务）</b>` + notesHtml(j.notes);
+      console.warn('[dispatch] needsClarification', j);
+      return;
+    }
+    if (r.status === 401) {
+      // 未登录（token 缺失/过期）：引导登录或注册，不阻断继续浏览
+      dispatchTone(box, 'err');
+      box.innerHTML = `<b>✗ 需要登录</b> · 写操作前请先验证身份：` +
+        `<a href="/home.html" target="_top">前往登录</a> · ` +
+        `<a href="/landing.html#start" target="_top">注册新账号（按公司名自动开通租户）</a>` +
+        `<div style="margin-top:6px;color:var(--mut)">登录后浏览器将记住凭证，无需重复输入。</div>`;
+      console.warn('[dispatch] unauthorized', { status: 401, body: j });
+      return;
+    }
+    dispatchTone(box, 'err');
+    box.innerHTML = `<b>✗ 派发失败</b> · ${escHtml(j.error || ('HTTP ' + r.status))}` + notesHtml(j.notes);
+    console.error('[dispatch] failed', { status: r.status, body: j });
+  } catch (err) {
+    dispatchTone(box, 'err');
+    box.innerHTML = `<b>✗ 网络异常</b><div style="margin-top:6px">${escHtml(err.message)}</div>`;
+    console.error('[dispatch] network', err);
+  }
+});
+
+// 门户外壳集成：接收胶囊注入的预设 prompt + 精确绑定元数据，预填输入框（不自动发送，保留人工确认闸门）
+window.addEventListener('message', (e) => {
+  try {
+    const d = e.data || {};
+    if (d.type === 'inject-prompt' && typeof d.text === 'string' && d.text) {
+      const inp = document.querySelector('form.pg-form input[name="goal"]');
+      if (inp) { inp.value = d.text; inp.focus(); }
+      // 透传精确绑定元数据（下一次 submit 随派发请求带走）
+      injectedSkill = { skillSlug: d.skillSlug || null, targetAgent: d.targetAgent || null };
+    }
+  } catch (_) {}
+});
+</script>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+    import { injectLayout } from '/portal/layout.js';
+    injectLayout();
+
+</script>
+</body>
+</html>

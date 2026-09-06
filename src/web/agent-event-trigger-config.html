@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>事件触发智能体派发 · 配置中心</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+  .wrap { padding: 18px 20px; max-width: 1180px; margin: 0 auto; }
+  .note { background: var(--warn); color: #fff; padding: 10px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px; }
+  .field { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+  .field label { width: 320px; font-size: 13px; color: var(--mut); }
+  .field crm-input, .field crm-checkbox { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--ink); }
+  .muted { color: var(--mut); font-size: 12px; }
+  #status { font-size: 12px; color: var(--mut); }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">事件触发智能体派发</h1></div></header>
+<div class="wrap">
+  <div class="note">业务写（粒子直写通道）后系统自动为智能体建判定任务，全程无需人工发起。数据存入 <b>config_store['agent-event-trigger']</b>，写操作经决策第0闸 + sysadmin 权限。全部阈值后台可配，代码零硬编码。</div>
+
+  <div class="panel sect">
+    <div class="sect-title">总开关与冷却</div>
+    <div class="field"><label>启用事件触发派发</label><crm-checkbox id="enabled"></crm-checkbox></div>
+    <div class="field"><label>内存冷却窗（毫秒，同去重键窗口内只建一次）</label><crm-input type="number" id="cooldown" min="0" max="3600000" step="1000"></crm-input></div>
+  </div>
+
+  <div class="panel sect">
+    <div class="sect-title">生效说明（只读）</div>
+    <table class="cfg-table">
+      <thead><tr><th>实体类型</th><th>派发意图</th><th>路由 agent</th><th>SKILL</th></tr></thead>
+      <tbody>
+        <tr><td>CRM_DEAL</td><td>stage-progression</td><td>quote-engine</td><td>method-stage-progression</td></tr>
+        <tr><td>CRM_ACCOUNT</td><td>funnel-classification</td><td>followup-agent</td><td>method-funnel-classification</td></tr>
+        <tr><td>CRM_KNOWLEDGE</td><td>decision-enrich</td><td>decision-agent</td><td>method-decision-enrich</td></tr>
+      </tbody>
+    </table>
+    <div class="muted">去重键内嵌粒子当前值（如 deal 的 stage），同阶段重复写不重复建单；仅派发只读判定型 SKILL，写操作因无 decision_id 必被第0闸拒。</div>
+  </div>
+
+  <div class="toolbar">
+    <crm-button id="saveBtn">保存变更</crm-button>
+    <crm-button class="sec" id="reloadBtn">重新加载</crm-button>
+    <span id="status">就绪</span>
+  </div>
+</div>
+
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+import { get, put } from '/portal/api.js';
+injectLayout();
+// 出厂默认与后端 src/agent/eventTrigger.js AGENT_EVENT_TRIGGER_DEFAULT 一致（未配置时页面回显该组值）
+const DEFAULTS = { enabled: true, cooldown_ms: 300000 };
+let current = null;
+function setStatus(s) { document.getElementById('status').textContent = s; }
+function fill() {
+  const v = { ...DEFAULTS, ...(current || {}) };
+  document.getElementById('enabled').checked = v.enabled !== false;
+  document.getElementById('cooldown').value = v.cooldown_ms != null ? v.cooldown_ms : 300000;
+}
+async function load() {
+  setStatus('加载中…');
+  try { const data = await get('/api/config/agent-event-trigger'); current = (data && data.value) ? data.value : {}; fill(); setStatus('已加载'); }
+  catch (e) { current = {}; fill(); setStatus('未配置或加载失败，显示出厂默认：' + (e.message || e)); }
+}
+async function save() {
+  setStatus('保存中…'); if (!current) current = {};
+  const ms = Number(document.getElementById('cooldown').value);
+  if (!Number.isFinite(ms) || ms < 0 || ms > 3600000) { setStatus('冷却窗需为 0–3600000 毫秒'); return; }
+  current.enabled = document.getElementById('enabled').checked; current.cooldown_ms = ms;
+  try { await put('/api/config/agent-event-trigger', { value: current }); setStatus('已保存（写经决策第0闸）'); }
+  catch (e) { setStatus('保存失败：' + (e.message || e)); }
+}
+document.getElementById('saveBtn').addEventListener('click', save);
+document.getElementById('reloadBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

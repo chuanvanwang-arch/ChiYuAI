@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>七维设计</title>
+<style> body{font-family:system-ui;margin:24px;background:var(--bg);color:var(--ink)}
+label{display:block;margin:10px 0 4px;font-size:13px;color:var(--mut);text-transform:capitalize}
+input,select{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px}
+button{padding:7px 16px;border:0;border-radius:7px;background:var(--ac);color:#fff;margin-top:14px;cursor:pointer}
+.muted{color:var(--mut);font-size:13px}
+.eb-dim{display:inline-block;margin:2px 10px 2px 0;font-size:13px}
+.eb-dim input[type=checkbox]{width:auto;margin-right:4px}
+.eb-dims{display:flex;flex-wrap:wrap;gap:2px 12px}
+.sd7-rc-row{margin:8px 0;display:flex;align-items:center;gap:8px}
+.sd7-rc-row input[type=checkbox]{width:auto}
+.sd7-rc-row label{display:flex;align-items:center;gap:6px;margin:0}
+#sd7-rc-hours{width:120px}</style>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="panel"><h2>📐 七维设计</h2><p class="muted">决策场景上下文完整性校验 · 场景×七维矩阵 / 边↔维度绑定 / 归因阈值 · 写经第0闸 + sysadmin</p>
+<div class="tabs" id="sd7-tabs"><crm-button class="tab active" data-tab="matrix">场景×矩阵</crm-button><crm-button class="tab" data-tab="edges">边绑定</crm-button><crm-button class="tab" data-tab="thresholds">归因阈值</crm-button></div>
+<div id="app">加载中…</div></div>
+<script type="module">
+import { renderSevenDimMatrix, renderEdgeBindings, renderRootCauseThresholds, collectEdgeBindingsFromDom, collectRootCauseThresholdsFromDom, toRequiredDims, validateRequiredDimsPatch } from '/portal/sevenDimRender.js';
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+const TOKEN = localStorage.getItem('crm_token');
+const app = document.getElementById('app');
+if (!TOKEN) location.href = '/home.html';
+
+const HDR = { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' };
+
+async function load() {
+  try {
+    const r = await fetch('/api/config/seven-dim', { headers: { Authorization: `Bearer ${TOKEN}` } });
+    const j = await r.json();
+    if (!r.ok) { app.innerHTML = `<p class="muted">加载失败：${j.error || r.status}</p>`; return; }
+    app.innerHTML = renderSevenDimMatrix(j);
+    bind();
+  } catch (e) { app.innerHTML = `<p class="muted">${e.message}</p>`; }
+}
+
+// T22 页签切换：matrix 渲染全量；edges/thresholds 各自渲染对应区块（复用 fetch 数据缓存）
+async function switchTab(tab, data) {
+  if (tab === 'edges') {
+    app.innerHTML = renderEdgeBindings({ edgeBindings: data.edge_bindings, dims: data.dims });
+    bindEdges();
+  } else if (tab === 'thresholds') {
+    app.innerHTML = renderRootCauseThresholds({ thresholds: data.root_cause_thresholds });
+    bindThresholds();
+  } else {
+    app.innerHTML = renderSevenDimMatrix(data);
+    bind();
+  }
+}
+
+function bindEdges() {
+  const save = document.getElementById('sd7-eb-save');
+  if (save) {
+    save.onclick = async () => {
+      const edge_bindings = collectEdgeBindingsFromDom(document.getElementById('app'));
+      const r = await fetch('/api/config/seven-dim', {
+        method: 'PUT', headers: HDR, body: JSON.stringify({ edge_bindings }),
+      });
+      const j = await r.json();
+      alert(r.ok ? '边绑定已保存（经第0闸）' : ('失败：' + (j.error || r.status)));
+      load();
+    };
+  }
+}
+
+function bindThresholds() {
+  const save = document.getElementById('sd7-rc-save');
+  if (save) {
+    save.onclick = async () => {
+      const root_cause_thresholds = collectRootCauseThresholdsFromDom(document.getElementById('app'));
+      const r = await fetch('/api/config/seven-dim', {
+        method: 'PUT', headers: HDR, body: JSON.stringify({ root_cause_thresholds }),
+      });
+      const j = await r.json();
+      alert(r.ok ? '归因阈值已保存（经第0闸）' : ('失败：' + (j.error || r.status)));
+      load();
+    };
+  }
+}
+
+function bind() {
+  const tabs = document.querySelectorAll('#sd7-tabs .tab');
+  let lastData = null;
+  for (const tab of tabs) {
+    tab.onclick = async () => {
+      for (const t of tabs) t.classList.remove('active');
+      tab.classList.add('active');
+      const tabName = tab.dataset.tab;
+      if (!lastData) {
+        const r = await fetch('/api/config/seven-dim', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        lastData = await r.json();
+      }
+      await switchTab(tabName, lastData);
+    };
+  }
+  const strictSave = document.getElementById('sd7-strict-save');
+  if (strictSave) {
+    strictSave.onclick = async () => {
+      const v = document.getElementById('sd7-strict').value;
+      const r = await fetch('/api/config/seven-dim', {
+        method: 'PUT', headers: HDR, body: JSON.stringify({ default_strictness: v }),
+      });
+      const j = await r.json();
+      alert(r.ok ? '已保存全局默认严格度' : ('失败：' + (j.error || r.status)));
+      load();
+    };
+  }
+  for (const btn of document.querySelectorAll('#sd7-matrix button.save')) {
+    btn.onclick = async () => {
+      const tr = btn.closest('tr');
+      const map = {};
+      for (const sel of tr.querySelectorAll('select[data-dim]')) map[sel.dataset.dim] = sel.value;
+      const required_dims = toRequiredDims(map);
+      const v = validateRequiredDimsPatch(required_dims);
+      if (!v.ok) { alert('校验失败：' + v.errors.join('; ')); return; }
+      // P3 单一写通道：编辑不直接写，改发起校准处方草稿（sysadmin 在监控页批准生效）
+      const r = await fetch('/api/calibration/patches/generate', {
+        method: 'POST', headers: HDR,
+        body: JSON.stringify({ scenario_id: tr.dataset.id, required_dims_draft: v.normalized }),
+      });
+      const j = await r.json();
+      alert(r.ok
+        ? `已生成校准处方（${j.created ? '待 sysadmin 批准生效' : '已存在'}）`
+        : ('失败：' + (j.error || r.status)));
+      load();
+    };
+  }
+}
+
+load();
+</script>
+</body></html>

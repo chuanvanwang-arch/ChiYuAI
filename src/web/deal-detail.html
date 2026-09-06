@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>商机作战 · CRM</title>
+  <link rel="stylesheet" href="/portal/page.css">
+<!-- 批2（2026-08-27 UI/导航/规范重构）：统一设计 tokens/common + layout 壳 -->
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<style>
+  body { font-family: system-ui; margin: 0; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 18px; }
+  h2 { margin: 6px 0 14px; }
+  #deal-root { min-height: 200px; }
+  .pg-state { color: var(--mut); padding: 24px; text-align: center; }
+  .pg-hint { font-size: 13px; color: var(--ac); background: var(--as); border: 1px solid var(--as); border-radius: 6px; padding: 7px 10px; margin-bottom: 12px; }
+  .hint { font-size: 13px; color: var(--mut); margin-bottom: 12px; }
+</style>
+  <script type="module" src="/portal/components.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">🎯 商机作战视图</h1></div></header>
+  <div class="hint">业务专属组件：赢率 / 报价·合同·回款链路 / MEDDICC 评估 / 阶段推进。通用字段来源核查见 <a id="dealFieldLink" href="/deals">/deals/:id</a>。</div>
+  <div id="deal-root"><div class="pg-state" data-state="loading">加载中…</div></div>
+</div>
+<script type="module">
+import { get, post, put } from '/portal/api.js';
+  import { injectLayout } from '/portal/layout.js';
+  injectLayout();
+  (async () => {
+    const root = document.getElementById('deal-root');
+    const q = new URLSearchParams(location.search);
+    const fromPath = location.pathname.match(/\/deals\/([^/]+)/);
+    const id = q.get('id') || (fromPath ? fromPath[1] : '');
+    const hadId = !!id;
+    // 修正：字段核查链接指向「当前」商机的 /deals/:id，而非商机列表
+    const fieldLink = document.getElementById('dealFieldLink');
+    if (fieldLink && id) {
+      fieldLink.href = '/deals/' + encodeURIComponent(id);
+      fieldLink.textContent = '/deals/' + id;
+    }
+    try {
+      const j = await get('/api/page/deal-detail' + (id ? ('?id=' + encodeURIComponent(id)) : ''));
+      const hint = hadId ? '' : '<div class="pg-hint">默认展示首条商机（在 URL 加 ?id=&lt;商机ID&gt; 可切换）</div>';
+      root.innerHTML = hint + (j.html || '<div class="pg-state">暂无数据</div>');
+    } catch (e) {
+      root.innerHTML = '<div class="pg-state" data-state="error">商机作战视图加载失败：' + e.message + '（通用字段核查 /deals/' + (id || '') + ' 仍可用）</div>';
+    }
+  })();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "decision-retrospective",
+  "version": "1.0.0",
+  "category": "agent",
+  "description": "决策复盘——汇总窗口内决策质量（根因分布 / 应连边缺失率 / 结果校验态），产出可复核的整改处方建议",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "DECISION_RETRO",
+  "dimensions": ["ROOT_CAUSE", "EDGE_MISSING", "OUTCOME_VERIFIED", "CONFIDENCE"],
+  "rbac_roles": ["sales", "manager", "exec"],
+  "enabled": true
+}

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>场景路由配置 · 故事线/图谱/结构化</title>
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/tokens.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  /* 页面私有样式：只复用 tokens 语义变量，零硬编码色值（审计 tmp/audit_css_vars.py） */
+  .route-wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+  .route-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .route-head h1 { font-size: 20px; margin: 0; }
+  .route-desc { font-size: 12px; opacity: 0.8; }
+  .route-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .route-card h2 { font-size: 14px; margin: 0 0 12px; }
+  table.route-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .route-tbl th, .route-tbl td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  .route-tbl th { background: var(--panel-head); font-weight: 600; }
+  .track-chip { display: inline-block; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); margin: 1px 3px; font-size: 11px; color: var(--ink); }
+  .track-chip.on { background: var(--accent); color: var(--on-ac); border-color: var(--accent); }
+  .btn-save { background: var(--ac); color: var(--on-ac); border: none; border-radius: 4px; padding: 6px 16px; cursor: pointer; font-size: 12px; }
+  .btn-save:hover { opacity: 0.85; }
+  .dn-empty { color: var(--muted); font-size: 12px; padding: 12px 0; }
+  .route-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="route-wrap">
+  <div class="route-head">
+    <div>
+      <h1>场景路由（故事线 / 图谱 / 结构化）</h1>
+      <div class="route-desc">每个销售场景「走什么轨道」的出厂默认 + 管理员调整入口；写入 config_store['context-routing']，写经决策第 0 闸 + sysadmin</div>
+    </div>
+    <crm-button id="save-btn">保存</crm-button>
+  </div>
+
+  <div class="route-card">
+    <h2>判定维度（可增删/调权）</h2>
+    <table class="route-tbl" id="dims-tbl">
+      <thead><tr><th>维度 id</th><th>类型</th><th>取值刻度</th><th>权重</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="route-card">
+    <h2>场景矩阵（场景 → 轨道画像）</h2>
+    <table class="route-tbl" id="matrix-tbl">
+      <thead><tr><th>场景</th><th>维度取值</th><th>当前轨道（点选切换后保存）</th><th>主载体判定</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="route-hint">轨道：narrative（叙事时间线）· graph_decision（决策因果图）· graph_entity（实体图）· structured（结构化指标）。未入选的轨道在装配时被跳过（留痕 routing-excluded，不降级）。</div>
+  </div>
+
+  <div class="route-card">
+    <h2>路由边界阈值</h2>
+    <table class="route-tbl" id="thr-tbl">
+      <thead><tr><th>阈值</th><th>含义</th><th>当前值</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="route-card">
+    <h2>分类结果预览（按当前配置实时计算）</h2>
+    <table class="route-tbl" id="preview-tbl">
+      <thead><tr><th>场景</th><th>score</th><th>主载体</th><th>次载体</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="dn-empty" id="msg"></div>
+</div>
+
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api } from '/portal/api.js';
+  injectLayout();
+
+  const state = { value: null };
+
+  const TRACK_LABELS = {
+    narrative: '叙事时间线',
+    graph_decision: '决策因果图',
+    graph_entity: '实体图',
+    structured: '结构化指标',
+  };
+  const MODE_LABELS = { GRAPH_PRIMARY: '图谱主', STORY_PRIMARY: '故事线主', BOTH: '双轨', UNKNOWN: '未归位（回退全轨）' };
+  const escSS = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // 预览分类（与后端 routing.classifyScene 同算法）
+  function classify(sceneId, scene, dims, thr) {
+    const dimsArr = Array.isArray(dims) ? dims : [];
+    let score = 0;
+    for (const d of dimsArr) {
+      const v = scene?.dims?.[d.id];
+      if (v === undefined) continue;
+      const w = Number(d.weight) || 0;
+      const scaled = d.id === 'goal' ? (v === 'verify' ? 1 : 0)
+        : d.id === 'event_mix' ? (v === 'pure_decision' ? 1 : 0)
+        : d.id === 'time_sensitivity' ? (v === false ? 1 : 0)
+        : (Number(v) > 0 ? 1 : 0);
+      score += w * scaled;
+    }
+    if (score >= Number(thr?.graph)) return { mode: 'GRAPH_PRIMARY', score };
+    if (score <= Number(thr?.story)) return { mode: 'STORY_PRIMARY', score };
+    return { mode: 'BOTH', score };
+  }
+
+  async function load() {
+    const msg = document.getElementById('msg');
+    try {
+      const j = await api('/api/config/context-routing');
+      if (!j || !j.value) throw new Error('配置为空（未 seed？）');
+      state.value = j.value;
+      render();
+      msg.textContent = '';
+    } catch (e) {
+      msg.textContent = '加载失败：' + e.message + '（404=生产库尚未写入，点页面右上角「保存」即触发 createConfigRouter 自动写入经决策第0闸+sysadmin；403=需 admin 账号；401=先登录）';
+    }
+  }
+
+  function render() {
+    const v = state.value;
+    const dims = v.dims || [];
+    const matrix = v.scene_matrix || {};
+    const thr = v.thresholds || {};
+
+    // 维度
+    const dimsTb = document.querySelector('#dims-tbl tbody');
+    dimsTb.innerHTML = dims.map((d) => `<tr>
+      <td>${escSS(d.id)}</td>
+      <td>${escSS(d.type)}</td>
+      <td>${escSS(Array.isArray(d.scale) ? d.scale.join(' / ') : '-')}</td>
+      <td>${Number(d.weight) ?? 0}</td>
+    </tr>`).join('') || '<tr><td colspan="4"><div class="dn-empty">无维度定义</div></td></tr>';
+
+    // 场景矩阵
+    const matrixTb = document.querySelector('#matrix-tbl tbody');
+    matrixTb.innerHTML = Object.entries(matrix).map(([sid, s]) => {
+      const dimVals = Object.entries(s.dims || {}).map(([k, val]) => `${k}=${JSON.stringify(val)}`).join('，') || '（未声明）';
+      const chips = Object.keys(TRACK_LABELS).map((t) => {
+        const on = (s.tracks || []).includes(t);
+        return `<span class="track-chip ${on ? 'on' : ''}" data-scene="${escSS(sid)}" data-track="${t}" onclick="toggleTrack(this)">${TRACK_LABELS[t]}</span>`;
+      }).join('');
+      return `<tr>
+        <td><code>${escSS(sid)}</code></td>
+        <td>${escSS(dimVals)}</td>
+        <td>${chips}</td>
+        <td id="mode-${escSS(sid)}">${MODE_LABELS[classify(sid, s, dims, thr).mode]}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="4"><div class="dn-empty">无场景矩阵（seed 后出现）</div></td></tr>';
+
+    // 阈值
+    const thrTb = document.querySelector('#thr-tbl tbody');
+    thrTb.innerHTML = [
+      ['graph', 'score ≥ 此值 → 图谱主', thr.graph ?? 0.6],
+      ['story', 'score ≤ 此值 → 故事线主', thr.story ?? 0.4],
+    ].map(([k, desc, val]) => `<tr><td><code>${k}</code></td><td>${desc}</td><td>${val}</td></tr>`).join('');
+
+    // 预览
+    const prTb = document.querySelector('#preview-tbl tbody');
+    prTb.innerHTML = Object.entries(matrix).map(([sid, s]) => {
+      const c = classify(sid, s, dims, thr);
+      const all = Object.keys(TRACK_LABELS);
+      const tracks = (s.tracks || all);
+      const primary = c.mode === 'GRAPH_PRIMARY' ? '图谱' : c.mode === 'STORY_PRIMARY' ? '故事线' : c.mode === 'BOTH' ? '双轨' : '全轨';
+      const secondary = tracks.filter((t) => !(c.mode === 'GRAPH_PRIMARY' ? t === 'graph_decision' : t === 'narrative')).map((t) => TRACK_LABELS[t] || t).join('、') || '—';
+      return `<tr><td><code>${escSS(sid)}</code></td><td>${c.score.toFixed(2)}</td><td>${primary}</td><td>${escSS(secondary)}</td></tr>`;
+    }).join('') || '<tr><td colspan="4"><div class="dn-empty">无数据</div></td></tr>';
+  }
+
+  window.toggleTrack = (el) => {
+    const scene = el.dataset.scene;
+    const track = el.dataset.track;
+    const s = state.value.scene_matrix[scene];
+    if (!s) return;
+    s.tracks = s.tracks || [];
+    if (s.tracks.includes(track)) s.tracks = s.tracks.filter((t) => t !== track);
+    else s.tracks.push(track);
+    render();
+  };
+
+  document.getElementById('save-btn')?.addEventListener('click', saveRouting);
+
+  async function saveRouting() {
+    try {
+      const j = await api('/api/config/context-routing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: state.value }) });
+      document.getElementById('msg').textContent = '已保存（决策产证 id: ' + (j.decision || '无') + '）';
+      load();
+    } catch (e) {
+      document.getElementById('msg').textContent = '保存失败：' + e.message;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
