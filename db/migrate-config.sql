@@ -45,6 +45,9 @@ INSERT INTO crm.skill_registry (skill_id, category, enabled, version, rbac_roles
 ON CONFLICT (skill_id) DO NOTHING;
 
 -- 审批流配置（S22 审批流：approval_flow 定义 + 关卡）
+-- ⚠️ DEPRECATED（2026-09-07 方案 1，docs/2026-09-07-approval-flow-legacy-retire-design.md）：
+--    审批流真源已迁移 CRM_APPROVAL_* 粒子（tenant_id + 懒克隆隔离）；本表零写路径，仅作只读兼容保留
+--    （禁 DELETE 铁律不 DROP）；守卫测试 test/http/approvalFlowLegacyGuard.test.js 防重新接线。
 CREATE TABLE IF NOT EXISTS crm.approval_flow (
   flow_id       TEXT PRIMARY KEY,
   name          TEXT NOT NULL,

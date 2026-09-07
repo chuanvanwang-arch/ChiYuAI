@@ -24,7 +24,6 @@ import { schema as S17_SCHEMA } from '../pages/S17.schema.js';
 import { schema as S18_SCHEMA } from '../pages/S18.schema.js';
 import { schema as S19_SCHEMA } from '../pages/S19.schema.js';
 import { schema as S20_SCHEMA } from '../pages/S20.schema.js';
-import { schema as S22_SCHEMA } from '../pages/S22.schema.js';
 import { schema as S23_SCHEMA } from '../pages/S23.schema.js';
 import { schema as S24_SCHEMA } from '../pages/S24.schema.js';
 import { schema as S25_SCHEMA } from '../pages/S25.schema.js';
@@ -156,17 +155,9 @@ export const CONTROLLED_PAGES = {
       strictness: r.strictness ?? '',
     }),
   },
-  'approval-flows': {
-    // S22：审批流（crm.approval_flow）
-    schema: S22_SCHEMA,
-    sql: `SELECT flow_id, name, enabled, stages FROM crm.approval_flow ORDER BY flow_id`,
-    map: (r) => ({
-      flow_id: r.flow_id,
-      domain: Array.isArray(r.stages) ? `${r.stages.length} 阶段` : '',
-      name: r.name,
-      enabled: r.enabled,
-    }),
-  },
+  // 'approval-flows' 已退役（2026-09-07 方案 1）：/api/page/approval-flows 无前端消费者，
+  // 审批流真源在 CRM_APPROVAL_* 粒子（租户懒克隆），遗留表 crm.approval_flow 降级只读兼容。
+  // 设计：docs/2026-09-07-approval-flow-legacy-retire-design.md；守卫测试 test/http/approvalFlowLegacyGuard.test.js
   'alert-rules': {
     // S26：预警规则（crm.alert_rule，主键 kind）
     schema: S26_SCHEMA,

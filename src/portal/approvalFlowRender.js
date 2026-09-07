@@ -7,7 +7,8 @@
 
 // src/portal/approvalFlow.js — 审批流配置（第 17 项）
 // 渲染纯函数（浏览器 + vitest 共用）+ 表驱动 GET/PUT 端点（决策第0闸）
-// 数据后端：crm.approval_flow（db/migrate-config.sql:26）；与引擎粒子模型（CRM_APPROVAL_*）脱节属已知限制（spec §0.3/§10）
+// 数据后端：CRM_APPROVAL_* 粒子（2026-08-31 方案 A，租户懒克隆隔离）；原 crm.approval_flow 表（db/migrate-config.sql:48）
+// 已 DEPRECATED（零写路径、只读兼容保留，禁 DELETE 不 DROP）；与引擎粒子模型脱节属已知限制（spec §0.3/§10）
 
 // 业务域标签（flow_id 即域）
 export const DOMAIN_LABELS = {
