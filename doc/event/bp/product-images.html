@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>产品图</title>
+<style>body{margin:0;background:#fff;font-family:"Microsoft YaHei",sans-serif;} .card{margin:20px;display:inline-block;}</style>
+</head>
+<body>
+
+<!-- ============ 1 技术架构图 ============ -->
+<div class="card"><svg id="arch" width="1200" height="860" viewBox="0 0 1200 860" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1200" height="860" fill="#ffffff"/>
+  <text x="600" y="46" text-anchor="middle" font-size="26" font-weight="bold" fill="#0b3d5c">CRM-AI-Native 技术架构</text>
+
+  <!-- 用户层 -->
+  <rect x="60" y="80" width="1080" height="76" rx="10" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+  <text x="90" y="112" font-size="16" font-weight="bold" fill="#0b3d5c">用户接入层</text>
+  <text x="90" y="138" font-size="13" fill="#3a5a66">统一工作门户 · 经营看板 · 客户360 · 商机看板 · AI 助手对话</text>
+  <rect x="820" y="96" width="140" height="44" rx="6" fill="#12836f"/><text x="890" y="124" text-anchor="middle" font-size="14" fill="#fff">PC Web 门户</text>
+  <rect x="980" y="96" width="140" height="44" rx="6" fill="#12836f"/><text x="1050" y="124" text-anchor="middle" font-size="14" fill="#fff">第三方系统</text>
+
+  <line x1="600" y1="156" x2="600" y2="190" stroke="#12836f" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 智能体层 -->
+  <rect x="60" y="192" width="1080" height="110" rx="10" fill="#0e6e6e"/>
+  <text x="90" y="224" font-size="16" font-weight="bold" fill="#ffffff">智能体层（Agent 内核）</text>
+  <rect x="90" y="240" width="240" height="46" rx="6" fill="#ffffff"/><text x="210" y="268" text-anchor="middle" font-size="14" fill="#0e6e6e">销售智能体 · 感知-决策-执行</text>
+  <rect x="360" y="240" width="220" height="46" rx="6" fill="#ffffff"/><text x="470" y="268" text-anchor="middle" font-size="14" fill="#0e6e6e">多智能体编排</text>
+  <rect x="610" y="240" width="200" height="46" rx="6" fill="#ffffff"/><text x="710" y="268" text-anchor="middle" font-size="14" fill="#0e6e6e">事件触发引擎</text>
+  <rect x="840" y="240" width="270" height="46" rx="6" fill="#ffffff"/><text x="975" y="268" text-anchor="middle" font-size="14" fill="#0e6e6e">MCP 工具网关（标准化接入）</text>
+
+  <line x1="600" y1="302" x2="600" y2="336" stroke="#12836f" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 决策层 -->
+  <rect x="60" y="338" width="1080" height="118" rx="10" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+  <text x="90" y="370" font-size="16" font-weight="bold" fill="#0b3d5c">AI 决策层（K-M-D 三层管道）</text>
+  <rect x="90" y="386" width="300" height="52" rx="6" fill="#12836f"/><text x="240" y="408" text-anchor="middle" font-size="14" fill="#fff">知识层 K · 概念图谱/规则引擎</text><text x="240" y="428" text-anchor="middle" font-size="12" fill="#d8f0ec">可溯源概念引用</text>
+  <rect x="420" y="386" width="300" height="52" rx="6" fill="#12836f"/><text x="570" y="408" text-anchor="middle" font-size="14" fill="#fff">记忆层 M · 向量记忆/上下文</text><text x="570" y="428" text-anchor="middle" font-size="12" fill="#d8f0ec">pgvector 语义检索</text>
+  <rect x="750" y="386" width="360" height="52" rx="6" fill="#12836f"/><text x="930" y="408" text-anchor="middle" font-size="14" fill="#fff">决策层 D · 七维度评估/决策图谱</text><text x="930" y="428" text-anchor="middle" font-size="12" fill="#d8f0ec">建议可解释 · 全程留痕</text>
+
+  <line x1="600" y1="456" x2="600" y2="490" stroke="#12836f" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 业务层 -->
+  <rect x="60" y="492" width="1080" height="110" rx="10" fill="#f5faf9" stroke="#7fb8b0" stroke-width="2"/>
+  <text x="90" y="524" font-size="16" font-weight="bold" fill="#0b3d5c">业务服务层</text>
+  <g font-size="13" fill="#0e6e6e">
+    <rect x="90" y="540" width="150" height="44" rx="6" fill="#ffffff" stroke="#7fb8b0"/><text x="165" y="567" text-anchor="middle">客户 360</text>
+    <rect x="260" y="540" width="150" height="44" rx="6" fill="#ffffff" stroke="#7fb8b0"/><text x="335" y="567" text-anchor="middle">商机 S1–S6</text>
+    <rect x="430" y="540" width="150" height="44" rx="6" fill="#ffffff" stroke="#7fb8b0"/><text x="505" y="567" text-anchor="middle">审批流引擎</text>
+    <rect x="600" y="540" width="150" height="44" rx="6" fill="#ffffff" stroke="#7fb8b0"/><text x="675" y="567" text-anchor="middle">合同管理</text>
+    <rect x="770" y="540" width="150" height="44" rx="6" fill="#ffffff" stroke="#7fb8b0"/><text x="845" y="567" text-anchor="middle">计费三闸门</text>
+    <rect x="940" y="540" width="170" height="44" rx="6" fill="#ffffff" stroke="#7fb8b0"/><text x="1025" y="567" text-anchor="middle">看板/告警/事件总线</text>
+  </g>
+
+  <line x1="600" y1="602" x2="600" y2="636" stroke="#12836f" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 数据层 -->
+  <rect x="60" y="638" width="1080" height="96" rx="10" fill="#0b3d5c"/>
+  <text x="90" y="670" font-size="16" font-weight="bold" fill="#ffffff">数据层</text>
+  <text x="90" y="700" font-size="13" fill="#cfe3ef">PostgreSQL 16 · pgvector 向量检索 · pgcrypto 加密 · 多租户 tenant_id 严格隔离 · 写时向量化</text>
+  <rect x="880" y="652" width="230" height="46" rx="6" fill="#ffffff"/><text x="995" y="680" text-anchor="middle" font-size="14" fill="#0b3d5c">配置中心（100% 配置化）</text>
+
+  <text x="600" y="800" text-anchor="middle" font-size="14" fill="#5a7a86">Node.js (ESM) + Express 4 后端 · 原生 Web 前端 · 60,290 行自研代码 · 全量自动化测试体系</text>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#12836f"/></marker></defs>
+</svg></div>
+
+<!-- ============ 2 功能总览 ============ -->
+<div class="card"><svg id="features" width="1200" height="700" viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1200" height="700" fill="#ffffff"/>
+  <text x="600" y="50" text-anchor="middle" font-size="26" font-weight="bold" fill="#0b3d5c">产品功能总览</text>
+  <text x="600" y="80" text-anchor="middle" font-size="14" fill="#5a7a86">客户全生命周期 · 智能体驱动 · 决策可溯</text>
+
+  <g font-size="15" fill="#0e6e6e" font-weight="bold">
+    <rect x="60" y="120" width="520" height="150" rx="12" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="90" y="158">① 客户 360 视图</text>
+    <text x="90" y="190" font-size="13" fill="#3a5a66" font-weight="normal">统一客户主数据 · 工商信息 · 联系人</text>
+    <text x="90" y="214" font-size="13" fill="#3a5a66" font-weight="normal">历史商机 · 合同回款 · AI 客户洞察自动生成</text>
+
+    <rect x="620" y="120" width="520" height="150" rx="12" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="650" y="158">② 商机与销售流程</text>
+    <text x="650" y="190" font-size="13" fill="#3a5a66" font-weight="normal">S1–S6 标准阶段推进 · 漏斗质量分析</text>
+    <text x="650" y="214" font-size="13" fill="#3a5a66" font-weight="normal">转化率统计 · 赢单率预测 · 业绩预测补差</text>
+
+    <rect x="60" y="300" width="520" height="150" rx="12" fill="#0e6e6e"/>
+    <text x="90" y="338" fill="#ffffff">③ AI 决策引擎（核心）</text>
+    <text x="90" y="370" font-size="13" fill="#d8f0ec" font-weight="normal">七维度评估 · 决策图谱 · 决策溯源</text>
+    <text x="90" y="394" font-size="13" fill="#d8f0ec" font-weight="normal">规则引擎合规校验 · 建议可解释可复核</text>
+
+    <rect x="620" y="300" width="520" height="150" rx="12" fill="#0e6e6e"/>
+    <text x="650" y="338" fill="#ffffff">④ 报价与审批治理</text>
+    <text x="650" y="370" font-size="13" fill="#d8f0ec" font-weight="normal">超权限折扣强制触发审批流 · 决策标识</text>
+    <text x="650" y="394" font-size="13" fill="#d8f0ec" font-weight="normal">审批链路全程追踪 · 可审计治理闭环</text>
+
+    <rect x="60" y="480" width="520" height="150" rx="12" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="90" y="518">⑤ 智能体平台 + 知识记忆</text>
+    <text x="90" y="550" font-size="13" fill="#3a5a66" font-weight="normal">MCP 工具网关 · 多智能体编排 · 事件触发</text>
+    <text x="90" y="574" font-size="13" fill="#3a5a66" font-weight="normal">写时向量化 · 跨会话语义检索 · 长期记忆</text>
+
+    <rect x="620" y="480" width="520" height="150" rx="12" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="650" y="518">⑥ 合同计费 + 经营看板</text>
+    <text x="650" y="550" font-size="13" fill="#3a5a66" font-weight="normal">合同全流程 · 席位/Token/功能权益三闸计费</text>
+    <text x="650" y="574" font-size="13" fill="#3a5a66" font-weight="normal">事件总线实时看板 · 告警监控 · 统一门户</text>
+  </g>
+  <text x="600" y="670" text-anchor="middle" font-size="13" fill="#5a7a86">多租户 SaaS 架构 · RBAC 权限 · 配置驱动行业差异化 · 私有化/混合部署可选</text>
+</svg></div>
+
+<!-- ============ 3 商业模式 ============ -->
+<div class="card"><svg id="bizmodel" width="1200" height="760" viewBox="0 0 1200 760" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1200" height="760" fill="#ffffff"/>
+  <text x="600" y="50" text-anchor="middle" font-size="26" font-weight="bold" fill="#0b3d5c">商业模式</text>
+
+  <!-- 收入模型 -->
+  <text x="90" y="110" font-size="18" font-weight="bold" fill="#0e6e6e">四类收入</text>
+  <g font-size="14">
+    <rect x="90" y="130" width="240" height="110" rx="10" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="210" y="165" text-anchor="middle" font-weight="bold" fill="#0b3d5c">SaaS 订阅费</text>
+    <text x="210" y="192" text-anchor="middle" fill="#3a5a66" font-size="12">5 档套餐 · 按席位年费</text>
+    <text x="210" y="214" text-anchor="middle" fill="#3a5a66" font-size="12">权益随档位单调递增</text>
+
+    <rect x="360" y="130" width="240" height="110" rx="10" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="480" y="165" text-anchor="middle" font-weight="bold" fill="#0b3d5c">资源用量费</text>
+    <text x="480" y="192" text-anchor="middle" fill="#3a5a66" font-size="12">AI Token 超额按量计费</text>
+    <text x="480" y="214" text-anchor="middle" fill="#3a5a66" font-size="12">随客户业务自然增长</text>
+
+    <rect x="630" y="130" width="240" height="110" rx="10" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="750" y="165" text-anchor="middle" font-weight="bold" fill="#0b3d5c">私有化部署</text>
+    <text x="750" y="192" text-anchor="middle" fill="#3a5a66" font-size="12">License + 实施服务</text>
+    <text x="750" y="214" text-anchor="middle" fill="#3a5a66" font-size="12">数据敏感大型客户</text>
+
+    <rect x="900" y="130" width="240" height="110" rx="10" fill="#e8f4f2" stroke="#12836f" stroke-width="2"/>
+    <text x="1020" y="165" text-anchor="middle" font-weight="bold" fill="#0b3d5c">模板与增值服务</text>
+    <text x="1020" y="192" text-anchor="middle" fill="#3a5a66" font-size="12">行业配置模板</text>
+    <text x="1020" y="214" text-anchor="middle" fill="#3a5a66" font-size="12">定制开发 · 培训运维</text>
+  </g>
+
+  <text x="90" y="300" font-size="18" font-weight="bold" fill="#0e6e6e">三道计费闸门（收入硬约束）</text>
+  <g font-size="14">
+    <rect x="90" y="320" width="320" height="90" rx="10" fill="#0e6e6e"/>
+    <text x="250" y="356" text-anchor="middle" fill="#fff" font-weight="bold">席位闸</text>
+    <text x="250" y="382" text-anchor="middle" fill="#d8f0ec" font-size="12">按实际在用席位计费</text>
+
+    <text x="432" y="372" text-anchor="middle" font-size="24" fill="#12836f">→</text>
+
+    <rect x="450" y="320" width="320" height="90" rx="10" fill="#0e6e6e"/>
+    <text x="610" y="356" text-anchor="middle" fill="#fff" font-weight="bold">Token 配额闸</text>
+    <text x="610" y="382" text-anchor="middle" fill="#d8f0ec" font-size="12">AI 用量按套餐额度管控</text>
+
+    <text x="792" y="372" text-anchor="middle" font-size="24" fill="#12836f">→</text>
+
+    <rect x="810" y="320" width="320" height="90" rx="10" fill="#0e6e6e"/>
+    <text x="970" y="356" text-anchor="middle" fill="#fff" font-weight="bold">功能权益闸</text>
+    <text x="970" y="382" text-anchor="middle" fill="#d8f0ec" font-size="12">功能模块按套餐解锁</text>
+  </g>
+
+  <text x="90" y="490" font-size="18" font-weight="bold" fill="#0e6e6e">三年财务预测（人民币）</text>
+  <g>
+    <rect x="120" y="620" width="180" height="100" fill="#12836f"/><text x="210" y="605" text-anchor="middle" font-size="13" fill="#3a5a66">第1年 · 约300万</text>
+    <rect x="360" y="540" width="180" height="180" fill="#0e6e6e"/><text x="450" y="525" text-anchor="middle" font-size="13" fill="#3a5a66">第2年 · 约900万</text>
+    <rect x="600" y="440" width="180" height="280" fill="#0b3d5c"/><text x="690" y="425" text-anchor="middle" font-size="13" fill="#3a5a66">第3年 · 约2200万</text>
+    <text x="900" y="500" font-size="13" fill="#3a5a66">毛利率 65% → 72% → 78%</text>
+    <text x="900" y="530" font-size="13" fill="#3a5a66">第2年接近盈亏平衡</text>
+    <text x="900" y="560" font-size="13" fill="#3a5a66">第3年经营利润率 15%–20%</text>
+  </g>
+</svg></div>
+
+<!-- ============ 4 市场定位 ============ -->
+<div class="card"><svg id="market" width="1200" height="720" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1200" height="720" fill="#ffffff"/>
+  <text x="600" y="50" text-anchor="middle" font-size="26" font-weight="bold" fill="#0b3d5c">市场定位：AI 原生 CRM 的空白地带</text>
+
+  <!-- axes -->
+  <line x1="150" y1="600" x2="1100" y2="600" stroke="#7fb8b0" stroke-width="2"/>
+  <line x1="150" y1="600" x2="150" y2="110" stroke="#7fb8b0" stroke-width="2"/>
+  <text x="1100" y="630" text-anchor="end" font-size="14" fill="#3a5a66">AI 能力深度 →</text>
+  <text x="130" y="120" font-size="14" fill="#3a5a66">↑ 决策智能化</text>
+  <text x="160" y="625" font-size="14" fill="#3a5a66">← 流程记录</text>
+  <text x="620" y="625" font-size="14" fill="#3a5a66">治理闭环 →</text>
+
+  <!-- competitors -->
+  <g font-size="14">
+    <circle cx="820" cy="520" r="80" fill="#e8f4f2" stroke="#7fb8b0" stroke-width="2"/>
+    <text x="820" y="512" text-anchor="middle" fill="#0b3d5c" font-weight="bold">传统 CRM 厂商</text>
+    <text x="820" y="538" text-anchor="middle" fill="#5a7a86" font-size="12">存量客户多</text>
+    <text x="820" y="556" text-anchor="middle" fill="#5a7a86" font-size="12">AI 以外挂叠加</text>
+
+    <circle cx="330" cy="250" r="80" fill="#e8f4f2" stroke="#7fb8b0" stroke-width="2"/>
+    <text x="330" y="242" text-anchor="middle" fill="#0b3d5c" font-weight="bold">通用大模型助手</text>
+    <text x="330" y="268" text-anchor="middle" fill="#5a7a86" font-size="12">模型能力强</text>
+    <text x="330" y="286" text-anchor="middle" fill="#5a7a86" font-size="12">无业务承接/无治理</text>
+  </g>
+
+  <!-- us -->
+  <circle cx="800" cy="230" r="110" fill="#12836f" opacity="0.92"/>
+  <circle cx="800" cy="230" r="130" fill="none" stroke="#12836f" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="800" y="215" text-anchor="middle" fill="#ffffff" font-size="18" font-weight="bold">CRM-AI-Native</text>
+  <text x="800" y="245" text-anchor="middle" fill="#d8f0ec" font-size="13">AI 原生内核</text>
+  <text x="800" y="268" text-anchor="middle" fill="#d8f0ec" font-size="13">决策可溯 + 治理闭环</text>
+  <text x="800" y="291" text-anchor="middle" fill="#d8f0ec" font-size="13">配置驱动行业差异化</text>
+
+  <text x="600" y="690" text-anchor="middle" font-size="14" fill="#5a7a86">目标客群：制造 · 医疗器械 · 化工 · 能源等 B2B 复杂销售行业（30–200 人销售团队）</text>
+</svg></div>
+
+</body>
+</html>

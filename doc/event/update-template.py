@@ -1,0 +1,56 @@
+# -*- coding: utf-8 -*-
+"""直接修改申报书：主要创新/应用成效裁剪到线上表单 100 字上限 + 追加线上表单补充字段部分"""
+import subprocess, json, sys, io, re
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+EDSDK = r"C:/Program Files/WorkBuddy/resources/app.asar.unpacked/resources/plugins/workbuddy-builtin/skills/tencent-local-office-edit/edsdk.py"
+FID = "36338346-4949-43bd-b49d-cacbaa62cdb6"
+
+def call(tool, args):
+    r = subprocess.run([sys.executable, EDSDK, "call", tool, "--json",
+                        json.dumps({"file_id": FID, **args})],
+                       capture_output=True, text=True, encoding='utf-8')
+    return r.stdout.strip(), r.stderr.strip()
+
+# 1) 替换两段超限文案（全局，两套模板同步）
+OLD_INNOV = "①15 个销售方法论 SKILL 化，每次判断自动装配，不再拍脑袋；②K-M-D 认知决策引擎，九尺子校验中 8 项走确定性规则、可复现；③写时向量化客户记忆，零填表秒级命中；④写操作必经决策第 0 闸，全程留痕可审计；⑤多行业零代码配置上线，换行业不改代码。"
+NEW_INNOV = "①15 个方法论 SKILL 化，判断自动装配；②K-M-D 引擎 8 项校验走确定性规则、可复现；③写时向量化记忆，零填表秒级命中；④写操作必经决策第 0 闸，全程留痕；⑤多行业零代码配置上线。"
+
+OLD_EFF = "平台已在真实 B2B 销售业务运行，支撑多租户 SaaS 全流程：试点数据显示智能接诊平均响应 1.2 分钟、报价测算 42 秒、线索零漏接；商机阶段停留超阈值自动预警，超权限报价强制审批闭环，客户全景 10 秒可查，行为达标率实时可见，销售管理与合规风险显著下降。"
+NEW_EFF = "平台已在真实 B2B 销售业务运行：智能接诊平均响应 1.2 分钟、报价测算 42 秒、线索零漏接；超权限报价强制审批闭环，客户全景 10 秒可查，行为达标率实时可见，管理与合规风险显著下降。"
+
+for label, old, new in [("主要创新", OLD_INNOV, NEW_INNOV), ("应用成效", OLD_EFF, NEW_EFF)]:
+    out, err = call("doc_find_and_replace", {"old_text": old, "new_text": new})
+    print(label, "replace:", "OK" if '"error"' not in out and not err else out[:200] + err[:200])
+
+# 2) 定位文档末尾，追加「七、线上报名表补充字段」
+out, err = call("doc_resolve_document_structure", {"mode": "compact", "text_preview_length": 10, "limit": 0})
+nodes = json.loads(out)["nodes"]
+end_idx = max(n["end_index"] for n in nodes)
+print("doc end_idx =", end_idx)
+
+PARAS = [
+    (1, "七、线上报名表补充字段（步骤 2 项目概要之外）"),
+    (0, "项目所用算力：项目算力策略为“确定性规则前置＋LLM 按需调用”——九尺子校验 8 项走代码判定、语义检索走 pgvector 向量索引，仅方法论推理与复盘归因调用大模型（接入主流 OpenAI 兼容 API，模型可插拔）。开发与生产均基于 x86_64 通用服务器与云端 CPU/GPU 弹性算力，无专用加速卡依赖；单租户 4 核 8G 云主机即可承载百人级销售团队日常运行，随租户增长水平扩展。"),
+    (0, "建设成本（万元）：约 300（按累计研发投入口径：60290 行自研代码＋团队人力＋云资源。注：此为建议口径，提交前请按真实数字核定修改）。"),
+    (0, "经济效益（万元）：已实现收益据实填写；若暂未产生收益填 0（提交前请核定）。"),
+    (0, "是否使用绿色算力：部分使用——生产环境部署于云服务商数据中心，绿电占比以云厂商年度绿电披露为准；平台通过“确定性规则前置”架构显著减少大模型调用量，单位决策能耗低于同类全大模型方案，符合绿色算力导向。"),
+    (0, "项目代表图片建议：图片一（项目宣传图）用封面宣传图 s1.png；图片二（系统架构图）用技术架构图；其他可补产品功能总览、商业模式图、市场定位图及产品界面截图（均见 doc/event/bp/）。"),
+]
+
+idx = end_idx
+for level, text in PARAS:
+    args = {"idx": idx, "text": text, "level": level}
+    out, err = call("doc_insert_paragraph_with_text", args)
+    if '"error"' in out or err:
+        print("INSERT FAIL:", text[:16], out[:200], err[:200])
+        break
+    resp = json.loads(out)
+    idx = resp.get("end_index") or resp.get("data", {}).get("end_index")
+    if idx is None:
+        print("WARN: no end_index in response:", out[:200]); break
+    print("inserted:", text[:16])
+
+# 3) 保存
+out, err = call("save_file", {})
+print("save:", "OK" if not err else err[:200])

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>商业计划书</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color:#1c2b3a; margin:0; font-size:10.5pt; line-height:1.75; }
+.cover { height:297mm; padding:40mm 24mm 20mm; background:linear-gradient(135deg,#0b3d5c 0%,#0e6e6e 60%,#12836f 100%); color:#fff; display:flex; flex-direction:column; }
+.cover .badge { font-size:11pt; letter-spacing:6px; opacity:.85; }
+.cover h1 { font-size:30pt; margin:26mm 0 6mm; line-height:1.35; }
+.cover h2 { font-size:15pt; font-weight:normal; opacity:.9; margin:0 0 20mm; letter-spacing:2px; }
+.cover .meta { margin-top:auto; border-top:1px solid rgba(255,255,255,.35); padding-top:8mm; font-size:11.5pt; line-height:2.1; }
+.page { padding:16mm 18mm 14mm; }
+h2.sec { font-size:15pt; color:#0b3d5c; border-left:5px solid #12836f; padding-left:10px; margin:8mm 0 4mm; page-break-after:avoid; }
+h3 { font-size:12pt; color:#0e6e6e; margin:5mm 0 2mm; page-break-after:avoid; }
+p { margin:2mm 0; text-align:justify; }
+table { width:100%; border-collapse:collapse; margin:3mm 0; font-size:9.5pt; }
+th { background:#e8f4f2; color:#0b3d5c; }
+th,td { border:1px solid #b9d6d1; padding:5px 8px; text-align:left; vertical-align:top; line-height:1.5; }
+ul,ol { margin:2mm 0 2mm 6mm; padding:0; }
+li { margin:1.2mm 0; }
+.kbox { background:#f2f9f7; border:1px solid #bfe3dc; border-radius:6px; padding:4mm 5mm; margin:3mm 0; }
+.kbox b.t { color:#0e6e6e; }
+.pagenum { text-align:right; color:#8aa; font-size:8.5pt; margin-top:6mm; }
+.pb { page-break-before:always; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.small { font-size:9pt; color:#5a7a86; }
+.tagrow span { display:inline-block; background:#e8f4f2; color:#0b3d5c; border-radius:4px; padding:1px 8px; margin:1px 3px 1px 0; font-size:9pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="badge">商业计划书 · BUSINESS PLAN</div>
+  <h1>AI 原生智能销售管理平台<br>（CRM-AI-Native）</h1>
+  <h2>让每一次销售决策可溯、可信、可复制</h2>
+  <div class="meta">
+    <div>公司名称：北京青羽智行科技有限公司</div>
+    <div>项目简称：CRM-AI-Native</div>
+    <div>联系人：王俊（总经理）　13911894515　watchm@163.com</div>
+  </div>
+</div>
+
+<!-- ===================== 1 项目背景 ===================== -->
+<div class="page">
+  <h2 class="sec">一、项目背景</h2>
+  <h3>1.1 行业痛点</h3>
+  <p>传统 CRM 系统本质上是"记录系统"：客户、商机、合同数据录入后沉睡在数据库里，既不能主动发现问题，也无法辅助销售决策。在 B2B 销售实践中，企业普遍面临四类痛点：</p>
+  <ul>
+    <li><b>客户信息分散</b>：客户数据散落在表格、聊天记录与销售个人手中，人员流动即带走客户资产；</li>
+    <li><b>商机推进无标准</b>：销售流程依赖个人经验，漏斗质量不可度量，业绩预测靠"拍脑袋"；</li>
+    <li><b>价格治理失控</b>：超权限折扣、线下私自报价频发，事后审计成本高、追责困难；</li>
+    <li><b>AI 建议不可信</b>：通用大模型给出的销售建议无法溯源、无法对接企业真实数据，不敢用也不能用。</li>
+  </ul>
+  <h3>1.2 时代机遇</h3>
+  <p>大模型与智能体（Agent）技术的成熟，使企业软件从"流程记录"走向"认知决策"成为可能。与此同时，中国 CRM SaaS 市场持续增长，企业对"降本增效 + 合规治理"的双重诉求为 AI 原生产品创造了明确的替代空间。AI 原生不是"在旧系统上加一个 AI 按钮"，而是以智能体为内核、以记忆系统为底座重新设计业务系统——这正是本项目的切入点。</p>
+  <div class="kbox"><b class="t">项目定位：</b>AI 原生智能销售管理平台，以智能体驱动客户全生命周期管理与销售决策自动化，做到"记忆驱动、决策可溯、多租户隔离、配置驱动差异化"。</div>
+  <div class="pagenum">第 1 页</div>
+</div>
+
+<!-- ===================== 2 技术特点 ===================== -->
+<div class="page">
+  <h2 class="sec">二、技术特点</h2>
+  <h3>2.1 总体架构</h3>
+  <p>平台采用 Node.js（ESM）+ Express 4 后端、原生 HTML/JavaScript 前端、PostgreSQL 16（pgvector + pgcrypto）数据库的三层架构，后端 342 个模块、前端 78 个页面，全部自研。核心子系统包括：多租户内核、K-M-D 三层决策管道、智能体编排与 MCP 工具网关、向量记忆系统、审批流引擎、计费闸门。</p>
+  <h3>2.2 六大技术特点</h3>
+  <table>
+    <tr><th style="width:22%">特点</th><th>说明</th></tr>
+    <tr><td><b>AI 原生架构</b></td><td>以智能体（Agent）为业务内核而非插件，销售动作由智能体感知—决策—执行闭环驱动，AI 能力与业务流程原生一体。</td></tr>
+    <tr><td><b>写时向量化记忆</b></td><td>文档、对话与业务事件实时写入 pgvector 向量库，支持跨会话语义检索与上下文延续，构成平台长期记忆底座，检索失败自动降级（fail-open）不阻塞业务。</td></tr>
+    <tr><td><b>K-M-D 决策管道</b></td><td>知识层—记忆层—决策层三层管道，七维度评估 + 决策图谱 + 决策溯源，所有 AI 建议可溯源至概念引用与历史决策，可解释、可复核。</td></tr>
+    <tr><td><b>多租户严格隔离</b></td><td>以 tenant_id 实现数据、配置、流程三层隔离；审批流、告警规则、行业参数等按租户懒克隆 system 模板，租户间互不干扰。</td></tr>
+    <tr><td><b>配置驱动差异化</b></td><td>销售阈值、审批规则、行业差异化参数 100% 后台配置化，新增业务域零代码改造，保证多租户架构纯度。</td></tr>
+    <tr><td><b>MCP 标准化接入</b></td><td>基于 Model Context Protocol 对外标准化暴露工具能力，支持多智能体编排与事件触发式任务执行，可被第三方系统按需调用。</td></tr>
+  </table>
+  <h3>2.3 知识产权</h3>
+  <p>平台为完全自主研发，已具备完整的源程序鉴别材料与软件说明书，软件著作权申请材料已备齐（程序鉴别材料 60 页、软件说明书 30 页），覆盖 60,290 行自研源代码。</p>
+  <div class="pagenum">第 2 页</div>
+</div>
+
+<!-- ===================== 3 市场分析 ===================== -->
+<div class="page">
+  <h2 class="sec">三、市场分析</h2>
+  <h3>3.1 市场规模</h3>
+  <p>中国 CRM SaaS 市场保持稳健增长，B2B 复杂销售（制造、医疗器械、化工、能源等）对流程治理与决策辅助的需求远高于通用轻量级 CRM。随着大模型能力平价化，"AI 原生 CRM"正在形成独立品类，当前市场处于早期窗口期，尚无绝对的头部玩家，先发者有机会定义品类标准。</p>
+  <h3>3.2 目标客户</h3>
+  <table>
+    <tr><th style="width:20%">客群</th><th style="width:40%">特征</th><th>切入方式</th></tr>
+    <tr><td>中型 B2B 制造/医疗/化工企业</td><td>销售团队 30–200 人，报价审批链路长，行业属性强</td><td>行业模板 + 私有化/混合部署</td></tr>
+    <tr><td>SaaS/专业服务公司</td><td>商机驱动，重视漏斗质量与预测准确率</td><td>公有云 SaaS 订阅</td></tr>
+    <tr><td>生态合作伙伴</td><td>具备行业客户资源与实施能力的 ISV/咨询商</td><td>MCP 接入 + 渠道分销</td></tr>
+  </table>
+  <h3>3.3 窗口判断</h3>
+  <p>① 传统 CRM 厂商受既有架构拖累，AI 能力以"外挂"形式叠加，无法做到决策可溯；② 通用大模型厂商缺乏 B2B 销售的场景纵深与治理积累；③ 本项目以"AI 原生 + 治理闭环"双轮构建差异化壁垒，恰处两者之间的空白地带。</p>
+  <div class="pagenum">第 3 页</div>
+</div>
+
+<!-- ===================== 4 产品介绍 ===================== -->
+<div class="page">
+  <h2 class="sec">四、产品 / 服务介绍</h2>
+  <h3>4.1 产品概述</h3>
+  <p>CRM-AI-Native 是基于多租户 SaaS 的 AI 原生销售管理平台，覆盖客户全生命周期：从获客、商机推进、报价审批，到合同回款、经营看板，全流程由智能体辅助并保持决策可溯。</p>
+  <h3>4.2 核心功能</h3>
+  <table>
+    <tr><th style="width:24%">模块</th><th>功能要点</th></tr>
+    <tr><td>客户 360 视图</td><td>统一客户主数据，聚合工商信息、联系人、商机、合同与 AI 自动生成的客户洞察</td></tr>
+    <tr><td>商机与销售流程</td><td>商机沿 S1–S6 标准阶段推进，漏斗质量分析、转化率统计、业绩预测补差</td></tr>
+    <tr><td>报价与审批治理</td><td>超权限折扣强制触发审批流，写入决策标识并全程追踪，形成可审计治理闭环</td></tr>
+    <tr><td>AI 决策引擎</td><td>七维度评估、决策图谱、决策溯源与规则引擎，建议可解释、可复核</td></tr>
+    <tr><td>智能体平台</td><td>MCP 协议工具网关、多智能体编排、事件触发式任务执行</td></tr>
+    <tr><td>知识库与记忆</td><td>写时向量化、跨会话语义检索、长期记忆底座</td></tr>
+    <tr><td>合同与计费</td><td>合同全流程管理；席位、Token 配额、功能权益三道闸门计费</td></tr>
+    <tr><td>看板与监控</td><td>事件总线实时驱动经营看板、销售看板与告警监控，统一工作门户</td></tr>
+  </table>
+  <h3>4.3 服务形态</h3>
+  <p>提供公有云 SaaS 订阅与私有化/混合部署两种交付形态；行业差异化通过后台配置实现，交付周期短、边际成本低。</p>
+  <div class="pagenum">第 4 页</div>
+</div>
+
+<!-- ===================== 5 商业模式 ===================== -->
+<div class="page">
+  <h2 class="sec">五、商业模式</h2>
+  <h3>5.1 收入模型</h3>
+  <table>
+    <tr><th style="width:20%">收入类型</th><th>说明</th></tr>
+    <tr><td>SaaS 订阅费</td><td>按席位年费订阅，分 5 档套餐（标准版至旗舰版），套餐权益单调递增</td></tr>
+    <tr><td>资源用量费</td><td>AI Token 用量超套餐额度后按量计费，用量与价值正相关，天然随客户业务增长</td></tr>
+    <tr><td>私有化部署费</td><td>License + 实施服务费，面向数据敏感的大型客户</td></tr>
+    <tr><td>行业模板与增值服务</td><td>行业配置模板、定制开发、培训与运维服务</td></tr>
+  </table>
+  <h3>5.2 计费治理</h3>
+  <p>平台内置三道计费闸门：席位闸（按实际在用席位）、Token 配额闸（按套餐额度）、功能权益闸（按套餐解锁功能模块），确保收入模型在产品层面硬约束执行，杜绝灰色扩用。</p>
+  <h3>5.3 成本结构</h3>
+  <p>研发为主要成本（约 60%），云资源与大模型调用成本随订阅规模线性可控（AI 调用经闸门管理，毛利率可预期），销售与管理成本占比较低。</p>
+  <div class="pagenum">第 5 页</div>
+</div>
+
+<!-- ===================== 6 营销策略 ===================== -->
+<div class="page">
+  <h2 class="sec">六、营销策略</h2>
+  <h3>6.1 GTM 路径</h3>
+  <ul>
+    <li><b>灯塔客户</b>：以制造、医疗器械、化工行业标杆客户打磨行业模板，形成可复制方案；</li>
+    <li><b>行业渗透</b>：行业展会（工博会等）+ 行业协会/媒体内容营销，建立"AI 原生 CRM"品类认知；</li>
+    <li><b>渠道生态</b>：发展具备实施能力的 ISV/咨询商成为区域与行业代理，通过 MCP 生态开放平台能力；</li>
+    <li><b>产品驱动增长</b>：标准版低门槛试用 + 数据迁移工具，降低切换成本。</li>
+  </ul>
+  <h3>6.2 客户成功</h3>
+  <p>以"交付即见效"为原则：标准化实施清单、上线检查清单、故障处理手册；客户经营看板让管理层第一时间看到治理收益（如超权限报价拦截率、预测准确率提升），以续费率与增购为核心成功指标。</p>
+  <div class="pagenum">第 6 页</div>
+</div>
+
+<!-- ===================== 7 财务预测 ===================== -->
+<div class="page">
+  <h2 class="sec">七、财务预测</h2>
+  <p class="small">以下为基于当前业务节奏的三年预测（人民币），实际经营以年度预算为准。</p>
+  <table>
+    <tr><th>指标</th><th>第 1 年</th><th>第 2 年</th><th>第 3 年</th></tr>
+    <tr><td>付费客户数</td><td>15–25 家</td><td>60–100 家</td><td>150–250 家</td></tr>
+    <tr><td>营业收入</td><td>约 300 万元</td><td>约 900 万元</td><td>约 2,200 万元</td></tr>
+    <tr><td>毛利率</td><td>65%</td><td>72%</td><td>78%</td></tr>
+    <tr><td>研发投入占比</td><td>55%</td><td>40%</td><td>30%</td></tr>
+    <tr><td>经营利润率</td><td>亏损期</td><td>接近盈亏平衡</td><td>15%–20%</td></tr>
+  </table>
+  <p>收入结构随成熟度演进：第 1 年以 SaaS 订阅为主；第 2 年 Token 用量收入占比提升；第 3 年私有化部署与行业模板贡献显著增量。毛利提升主要来自 AI 调用成本优化（缓存、批量、模型分级路由）与订阅规模效应。</p>
+  <div class="pagenum">第 7 页</div>
+</div>
+
+<!-- ===================== 8 团队介绍 ===================== -->
+<div class="page">
+  <h2 class="sec">八、团队介绍</h2>
+  <table>
+    <tr><th style="width:18%">姓名</th><th style="width:20%">职务</th><th>分工与背景</th></tr>
+    <tr><td>王俊</td><td>总经理 / 项目负责人</td><td>公司战略与商业化负责人，主导 AI 原生企业软件产品体系设计与行业客户经营，具备 B2B 软件从 0 到 1 落地与交付管理经验。</td></tr>
+    <tr><td>核心研发团队</td><td>架构 / 后端 / 前端 / AI</td><td>覆盖多租户平台架构、决策引擎、智能体编排、向量记忆系统方向，团队已独立完成本项目全部 60,290 行自研代码及配套测试体系。</td></tr>
+    <tr><td>行业顾问</td><td>销售管理咨询</td><td>提供 B2B 销售方法论（客户分级、商机阶段管理、报价治理）与行业客户资源支持。</td></tr>
+  </table>
+  <p>团队采用"产品方法论 + 工程实现"双轮驱动：方法论侧形成可复用的行业配置模板，工程侧坚持 TDD 与质量闸门（全量自动化测试体系），保障交付质量与迭代速度。</p>
+  <div class="pagenum">第 8 页</div>
+</div>
+
+<!-- ===================== 9 风险分析 ===================== -->
+<div class="page">
+  <h2 class="sec">九、风险分析</h2>
+  <table>
+    <tr><th style="width:18%">风险</th><th style="width:42%">描述</th><th>应对措施</th></tr>
+    <tr><td>技术风险</td><td>大模型能力迭代快，存在架构过时风险</td><td>模型接入层抽象解耦，支持多模型分级路由；核心资产沉淀在记忆系统与决策管道，不绑定单一模型</td></tr>
+    <tr><td>市场风险</td><td>传统厂商加速 AI 化，竞争加剧</td><td>以"决策可溯 + 治理闭环"差异化定位，避开纯功能竞争；深耕行业模板构建场景壁垒</td></tr>
+    <tr><td>合规风险</td><td>数据安全与 AI 生成内容合规要求趋严</td><td>多租户数据隔离、写操作人工确认（HITL）、私有化部署选项；AI 建议全程留痕可审计</td></tr>
+    <tr><td>经营风险</td><td>SaaS 回款周期与客户续费波动</td><td>三道计费闸门硬约束收入；以客户成功体系保障续费；订阅 + 私有化双轨平滑现金流</td></tr>
+    <tr><td>人才风险</td><td>AI 复合型人才稀缺</td><td>方法论文档化与配置模板资产化，降低对个体的依赖；以股权激励绑定核心团队</td></tr>
+  </table>
+  <div class="pagenum">第 9 页</div>
+</div>
+
+<!-- ===================== 10 竞对分析 ===================== -->
+<div class="page">
+  <h2 class="sec">十、竞对分析</h2>
+  <table>
+    <tr><th style="width:16%">对比维度</th><th style="width:28%">传统 CRM 厂商</th><th style="width:28%">通用大模型/AI 助手</th><th>本项目 CRM-AI-Native</th></tr>
+    <tr><td>架构</td><td>流程记录型，AI 以外挂插件叠加</td><td>通用对话，无业务系统承接</td><td>AI 原生：智能体为业务内核</td></tr>
+    <tr><td>决策能力</td><td>报表与规则告警，无决策溯源</td><td>建议不可溯源、不接企业真实数据</td><td>K-M-D 管道，建议可溯源至概念与历史决策</td></tr>
+    <tr><td>治理能力</td><td>审批链路僵化，超权限难拦截</td><td>无治理能力</td><td>超权限强制审批 + 决策标识，审计闭环</td></tr>
+    <tr><td>行业适配</td><td>定制开发成本高</td><td>无行业纵深</td><td>配置驱动行业差异化，零代码新增业务域</td></tr>
+    <tr><td>数据资产</td><td>数据沉睡</td><td>数据在厂商侧，企业不可控</td><td>写时向量化记忆沉淀为企业自有资产，支持私有化</td></tr>
+  </table>
+  <p>核心结论：传统厂商赢在存量客户、输在架构包袱；通用 AI 赢在模型能力、输在场景纵深。本项目在"AI 原生 + 治理闭环 + 行业配置化"交叉地带建立差异化壁垒，并以 MCP 生态开放扩大先发优势。</p>
+  <div class="pagenum">第 10 页</div>
+</div>
+
+<!-- ===================== 11 融资需求 ===================== -->
+<div class="page">
+  <h2 class="sec">十一、融资需求</h2>
+  <h3>11.1 融资方案</h3>
+  <div class="kbox">
+    <b class="t">拟融资金额：</b>人民币 800 万元（Pre-A 轮）<br>
+    <b class="t">出让股份比例：</b>10%–15%（对应投前估值约 4,500–7,500 万元，依据尽职调查与业绩承诺协商确定）<br>
+    <b class="t">资金形式：</b>股权融资，可接受战略投资方（产业协同优先）
+  </div>
+  <h3>11.2 资金用途</h3>
+  <table>
+    <tr><th style="width:22%">用途</th><th style="width:18%">占比</th><th>说明</th></tr>
+    <tr><td>研发投入</td><td>50%</td><td>决策引擎深化、行业模板扩展、私有化交付工具链</td></tr>
+    <tr><td>市场与销售</td><td>25%</td><td>灯塔客户获取、渠道体系建设、行业展会与内容营销</td></tr>
+    <tr><td>云资源与算力</td><td>15%</td><td>生产环境扩容、向量库与大模型调用成本</td></tr>
+    <tr><td>运营储备</td><td>10%</td><td>团队扩充与风险储备金</td></tr>
+  </table>
+  <h3>11.3 投资价值</h3>
+  <p>① 品类窗口：AI 原生 CRM 处于品类定义早期，先发者可定义标准；② 产品已落地：多租户 SaaS 全流程真实运行，具备完整知识产权与测试体系，非概念阶段；③ 收入模型清晰：三道计费闸门保证收入硬约束；④ 架构可复制：平台能力可向采购、产品管理等企业域延展，具备平台化成长空间。</p>
+  <div class="pagenum">第 11 页</div>
+</div>
+
+<div class="page" style="background:linear-gradient(135deg,#0b3d5c,#12836f); color:#fff; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+  <div style="font-size:20pt; letter-spacing:4px; margin-bottom:8mm;">让每一次销售决策</div>
+  <div style="font-size:26pt; font-weight:bold; letter-spacing:6px;">可溯 · 可信 · 可复制</div>
+  <div style="margin-top:20mm; font-size:11pt; opacity:.85; line-height:2;">
+    北京青羽智行科技有限公司<br>
+    联系人：王俊（总经理）<br>
+    13911894515 · watchm@163.com
+  </div>
+</div>
+
+</body>
+</html>

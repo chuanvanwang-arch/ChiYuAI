@@ -1,0 +1,13 @@
+{
+  "file_id": "36338346-4949-43bd-b49d-cacbaa62cdb6",
+  "table_id": "m6qlqsn6",
+  "cells": [
+    {"row": 1, "col": 2, "text": "AI 原生智能销售管理平台（CRM-AI-Native）", "inherit": false},
+    {"row": 3, "col": 2, "text": "企业级 B2B 销售管理（制造、医疗器械、化工等行业）", "inherit": false},
+    {"row": 4, "col": 2, "text": "软件环境：Node.js 22 运行时、PostgreSQL 16（pgvector 向量库＋pgcrypto 加密）、Express 4；部署环境：Docker 容器化，支持公有云与私有化部署；集群规模：单租户 4 核 8G 云主机起步，随租户增长水平扩展，Nginx 统一入口＋MCP StreamableHTTP 通道。", "inherit": false},
+    {"row": 5, "col": 2, "text": "应用场景：B2B 销售全流程管理（线索—商机—报价—合同—回款—复盘）。已上线运行；业务能力：智能接诊平均响应 1.2 分钟、报价测算 42 秒、线索零漏接，行为达标率 82%，超权限报价强制审批闭环。", "inherit": false},
+    {"row": 6, "col": 2, "text": "模块 1：智能接诊分流　功能说明：新询盘自动分流，BANT 打分决定跟进/培育/放弃　技术亮点：15 个方法论 SKILL 化、事件驱动自动派发", "inherit": false},
+    {"row": 7, "col": 2, "text": "模块 2：K-M-D 认知决策引擎　功能说明：每次判断走完知识—方法—校验，输出九列可解释决策记录　技术亮点：九尺子校验 8 项确定性规则判定，可复现可审计", "inherit": false},
+    {"row": 8, "col": 2, "text": "模块 3：上下文图谱客户记忆系统　功能说明：写库即构建 KG＋向量索引，五类记忆自动沉淀，客户 360 正反向追溯　技术亮点：写时向量化、语义检索零填表秒级命中。模块 4：复盘智能体　功能说明：每日自动扫描决策、七类根因归因　技术亮点：处方审批后沉淀，教训变 SOP。", "inherit": false}
+  ]
+}

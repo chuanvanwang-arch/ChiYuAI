@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="HoQOBZW3RMBFhyaptKiXJI"><head data-page-node-id="xfCYKaImEcOHaWsExmjFwV"><meta charset="utf-8" data-page-node-id="FNnuBl0Wcfzy52aCmwRsqv">
+<title>AI 原生智能销售管理平台（CRM-AI-Native）软件说明书 V1.0</title>
+<style>
+@page { size: A4; margin: 20mm 18mm; }
+body { font-family: "Microsoft YaHei", "SimSun", sans-serif; font-size: 10.5pt; line-height: 1.7; color:#1a1a1a; }
+h1 { font-size: 18pt; text-align:center; margin-top: 40mm; }
+h2 { font-size: 14pt; border-bottom: 2px solid #2c5aa0; padding-bottom:4px; margin-top: 10mm; color:#2c5aa0; page-break-before: always; }
+h2:first-of-type { page-break-before: avoid; }
+h3 { font-size: 12pt; color:#333; margin-top: 6mm; }
+p, li { text-align: justify; }
+.code { font-family: "Courier New", monospace; background:#f4f6f9; border:1px solid #ddd; padding:6px 8px; white-space:pre-wrap; font-size:9pt; }
+.cover-meta { text-align:center; font-size: 11pt; margin-top: 8mm; }
+.footer-note { font-size: 8.5pt; color:#666; text-align:center; margin-top: 6mm; }
+table.spec { border-collapse:collapse; width:100%; font-size:9.5pt; margin:4px 0; }
+table.spec th, table.spec td { border:1px solid #999; padding:4px 8px; text-align:left; vertical-align:top; }
+table.spec th { background:#eef2f8; }
+</style></head>
+<body data-page-node-id="W0w4WTRduSfv4rlRoBHYdm">
+
+<div style="page-break-after:always;" data-page-node-id="ws1fzajV2iy2NHAN2H8mG5">
+<h1 data-page-node-id="U7p1BhGtae9dzBoowvTtFo">AI 原生智能销售管理平台<br data-page-node-id="rza7hHX66T0NBdziNUxSi2">（CRM-AI-Native）</h1>
+<div class="cover-meta" data-page-node-id="Ig8iW3x47yM8TQoYYLpYBt">
+<p data-page-node-id="vsLzpit4EqBN3YHHCJzLQs"><b data-page-node-id="RYw7NhhZUMqBIly2NgsnX9">软件说明书 / 用户手册</b></p>
+<p data-page-node-id="70KBerSEuVDupOw7q85QLJ">版本号：V1.0</p>
+<p data-page-node-id="vxgpl6d9pYCD7ULhvxLND3">著作权人：王川</p>
+<p data-page-node-id="rDXViNjmwbKMkUay5wLsRs">开发完成日期：2026 年</p>
+<p data-page-node-id="6flpI6xLQMJmdJdhe9GaD7">文档编制日期：2026 年</p>
+</div>
+<div class="footer-note" data-page-node-id="q87OCLCMcDyVk4fTOZnuqa">本说明书用于中国版权保护中心计算机软件著作权登记之文档鉴别材料（一般交存）。</div>
+</div>
+
+<div style="page-break-after:always;" data-page-node-id="DILkOgWQC2AfnWIemtmG0w">
+<h2 style="page-break-before:avoid;" data-page-node-id="v6rkJGPTeDoOh2B1aWn7Sv">目　录</h2>
+<p data-page-node-id="X4CLAIGgj9D6aabNEWNZuq">第 1 章　系统概述</p>
+<p data-page-node-id="oGYzXBtK0M8Z4JSVyEhxJY">第 2 章　运行环境与依赖</p>
+<p data-page-node-id="OmzQNwHwa3NOU2xgH1nqwf">第 3 章　总体技术架构</p>
+<p data-page-node-id="cuxKphBcHYsJpB5h9cLYps">第 4 章　安装、部署与备份</p>
+<p data-page-node-id="wKjU91QnsIPwSLcEXBOGsS">第 5 章　用户、角色与多租户</p>
+<p data-page-node-id="CCam0gVz3aYKywSiuDHCQG">第 6 章　主要功能模块</p>
+<p data-page-node-id="XbCAfFdidKdKOFHTCBz5rs">第 7 章　典型业务流程</p>
+<p data-page-node-id="UqQJjF9pqpGMaTNxS6UNKl">第 8 章　配置管理</p>
+<p data-page-node-id="OSBw1suvFia2Fm49IAWkYd">第 9 章　数据隔离与安全</p>
+<p data-page-node-id="rWMwlcADFGOXkHYjwLkHwD">第 10 章　维护与技术支持</p>
+<p data-page-node-id="weAw6sLzbTAbywJCmlErVu">第 11 章　主要数据表结构</p>
+<p data-page-node-id="ZlpCFSDFgaivsOaRsFPL5G">第 12 章　主要 API 接口</p>
+<p data-page-node-id="Q54pSFUWPD1GyOtMO7WdAz">第 13 章　配置项参考</p>
+<p data-page-node-id="Q30NhAsQRdgWde0EezZeYu">第 14 章　术语表</p>
+<p data-page-node-id="3VX4jaPSx1pKoPZ9BH3meX">第 15 章　常见问题</p>
+</div>
+
+<h2 data-page-node-id="l5ucm4tOizzvXfnUu7nUJq">第 1 章　系统概述</h2>
+<h3 data-page-node-id="kM9iekGDVHdXoLzsONWWUM">1.1 软件背景</h3>
+<p data-page-node-id="gUXm67rQhaVogG6ezQ4gUS">AI 原生智能销售管理平台（CRM-AI-Native）是一款面向企业 B2B 销售场景的智能客户关系管理软件。传统 CRM 以表单与流程录入为核心，销售决策高度依赖人工经验，且客户信息分散于邮件、表格与人员大脑中，形成信息孤岛。本软件以「AI 原生（AI-Native）」为设计理念，将智能体（Agent）、记忆系统、决策引擎与业务系统深度融合，使系统能够理解客户上下文、自动推进销售流程、辅助销售决策并执行审批闭环，把销售管理从事务记录升级为智能协作。</p>
+<h3 data-page-node-id="ku88nTGkH12rDSVaxB9PIA">1.2 软件目标</h3>
+<p data-page-node-id="Fmc8ChjO5Y3YUTk9Q26zwU">本软件旨在实现以下目标：（1）以客户全生命周期为主线，统一管理线索、账户、商机、合同与回款；（2）通过多智能体编排与 MCP（Model Context Protocol）协议，将外部系统与智能能力接入销售流程；（3）内置 AI 决策引擎，对折扣、报价、审批等关键环节提供可溯源的建议与执行；（4）以多租户架构支撑 SaaS 化交付，并保证租户间数据与权限的严格隔离；（5）以配置驱动差异化，新增行业或业务域无需改动核心代码。</p>
+<h3 data-page-node-id="YjGug6Yt7kA5eNJPFcFrUO">1.3 适用范围</h3>
+<p data-page-node-id="BGFixk59pCxFM12lilCjgU">本软件适用于制造、医疗器械、化工等行业的 B2B 销售团队、销售管理者及企业管理者，用于管理客户资产、推进销售机会、管控价格与折扣审批、沉淀销售知识并支撑经营分析。亦可作为智能体能力底座，经 MCP 协议被其他系统调用。</p>
+<h3 data-page-node-id="v53xKKhtPKak2hXPVssXfZ">1.4 软件分类与特点</h3>
+<p data-page-node-id="1eAzl7LDVClcrFogtD8j8x">本软件属于人工智能软件，兼具企业级 SaaS（云计算）与信息安全属性。技术特点包括：AI 原生架构、多智能体协作、MCP 协议接入、向量化记忆与语义检索、多租户隔离、决策溯源与规则引擎、配置驱动行业差异化。</p>
+<h3 data-page-node-id="XiFjHOzVZ8nUduMmpeTfUH">1.5 设计理念</h3>
+<p data-page-node-id="CYxvEm8Bt99q9GW0sWOJlh">「AI 原生」区别于「在旧系统外包 AI」：本软件将记忆、决策、智能体作为一等公民内建。写操作即构建知识（write-time indexing），每次交互自动沉淀记忆与本体；决策须可溯源至概念引用；对外能力以 MCP 工具形式暴露，使系统既是应用也是能力平台。</p>
+<h3 data-page-node-id="cYD3BlyL5lJAnKwhmW6RTf">1.6 与同类软件差异</h3>
+<table class="spec" data-page-node-id="qBGinFDyVLADqPrHiMfUQX">
+<tr data-page-node-id="Axi5koyHDGx7Cr5vf8ucmE"><th data-page-node-id="9pH2AIhoT5D3l2b8zJjLJs">维度</th><th data-page-node-id="jfaF8ldzQTWcaGFslJBM5O">传统 CRM</th><th data-page-node-id="d1PjG6T16D7ivYb0XU7Mcl">本软件</th></tr>
+<tr data-page-node-id="87eGoqnDicwVJsC3YLcvkF"><td data-page-node-id="WoAEKFOYGfaAFc1cKGzfhb">决策方式</td><td data-page-node-id="5lPZFMP4lcKop0mygcY2jh">人工经验</td><td data-page-node-id="pFuQ37cP4V8gxnO23vatUF">AI 决策引擎 + 七维度评分 + 溯源</td></tr>
+<tr data-page-node-id="c99G4tOteizJUwZY1i2qhc"><td data-page-node-id="YAhtioigUGJULM07G3mGxL">客户上下文</td><td data-page-node-id="MYx5UL2xNluvQ5UryxUMfV">表单字段</td><td data-page-node-id="2OIUrj5zJj993d9G0MINFt">记忆系统 + 语义检索</td></tr>
+<tr data-page-node-id="YA8m2pdGsSK36WLiqCOtwM"><td data-page-node-id="v3Ne4LAtXkAOZkBnrwtenq">外部集成</td><td data-page-node-id="PvDjgAG1qxrRuvxppqcEWd">定制接口</td><td data-page-node-id="yaSZ9RM3h9QnSvpJcA3OZR">MCP 标准协议</td></tr>
+<tr data-page-node-id="l5Wvc5IcaFWWfNHkfrokdp"><td data-page-node-id="kKFbO6GzhN4Kw8p7e9JyYM">行业差异</td><td data-page-node-id="ClvrGeOfK9qkK2UQtJ9MUd">定制开发</td><td data-page-node-id="OCmEo1V2cOLPOVjgztmHOR">配置驱动</td></tr>
+</table>
+
+<h2 data-page-node-id="j1XNfMJXv7lrEYFIV0bfdg">第 2 章　运行环境与依赖</h2>
+<h3 data-page-node-id="SYFGzoQyxgLLEdxHtZoJLC">2.1 开发与运行硬件环境</h3>
+<p data-page-node-id="PxLJymyjhUWSYC68S0g1Mo">开发环境采用 x86_64 架构个人计算机（Intel Core i5 及以上 CPU、16GB 内存、512GB SSD）。运行环境为 x86_64 服务器或云主机（4 核及以上 CPU、8GB 及以上内存、100GB 及以上可用磁盘），支持容器化部署，可通过横向扩展提升并发能力。</p>
+<h3 data-page-node-id="6i9uTseriKGXM9VdoN06JV">2.2 操作系统与运行平台</h3>
+<p data-page-node-id="4hqrp889LLAcYNzYO5mrC7">开发操作系统为 Microsoft Windows 11；生产运行平台为 Node.js v22 运行时，支持 Windows Server 与 Linux（CentOS、Ubuntu）及 Docker 容器部署，具备跨平台能力。PostgreSQL 16 可独立部署于同机或专用数据库服务器。</p>
+<h3 data-page-node-id="wvBvbjFHHzJryUzyAQA5C2">2.3 运行支撑软件</h3>
+<p data-page-node-id="SKVGWwLOsqp1Qp6YjWCdqc">核心支撑软件：PostgreSQL 16 数据库（启用 pgvector 向量检索扩展与 pgcrypto 加密扩展）；Node.js v22 运行时；Express 4 Web 框架；@modelcontextprotocol/sdk（MCP 协议实现）；pg（PostgreSQL 驱动）；dotenv（配置管理）；nodemailer（邮件通知）。</p>
+<h3 data-page-node-id="Mb0F1uyI8X7uCXLmAYKQEO">2.4 开发工具</h3>
+<p data-page-node-id="ygvJ7KDzvMHn29RwfnDHiy">软件开发环境包括：Node.js v22 与 npm 包管理器；Visual Studio Code 编辑器；Git 版本控制；Vitest 单元测试框架；TypeScript 类型检查；Playwright 端到端测试工具。</p>
+<h3 data-page-node-id="0R9QduF9Hi6Q9M1jmdXsH0">2.5 编程语言</h3>
+<p data-page-node-id="GB6tfjRys08pexNZAw41F3">后端与前端脚本采用 JavaScript（ECMAScript Module）；数据库采用 SQL 与 PL/pgSQL（存储过程与触发器）；前端页面采用 HTML5 与原生 JavaScript，通过 Express 静态托管。</p>
+<h3 data-page-node-id="r97CkN5fnlwqjbE60C09VX">2.6 网络与端口</h3>
+<p data-page-node-id="i5zrmKS1O7NF2B6Sr8mF9N">HTTP 服务默认监听 3000 端口；MCP 服务经 StreamableHTTP 暴露（如 3001/mcp）；PostgreSQL 默认监听 5433 端口，schema 为 crm。生产环境建议前置 Nginx 反向代理并启用 HTTPS。</p>
+<h3 data-page-node-id="YpA38UeSt6qjsEXTM8uHSL">2.7 容量规划</h3>
+<p data-page-node-id="eKd5TwVwfYR4hXDDprYGCu">单租户中等规模（万名客户、千条商机）下，PostgreSQL 配合 pgvector 索引可满足毫秒级语义检索；源程序约 6 万行，前端页面 78 个，整体资源占用低，适合中小集群部署。</p>
+
+<h2 data-page-node-id="04v1qRhHNQdwFAOqzhfERW">第 3 章　总体技术架构</h2>
+<h3 data-page-node-id="N5dlTyaAzu3oSnxF3N1LWx">3.1 分层架构</h3>
+<p data-page-node-id="uVeweoiQmegy9wAJOEQS5S">本软件自顶向下包括：表现层（src/web 下 HTML 页面与前端脚本）、接入层（Express HTTP 服务与路由）、业务领域层（账户、商机、审批、合同、计费等模块）、智能层（决策引擎、智能体、记忆、知识、本体）、数据层（PostgreSQL 及向量扩展）、协议层（MCP 服务）。各层仅依赖下层，避免循环依赖。</p>
+<h3 data-page-node-id="ikfPxmf1A9VxRc9DRwGkgB">3.2 核心目录</h3>
+<table class="spec" data-page-node-id="3rFh58FafKel3YHbPk2tnH">
+<tr data-page-node-id="NzAhKU96JGV1i7yhEYhJ8N"><th data-page-node-id="9uvwD7pc8swAYv9hWBWPCR">目录/模块</th><th data-page-node-id="VZOrqgEHSoWzGZIrRzyzhr">职责</th></tr>
+<tr data-page-node-id="9Qj9PNFcXxj2BStRXtyTlH"><td data-page-node-id="hH3rgLFkW3KcoHPtaQdjXw">src/http</td><td data-page-node-id="IoEMg1UIG3D5VpaTEPNQ9C">HTTP 服务入口与路由装配</td></tr>
+<tr data-page-node-id="UACxnTViA7YXoflCIc4IjG"><td data-page-node-id="vg3Fx7JA0pEI0W5QqoA2eP">src/account、src/sales</td><td data-page-node-id="ekFc8c2OMwyJR2kchTyh2g">客户账户与销售业务</td></tr>
+<tr data-page-node-id="CxTaUlZTk1Qrh7I1gLQiDZ"><td data-page-node-id="PiJM1bqTdBKSa2k6KDigg8">src/approval、src/decision</td><td data-page-node-id="XbEuEV1kDBYqH85rEqz35V">审批流与 AI 决策</td></tr>
+<tr data-page-node-id="7uOd2LexQkMNaOdYTimwgv"><td data-page-node-id="DmD1sDKldhnJAi6asfNsIQ">src/agent、src/mcp</td><td data-page-node-id="PrX28ow8xNHbKXHeiHCHb9">智能体与 MCP 协议服务</td></tr>
+<tr data-page-node-id="qhJcidtTZ7MB0AzQnw7hFe"><td data-page-node-id="IxgwmWLNgF9JlJlDvHrgoR">src/memory、src/knowledge</td><td data-page-node-id="NgjrpOIfi2FTCcR8HTTWd1">记忆与知识库</td></tr>
+<tr data-page-node-id="VzrJCEfv01WPoaVh7N5l5h"><td data-page-node-id="QwFeLTPwHbsmOoAdZ83crq">src/tenant、src/rbac</td><td data-page-node-id="WWIhChLYORdhR0ZbaeS2La">多租户与权限</td></tr>
+<tr data-page-node-id="xkyQZ6CxnH1Au5JqBGhAkT"><td data-page-node-id="MicKzIYwF1q6HAYh28AOAp">src/billing、src/contract</td><td data-page-node-id="BvM2Tw085ftXZeKAe3VziJ">计费套餐与合同</td></tr>
+<tr data-page-node-id="KHiI0I58AkIdEUs9GATaXk"><td data-page-node-id="wRx0GddLWVccJHtBtOwZY4">src/ontology、src/sevenDimensions</td><td data-page-node-id="rbURfa6neAM34Sqsmq4SRZ">本体与七维度决策</td></tr>
+<tr data-page-node-id="kR96wpFDPMcyTQV6BDCCxO"><td data-page-node-id="B5mNFVXdd8sayzhzXwNQnz">db/</td><td data-page-node-id="OwOevUJXEU9YpNBLGq6f7p">数据库 schema 与迁移脚本</td></tr>
+</table>
+<h3 data-page-node-id="74tDJVb4XV3KRtOfM1LApu">3.3 数据流</h3>
+<p data-page-node-id="G5uRcyl9GkcgPesXm8cR2O">前端页面经 Express 路由调用业务模块；业务模块通过 pg 驱动读写 PostgreSQL；决策与智能体模块在关键节点介入，调用记忆与知识库，并将结果回写数据库与事件总线（src/events），由监控与门户模块消费展示。所有写操作经决策第 0 闸校验。</p>
+<h3 data-page-node-id="H4DBEaIqsnQkL0Nw3zTUOe">3.4 事件总线</h3>
+<p data-page-node-id="0BGDgD4Aj8BwNAWGVwX1HS">事件总线（src/events）覆盖任务、追踪、审批、粒子、支付等事件域，采用单连接 EventSource 推送，使前端看板与监控实时更新，避免轮询开销。</p>
+<h3 data-page-node-id="nlPx3OireDzaMKfwcjz0VA">3.5 扩展性</h3>
+<p data-page-node-id="EeweXxhN0nm2eZd0eJp2iY">通过 MCP 协议，外部智能体或业务系统可注册为工具提供方；通过配置中心，新增行业差异化策略无需改码。系统以插件化（connectors、skills）方式扩展能力。</p>
+
+<h2 data-page-node-id="UKngjBPYAMx9hZIyjXkSMK">第 4 章　安装、部署与备份</h2>
+<h3 data-page-node-id="Zr2jwKQIn5CexOHwAMAPF5">4.1 数据库初始化</h3>
+<p class="code" data-page-node-id="K1qZJjmDNbbjALqpCZJosC">node db/migrate.js            # 建表与基础迁移
+node db/migrate.js --seed      # 载入种子配置</p>
+<h3 data-page-node-id="z1e3xUEcRn4fvMqZBoFLis">4.2 启动服务</h3>
+<p class="code" data-page-node-id="YB7xmY2GfflSMhy9bWaMSw">npm run dev       # 开发模式（热重载）
+npm start       # 生产模式启动 HTTP 服务
+npm run mcp     # 启动 MCP 协议服务</p>
+<h3 data-page-node-id="m8iB41jjCqMjjOZpLcE7Iu">4.3 测试与校验</h3>
+<p class="code" data-page-node-id="1ycIHNamWR1XcR1Vy9QLwM">npm test                   # 运行单元与集成测试
+npm run audit:isolation      # 多租户隔离审计</p>
+<h3 data-page-node-id="VYHYSYdzK8LJJhqTnIPWAZ">4.4 配置</h3>
+<p data-page-node-id="dewuIpstS1JeA1f96JhZAH">系统通过 .env 文件配置数据库连接（PostgreSQL，默认监听 5433 端口，schema 为 crm）、密钥与邮件服务。配置项均为环境变量，不硬编码于源码。</p>
+<h3 data-page-node-id="9dRP8OoE9SvnYwPAVc97v2">4.5 Docker 部署</h3>
+<p data-page-node-id="5NjU69DLv4H8qI1ZFMJWkE">后端以 Node.js 镜像构建，PostgreSQL 以官方 16 镜像运行并挂载 pgvector；通过 docker-compose 编排，数据库数据卷持久化于宿主机。</p>
+<h3 data-page-node-id="BGDED6z1rXgODmehiIfdHD">4.6 反向代理</h3>
+<p data-page-node-id="SWWphziXFiQ2wz4IXmcnpb">生产环境以 Nginx 前置，将 80/443 转发至 3000，并保留 /mcp 直连通道（客户端配置 http://IP/mcp 以避免 Authorization 丢失）。HTTPS 启用后裸 IP 访问返回 301 跳转。</p>
+<h3 data-page-node-id="bbQkPCb9kUpINwz9LeLCAg">4.7 备份与恢复</h3>
+<p data-page-node-id="eBllKmIBJy3EsNTclwB95z">数据库经 pg_dump 每日逻辑备份；迁移脚本幂等，恢复时重跑 migrate 即可重建结构。配置中心与种子数据纳入版本管理，保证环境可重建。</p>
+
+<h2 data-page-node-id="V8RKkfuYFmD0a3rUEw9X9N">第 5 章　用户、角色与多租户</h2>
+<h3 data-page-node-id="yFWdUdNa1K7yzFWWHcLRLg">5.1 用户与角色</h3>
+<p data-page-node-id="CnUf7z0PnUllvsBYFnHZoj">系统内置 RBAC（基于角色的访问控制）。典型角色包括：租户管理员（admin，可通配本租户全部数据）、销售人员（sales，仅操作自有客户与商机）、审批人等。权限在路由层与数据层双重校验，避免越权。</p>
+<h3 data-page-node-id="48eQ3WUqmG7iHBkbj1DrUF">5.2 多租户</h3>
+<p data-page-node-id="SDjD0HJIMPtNwKFsJ2NNle">系统以 tenant_id 作为租户隔离主键。每个业务表均携带 tenant_id，查询时由请求上下文解析当前租户，确保租户仅能访问本租户数据；平台管理员以通配符「*」进行跨租户运维。system 租户仅作为配置模板源，不直接承载业务数据。</p>
+<h3 data-page-node-id="z6EqC1R3BaTVJ8DYBT92Rw">5.3 登录与上下文</h3>
+<p data-page-node-id="HxrFx7D6WGtceVVOZ9Ai2f">用户经 MCP 登录或 HTTP 登录获得身份，系统将其映射到租户与作用域（scope），后续所有写操作均经决策第 0 闸校验，未携带合法决策标识的破坏性操作将被拒绝。</p>
+<h3 data-page-node-id="R6qKVmiTwvGK2gmFwVAABL">5.4 角色清单</h3>
+<table class="spec" data-page-node-id="27TGJ6GQNxdLffXdLTkE0G">
+<tr data-page-node-id="Du37mYOZzZKZhm6EkvT7p2"><th data-page-node-id="iVAkPBrWLEa4fJmSiMCEHe">角色</th><th data-page-node-id="2O9r325wXFVIZsNYAM8LmH">数据范围</th><th data-page-node-id="DqtFNphuUm4niVGhTMO9RT">典型操作</th></tr>
+<tr data-page-node-id="EkFNBvRLcq0jiTUqDNRHvT"><td data-page-node-id="2gn40ABqnYhbWZCwXRMgmD">admin</td><td data-page-node-id="RUmh9DVBaoFfdXe99sXygw">本租户全部</td><td data-page-node-id="NfyUYCzgTUQWXtHqR7PjfW">配置、审批、看板</td></tr>
+<tr data-page-node-id="hBrQw03IqUISzOKzs3toue"><td data-page-node-id="fJuKQNTLvHu5pkj2DhP5SI">sales</td><td data-page-node-id="B02Ak5rNb5p5CnZAw7kEpp">自有客户/商机</td><td data-page-node-id="BLqL5cw9oSQI8bjkM590OT">跟进、报价、提交审批</td></tr>
+<tr data-page-node-id="i0Q3CJXhBTmKTLi3sa5wQ2"><td data-page-node-id="KAOnDWkCHEdRdNsIXlTixs">approver</td><td data-page-node-id="C1bR99TySfLAdSzOYSekZw">被指派审批实例</td><td data-page-node-id="HQ90Ud36SBD6JdRFwrUuqG">通过/驳回/加签</td></tr>
+<tr data-page-node-id="WY4t1vaQHBmBT8v96rGO6D"><td data-page-node-id="zG9nplMKM8UwMSC5fD4Dra">platform</td><td data-page-node-id="zriB1bqZxqWeNybntpyKfo">跨租户（*）</td><td data-page-node-id="HSF96z7vIlulT7xpUgEjMm">运维、诊断</td></tr>
+</table>
+<h3 data-page-node-id="WEIXTh2lTv0jMt9UlvSJ8U">5.5 权限矩阵</h3>
+<p data-page-node-id="99S1TEA1N4AmOjqX7u0EOW">读操作按租户与作用域过滤；写操作除 RBAC 外还需经决策第 0 闸（executor）与决策场景硬闸（autonomyEngine）。仅引导式（bootstrap/autoDecision）或持 decision_id 的审批类操作可突破只读约束。</p>
+
+<h2 data-page-node-id="oe9cvAMLo9S519euAVvtRz">第 6 章　主要功能模块</h2>
+<h3 data-page-node-id="pfZka0lY4Gw2osNEbGH2AI">6.1 客户与账户 360 视图</h3>
+<p data-page-node-id="OV52VwtPllvkUccPnsNCwB">账户 360（account-360）页面汇聚客户基本信息、联系人、历史商机、合同、交互记录与 AI 洞察。系统基于记忆与知识库生成客户画像，辅助销售识别痛点与推进策略。客户提供统一视图，避免信息孤岛。主要数据项：账户名称、行业、规模、决策链、关键联系人、近期交互、健康度评分。</p>
+<h3 data-page-node-id="yRT96JNB3zyR3yRsHFI93E">6.2 商机与销售流程管理</h3>
+<p data-page-node-id="UQf5aB0kgEHB1pFqJ2eLxV">商机（Opportunity）沿销售阶段 S1–S6 推进，系统提供漏斗质量分析（funnel-quality）、阶段推进（stage-progression）与预测补差。销售可记录拜访、跟进与报价，系统对商机健康度进行评分。主要操作：新建商机、关联账户、更新阶段、记录拜访、提交报价。</p>
+<h3 data-page-node-id="aIgpc4TaEJzejVV7ESHgA4">6.3 审批流引擎</h3>
+<p data-page-node-id="jHVz0CsHoPvNeXmyzbfHJx">审批流（approval-flow）支持自定义阶段与签批人，覆盖价格、折扣、合同等关键节点。当销售报价超出权限阈值时，系统强制触发 CRM_APPROVAL_FLOW 审批，并将决策标识（decision_id）写入执行链路，确保治理闭环。审批支持加签、转交、撤回。界面元素含审批列表、详情、意见输入与决策按钮。</p>
+<h3 data-page-node-id="9klvDdTHIUeWpXBZ1PMDOE">6.4 AI 决策引擎</h3>
+<p data-page-node-id="3mHA770atPU7VWJNOaSEv6">决策引擎（decision）是软件智能核心，包含：（1）七维度（sevenDimensions）评估模型，从多视角对商机与报价打分；（2）决策图谱（decision-graph）可视化决策链路；（3）决策溯源（decision-provenance）记录每条建议的依据与引用；（4）规则引擎（ruleEngine）将业务规则数据库化，支持热更新；（5）决策先例（decision-precedent）复用历史经验。所有决策均可追溯至概念引用（concept_refs）。操作步骤：进入决策页 → 选择场景 → 查看七维度评分与溯源 → 采纳或驳回建议。</p>
+<h3 data-page-node-id="Katz64W0zhxtU1iaRRL3Hd">6.5 智能体平台与 MCP 接入</h3>
+<p data-page-node-id="McSXyWDHGxtGiq1g7nKuDe">智能体平台（agent）提供 agent-workbench 工作台，支持智能体配置、事件触发器（agent-event-trigger）与编排。系统通过 MCP（src/mcp）对外暴露工具能力，使外部智能体或系统可经标准化协议读写销售数据、发起审批与查询洞察，实现「系统即能力」。配置项：智能体名称、绑定的技能（skill）、触发事件、授权范围。</p>
+<h3 data-page-node-id="d65vMlrIqBZIjFIoP1tQ7a">6.6 知识库与记忆系统</h3>
+<p data-page-node-id="zZ5QjCKAEA5z93Xf4ienA8">知识库（knowledge）沉淀产品、竞品、方法论等文档，支持向量化检索。记忆系统（memory）维护跨会话的 append-only 日志与 curated 常驻笔记，结合 pgvector 实现语义检索，使智能体在后续对话中保持客户上下文一致性。写时自动向量化（write-time indexing），无需人工标注。</p>
+<h3 data-page-node-id="Khr24OuHKuo690PmLwM00u">6.7 看板、合同与计费</h3>
+<p data-page-node-id="SgNvNvyTS3nbgTkC0k22OD">看板（kanban）以任务卡片呈现销售活动与待办；合同（contract）模块管理合同起草、签署与回款（finance-receivables、invoice）。计费（billing）模块提供多档套餐，以席位（seatPolicy）、Token 配额（quotaGate）与功能权益（plan_entitlement）三道闸门控制租户能力，保证套餐权益单调递增。landing 页套餐区由 GET /api/billing/plans 动态驱动。</p>
+<h3 data-page-node-id="yHXKgnd6yrlAIAOgQ6oKo4">6.8 告警、监控与门户</h3>
+<p data-page-node-id="zZY1wFodENPyQqvyIpHnE8">告警规则（alerts）支持基于阈值的事件触发；监控（monitor）采集智能体健康度与业务指标；门户（portal，buddy-crm-portal）为统一工作台，聚合首页、看板、决策与配置入口，提供面向不同角色的视图。决策监控（sales-decision-monitor）提供 7×7 调整工具。</p>
+<h3 data-page-node-id="ZUB6a8hqVETh1pQcj0JizT">6.9 本体与语义</h3>
+<p data-page-node-id="J7IA63qEAgdYEiNrfDIIGZ">本体（ontology）模块维护领域词汇与语义关系，支撑写时向量化与语义检索，使系统自动构建可查询的知识图谱，降低人工录入成本。语义检索用于客户意图识别、相似商机匹配与知识推荐。</p>
+
+<h2 data-page-node-id="yiEnpBpvWF15LKnpIimPz8">第 7 章　典型业务流程</h2>
+<h3 data-page-node-id="ywLwquMvZkkXXu1tkjHCE7">7.1 价格审批场景</h3>
+<p data-page-node-id="l4cl5u1ML2jGHaSFKmMz0S">销售人员就某商机向客户报价，折扣超出自身权限阈值，须走系统审批。流程：（1）销售在商机页提交报价，系统检测折扣超阈值，自动调用报价引擎生成待审批单；（2）系统经审批流引擎启动 CRM_APPROVAL_FLOW，创建审批实例并通知审批人；（3）审批人查看 AI 决策建议（含七维度评分与溯源），执行通过/驳回/加签；（4）审批通过后生成 decision_id 写入执行链路，合同模块据此生成正式报价单；（5）全程事件经事件总线留存，监控与门户可追踪。该流程杜绝线下私下报价带来的治理缺口。</p>
+<h3 data-page-node-id="VxBUAIQDCmAwn7H1BC5cvr">7.2 商机推进</h3>
+<p data-page-node-id="U72OONMuABzHOtoKx5Zv9F">销售新建商机并关联账户，按 S1–S6 推进；每阶段系统校验必填项与行为标准，缺失则提示。阶段跃迁触发漏斗质量评分更新，管理者于看板查看转化与预测。</p>
+<h3 data-page-node-id="RE1xNzYoFurthFIerFmHjK">7.3 合同签署与回款</h3>
+<p data-page-node-id="oEGPE1DpFyi8FBPJoxkdSN">审批通过的报价单可生成合同草稿，经签署流程归档；回款（finance-receivables）登记发票与到账，系统更新账户健康度与销售业绩。</p>
+<h3 data-page-node-id="siqGjWbhQVgCsQtEp8AwhU">7.4 异常处理</h3>
+<p data-page-node-id="GSOeuRToh645zDfY49gjxH">若审批被驳回，商机回到上一阶段，销售可依据建议修订后重新提交。所有写操作均经决策第 0 闸，缺 decision_id 且非引导式操作时拒绝执行，防止越权写入。</p>
+
+<h2 data-page-node-id="gDknrZiWJEeWJmsEZJ7NFv">第 8 章　配置管理</h2>
+<h3 data-page-node-id="hwzHStnI1A1Asfw2Ykl1oh">8.1 配置中心</h3>
+<p data-page-node-id="myVALYHAK3c6VlihUXL76b">系统提供配置中心（config.html），以 config_store 为真相源，管理业务分层（business-tier）、审批流、告警规则、决策路由、先例等。所有阈值与行业差异均后台配置化，禁止在代码中硬编码域逻辑。</p>
+<h3 data-page-node-id="6Vp2WPBVMfoHobn83QrSZL">8.2 阈值与行业差异化</h3>
+<p data-page-node-id="1O0KmiqwFzZItRTjeAYL6I">销售阈值（如折扣权限）通过 readThreshold() 从配置读取；不同行业的差异化策略以配置驱动，保证多租户架构纯净，不因新增行业而污染核心代码。</p>
+<h3 data-page-node-id="fG9ukGBnrUZlZa8KTTsG3M">8.3 行为标准</h3>
+<p data-page-node-id="7HAmO7GAgln5STrf9WTK5v">行为标准（behavior-standard）配置定义销售动作规范，由方法层（method）在跟进、漏斗分类、阶段推进等环节校验执行，确保销售过程合规。</p>
+<h3 data-page-node-id="lPbb1EazEB9H4eIhiZW3td">8.4 配置一致性</h3>
+<p data-page-node-id="FVAqjqQL7DnvHWAp7gykDn">计费套餐以 config_store['billing-plans'] 为真相源，与种子 SQL、前端展示三源一致，并有常驻比对测试防止漂移；权益随档位单调递增，不得出现不限量档位被误配。</p>
+
+<h2 data-page-node-id="8DxuMFMM0VN0bMZ9vT5gin">第 9 章　数据隔离与安全</h2>
+<h3 data-page-node-id="ND08AZXL5ZBTjsMN0vlyPo">9.1 租户隔离</h3>
+<p data-page-node-id="VlPrsTaM13JVbkJlnIFFOS">所有业务表以复合主键（tenant_id, …）存储，写前经懒克隆（lazy clone）确保租户数据独立；跨租户查询由路由层透传租户上下文，测试套件内置隔离审计以防伪隔离。</p>
+<h3 data-page-node-id="2UhlbZxpx1DuN5mxXMm9U9">9.2 权限与审计</h3>
+<p data-page-node-id="fnMS2rZMpEEXHtGxFhrKUJ">RBAC 在路由与数据层双重生效；关键写操作经决策第 0 闸与审批流；系统记录确认审计（migration-confirm-audit）与决策溯源，满足合规可审计要求。</p>
+<h3 data-page-node-id="Bf8A2hrgyI9gHe6PUTDDYz">9.3 加密与凭证</h3>
+<p data-page-node-id="YmLbq40K4FAke5vfzDek6K">密码经 pgcrypto 的 crypt() 哈希存储；敏感配置经环境变量注入，不落库明文；邮件等外部通知经 nodemailer 发送，SMTP 凭据不写入源码。</p>
+<h3 data-page-node-id="2owyvbWYLntBJyS5ZRkAKp">9.4 合规</h3>
+<p data-page-node-id="TaTdkOs3MU2OO81ZfUbxOP">系统提供审计包导出（governance-audit），含三闭环状态看板与合规数据，便于企业内审与外部审查。</p>
+
+<h2 data-page-node-id="OerQOxEzBsgcmJPZUi5FWB">第 10 章　维护与技术支持</h2>
+<h3 data-page-node-id="Er0KG6bhKhr4OJVdEjvNIo">10.1 日常维护</h3>
+<p data-page-node-id="RlzmuF4t19lO7cnHIF9gCt">管理员通过管理控制台（admin）查看租户用量、决策健康度与参数诊断；通过 scheduler 执行定时任务；通过 report 模块导出经营报表。</p>
+<h3 data-page-node-id="Vs6nuEAq0OuxhD2irTU2mi">10.2 版本与回滚</h3>
+<p data-page-node-id="Z9VBrAUcGSFaIct0wrVvDZ">数据库迁移为幂等设计，支持增量迁移与回滚脚本；配置变更经配置中心管理，可对比基线，异常时可回退至历史版本。</p>
+<h3 data-page-node-id="bjTJeIH4v9VO6F2KCXIfXu">10.3 故障排查</h3>
+<p data-page-node-id="JuTgfVuDEpByB6kukQc6On">系统日志经运行日志文件记录；监控模块（monitor）与决策健康度（decision-health）提供实时诊断；隔离审计脚本可在测试环境校验多租户正确性。</p>
+<h3 data-page-node-id="9J0WHZkz29VobWTH7xg4Op">10.4 技术支持</h3>
+<p data-page-node-id="esNZE0q5AXwD1OySJbJ7Nt">软件提供在线门户文档、配置中心说明与智能体工作台引导。定制化需求经配置中心与行业差异化机制实现，无需改动核心代码。</p>
+
+<h2 data-page-node-id="82bhmhI9niiFgvoRRuZWkP">第 11 章　主要数据表结构</h2>
+<p data-page-node-id="m91adirx4pQXESPOkcy9XP">以下为核心业务表（schema 为 crm），均含 tenant_id 字段以实现隔离。</p>
+<table class="spec" data-page-node-id="R7ZwN1gOnbhsDOutMYWw4S">
+<tr data-page-node-id="WPWEM8lVc9oTg8SMx3atLE"><th data-page-node-id="KaUqRFdu9Rp6fMarCQPSqf">表名</th><th data-page-node-id="DFh24Qq35DWOcWJpsVW2my">用途</th><th data-page-node-id="LIwTIgOs665d9NHcwXzSRp">关键字段</th></tr>
+<tr data-page-node-id="qwecWb7dymfiuSaTAHzyoD"><td data-page-node-id="QeIBvU5Su4uQtgF02A6H6G">crm.users</td><td data-page-node-id="vRZQuVu9Yjhl1V3rFK568A">用户与角色</td><td data-page-node-id="gWk8r1q5szYkE8mivGnBzY">id, tenant_id, role, credential</td></tr>
+<tr data-page-node-id="rBfeDfA7kS2YSVMsfVNtGD"><td data-page-node-id="gKWfYbTGwc5SPtt9xX1yzM">crm.accounts</td><td data-page-node-id="G15LDxWTxJBA9wEbB0KriG">客户账户</td><td data-page-node-id="ngipcTvXTagGkGLHZOiOxw">id, tenant_id, name, industry</td></tr>
+<tr data-page-node-id="TFFd7PcdS537rklll1xQtz"><td data-page-node-id="WTRmtfJVbigEp1kl8crMeC">crm.opportunities</td><td data-page-node-id="PcjURFmd3lvE4T9d7Hyc8c">商机</td><td data-page-node-id="1V72YEGevd8J7acM7Y54JC">id, tenant_id, account_id, stage, amount</td></tr>
+<tr data-page-node-id="glV3pHfgn70I2KbGkXMgBh"><td data-page-node-id="LxANJwjtYEiW3RqWCZ2Qwu">crm.approval_flow</td><td data-page-node-id="3yElkQTuWYtpwqtpRWhxHM">审批流定义与实例</td><td data-page-node-id="IWBulFwmPPFa3RcfXlIXLc">id, tenant_id, domain, status</td></tr>
+<tr data-page-node-id="9Jl8UNw6GWiWfQHUFuB04C"><td data-page-node-id="BymgqMzQrF8IuM14YVJ9sX">crm.decision_*</td><td data-page-node-id="iSuF97LacM6KwIAo7RlR2H">决策与溯源</td><td data-page-node-id="8ArutWYcaaSIHEQJo7xnZH">id, tenant_id, scenario, provenance</td></tr>
+<tr data-page-node-id="ESoiTdlWNDZceyPHntsc4H"><td data-page-node-id="VLI0BtdLcQbPbXPDErliIL">crm.particles</td><td data-page-node-id="h7eDTVhbzggB8GrASAc4QA">粒子（对象）存储</td><td data-page-node-id="9TedeB7UaE7FgFR8TwHiFc">id, tenant_id, type, attrs</td></tr>
+<tr data-page-node-id="mQtZFrbyMTFanMiXe2pjrv"><td data-page-node-id="qAJn0vkTjGCGFYEUSEFNG1">crm.memory</td><td data-page-node-id="rcsNWBHu9hNHKmEPijU66e">记忆日志</td><td data-page-node-id="0jyigeVcxDL0NhBHiOJniA">id, tenant_id, kind, body</td></tr>
+<tr data-page-node-id="GePyw2jm1FnOgRZcon3Y5G"><td data-page-node-id="DNiRrEfFKY4r9EfAX6HkiN">crm.knowledge</td><td data-page-node-id="27Zt3nE0NOGgDzrKFKnVG3">知识库</td><td data-page-node-id="UQMfZfenKun0twj0cloQvV">id, tenant_id, embedding, text</td></tr>
+<tr data-page-node-id="1klFTQ4IGLCrA9PDG9p1cx"><td data-page-node-id="FBzKBUYcFbjqBUdHQAoqfN">crm.billing_plans</td><td data-page-node-id="zXfC28BrEKXzEnQWyOlTR4">套餐配置</td><td data-page-node-id="GZylGSQ3qC2UYHEnWOv02F">id, tier, seats, quota</td></tr>
+<tr data-page-node-id="BMcG2oCCWaZRIU6kIeVsRO"><td data-page-node-id="4mADe4Vi4JAV1UKq5CRddr">crm.alert_rule</td><td data-page-node-id="Uv4F3nyzH7mAYuChY9qJ3Y">告警规则</td><td data-page-node-id="GXJZpOCGL7PyM5IcbJ7pEc">id, tenant_id, kind, threshold</td></tr>
+<tr data-page-node-id="1Mz2D5CfpfbBjpOSXETrSH"><td data-page-node-id="JyjxxPqgBKALmQJ62qHKJq">crm.config_store</td><td data-page-node-id="pTITt8GXeJSyBt0srTGBsX">配置中心</td><td data-page-node-id="eBKJKptoZEY7xfU5kvkTpn">key, value, scope</td></tr>
+</table>
+
+<h2 data-page-node-id="DZCtTMMpBdgIpvoXbKZV0h">第 12 章　主要 API 接口</h2>
+<table class="spec" data-page-node-id="fniFMm7N44aE3pzAqFPKsy">
+<tr data-page-node-id="XYITmRr3bBBReT0CTbaL9i"><th data-page-node-id="Tv2iylkBrDx57qWZAyDfVO">方法</th><th data-page-node-id="0wtl4x74IQSXOl0owfyFVD">路径</th><th data-page-node-id="YAylCXjgJsrmmEjf9SgBYr">说明</th></tr>
+<tr data-page-node-id="Cgh4cTOZUlzLzi4AP3oj7C"><td data-page-node-id="oBlHihEqCzbo81d5Z7R4x8">GET</td><td data-page-node-id="gkAQcuOJ3fLEzkrWVCMlwc">/api/account/:id/360</td><td data-page-node-id="J6gPCdzGtxFCVMoHpMt0ln">客户 360 视图</td></tr>
+<tr data-page-node-id="AUYtoJgvjlGDdmqTBzurMj"><td data-page-node-id="rbhgX2m6dxg8LQCL5B8Gkm">POST</td><td data-page-node-id="E10ZSRe2okIwAywZ159OfK">/api/opportunity</td><td data-page-node-id="EU29IeKHKGPIV0dobYkpBC">新建商机</td></tr>
+<tr data-page-node-id="KRoWcv36hCoclubrOwYsCA"><td data-page-node-id="83vKwmn5t2ibF7yRDQHJyT">POST</td><td data-page-node-id="IDCwKmQKK7eOhnNze7tbB9">/api/approval/start</td><td data-page-node-id="GL7uAFVvDqCuV3mxk2u5h3">发起审批流</td></tr>
+<tr data-page-node-id="OXRFxF8ChTZ376tqhc2TMW"><td data-page-node-id="jjSmobX2Rf77jdoO3zPECq">POST</td><td data-page-node-id="NPv0nIG5Xd1iAVtXd4stgQ">/api/approval/approve</td><td data-page-node-id="pByqdDWztvWw87So4Rq9Pb">审批通过</td></tr>
+<tr data-page-node-id="RXUhFivsh3w8DoKyF0DRRl"><td data-page-node-id="SQcTumXIsrUwrqCx7EX03s">GET</td><td data-page-node-id="QG3hDymi0IhV5DxKNI3ssE">/api/billing/plans</td><td data-page-node-id="KK2Su0SAAtFvaTgqb2wO1H">套餐列表</td></tr>
+<tr data-page-node-id="1iXQymZbju6VgH1ZxHNDUk"><td data-page-node-id="lDCqfpUeamU4pSbSeuK7kz">POST</td><td data-page-node-id="IJEP3TKa2976KAjugIhgmq">/api/decision/execute</td><td data-page-node-id="DhxGcHt8tl6F3Vpn45HiEa">执行决策</td></tr>
+<tr data-page-node-id="lOFHpB0CldSU33nShzAVhl"><td data-page-node-id="cfPgm6T5dpJBAqckuoLdbH">GET</td><td data-page-node-id="1Jk8eJv76zikzaPHKjzPuo">/mcp</td><td data-page-node-id="iqPhu27njyHN1ReIPxhbdB">MCP 协议端点</td></tr>
+</table>
+<p data-page-node-id="Iwu4SYSC0kt158cQdnkrOA">所有写接口须经 RBAC 与决策第 0 闸；MCP 端点经 Authorization 头鉴权。</p>
+
+<h2 data-page-node-id="HKRWz8FSLUsauaWpmpKcwL">第 13 章　配置项参考</h2>
+<table class="spec" data-page-node-id="BZGVPEDvakTZw2KZX7Rd9T">
+<tr data-page-node-id="QZB7Cgi2MFY7AoPo2sLudq"><th data-page-node-id="HZopMxplF4iVCuFr6AAFEx">配置键</th><th data-page-node-id="HV6B6Oa6QlVDVNY3cvTAXU">说明</th><th data-page-node-id="vnTjGYhQtEjxUOnhDIOMBe">默认值</th></tr>
+<tr data-page-node-id="W2DWSVOJ4Sw0NVUm6ztxns"><td data-page-node-id="cWnSYjx2UtHoRD1M128vd9">PGHOST/PGPORT</td><td data-page-node-id="EtimF8Mr70FuxIjBCNJLJZ">数据库连接</td><td data-page-node-id="7MK23F1t0BgLotB62DYql5">localhost/5433</td></tr>
+<tr data-page-node-id="vanfBn6C1sB7ezJTD5gSWz"><td data-page-node-id="6SxG6UiVW2mgRaEWBNUPY5">PGDATABASE</td><td data-page-node-id="eCyNM96F8K40O9FvTIKfg6">数据库名</td><td data-page-node-id="yMEqzwqBKTJf53tig2dU79">crm_native</td></tr>
+<tr data-page-node-id="cAive2HTSujxZPogC1dTUS"><td data-page-node-id="8eLzeHapwGD8i0u8PYkXQC">billing-plans</td><td data-page-node-id="oZhsxGzDZINyA8bq1cqu4p">套餐定义</td><td data-page-node-id="F3qgt1iwtpvZdkrqLpzzCB">5 档</td></tr>
+<tr data-page-node-id="YbRcsf0GU3wN01v51Z7UUX"><td data-page-node-id="sWIJUuT2rb4uUAGt5MVCfq">business-tier</td><td data-page-node-id="BZqVBq4Q6CO28ALE2rYFE4">业务分层阈值</td><td data-page-node-id="Qljoywn8MS2KoWbWGEBNSd">复合 PK</td></tr>
+<tr data-page-node-id="Dr5KVrt5ILGZvzOepld3mN"><td data-page-node-id="s9X99CGsxodYAvDouQJEb4">alert-rule</td><td data-page-node-id="ciKaAUH4TIONFCLPW1wbjG">告警规则</td><td data-page-node-id="QWrvpBD1q028gB1i2Twvj4">按租户</td></tr>
+<tr data-page-node-id="EOUjfw1gfGvCcsGJ8NtcSC"><td data-page-node-id="gtLDdxGOCGuE6kuclo7BGE">context-routing</td><td data-page-node-id="ekDkZkNBATCrGgm0wWJj6k">上下文路由（红线配置，禁改）</td><td data-page-node-id="wRnoue0fTeg8lDuJOIVv8E">—</td></tr>
+</table>
+
+<h2 data-page-node-id="aStucyljdf7P3d3F6TWcL0">第 14 章　术语表</h2>
+<table class="spec" data-page-node-id="CNnPaiq7hFfkeI1ZsV1Mkf">
+<tr data-page-node-id="ps4LOPpyKfWW8TrAiJDryx"><th data-page-node-id="8r0llrnhdK35gGq1fFCI7j">术语</th><th data-page-node-id="cAAAc5F8QNEYV2Y9xDx90V">含义</th></tr>
+<tr data-page-node-id="AiUOkyjmBIlUpJz3kTiFQt"><td data-page-node-id="s8DBl0dMtWsFy4kg4cbQIQ">AI 原生</td><td data-page-node-id="gwRw0ATlbPqw5hEBeCFCga">智能体、记忆、决策为系统一等公民</td></tr>
+<tr data-page-node-id="wcGR4GmKu4uZoygqHiDz36"><td data-page-node-id="TlLujsZDFdsZF1XHhIWudc">粒子（Particle）</td><td data-page-node-id="vodMT06HVwCjlCVFSAHO01">领域对象的原子化存储单元</td></tr>
+<tr data-page-node-id="WFCUY4G2UJn6O6G79qV1SE"><td data-page-node-id="ik9faept5xQd6IxVZgZwIX">决策第 0 闸</td><td data-page-node-id="M4cRH9kRGYk13MiZKuFaH8">写操作的强制治理校验</td></tr>
+<tr data-page-node-id="4TvRqihTD5xqLVhDJYFqa7"><td data-page-node-id="UQBrP2HHEoccMgo7hVouqc">MCP</td><td data-page-node-id="q6rlmt9spl46eVjpeEHDNT">Model Context Protocol，智能体标准协议</td></tr>
+<tr data-page-node-id="9Y44Ltmi3o8DZfHa0fkDoY"><td data-page-node-id="fBFHPmtsW550VflsXMMMIw">懒克隆</td><td data-page-node-id="kWA59dUqFKEMc7MR5GfR2U">租户首次访问时从 system 模板克隆配置</td></tr>
+<tr data-page-node-id="9yaZtijxZu6xIHXWvqdWnj"><td data-page-node-id="xwwkC3XRtMmo0vwgdxf3cs">七维度</td><td data-page-node-id="wHuuGPSG675xNbGv2dFEvU">决策的多视角评估模型</td></tr>
+<tr data-page-node-id="eVKgcGRZsACwTEjrFqjCPN"><td data-page-node-id="aYAFEFeE7OezaFTVQlEESx">溯源</td><td data-page-node-id="ogmYhUnZ3Za6N9Jz7KAKkV">决策依据的可追溯记录</td></tr>
+</table>
+
+<h2 data-page-node-id="dvq3k9tPZ8ORzBHzYKFGDw">第 15 章　常见问题</h2>
+<p data-page-node-id="lrT0tmalayxFZ54czHUoTg"><b data-page-node-id="wSsHoKtdxD5TlGsQInZApN">Q1：报价无法提交？</b><br data-page-node-id="052jU4WWvJe9od4sEHkhlo">检查折扣是否超权限阈值，超阈值须走审批流（CRM_APPROVAL_FLOW），系统将生成 decision_id。</p>
+<p data-page-node-id="c8HIFGOOHR1tDV55kAVTEd"><b data-page-node-id="owzgQCu0dxkRRjeFrKJYgg">Q2：跨租户看到数据？</b><br data-page-node-id="OKggy6Fde4hzdGhfHGHh79">运行隔离审计（npm run audit:isolation），确认复合主键与路由透传正确。</p>
+<p data-page-node-id="rn1sUROANisCmsOIFNYxXk"><b data-page-node-id="5xFzCiT7R17KZlY1BAeq3P">Q3：MCP 调用 401？</b><br data-page-node-id="0MN2yLaFzJrigA2p5V3Flw">确认客户端配置 http://IP/mcp 直连，Authorization 头未被反向代理剥离。</p>
+<p data-page-node-id="k4BqCbBUyUQfP4nk5fD2RU"><b data-page-node-id="otM759osckiVbKlKAnsyEt">Q4：数据库迁移报错 relation does not exist？</b><br data-page-node-id="0b09y1tAQaUW05lFOyt0oq">先执行 node db/migrate.js 建立基础表与配置，再 seed。</p>
+<p data-page-node-id="vtWuEd5gYzZnhjww2SX2VA"><b data-page-node-id="nsJcY4IErcnfSw0WLIeLIN">Q5：记忆检索不准？</b><br data-page-node-id="uiLucPQBMlNITxO6gEiOh7">确认 pgvector 扩展已启用，并执行 backfill 任务补齐向量索引。</p>
+
+<h2 data-page-node-id="4F42LpCnUj5XGK24YKELh3">第 16 章　典型界面与操作路径</h2>
+<h3 data-page-node-id="a47aOjGG0T5EPzD7IDK8sD">16.1 首页（home）</h3>
+<p data-page-node-id="YN7fX90acBLK32TONi6kqa">首页聚合待办、看板入口、决策监控与快捷操作。销售登录后可见本周需跟进商机与审批任务；管理者可见团队漏斗与预测。顶部导航按角色呈现菜单（layoutMenu 由套餐权益控制）。</p>
+<h3 data-page-node-id="GDe2Dgt4CgUQQAbw3FPhAM">16.2 账户 360 界面</h3>
+<p data-page-node-id="59itjfqj9uOEPKZAUAUymz">顶部为客户基本信息与决策链；中部为商机时间线与健康度；右侧为 AI 洞察（基于记忆与知识库）。操作路径：进入账户列表 → 选择账户 → 查看 360 → 点击「新建商机」或「记录拜访」。</p>
+<h3 data-page-node-id="PPne46XTSmrQAQIMCmyVHd">16.3 决策界面</h3>
+<p data-page-node-id="o8xwCQFgZdtUgSflSn1lbW">决策页（decision-thinking / decision-graph）左侧为场景选择，中部为七维度雷达与评分，右侧为溯源与先例引用。操作路径：选择决策场景 → 系统加载上下文 → 查看评分与依据 → 采纳或驳回并填写意见。</p>
+<h3 data-page-node-id="8p69iKJQUkNlLxLUooN3pS">16.4 审批界面</h3>
+<p data-page-node-id="3H2V6toHjM3LL2Ej8NtFTc">审批页（approval-flow / approval-config）列出待我审批实例，详情含报价单、AI 建议与历史。操作路径：进入待办 → 打开实例 → 查看建议与溯源 → 通过/驳回/加签/转交。</p>
+<h3 data-page-node-id="zDhOkyYZLyoxpoBhMk13yi">16.5 门户界面</h3>
+<p data-page-node-id="2emaxqtdzUQ0ckkAt0YTiB">门户（buddy-crm-portal）为统一工作台，按角色聚合首页、看板、决策、配置与智能体。管理者可经业务看板（business-board）查看经营闭环。</p>
+
+<h2 data-page-node-id="uMaBiEVrTAIyouvI75ZnkJ">第 17 章　集成与外部系统</h2>
+<h3 data-page-node-id="TjNXQ7okcDzr2ZBuWSWwCJ">17.1 MCP 工具注册</h3>
+<p data-page-node-id="CWvXrTuchHcT7XiTEk8QEB">系统经 src/mcp 暴露工具，外部智能体通过 StreamableHTTP 连接 3001/mcp，以标准协议调用读写能力。工具需在配置中心登记作用域，避免越权。</p>
+<h3 data-page-node-id="UQiIWAiqWg3SMNhrbmPpcd">17.2 连接器（connectors）</h3>
+<p data-page-node-id="s55EyHVaSteLJQCcjsey6Q">连接器模块（connectors）封装外部系统对接（如邮件、日历、工单），以确定性规则执行抽取与回写，LLM 仅在比价、分账等推理环节介入，保证主链路稳定。</p>
+<h3 data-page-node-id="HhMitbzWDk9rfuYCetZOmV">17.3 技能（skills）</h3>
+<p data-page-node-id="5kOXAO81GHew5XLOJH6R0P">技能（skills）以可复用单元封装领域方法，智能体经 agent-workbench 绑定技能并编排，支持事件触发与自进化（沉淀、反思、修正）。</p>
+<h3 data-page-node-id="vbRXEu3GRdFGeoD3AcSy05">17.4 数据导出</h3>
+<p data-page-node-id="96Q7XV41pkXzQqhgxJTUDE">系统支持经 report 模块导出经营报表（CSV/JSON），并经 MCP 或 API 供下游 BI 系统消费，形成数据闭环。</p>
+<h2 data-page-node-id="19GqMQjDgmA0Y0QYlcBFSW">第 18 章　智能体编排与 MCP 调用示例</h2>
+<h3 data-page-node-id="aRO80GVr5yDkjGJcZbmuqH">18.1 编排模型</h3>
+<p data-page-node-id="Rsu9DKaY6LpEI11VtC2hAU">智能体平台采用调度中心（kanban 任务调度）分派 worker 的执行模型：任务进入看板后由编排器派发至绑定技能的 worker，结果经事件总线回收。并发受限流与熔断保护，僵尸任务由治理线程回收，保证多智能体协作稳定。</p>
+<h3 data-page-node-id="fJNPryDIVKKrfSZdKZTlx1">18.2 MCP 调用示例</h3>
+<p data-page-node-id="Eup6DC3kuhtwQER1gOrtXO">外部智能体经 StreamableHTTP 连接 MCP 端点后，以标准 JSON-RPC 形态调用工具。典型请求示意：</p>
+<p class="code" data-page-node-id="wvuxfJEXC1kWbt84LbkEP3">POST /mcp
+{ "jsonrpc":"2.0", "id":1, "method":"tools/call",
+  "params":{ "name":"crm_account_360",
+             "arguments":{ "account_id":"ACME-001" } } }</p>
+<p data-page-node-id="8b6JlIUWWwqbvWR0Fq7gkY">系统校验 Authorization 与作用域后返回账户 360 视图；越权或缺失 decision_id 的写操作返回拒绝。该形态使任意兼容 MCP 的客户端复用本平台能力。</p>
+<h3 data-page-node-id="ViARk1rSHWYzLC3FNtHUAg">18.3 事件触发与沉淀</h3>
+<p data-page-node-id="iZ7lR7NbVbioeDr6NIsehg">配置事件触发器（agent-event-trigger）后，满足条件的业务事件自动唤起智能体；执行结果经「积累—反思—修正」闭环沉淀为技能或配置更新，形成系统自进化。</p>
+
+<h2 data-page-node-id="DQcC7koot9XiozBrlHWdwB">第 19 章　测试与质量闸门</h2>
+<h3 data-page-node-id="YWbWDblZ0TKPFW0HqqKGIT">19.1 测试基线</h3>
+<p data-page-node-id="fsQWWTnd74OCXSp3dR3Pm4">系统以 Vitest 运行单元与集成测试，以 Playwright 运行端到端测试（e2e）。测试基线覆盖账户、商机、审批、决策、多租户隔离等核心链路，单次回归规模较大，隔离审计保证共享库下测试不互相污染。</p>
+<h3 data-page-node-id="BcSzbXFnbiq9mqr9knaHW4">19.2 质量闸门</h3>
+<p data-page-node-id="WZ6bBfiliETi70ReKC6yzB">提交前执行 UI 规范检查（ui-lint）强制约束前端页面结构与配色；多租户隔离审计（audit:isolation）阻断伪隔离；三源一致性比对防止配置漂移。任一闸门失败则阻断交付。</p>
+<h3 data-page-node-id="hpFQNDjbdXDnzkC2VXB9fD">19.3 验收清单</h3>
+<table class="spec" data-page-node-id="eZXBimK36qB0PY9Y9gMGwW">
+<tr data-page-node-id="BX9EzVpM7yslQKDQt6sfmw"><th data-page-node-id="cBEBIKP09tZJAEk5DMKYDL">项</th><th data-page-node-id="ABTulFcTSn9MyuklMOhTpw">标准</th></tr>
+<tr data-page-node-id="3RXrddUOXDWTQMzrVxMIl6"><td data-page-node-id="32n4TDMIljUQhe4Qg2HBrC">功能</td><td data-page-node-id="MBceDrX8lwnEsSFqFr0ziE">账户360、商机、审批、决策、计费可用</td></tr>
+<tr data-page-node-id="d0a6CMUoZGE9Ub2sCQFvJs"><td data-page-node-id="8AExChGVasyyE3Wtb6XSX0">隔离</td><td data-page-node-id="ElEEeciFwkJikk22k5HKy7">跨租户不可见，复合 PK 生效</td></tr>
+<tr data-page-node-id="BvU3b7T3QXYGPdXfBtaYZA"><td data-page-node-id="HSEaNwentq1K97DvcBFjqK">安全</td><td data-page-node-id="BOphF1OhMrzGIOvOLLRUd0">密码哈希、决策第0闸、审批闭环</td></tr>
+<tr data-page-node-id="xsOYWBvAuVEY5iV5DPlgSw"><td data-page-node-id="e0fsAyMiAgUSH0gngiJ23b">测试</td><td data-page-node-id="KeZmvK0NHtHZLWMVgrmY0T">单元/集成/e2e 通过，隔离审计通过</td></tr>
+</table>
+<h2 data-page-node-id="j22Xd8HyWDKhKs4IGWxhIB">第 20 章　上线前检查清单</h2>
+<h3 data-page-node-id="CMObhKSyK3P5F32yBju8WG">20.1 环境与依赖</h3>
+<p data-page-node-id="OGSHTm2BNdWDT98GbNCHEg">确认 Node.js v22 运行时就绪；PostgreSQL 16 已启用 pgvector 与 pgcrypto 扩展；.env 中数据库连接、密钥、邮件配置完整且为环境变量注入，未硬编码于源码。</p>
+<h3 data-page-node-id="lnOsAfVsnh3iZ1GxXQZXSb">20.2 网络与端口</h3>
+<p data-page-node-id="Em5pvN9VI88mVb2DaHhO00">确认 HTTP 3000、MCP 3001/mcp、PostgreSQL 5433 可达；生产前置 Nginx 并启用 HTTPS，保留 /mcp 直连通道以避免 Authorization 头丢失；裸 IP 访问配置 301 跳转。</p>
+<h3 data-page-node-id="xEIbrgyShFm2ix8tBrkvU0">20.3 数据与隔离</h3>
+<p data-page-node-id="MjlFdiPR9DJcGPCEBV3Q3K">执行数据库迁移与种子（node db/migrate.js --seed）；运行多租户隔离审计（npm run audit:isolation）确认复合主键与路由透传正确，杜绝伪隔离。</p>
+<h3 data-page-node-id="KPdP4rJPL5kkzM55C3IlCP">20.4 邮件与通知</h3>
+<p data-page-node-id="JApFVkBcHb9XMtVqUBVWc5">核对 SMTP 凭据有效，发送失败应有回退日志；上线后抽样验证激活邮件可达，避免静默失败。</p>
+<h3 data-page-node-id="mxeY7QGtfN1zhK8EUIRjFk">20.5 安全闸门</h3>
+<p data-page-node-id="7ejThRcUh6F81gBPKwtL7y">验证 RBAC 在路由与数据层生效、决策第 0 闸拦截无 decision_id 的写操作、密码经 pgcrypto 哈希存储。任一项异常须阻断发布。</p>
+
+<h2 data-page-node-id="S9K33h4uFGVfno7kZBNC4Y">第 21 章　常见故障与处理</h2>
+<table class="spec" data-page-node-id="CIacRXMZG5t35fL7sBbxzy">
+<tr data-page-node-id="Fp2l4NEpJjY4JwJiffZbXm"><th data-page-node-id="qjGbpQQjPLp4H9hKEgWtFW">现象</th><th data-page-node-id="eqAzBAM9HiCA7USOapOh8I">可能原因</th><th data-page-node-id="ZDBhIeu1EowFbLhJiCU7Vi">处理</th></tr>
+<tr data-page-node-id="Dm1LWcqWyek63161zkSHLg"><td data-page-node-id="8DaCDz0ue8yGen63UsR5Yc">数据库连接 ECONNREFUSED</td><td data-page-node-id="1ZEdKw5NVC7oLN1ZZvrD4G">PG 仅监听 IPv6 回环，连接串用 127.0.0.1</td><td data-page-node-id="G03xcrJyLCUwwkw3Jh8jX5">改连 localhost / ::1</td></tr>
+<tr data-page-node-id="6uqjEnfhQQ6RrJMwf6PWlF"><td data-page-node-id="1dDU1abylTZE322zpFGKEX">写操作被拒</td><td data-page-node-id="VDRY3QcXEoMDYpdF8NBGSZ">缺 decision_id 且非引导式</td><td data-page-node-id="bZswnqv7NRTDsqdC4nzIB0">走审批流生成 decision_id</td></tr>
+<tr data-page-node-id="ThTEqwln4Fmd49qUpuEELg"><td data-page-node-id="s7PMJvb5GvAq0AVdNlfMC1">记忆检索慢/不准</td><td data-page-node-id="zGQcph6pzJPnJVLOfV8U8u">pgvector 索引缺失</td><td data-page-node-id="T7UHOBM1TDbw43CppagfFt">建向量索引并执行 backfill</td></tr>
+<tr data-page-node-id="lYpJCcSNP2lSAYDeNHYqj7"><td data-page-node-id="9fNudIW8EyA9HCz5cobATU">配置表现与行为不一致</td><td data-page-node-id="bnIi7rNXW5XEpbb9vCJ1Hi">三源漂移</td><td data-page-node-id="hwcsQKcqEu3apiO324i8on">跑一致性比对并修复</td></tr>
+<tr data-page-node-id="M4iluS6b8hVAXHncRpGuLH"><td data-page-node-id="e5fFu2AirL3c2xcOZ3ZrDX">邮件静默失败</td><td data-page-node-id="8V7qTcorDUdxFddR8mZsW2">SMTP 凭据错/被拦截</td><td data-page-node-id="vEJ2nJnwjaKwM6eLmxhzhQ">查发送回退日志并补凭据</td></tr>
+<tr data-page-node-id="CjdlohdU6t0x8hmK33lbza"><td data-page-node-id="wAK8u1VTyn3BLKdFwdSMms">迁移报 relation not exist</td><td data-page-node-id="4HsghjhrySBwqXYU8Xa1bU">未先建基础表</td><td data-page-node-id="1AYL7ML5DbzcM0B1gcMrpE">先 migrate 再 seed</td></tr>
+</table>
+<h2 data-page-node-id="kKlDL0FOKbwGfU9nEJIHL4">第 22 章　数据备份与容灾</h2>
+<h3 data-page-node-id="qmR7Cu48LVT7wL1ncnZYQ4">22.1 备份策略</h3>
+<p data-page-node-id="D2naI2XxOoK51CmyAHKAf5">数据库经 pg_dump 执行每日逻辑备份，输出 SQL 文本归档；迁移脚本（db/migrate.js）为幂等设计，可在新环境重建全部表结构与种子，保证环境可重建。生产环境建议对 PostgreSQL 启用 WAL 归档以实现时间点恢复。</p>
+<h3 data-page-node-id="PUSJdQOs5AwusMmbsQHXnC">22.2 恢复流程</h3>
+<p data-page-node-id="LDMWPig1vOY3haDfzOUkBv">恢复时先以迁移脚本重建结构（node db/migrate.js），再导入逻辑备份；配置中心与种子数据纳入版本管理，避免配置丢失。恢复后运行隔离审计确认租户数据完整。</p>
+<h3 data-page-node-id="DYHY5fOgQLwJQ3EvUOxETA">22.3 配置与种子版本化</h3>
+<p data-page-node-id="CW3RTP9U8518i1YxSwTv3v">config_store、审批流、告警规则等以SQL种子与配置中心双源管理，变更可追溯；system 租户作为模板源不参与业务，租户首次访问时懒克隆，保证恢复后各租户独立。</p>
+
+<h2 data-page-node-id="AqjzXRtz9bJQHASWGWJKEv">第 23 章　性能与容量优化</h2>
+<h3 data-page-node-id="B9BzSBYUnIIdGuazrIlpVz">23.1 向量检索优化</h3>
+<p data-page-node-id="7KBkzskgXYqT5pAsnKcotR">知识库与记忆的语义检索依赖 pgvector。对嵌入列建立 HNSW 或 IVFFlat 索引可显著提升相似度查询性能；新写入经 backfill 任务补齐向量，避免检索遗漏。嵌入维度在配置中心统一管理。</p>
+<h3 data-page-node-id="Vr6OaynUqvCft0Jt76BVqB">23.2 连接与并发</h3>
+<p data-page-node-id="cjMVLUQCJopKSOzJcxQ2vJ">系统通过 pg 连接池复用数据库连接，控制并发上限；MCP 服务与 HTTP 服务共享同一数据层。多智能体编排受调度中心限流与熔断保护，避免数据库被瞬时高并发压垮。</p>
+<h3 data-page-node-id="JyUEPrx5idfM1mbPq1aePN">23.3 前端与缓存</h3>
+<p data-page-node-id="BxUnLhZLTDa9KvOHsOxrt3">前端页面由 Express 静态托管，浏览器缓存静态资源；看板与监控经事件总线（EventSource 单连接）实时推送，避免轮询开销。配置中心缓存于内存，降低数据库读取频率。</p>
+<h2 data-page-node-id="hIdsqwI3AoSbIwfERbwEgJ">第 24 章　模块权限矩阵</h2>
+<table class="spec" data-page-node-id="VrkiTwusooGcORdAHx1MQH">
+<tr data-page-node-id="XihIHEfa6KqFuePAnN6OHK"><th data-page-node-id="jDu0FT72h0nlK2yzZPocQ4">模块</th><th data-page-node-id="UJsIlPHuv5CVVurOyZ8AuU">销售(读)</th><th data-page-node-id="x6s8QhQnfsKii2339TAZ7z">销售(写)</th><th data-page-node-id="MmpVa7JvQnlFR9hvL5gE8i">审批人</th><th data-page-node-id="yzJ8XkPUjKhCXjWGvbQ0zV">管理员</th></tr>
+<tr data-page-node-id="cW7XO6YirglVAjS2uI6lYM"><td data-page-node-id="OLSFxcbFvkqmSVUMEEfu0M">账户 360</td><td data-page-node-id="GjKvKWjWrNf6izjXVu3sDO">自有</td><td data-page-node-id="lTHQqRp3ukkYXPEAvmtPSl">自有</td><td data-page-node-id="5KR1oDjy6IXN4bPfsKwBf6">被指派</td><td data-page-node-id="7hSYUZF67rhtLN7EisAnDA">本租户</td></tr>
+<tr data-page-node-id="9dLhZ8TXbFBOQpRCrBJsDh"><td data-page-node-id="pukHWZx6MYtWiZTy4eD9Bm">商机</td><td data-page-node-id="lzbSJF2yuh5pns2TyPZtny">自有</td><td data-page-node-id="Hop05PVtfa15QGWp8mw47S">自有</td><td data-page-node-id="6FyfCcEBrnwAttSAJGEipw">—</td><td data-page-node-id="vaJ0WwVm1M0C3HFQh9U9ix">本租户</td></tr>
+<tr data-page-node-id="whmsYmTqzDBjoldqszvSuY"><td data-page-node-id="rkaYSycGIWSCNMMA2tYiqt">审批流</td><td data-page-node-id="TCyDW8flZivwUKJuxNQQBB">发起</td><td data-page-node-id="REjv7QwcMCGWQwG4zsBKZZ">—</td><td data-page-node-id="phoZsG9xqvqwNBNUh4lK3j">审批</td><td data-page-node-id="1TKB1BHnHok21N6Wll6g7k">配置</td></tr>
+<tr data-page-node-id="0V4MkZT0dVKtLOvnlW00li"><td data-page-node-id="GSyj76WTozZygskx583MQv">决策</td><td data-page-node-id="nGnnFiXc07d9Jphna5uGkq">查看建议</td><td data-page-node-id="dt562ZSFiGV267o4aXxXkm">—</td><td data-page-node-id="ZYTjquQW2Nb1NqfdgF8pdD">采纳/驳回</td><td data-page-node-id="iyKZdX6wfixeE57YtEa0Zx">配置路由</td></tr>
+<tr data-page-node-id="74obHUIfjRVfbh8oRlakp1"><td data-page-node-id="Zd4JqYFiPGRqlS9jVi63Ca">计费</td><td data-page-node-id="ki0XUZnYlrJYByNW9UM6iS">查看套餐</td><td data-page-node-id="5jNqq6EOEfZ2HUtJbHZ32Y">—</td><td data-page-node-id="siiRdHDYdiR59PCjSlfLFd">—</td><td data-page-node-id="AA2GGfYMipordB29ZXEarj">全部</td></tr>
+<tr data-page-node-id="v9TonQdLksYdOaK3mYIpiF"><td data-page-node-id="JXKRKmI6fc0N2rVzfQs85i">知识库</td><td data-page-node-id="2T3Es3BSQSbjzvPk8pTUkV">检索</td><td data-page-node-id="3ceqP4CzBvwaWPWNNe1hdl">贡献</td><td data-page-node-id="x78IAT9TN85pqpjSl99mVN">—</td><td data-page-node-id="UEALv9sfhYZnEzsaH6nQTp">管理</td></tr>
+<tr data-page-node-id="faXjdqmMp0piAWyInY5gad"><td data-page-node-id="cyJ75lx7guSwwqMI9MEPpi">告警</td><td data-page-node-id="sxsNRE84uIS2yBjlGhTbfC">—</td><td data-page-node-id="H3CzEZwdeb7Dl66Zb1qz63">—</td><td data-page-node-id="6bjBBp5DwrkWqpQ5omp4T2">—</td><td data-page-node-id="xNvjdHfGnd2S5UtonIq91s">配置</td></tr>
+</table>
+<p data-page-node-id="BmFNE7HXuyV1DQjKOZ3wnn">所有写操作除上表 RBAC 外，还须经决策第 0 闸；超权限的报价与折扣必须进入审批流，确保治理闭环。</p>
+
+<h2 data-page-node-id="DOmubXfGDf9ZIEvCoqiiaO">第 25 章　实施与交付</h2>
+<h3 data-page-node-id="UtkSbBaQTsihsDW6cEMQ02">25.1 交付物</h3>
+<p data-page-node-id="sDRT3nOr3UcpLRBYo5UDUw">交付包含：源代码（src/ 与 db/）、本软件说明书、部署脚本（db/migrate.js、启动脚本）、配置中心种子数据与 MCP 服务。所有交付物纳入版本管理。</p>
+<h3 data-page-node-id="66UA7tyhhGjX3TCHupE6E1">25.2 实施步骤</h3>
+<p data-page-node-id="LumfxAVtftFrivFJllJ3se">（1）准备运行环境（Node.js v22、PostgreSQL 16 含扩展）；（2）执行数据库迁移与种子；（3）启动 HTTP 与 MCP 服务并配置反向代理；（4）导入配置中心与行业差异化策略；（5）开展用户培训与试运行；（6）运行隔离审计与验收测试。</p>
+<h3 data-page-node-id="Pjp27lV396V9PSFtBAtaC5">25.3 验收标准</h3>
+<p data-page-node-id="41H6c3wn0ONvMVt4ru5APq">验收以第 19.3 节清单为准：功能可用、租户隔离生效、安全闸门启用、测试与隔离审计通过。验收通过后系统正式投产，后续变更经配置中心与迁移脚本管理，保证可追溯。</p>
+<div class="footer-note" data-page-node-id="WSLnAhYRoCFcgJ4HU5XDYq">—— AI 原生智能销售管理平台（CRM-AI-Native）V1.0 软件说明书 结束 ——</div>
+
+</body></html>

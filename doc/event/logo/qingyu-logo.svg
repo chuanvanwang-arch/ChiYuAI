@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360">
+  <defs>
+    <linearGradient id="feather" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0E7490"/>
+      <stop offset="45%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#2DD4BF"/>
+    </linearGradient>
+    <linearGradient id="feather2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#155E75"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="wordmark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#0E7490"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 主羽：流线羽毛 -->
+  <g transform="translate(60,40)">
+    <!-- 羽片主体 -->
+    <path d="M 40 260
+             C 30 180, 70 90, 170 40
+             C 240 6, 310 -6, 360 8
+             C 330 40, 300 66, 262 86
+             C 300 78, 330 80, 352 92
+             C 310 122, 268 140, 224 148
+             C 252 152, 276 162, 292 178
+             C 240 200, 190 206, 148 198
+             C 120 232, 86 254, 40 260 Z"
+          fill="url(#feather)"/>
+    <!-- 羽轴 -->
+    <path d="M 44 256 C 90 200, 150 130, 250 60 C 290 34, 324 18, 352 12"
+          fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+    <!-- 羽枝 -->
+    <path d="M 96 196 C 130 186, 168 168, 204 142" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity="0.5"/>
+    <path d="M 128 158 C 162 146, 198 126, 232 100" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity="0.5"/>
+    <path d="M 162 118 C 194 104, 226 84, 256 62" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity="0.45"/>
+    <!-- 数据节点：智行科技感 -->
+    <circle cx="148" cy="198" r="7" fill="#FFFFFF"/>
+    <circle cx="224" cy="148" r="7" fill="#FFFFFF"/>
+    <circle cx="292" cy="178" r="0" fill="#FFFFFF"/>
+    <circle cx="262" cy="86" r="7" fill="#FFFFFF"/>
+    <circle cx="352" cy="92" r="7" fill="#FFFFFF" opacity="0.95"/>
+    <line x1="148" y1="198" x2="224" y2="148" stroke="#FFFFFF" stroke-width="2.6" opacity="0.85"/>
+    <line x1="224" y1="148" x2="262" y2="86" stroke="#FFFFFF" stroke-width="2.6" opacity="0.85"/>
+    <line x1="224" y1="148" x2="352" y2="92" stroke="#FFFFFF" stroke-width="2.6" opacity="0.85"/>
+    <circle cx="224" cy="148" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.2" opacity="0.55"/>
+  </g>
+
+  <!-- 中文字标 -->
+  <text x="500" y="185" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
+        font-size="132" font-weight="700" fill="url(#wordmark)" letter-spacing="10">青羽智行</text>
+  <!-- 英文副标 -->
+  <text x="504" y="256" font-family="Arial, Helvetica, sans-serif"
+        font-size="30" font-weight="400" fill="#64748B" letter-spacing="3.5">QINGYU ZHIXING TECHNOLOGY</text>
+  <!-- 底部细分隔线 -->
+  <rect x="506" y="284" width="620" height="4" rx="2" fill="url(#feather)"/>
+</svg>

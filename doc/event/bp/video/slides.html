@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>slides</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#222;font-family:"Microsoft YaHei","PingFang SC",sans-serif;}
+.slide{width:1920px;height:1080px;position:relative;overflow:hidden;background:linear-gradient(135deg,#07293f 0%,#0b3d5c 55%,#0e6e6e 100%);color:#fff;margin-bottom:8px;}
+.slide .inner{position:absolute;inset:0;padding:90px 120px;display:flex;flex-direction:column;}
+.kick{font-size:26px;letter-spacing:10px;opacity:.75;margin-bottom:18px;}
+h1{font-size:88px;line-height:1.3;margin:10px 0 26px;}
+h2.t{font-size:64px;color:#8ee6d8;margin-bottom:44px;border-left:14px solid #17a88b;padding-left:30px;line-height:1.25;}
+.sub{font-size:40px;opacity:.92;line-height:1.7;}
+.grid{display:grid;gap:36px;flex:1;align-content:start;}
+.cols2{grid-template-columns:1fr 1fr;}
+.cols3{grid-template-columns:1fr 1fr 1fr;}
+.card{background:rgba(255,255,255,.07);border:1px solid rgba(142,230,216,.35);border-radius:20px;padding:44px 48px;}
+.card h3{font-size:40px;color:#8ee6d8;margin-bottom:20px;}
+.card p{font-size:29px;line-height:1.65;opacity:.95;}
+.big-num{font-size:56px;font-weight:bold;color:#ffd98a;margin-bottom:8px;}
+img.diagram{width:100%;height:100%;object-fit:contain;background:#fff;border-radius:16px;padding:20px;}
+.diagram-wrap{flex:1;display:flex;min-height:0;}
+.foot{position:absolute;bottom:44px;left:120px;right:120px;display:flex;justify-content:space-between;font-size:24px;opacity:.55;}
+.center{align-items:center;justify-content:center;text-align:center;}
+.pill{display:inline-block;background:rgba(23,168,139,.25);border:1px solid #17a88b;border-radius:50px;padding:10px 34px;font-size:30px;margin:0 14px 20px 0;}
+.logo-mark{width:130px;height:130px;border-radius:28px;background:linear-gradient(135deg,#17a88b,#0e6e6e);display:flex;align-items:center;justify-content:center;font-size:64px;margin:0 auto 40px;}
+</style>
+</head>
+<body>
+
+<!-- S1 封面 -->
+<section class="slide" id="s1"><div class="inner center">
+  <div class="logo-mark">青</div>
+  <div class="kick">北京青羽智行科技有限公司</div>
+  <h1>AI 原生智能销售管理平台<br>CRM-AI-Native</h1>
+  <div class="sub" style="margin-top:20px;">让每一次销售决策 · 可溯 · 可信 · 可复制</div>
+  <div style="margin-top:60px;">
+    <span class="pill">多智能体编排</span><span class="pill">MCP 协议接入</span><span class="pill">向量记忆</span><span class="pill">决策溯源</span><span class="pill">多租户 SaaS</span>
+  </div>
+</div></section>
+
+<!-- S2 痛点 -->
+<section class="slide" id="s2"><div class="inner">
+  <h2 class="t">B2B 销售的四大痛点</h2>
+  <div class="grid cols2">
+    <div class="card"><div class="big-num">01</div><h3>客户信息分散</h3><p>客户数据散落在表格、聊天记录与销售个人手中，人员流动即带走客户资产。</p></div>
+    <div class="card"><div class="big-num">02</div><h3>商机推进无标准</h3><p>销售流程依赖个人经验，漏斗质量不可度量，业绩预测靠"拍脑袋"。</p></div>
+    <div class="card"><div class="big-num">03</div><h3>价格治理失控</h3><p>超权限折扣、线下私自报价频发，事后审计成本高、追责困难。</p></div>
+    <div class="card"><div class="big-num">04</div><h3>AI 建议不可信</h3><p>通用大模型的销售建议无法溯源、不接企业真实数据，不敢用也不能用。</p></div>
+  </div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>项目背景 · 2/10</span></div></section>
+
+<!-- S3 方案 -->
+<section class="slide" id="s3"><div class="inner">
+  <h2 class="t">解决方案：AI 原生，而非 AI 外挂</h2>
+  <div class="sub" style="margin-bottom:50px;">以智能体为业务内核的多租户 SaaS 平台，覆盖客户全生命周期，全流程保持决策可溯。</div>
+  <div class="grid cols3">
+    <div class="card"><h3>获客与经营</h3><p>客户 360 视图聚合工商、联系人、商机、合同与 AI 自动生成的客户洞察。</p></div>
+    <div class="card"><h3>推进与治理</h3><p>商机 S1–S6 标准推进；超权限报价强制触发审批流，写入决策标识、全程留痕。</p></div>
+    <div class="card"><h3>决策与沉淀</h3><p>K-M-D 决策管道保证建议可解释、可复核；写时向量化记忆沉淀为自有数据资产。</p></div>
+  </div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>产品方案 · 3/10</span></div></section>
+
+<!-- S4 架构图 -->
+<section class="slide" id="s4"><div class="inner">
+  <h2 class="t">技术架构：四层体系</h2>
+  <div class="diagram-wrap"><img class="diagram" src="../北京青羽智行科技有限公司-CRM-AI-Native-技术架构图.png"></div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>技术特点 · 4/10</span></div></section>
+
+<!-- S5 功能图 -->
+<section class="slide" id="s5"><div class="inner">
+  <h2 class="t">产品功能总览</h2>
+  <div class="diagram-wrap"><img class="diagram" src="../北京青羽智行科技有限公司-CRM-AI-Native-产品功能总览.png"></div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>功能模块 · 5/10</span></div></section>
+
+<!-- S6 治理场景 -->
+<section class="slide" id="s6"><div class="inner">
+  <h2 class="t">核心场景：报价治理闭环</h2>
+  <div class="grid" style="grid-template-columns:1fr;gap:30px;">
+    <div class="card" style="display:flex;align-items:center;gap:40px;"><div class="big-num" style="min-width:130px;">①</div><p style="font-size:34px;">销售提交报价，折扣超出权限阈值 → <b style="color:#ffd98a;">系统强制拦截</b>，禁止线下成交</p></div>
+    <div class="card" style="display:flex;align-items:center;gap:40px;"><div class="big-num" style="min-width:130px;">②</div><p style="font-size:34px;">自动触发审批流（CRM_APPROVAL_FLOW）→ 逐级审批、全程追踪</p></div>
+    <div class="card" style="display:flex;align-items:center;gap:40px;"><div class="big-num" style="min-width:130px;">③</div><p style="font-size:34px;">审批通过写入决策标识（decision_id）→ <b style="color:#ffd98a;">可审计、可追责的治理闭环</b></p></div>
+    <div class="card" style="background:rgba(255,217,138,.10);border-color:#ffd98a;"><p style="font-size:32px;">线下私自报价、口头承诺预算造成的治理缺口，在这里被<b style="color:#ffd98a;">系统性堵住</b>。</p></div>
+  </div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>治理演示 · 6/10</span></div></section>
+
+<!-- S7 决策与记忆 -->
+<section class="slide" id="s7"><div class="inner">
+  <h2 class="t">AI 决策引擎与记忆系统</h2>
+  <div class="grid cols2">
+    <div class="card"><h3>K-M-D 三层决策管道</h3><p>知识层（概念图谱 + 规则引擎）→ 记忆层（向量检索 + 上下文）→ 决策层（七维度评估 + 决策图谱）。<br><br>所有 AI 建议附带<b style="color:#8ee6d8;">溯源引用</b>，可下钻到历史决策与知识条目——可解释、可复核，是企业敢用 AI 的前提。</p></div>
+    <div class="card"><h3>写时向量化记忆</h3><p>文档、对话与业务事件实时写入 pgvector 向量库，支持跨会话语义检索与上下文延续。<br><br>记忆沉淀为<b style="color:#8ee6d8;">企业自有数据资产</b>，支持私有化部署，不锁定在厂商侧。</p></div>
+  </div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>AI 能力 · 7/10</span></div></section>
+
+<!-- S8 商业模式 -->
+<section class="slide" id="s8"><div class="inner">
+  <h2 class="t">商业模式</h2>
+  <div class="diagram-wrap"><img class="diagram" src="../北京青羽智行科技有限公司-CRM-AI-Native-商业模式图.png"></div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>商业与财务 · 8/10</span></div></section>
+
+<!-- S9 市场 -->
+<section class="slide" id="s9"><div class="inner">
+  <h2 class="t">市场定位：品类的空白地带</h2>
+  <div class="diagram-wrap"><img class="diagram" src="../北京青羽智行科技有限公司-CRM-AI-Native-市场定位图.png"></div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>市场分析 · 9/10</span></div></section>
+
+<!-- S10 融资封底 -->
+<section class="slide" id="s10"><div class="inner">
+  <h2 class="t">融资需求与合作</h2>
+  <div class="grid cols3" style="margin-bottom:40px;">
+    <div class="card center"><div class="big-num">800 万</div><p>拟融资金额（Pre-A 轮）</p></div>
+    <div class="card center"><div class="big-num">10%–15%</div><p>出让股份比例</p></div>
+    <div class="card center"><div class="big-num">50/25/15/10</div><p>资金用途：研发 / 市场 / 算力 / 运营</p></div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <p style="font-size:34px;line-height:1.9;"><b style="color:#8ee6d8;">北京青羽智行科技有限公司</b><br>
+    联系人：王俊（总经理） · 13911894515 · watchm@163.com<br>
+    产品已真实落地 · 完整自主知识产权 · 软著材料齐备</p>
+  </div>
+</div><div class="foot"><span>CRM-AI-Native</span><span>融资需求 · 10/10</span></div></section>
+
+</body>
+</html>
