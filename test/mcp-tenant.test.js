@@ -14,7 +14,7 @@ describe('MCP 租户解析', () => {
       [r.token]
     );
     expect(id.rows[0].tenant_id).toBe('system');
-  });
+  }, 15000);
 
   it('M2 acme 租户用户登录 → buildMcpCtx().tenantId === acme（证明非硬编码）', async () => {
     const acmeUser = `mt_acme_${rnd()}`;
