@@ -26,15 +26,15 @@ beforeAll(async () => {
   await seedContextProfiles();
 });
 
-// ===== T1: DB 种子（role_context_profile 表 + 5 行 + 七要素七键）===== [需 PG]
+// ===== T1: DB 种子（role_context_profile 表 + 8 行 + 七要素七键）===== [需 PG]
 describe('context DB 种子', () => {
-  test('role_context_profile 表存在且 6 行（含 contract-admin）', async () => {
+  test('role_context_profile 表存在且 8 行（含 sysadmin/ten_admin，2026-09-04 扩容后）', async () => {
     const r = await query(`SELECT count(*)::int AS n FROM crm.role_context_profile`);
-    expect(r.rows[0].n).toBe(6);
+    expect(r.rows[0].n).toBe(8);
   });
   test('每角色七要素七键齐备', async () => {
     const r = await query(`SELECT role_tag, seven_elements FROM crm.role_context_profile`);
-    expect(r.rows).toHaveLength(6);
+    expect(r.rows).toHaveLength(8);
     const keys = ['core_focus', 'default_query_pref', 'l2c_workflow', 'kpi_baseline', 'cross_role_collab', 'permission_boundary', 'role_subtype'];
     for (const row of r.rows) for (const k of keys) expect(row.seven_elements[k]).toBeDefined();
   });
@@ -50,10 +50,10 @@ describe('roleProfiles', () => {
   test('loadProfile 未知角色返回 null', async () => {
     expect(await loadProfile('ghost')).toBeNull();
   });
-  test('seedProfiles 幂等返回 6', async () => {
+  test('seedProfiles 幂等返回 8', async () => {
     const n = await seedProfiles();
-    expect(n).toBe(6);
-    expect(await seedProfiles()).toBe(6);
+    expect(n).toBe(8);
+    expect(await seedProfiles()).toBe(8);
   });
 });
 
