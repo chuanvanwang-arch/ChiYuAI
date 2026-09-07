@@ -82,7 +82,7 @@ function validateRegister(body = {}) {
   if (body.phone && typeof body.phone === 'string' && /^\d{6,}$/.test(body.phone.trim())) {
     n.phone = body.phone.trim();
   }
-  // 推荐者（选填）：新租户注册须为 sysadmin；存在租户加入可不填
+  // 推荐者（选填）：新租户未填默认 sysadmin；填写则须为 sysadmin 角色；存在租户加入可不填
   if (body.referrer && typeof body.referrer === 'string' && body.referrer.trim()) {
     n.referrer = body.referrer.trim();
   }
@@ -104,15 +104,13 @@ export async function registerUser(body = {}) {
   const ex = await query(`SELECT tenant_id, status FROM crm.tenants WHERE tenant_id=$1`, [slug]);
   const isNew = !ex.rows.length || (ex.rows[0].status !== 'active');
 
-  // 新租户：须有推荐者(sysadmin)，否则拒绝（防越权建租户）
+  // 新租户：推荐者选填（2026-09-07）：未填默认 sysadmin（平台托管责任推荐人）；填写则须为 sysadmin 角色
   let createdBy = null;
   if (isNew) {
-    if (!referrer) {
-      return { ok: false, status: 400, error: '新租户注册须填写推荐者（须为 sysadmin 角色）' };
-    }
-    const ref = await resolveSysadminRef(referrer);
+    const referrerId = referrer || 'sysadmin';   // 选填默认：平台 sysadmin
+    const ref = await resolveSysadminRef(referrerId);
     if (!ref) {
-      return { ok: false, status: 400, error: '推荐者不存在或不具备 sysadmin 角色' };
+      return { ok: false, status: 400, error: `推荐者 ${referrerId} 不存在或不具备 sysadmin 角色` };
     }
     createdBy = { user_id: ref.user_id, username: ref.username };
   }
