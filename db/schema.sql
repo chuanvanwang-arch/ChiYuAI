@@ -914,3 +914,13 @@ ALTER TABLE crm.token_accounting
   ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'system';
 CREATE INDEX IF NOT EXISTS idx_crm_token_accounting_tenant
   ON crm.token_accounting(tenant_id, created_at);
+
+-- ============ 客户去重审计表（2026-09-08，docs/plans/2026-09-07-crm-dedup.md 任务4）============
+-- 存量批处理 dedup-backfill.mjs 的运行报告落库（高置信归并/低置信清单/错误），供审计追溯
+CREATE TABLE IF NOT EXISTS crm.dedup_audit (
+  id         BIGSERIAL PRIMARY KEY,
+  tenant_id  TEXT NOT NULL DEFAULT 'system',
+  report     JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dedup_audit_tenant ON crm.dedup_audit(tenant_id, created_at);
