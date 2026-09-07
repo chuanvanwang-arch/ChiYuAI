@@ -33,7 +33,7 @@ const CASES = [
   { id: 'llm', type: 'form', probe: null },                   // config_store 可能未配置（PUT 后才有）
   { id: 'rbac', type: 'form', probe: null },
   { id: 'seven-dim', type: 'form', probe: null },
-  { id: 'approval-flows', type: 'form', probe: null },
+  // 'approval-flows' 已退役（2026-09-07 方案 1，见 docs/2026-09-07-approval-flow-legacy-retire-design.md）
   { id: 'alert-rules', type: 'form', probe: null },
   { id: 'mcp-identities', type: 'form', probe: null },
   // 批3（函数/内存驱动 5 面）
