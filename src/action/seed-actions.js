@@ -19,6 +19,9 @@ import { evaluateBehaviorChecklist } from '../sales/behaviorChecklist.js';
 import { mergedThresholds, readThreshold, deriveRhythmDays } from '../sales/salesThresholds.js';
 import { reopenDeal } from '../sales/reopenDeal.js';
 import { mergedTargets } from '../sales/namedAccountTargets.js';
+import {
+  detectAccountDuplicate, mergeIntoExisting,
+} from '../particles/dedup.js'; // 2026-09-08 客户去重创建闸（docs/plans/2026-09-07-crm-dedup.md 任务2）
 
 // 商机推进决策沉淀铁律（2026-09-02）：crm-deal-advance 的 last_decision_id 必须 updateParticle 写回，
 //   单纯改内存对象不落库 = 决策断链（审计/决策网络无法从商机追溯决策）。同型缺陷排查：任何
@@ -89,20 +92,37 @@ export function seedActions() {
       required: ['type', 'payload'],
       properties: { type: { type: 'string', candidateSource: 'particle_type_enum' } },
     },
-    handler: async ({ type, payload }, ctx) => createParticle(type, payload, {
-      tenantId: ctx.tenantId,
-      // 2026-08-31 根因修复：CRM_ACCOUNT 写路径强约束 named_owner（AI 写账户无主→看板不可见修复）
-      // actor 兜底：ctx.actor 非空且非 'system' 时自动补 named_owner/owner_id/owner
-      actor: ctx.actor,
-      // enforceNamedOwner 由 routes.js POST /api/particles 的第 0 闸语义决定：
-      //  对话式入口 + 非 bootstrap → true（强制要求 AI 提供 named_owner）；其余放行
-      enforceNamedOwner: ctx.enforceNamedOwner === true,
-      // 待办②(2026-09-03) 深度防御：业务写透传第0闸 mint 的 decision_id（undefined→软强制不触发，向后兼容）
-      requireDecisionId: ctx.decision_id,
-      // §5 防复发（account-misbind）：CRM_DEAL 走账户归属守护；bootstrap/seed 通道豁免
-      // （演示账户绑印通等历史数据经 bootstrap 写入，不强制名称一致校验）
-      accountGuard: type === 'CRM_DEAL' && ctx.bootstrap !== true,
-    }),
+    handler: async ({ type, payload }, ctx) => {
+      // 【去重创建闸】CRM_ACCOUNT 前置查重（2026-09-08，bootstrap/seed 豁免，等同 accountGuard 范式）
+      // 设计：docs/plans/2026-09-07-crm-dedup.md 任务2
+      if (type === 'CRM_ACCOUNT' && ctx.bootstrap !== true) {
+        const dup = await detectAccountDuplicate(payload?.name, payload?.industry, ctx.tenantId)
+          .catch(() => ({ decision: 'CREATE' }));
+        if (dup?.decision === 'MERGE' && dup.candidateId) {
+          // 静默归并：字段级并入已有账户，不新建（根绝重复）
+          const merged = await mergeIntoExisting(dup.candidateId, payload, ctx.tenantId, ctx.actor);
+          return { ok: true, merged: true, particle: merged, decision_basis: 'AUTO_MERGE_DUPLICATE' };
+        }
+        if (dup?.decision === 'PROMPT' && dup.candidateId) {
+          // 低置信：仍创建，标 possible_duplicate_of 供前端提示（不静默归并）
+          payload = { ...payload, possible_duplicate_of: dup.candidateId };
+        }
+      }
+      return createParticle(type, payload, {
+        tenantId: ctx.tenantId,
+        // 2026-08-31 根因修复：CRM_ACCOUNT 写路径强约束 named_owner（AI 写账户无主→看板不可见修复）
+        // actor 兜底：ctx.actor 非空且非 'system' 时自动补 named_owner/owner_id/owner
+        actor: ctx.actor,
+        // enforceNamedOwner 由 routes.js POST /api/particles 的第 0 闸语义决定：
+        //  对话式入口 + 非 bootstrap → true（强制要求 AI 提供 named_owner）；其余放行
+        enforceNamedOwner: ctx.enforceNamedOwner === true,
+        // 待办②(2026-09-03) 深度防御：业务写透传第0闸 mint 的 decision_id（undefined→软强制不触发，向后兼容）
+        requireDecisionId: ctx.decision_id,
+        // §5 防复发（account-misbind）：CRM_DEAL 走账户归属守护；bootstrap/seed 通道豁免
+        // （演示账户绑印通等历史数据经 bootstrap 写入，不强制名称一致校验）
+        accountGuard: type === 'CRM_DEAL' && ctx.bootstrap !== true,
+      });
+    },
   });
   registerAction({
     name: 'data-particle-read', kind: 'read', permission: 'auth',
