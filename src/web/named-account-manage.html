@@ -109,7 +109,7 @@
           const due = r.visitDue ? new Date(r.visitDue).toLocaleDateString('zh-CN') : '—';
           const od = r.overdueDays != null && r.overdueDays > 0 ? r.overdueDays + '天' : '—';
           const st = r.alert === 'red' ? '<span class="warn">🔴 逾期</span>' : r.alert === 'yellow' ? '<span class="warn">🟡 临近</span>' : '<span class="pass">✅ 达标</span>';
-          return `<tr class="row"><td><a href="/account-360.html?id=${esc(r.id)}">${esc(r.name)}</a></td>
+          return `<tr class="row"><td><a href="/account-360.html?id=${esc(r.id)}">${esc(r.name)}</a>${r.possibleDuplicate ? '<span class="warn" title="疑似重复客户，请人工核对"> ⚠️疑似重复</span>' : ''}</td>
             <td>${esc(r.owner)}</td><td><span class="tier">${esc(r.tier)}</span></td>
             <td>${target}</td><td>${r.visits30 ?? 0}</td><td>${due}</td><td>${od}</td><td>${st}</td>${showTenantCol ? tenantCell(r.tenant_id, tenantNameMap) : ''}</tr>`;
         }).join('')}</tbody>

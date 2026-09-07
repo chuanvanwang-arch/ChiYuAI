@@ -53,6 +53,9 @@ export function accountRow(account, deals, contracts, targetsCfg = {}, contacts 
       ? (() => { const t = lastVisitAtOf(pp); return t ? Math.floor((Date.now() - t) / 86400000) : null; })()
       : null),
     behavior,
+    // 去重低置信提示（2026-09-08，docs/plans/2026-09-07-crm-dedup.md 任务5b）：
+    // 创建闸标 possible_duplicate_of 的账户行 → 前端高亮「疑似重复」，供人工核对
+    possibleDuplicate: p.possible_duplicate_of || null,
   };
 }
 

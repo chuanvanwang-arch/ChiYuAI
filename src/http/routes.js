@@ -1390,6 +1390,12 @@ export function createRoutes(app, hub) {
       const profileHint = (!p.industry && !p.region && !p.owner)
         ? '该客户画像缺失（行业/区域/负责人均未填）。建议指派负责人并补全工商信息，七维完整度将自动提升。'
         : null;
+      // 去重低置信提示（2026-09-08，docs/plans/2026-09-07-crm-dedup.md 任务5a）：
+      // 创建闸标 possible_duplicate_of 的账户 → 高亮提示人工核对（不静默归并）
+      const dupHint = p.possible_duplicate_of
+        ? `⚠️ 疑似重复客户（低置信）：本客户与 <a href="/account-360.html?id=${encodeURIComponent(p.possible_duplicate_of)}">${p.possible_duplicate_of}</a> 名称相似，请人工核对后决定是否归并。`
+        : null;
+      const finalProfileHint = dupHint || profileHint;
       // S13：目标达标数据面（config_store['named-account-targets'] + payload.tier + visit_notes 窗口过滤）
       // 注意：config_store 可能为空 → mergedTargets 铺底（DEFAULTS 三档），否则 tierOf 在 [] 上 find 崩
       const targetsCfg = mergedTargets(await readTenantConfig('named-account-targets', me));
@@ -1428,7 +1434,7 @@ export function createRoutes(app, hub) {
         },
       };
       const rendered = renderPage(S06_SCHEMA, data);
-      res.json({ schema: S06_SCHEMA, data, html: rendered.html, warnings: rendered.warnings, accountId: account.id, profileHint });
+      res.json({ schema: S06_SCHEMA, data, html: rendered.html, warnings: rendered.warnings, accountId: account.id, profileHint: finalProfileHint });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
