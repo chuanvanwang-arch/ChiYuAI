@@ -287,10 +287,6 @@
   function escAttr(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
   // 与 landing.html 对齐：卡片主价 = seat_unit_price，副标题 = quote，划线 = original_price，角标 = tag_text
-  function fmtMoney(n) {
-    const v = Number(n);
-    return Number.isFinite(v) ? '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '—';
-  }
   function seatPriceText(p) {
     const sp = Number(p.seat_unit_price);
     if (!Number.isFinite(sp)) return '售前联系';
