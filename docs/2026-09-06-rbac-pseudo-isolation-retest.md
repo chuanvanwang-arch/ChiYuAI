@@ -30,9 +30,11 @@ CREATE TABLE IF NOT EXISTS crm.business_tier_config (
 
 ---
 
-## §2 approval_flow —— 仍为平台级伪隔离（RESIDUAL，需单独设计）
+## §2 approval_flow —— 结论修正（2026-09-07）：运行时已隔离，残留仅为遗留表 + 死托管页
 
-**DDL 事实源**（`db/migrate-config.sql:48-56`）：
+> **⚠️ 本节原结论「仍为平台级伪隔离」系误判，已修正**（2026-09-07）：误将遗留表 `crm.approval_flow` 当作运行时存储。真相：**审批流真源自 2026-08-31 方案 A 起已迁移 `CRM_APPROVAL_*` 粒子**（含 `tenant_id`，`getFlowByDomainWithFallback` 懒克隆 system 模板），租户差异化审批路径已支持（生产 5 租户各 4 流独立，acme-chem 定制流分叉实证）。
+
+**遗留表事实**（`db/migrate-config.sql:48-56`）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS crm.approval_flow (
@@ -46,20 +48,16 @@ CREATE TABLE IF NOT EXISTS crm.approval_flow (
 );
 ```
 
-判定：
-- **无 `tenant_id` 列**；主键 `flow_id` 为全局唯一 → 所有租户共享同一审批流定义集。
-- 读端点（approvalFlow router）按租户过滤、写端点落 `system`，但数据无法分租户存储 → 租户无法定义差异化审批路径（审批流拓扑全平台一致）。
-- 与设计 `id17` `scope:'tenant'` 标签**矛盾**：标签声明租户级，实际为平台级共享。
+修正后判定：
+- 该表**零写路径**（全 src/ 无 INSERT/UPDATE/DELETE），2026-08-31 起降级只读兼容，**非运行时存储**。
+- 唯一只读消费 = `controlledConfigPages.js` 的 `/api/page/approval-flows` 托管页，且**无任何前端调用（死代码）**。
+- 原「读端点按租户过滤、写端点落 system」描述的是**旧表直连时代**的历史行为，现读写均走粒子层。
+- id17 标签已按方案 α 校正（`configCenter.js:30` `scope:'platform', resolve:'system-only'`，2026-09-06 完成），与「平台级共享模板 + 租户粒子分叉」架构一致。
 
-与本次 RBAC 修复的关系：
-- 本次 F1 租户写闸（`enforceScope` tenant 分支）作用于**粒子写通道**（DEAL/ACCOUNT/CONTRACT 等），**不触及 approval_flow 表**（approval_flow 非 scoped 粒子，经专用 router 直连 DB）。
-- 故 approval_flow 伪隔离**不在本次代码 pass 范围**，列为独立 follow-up。
-
-结论：**OPEN（RESIDUAL）**。建议单独成设计，决策点：
-- 方案 α：维持平台级模板（所有租户共用同一审批流拓扑，符合「平台治理基线」定位），将 `configCenter.js` id17 `scope` 改为 `'platform'` 使标签与事实一致；
-- 方案 β：加 `tenant_id` 列 + 复合 PK，支持租户覆写（与 business_tier 同构），写端点改落租户。
-
-> 本结论不预置代码改动；标签校正（id17 scope 平台级化）属轻量清理，可在用户拍板方案 α 后随 F6 收口提交。
+结论：**RESOLVED（2026-09-07 方案 1 退役收口）**。收口动作（`docs/2026-09-07-approval-flow-legacy-retire-design.md`）：
+- 删除死托管页条目 + 失效 S22_SCHEMA import；`approvalFlowRender.js` 过时注释修正；
+- `migrate-config.sql` 表 DDL 标注 DEPRECATED（禁 DELETE 铁律，表保留只读兼容、不 DROP）；
+- 守卫测试 `test/http/approvalFlowLegacyGuard.test.js` 断言 src/** 无该表 SQL 消费，防重新接线。
 
 ---
 
@@ -81,10 +79,10 @@ CREATE TABLE IF NOT EXISTS crm.approval_flow (
 | 项 | 历史状态 | 当前 DDL 事实 | 结论 | 是否本次代码范围 |
 |---|---|---|---|---|
 | business_tier_config 隔离 | 伪隔离（全租户共享） | `tenant_id` + 复合 PK（schema.sql:248） | **已真实隔离（RESOLVED）** | 否（历史已收敛） |
-| approval_flow 隔离 | 伪隔离（无 tenant_id） | 无 `tenant_id`，全局 PK（migrate-config.sql:48） | **仍平台级（RESIDUAL）** | 否（独立 follow-up） |
+| approval_flow 隔离 | 疑似伪隔离（无 tenant_id） | 真源=CRM_APPROVAL_* 粒子（租户懒克隆）；表已 DEPRECATED 零写路径 | **已隔离（RESOLVED，2026-09-07 方案 1 退役收口）** | 否（遗留物已退役） |
 | id35/36/39/44 标签 | level/system vs scope/tenant 漂移 | ADMIN-only 访问 + 按租户存储 | **标签语义澄清（非缺陷）** | 否（可选注释） |
 
 **对审计设计（docs/2026-09-06-rbac-audit-design.md）的输入**：
 - F6 中「business_tier 伪隔离」已不存在 → 审计设计可标记为 RESOLVED。
-- F6 中「approval_flow 伪隔离」升级为独立 OPEN 项 → 审计设计的监控/后续项需单列跟踪。
+- F6 中「approval_flow 伪隔离」**已收口（2026-09-07 方案 1）** → 遗留表退役 + 死托管页删除 + 守卫测试；审计设计可标记 RESOLVED。
 - id35/36/39/44 不影响权限正确性 → 不计入越权面。
