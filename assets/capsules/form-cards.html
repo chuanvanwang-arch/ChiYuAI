@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="xYNN6Gz57Pe6RVlk2fthB9">
+<head data-page-node-id="9hA2FKiAXmYM0UY3khN9OI">
+<meta charset="utf-8" data-page-node-id="iqN0dIPXoTkKADJ6D5GAQs">
+<title>场景胶囊填写卡片 · CRM 销售智能工作台</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#fff; --line:#e5e7eb; --text:#1f2328; --muted:#6b7280;
+    --accent:#2563eb; --accent-soft:#eff6ff; --ok:#059669;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:28px;background:var(--bg);color:var(--text);
+    font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+  h1{font-size:20px;margin:0 0 6px}
+  .lead{color:var(--muted);margin:0 0 18px;font-size:13px}
+  .notice{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 14px;margin:0 0 22px;font-size:13px;color:#9a3412}
+  .notice b{color:#7c2d12}
+  h2.mode{font-size:16px;margin:26px 0 12px;padding-left:10px;border-left:3px solid var(--accent)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .card header{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
+  .ico{width:40px;height:40px;flex:0 0 40px}
+  .card h3{margin:0;font-size:15px}
+  .sub{margin:2px 0 0;color:var(--muted);font-size:12px}
+  .dl{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--accent);
+    border-radius:6px;padding:4px 10px}
+  .dl:hover{background:var(--accent-soft)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:12px}
+  .f{margin-bottom:10px}
+  .fhead{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+  .flabel{font-size:12px;color:var(--muted)}
+  .cnt{font-size:11px;color:var(--muted);background:#f3f4f6;border-radius:4px;padding:1px 6px}
+  .fbody{display:flex;gap:8px;align-items:flex-start}
+  .val{flex:1;background:#f9fafb;border:1px solid var(--line);border-radius:6px;padding:7px 10px;
+    word-break:break-word;white-space:pre-wrap}
+  .val.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+  .val.multi{max-height:190px;overflow:auto;font-size:13px}
+  .val.tags{background:#f9fafb}
+  code{background:#eef2ff;color:#3730a3;border-radius:4px;padding:1px 6px;font-size:12px;margin-right:4px;display:inline-block}
+  .copy{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 12px;
+    font-size:12px;cursor:pointer;color:var(--text)}
+  .copy:hover{border-color:var(--accent);color:var(--accent)}
+  .copy.done{border-color:var(--ok);color:var(--ok);background:#ecfdf5}
+  .sub-head{font-size:12px;color:var(--muted);margin:14px 0 8px;padding-top:10px;border-top:1px dashed var(--line)}
+  .muted{color:var(--muted);font-weight:400}
+  @media (max-width:820px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body data-page-node-id="B6EVA5HsG88XZUF2IaJP5F">
+<h1 data-page-node-id="tSb4U17pPFgwH4ZguHokJN">场景胶囊填写卡片</h1>
+<p class="lead" data-page-node-id="RjzFQFIAkk6j15d3HlgJcM">
+  应用 ID <code data-page-node-id="excWGleukYlPZaNkcbZWfs">cb_FOxvB7l9dSOVv4ziL408</code>　|　共 3 个工作模式 / 14 个胶囊。
+  字段顺序与开放平台表单一致，点「复制」后到页面粘贴即可。
+</p>
+<div class="notice" data-page-node-id="96ExCnqLbrkrI8YoJVb2Zk">
+  <b data-page-node-id="7HRnmfMsMaNKXvjF9IkMHC">技能未上架的处理：</b><code data-page-node-id="v1NgU71JgKK3rb0Euj8b17">connector/skills/</code> 的 16 个技能尚未在平台上架，「绑定技能」下拉可能选不到。
+  已把每个技能承载的方法论内核<b data-page-node-id="p8cRwdxmNWYZtTdhw2cVXY">内联进「系统提示词」末尾的【方法论内核】段</b>——即使技能留空，胶囊能力也不降级。
+  等技能上架后再补绑即可。
+</div>
+
+    <h2 class="mode" data-page-node-id="2lvgN9b7lcCmtvp2FEOlf3">销售坐席 <span class="muted" data-page-node-id="6HqzPFRAcQbDJwGFnRza1C">（5 个胶囊 · 默认模式）</span></h2>
+    
+      <section class="card" id="cap-sales-1" data-page-node-id="pgtuXj47fWmkgxgV6uTlhX">
+        <header data-page-node-id="cy1nJqBguVgbHbdbH6kfhk">
+          <img class="ico" src="./customer-360.svg" alt="客户360" data-page-node-id="HN7ZfG9RGAxsLIA4zLAwNc">
+          <div data-page-node-id="oUb6toQl7ODTBfEVAYKQSE">
+            <h3 data-page-node-id="AjIcLn42HZLduInxRvh29W">销售坐席 · 客户360</h3>
+            <p class="sub" data-page-node-id="uraOnrGVvDgLL8EjbJ3ybS">Customer 360　|　图标文件：<code data-page-node-id="pFOUQGGkhtFpeb2dF9cglL">customer-360.svg</code></p>
+          </div>
+          <a class="dl" href="./customer-360.svg" download="customer-360.svg" data-page-node-id="y7Usrxft5dz9Y9u0VRH7SL">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="z8CWYg4bYXntGieC1Ek1ib">
+          
+    <div class="f" data-page-node-id="Q1ftylweTrJO0RkYFISkCK">
+      <div class="fhead" data-page-node-id="tGrmEHFz3naq7SSjFjQCU3"><span class="flabel" data-page-node-id="CbxkcMqS2nk9Gh4FRd90GY">场景胶囊名称</span><span class="cnt" data-page-node-id="icuAcEceihwWEDeZLyeLJB">5/8</span></div>
+      <div class="fbody" data-page-node-id="7doVjakCp9gWxCpJUAZK7f">
+        <div class="val" data-page-node-id="L1cSDCcOiikBOdx56u8SNZ">客户360</div>
+        <button class="copy" data-copy="客户360" data-page-node-id="40emxYMqFJvrT7PcDAm5mk">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="WCd3EpDiB2hqe65tlLXrEP">
+      <div class="fhead" data-page-node-id="fG6poLsAfBGtiObmtNAXeR"><span class="flabel" data-page-node-id="qdkthHkmHFOCRg8lhvnVPg">英文名称 *</span><span class="cnt" data-page-node-id="eqRBZPGGfnzYDX2hMyi5NU">12/30</span></div>
+      <div class="fbody" data-page-node-id="YdLc5q2sDDCVn3uH0xS0oh">
+        <div class="val" data-page-node-id="LExWIESrQGwfxwmY4jA7sz">Customer 360</div>
+        <button class="copy" data-copy="Customer 360" data-page-node-id="FhAIWV2cGaEaKkcoG7Yu7v">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="kslQF6EHh8N8rgRsmeyrWl">
+            <div class="fhead" data-page-node-id="6ooFnMu0Vn936Rc8pWn9q7"><span class="flabel" data-page-node-id="K6zfAF8KHVULaEnF9e2A8R">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="EMGEheZ6598VgpebujXYOC"><div class="val" data-page-node-id="0tk3lwBdM5RNgQ16S9edLG">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="5DP9EpIlj57k7nAxB45y2s">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="VX1MCanAT6yVo5zcdw5jfq">
+            <div class="fhead" data-page-node-id="jlO6202G0eSq9k4gf0iJDE"><span class="flabel" data-page-node-id="yNk4Izd1LMXzy7wRrJAU1E">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="yBuAGsTk636vL44zisAGSk"><div class="val tags" data-page-node-id="A5qHk6MYKvkmpC6V5CF9jY"><code data-page-node-id="nOqZeLj8BmS9HBZTkBMGyD">crm-native</code> <code data-page-node-id="w6Fa9XV0bxlPcMFRy8zgpB">crm-query</code> <code data-page-node-id="dMoIl1wodV8cg2T8P3hIV4">method-role-map</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="gApkPooUoRX1bBH9B8HZpm">
+      <div class="fhead" data-page-node-id="2xSEqWj3kp4LTYHRrKh7j3"><span class="flabel" data-page-node-id="3f6S2IKwdRA7j9hlNHxTsE">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="DFMJblFSlq1SM0WZ5pwzH9">
+        <div class="val multi" data-page-node-id="kMYwUkDnvUnl9uyoatDN4u">检索该客户的粒子图，输出：基础档案 + 关键联系人（角色/立场）+ 决策链拓扑 + 在跟商机与阶段 + 近 90 天互动与承诺。区分事实（有记录可验证）与话术（口头承诺），话术须标注来源与日期。只读，不触发写闸。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【角色地图】识别决策链四类角色：决策者（拍板）、影响者（左右）、使用者（实际用）、利益相关方（受影响）。标注各自立场（支持 / 中立 / 反对）与影响力权重；缺失关键角色即判高风险。</div>
+        <button class="copy" data-copy="检索该客户的粒子图，输出：基础档案 + 关键联系人（角色/立场）+ 决策链拓扑 + 在跟商机与阶段 + 近 90 天互动与承诺。区分事实（有记录可验证）与话术（口头承诺），话术须标注来源与日期。只读，不触发写闸。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【角色地图】识别决策链四类角色：决策者（拍板）、影响者（左右）、使用者（实际用）、利益相关方（受影响）。标注各自立场（支持 / 中立 / 反对）与影响力权重；缺失关键角色即判高风险。" data-page-node-id="NE7BiCO0AR1T21do0nmAjo">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="fdtmkufSS3og7shUhyxTUq">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="nsE08t0ApgtGM5HkU7TXBV">
+          <div class="fhead" data-page-node-id="eXehyfIMfzUuf4jWNZNrU6"><span class="flabel" data-page-node-id="N4AGonb88oxrE6hLZ5Dwea">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="LtV4ujpFr7qgRzrH7PlpFv">
+            <div class="val multi" data-page-node-id="PSknaqOe8IMTQWTtlrANGt">查看客户 XX 制造的 360 视图，列出决策链、关键人与在跟商机</div>
+            <button class="copy" data-copy="查看客户 XX 制造的 360 视图，列出决策链、关键人与在跟商机" data-page-node-id="G6WMs1mdtDDKBgLZ3pMzGM">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="XoOl8LnMmHCKEZ6FYb5QOG">
+          <div class="fhead" data-page-node-id="g9eXc5UXD0o7OMwRtuqFAC"><span class="flabel" data-page-node-id="hmjqh3t45R9RCgfsPP9kZf">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="fJFFYwIW2E9NpmBy9BpFn7">
+            <div class="val multi" data-page-node-id="MbcwF2u1jj0RbxgydcxrEw">帮我梳理 M 涂料科技的决策链：谁支持、谁反对、谁有否决权</div>
+            <button class="copy" data-copy="帮我梳理 M 涂料科技的决策链：谁支持、谁反对、谁有否决权" data-page-node-id="n1bWPxwWiPl6LtNNDi4QHc">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="CxQtnzpwzFMi8XS4RY7Aty">
+          <div class="fhead" data-page-node-id="3qrPG3acyynFBfkXZpYUSN"><span class="flabel" data-page-node-id="XihVX0EGlLGYsVOYOZY6BH">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="uTLh7fquzebxDnieuc52hI">
+            <div class="val multi" data-page-node-id="sRYMLqfOBikPpojOT2btRF">对比我名下三个重点客户的推进状态，指出最需要补人的一家</div>
+            <button class="copy" data-copy="对比我名下三个重点客户的推进状态，指出最需要补人的一家" data-page-node-id="Gj8tfhUZZfgE9dRqedG4Kj">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="eTWBZsPSDzPzI1dqslBwxm">
+          <div class="fhead" data-page-node-id="oei3BnVB7tA50cA84KfZPW"><span class="flabel" data-page-node-id="o5b4TomDaOz2A0NVlZ77ZI">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="wc310dDFufBebpQqQXBK7N"><div class="val tags" data-page-node-id="QsGWkQI2GDFe55h4E7So6B"><code data-page-node-id="JaKourCAjIWdBA0y0mzqPE">决策链缺失即高风险</code> <code data-page-node-id="zw1eRYY9or0UMhED8EAuEE">事实 vs 话术：口头承诺不算承诺</code> <code data-page-node-id="lauQqToedpdIso9Be6qxDT">B 新能源口头预算教训</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-sales-2" data-page-node-id="Hog1GrItIeg85ba71y9YPQ">
+        <header data-page-node-id="EY5gSF0Ru8WQiqTeoSLYUA">
+          <img class="ico" src="./deal-progression.svg" alt="商机推进" data-page-node-id="nWmhWUqHmSXCjGRZDpaAc4">
+          <div data-page-node-id="7v8GOEDCAuNABV9Bq3oMeu">
+            <h3 data-page-node-id="BPu6T82ltZAhZB3J2ImQfd">销售坐席 · 商机推进</h3>
+            <p class="sub" data-page-node-id="d6FdUD5NOANPBVAIBtkfak">Deal Progression　|　图标文件：<code data-page-node-id="UqIdjNoX2Yo6d1NiZO8CBP">deal-progression.svg</code></p>
+          </div>
+          <a class="dl" href="./deal-progression.svg" download="deal-progression.svg" data-page-node-id="QFbN9b3kLl5iYbycqvg2Bn">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="jCdlMESd3WsuZbWdtYHQjc">
+          
+    <div class="f" data-page-node-id="4sMm0VSfCNXF0SNKgmEsnX">
+      <div class="fhead" data-page-node-id="vFgD5whIImEi2vGQ2JsvyV"><span class="flabel" data-page-node-id="0FJChyBtj72LqQJDLPMFv1">场景胶囊名称</span><span class="cnt" data-page-node-id="1EyoTUC79Un0hpwzNEU7sp">4/8</span></div>
+      <div class="fbody" data-page-node-id="Q0KlDdIY32JusenJq05vvo">
+        <div class="val" data-page-node-id="YGQCNDku1ubG6R9RAPaBBD">商机推进</div>
+        <button class="copy" data-copy="商机推进" data-page-node-id="5jQmGVgmAoEhNNiLteNJUZ">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="qOC41HB34qIyJYJRyxhX5F">
+      <div class="fhead" data-page-node-id="GtGwd2zXc1xBF4jgUEp3x7"><span class="flabel" data-page-node-id="w12t0HmffuCdATVhuM5z9O">英文名称 *</span><span class="cnt" data-page-node-id="KzlNYCXkFHeHamI4CEz746">16/30</span></div>
+      <div class="fbody" data-page-node-id="7MFVIM1hW6P6rpSrifOAgi">
+        <div class="val" data-page-node-id="DZ4AwmsikFg4J1k0lDFfil">Deal Progression</div>
+        <button class="copy" data-copy="Deal Progression" data-page-node-id="duTmiwvkBzdhcKgycn3B7P">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="4kK2pqGBNvecYyt3CjFnBD">
+            <div class="fhead" data-page-node-id="aSVXGHuxusu9gvX3rn8foq"><span class="flabel" data-page-node-id="d0X8dv1oNw9cBNKu3kNDuB">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="Nwyxu0ySTFkHRkCKV0LpxE"><div class="val" data-page-node-id="kACAuq3FZIQ2pg90EB2kmq">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="IodjGWfKGdDRGcSLEjPFAt">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="fVlVZVpUyOs4Oe7U1kzxrn">
+            <div class="fhead" data-page-node-id="WFwpgpjTT10Ysps4mrT7Uu"><span class="flabel" data-page-node-id="tyRSMBQIfow6hOnIBGHl7b">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="5Es7ZhbpFPGKTp22ZQP7en"><div class="val tags" data-page-node-id="duCeh3MHGH8QuWqDiOEWUp"><code data-page-node-id="YIKRXiMcHGn4la9Gdfokq4">crm-native</code> <code data-page-node-id="eFNTvBCcoFwBetALvQDY4R">method-stage-progression</code> <code data-page-node-id="q7vWLMa5Btqu5g5ezY9kdk">method-bant</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="5kyxcFOjEPZno2KFpqMbwv">
+      <div class="fhead" data-page-node-id="PptXJWajZwNkTxasyVuC3y"><span class="flabel" data-page-node-id="kG7DxftD08NaYJcGYbHtba">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="US66Z1HnDZ6usATT2zYjF4">
+        <div class="val multi" data-page-node-id="gr5NWeqjvP1oEgXzCEGeq9">按 S1-S6 三列判定（客户行为/拜访目的/输单条件）给出当前阶段与推进条件清单。先用 BANT 四维逐项体检，缺任一硬维度（预算/权限/需求/时间线）明确禁止升级阶段，并给出补齐动作。推进属写操作，须先展示变更内容并获显式确认。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【阶段推进】S1-S6 按客户行为三列判定（客户已做 / 已确认 / 已承诺），不采信销售主观判断。每阶段列出缺失行为作为推进条件。
+【BANT】逐项评估 Budget 预算 / Authority 权限 / Need 需求 / Timeline 时间线四维。缺任一硬维度禁止升级阶段，先补维度再谈推进。</div>
+        <button class="copy" data-copy="按 S1-S6 三列判定（客户行为/拜访目的/输单条件）给出当前阶段与推进条件清单。先用 BANT 四维逐项体检，缺任一硬维度（预算/权限/需求/时间线）明确禁止升级阶段，并给出补齐动作。推进属写操作，须先展示变更内容并获显式确认。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【阶段推进】S1-S6 按客户行为三列判定（客户已做 / 已确认 / 已承诺），不采信销售主观判断。每阶段列出缺失行为作为推进条件。
+【BANT】逐项评估 Budget 预算 / Authority 权限 / Need 需求 / Timeline 时间线四维。缺任一硬维度禁止升级阶段，先补维度再谈推进。" data-page-node-id="9GhHkPxpR0uP7tqLqKduFY">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="QY2J4x0wdGSYDQ6Y5ao5tL">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="WOBrYazE4jq4eowArpLTf5">
+          <div class="fhead" data-page-node-id="GlIO07G7Mt8DCrepiq2WaE"><span class="flabel" data-page-node-id="DzjGlMOqwAxWqkRYgEVUbH">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="BZJ21F4sNKQW69HEhEqTMu">
+            <div class="val multi" data-page-node-id="GOOnaHkYh1vFQyA43CpYbR">评估商机 OP-2026-04012 当前阶段是否满足推进条件，缺什么、下一步做什么</div>
+            <button class="copy" data-copy="评估商机 OP-2026-04012 当前阶段是否满足推进条件，缺什么、下一步做什么" data-page-node-id="b3YFmiSvIkKGiXFxfj8tzW">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="WsWNmgZ2Hv1QchNaXCa14K">
+          <div class="fhead" data-page-node-id="tPZrTbyJv2mUtslBbw2w4o"><span class="flabel" data-page-node-id="0lVFNrTAI5GW7W8SWqvcSN">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="LNjp09jyh1qrFuxdtUV7w6">
+            <div class="val multi" data-page-node-id="bCFBQDWG16Wn8eAEyBQT4z">用 BANT 逐项体检这个商机，标出未满足的硬维度</div>
+            <button class="copy" data-copy="用 BANT 逐项体检这个商机，标出未满足的硬维度" data-page-node-id="JXcD9lspim11nOCE97E8f0">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="Fy5Qj1LimNGYOChYlEc7oI">
+          <div class="fhead" data-page-node-id="tvdSPSN3nOPGK5OnmDH8eb"><span class="flabel" data-page-node-id="bEg8E1ZNfGogJpBArOYuES">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="rXm2fcEYSEbiEq0axTj5lW">
+            <div class="val multi" data-page-node-id="KbzPClW2UDLmqbazW0h8CR">列出我名下可推进到下一阶段的商机及各自前置条件</div>
+            <button class="copy" data-copy="列出我名下可推进到下一阶段的商机及各自前置条件" data-page-node-id="njiN5V6VXDtwtTpIdsovXQ">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="wNIFVhHcXsaeMRHTEuE2IN">
+          <div class="fhead" data-page-node-id="eNB0roBWDRq1cXhmv4OQvI"><span class="flabel" data-page-node-id="7k5w0uXvSHi0gWYB52FqC7">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="tKvAooC6D71WjkKWaXxJil"><div class="val tags" data-page-node-id="fE6tzpd6S7hR9FMsyfoW5a"><code data-page-node-id="mj5TKBSW37Y4OpbE7MeliV">BANT 四维速判</code> <code data-page-node-id="gIDjkgduNIexmkSQP3GNlE">阶段推进前置检查</code> <code data-page-node-id="BNeLTypHTNUbHwNt1CMOCH">缺预算不升级</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-sales-3" data-page-node-id="FenBu6JSFOexTDCAULmXG8">
+        <header data-page-node-id="vlIP9wW4jQN8ZZhk5S4Wes">
+          <img class="ico" src="./quote-generation.svg" alt="生成报价" data-page-node-id="byKtkbQoYdU8TnJE9B2D3B">
+          <div data-page-node-id="8CpYM4Fa686yYday2L2Dp8">
+            <h3 data-page-node-id="XSoUA3BHgLeGGU3Wz9pQve">销售坐席 · 生成报价</h3>
+            <p class="sub" data-page-node-id="En7OwZBEME23CiSD9Gh15R">Quote Generation　|　图标文件：<code data-page-node-id="laIIvt47OBClVGkED424TR">quote-generation.svg</code></p>
+          </div>
+          <a class="dl" href="./quote-generation.svg" download="quote-generation.svg" data-page-node-id="GTDDuHUablyQlFHdCLHQIT">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="PdyjVlv4jPYmPozwikWJuy">
+          
+    <div class="f" data-page-node-id="aoZ1BNJD7WTAfb8ETgvkw8">
+      <div class="fhead" data-page-node-id="TqxuMZUpaoPd4aXJtOuXTZ"><span class="flabel" data-page-node-id="jpqhZsOAmMeWNEto3vUZFa">场景胶囊名称</span><span class="cnt" data-page-node-id="d4hAwdAyfoMNvzsIm9yRlF">4/8</span></div>
+      <div class="fbody" data-page-node-id="vhmUnLIF84htnZ3cwZQjhC">
+        <div class="val" data-page-node-id="MBIfu0n03qvpYWRINAxrPF">生成报价</div>
+        <button class="copy" data-copy="生成报价" data-page-node-id="9QhxtiE3dVqBMPnXfrN2VJ">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="scWImb5CCqy0CqMeyvyiv2">
+      <div class="fhead" data-page-node-id="Sw7pRFICvDZiBXRNSqjZKe"><span class="flabel" data-page-node-id="hxGiqY1bWPpDHnuC3oCA51">英文名称 *</span><span class="cnt" data-page-node-id="1hxzUrIztXdecfsGNRpCfj">16/30</span></div>
+      <div class="fbody" data-page-node-id="XX7zAbRARQv6POfyvjEc4i">
+        <div class="val" data-page-node-id="PWL4oLVmJAHLAKPhJntAXu">Quote Generation</div>
+        <button class="copy" data-copy="Quote Generation" data-page-node-id="hPAowRhcaoWwldl3CsLmHB">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="V2psd6WEbu4YzLIdVP1TFV">
+            <div class="fhead" data-page-node-id="9ePG2n79YVwp3EYlyb5HrA"><span class="flabel" data-page-node-id="CwMHLbJ95pWzKA2TNREuxO">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="7umJ2sUtBT8wO0EAERSpXQ"><div class="val" data-page-node-id="PjoD56gjB7vDagMcPFA5Xw">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="gv1hx5q3XsdON3Gyb14IGQ">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="A8R9O7r6x6let9Enb5dZJG">
+            <div class="fhead" data-page-node-id="BZHq1VXoWn6OHwc2mcZMgQ"><span class="flabel" data-page-node-id="OeCv2TGBm3yxH0xkRChjBV">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="5lgRqaQbfP0dj8OxGCyQgQ"><div class="val tags" data-page-node-id="AnHZoFW2MEYcPERgnW4SOB"><code data-page-node-id="FCLykrjyqKQqMs63lk9AnN">crm-native</code> <code data-page-node-id="HNHzpGBURpK6ijg5A7EjoW">crm-write</code> <code data-page-node-id="h31sJZnq9DnBqeIAEaGaGR">method-risk-tradeoff</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="mhZgyYBt1FVAQbFMmEpEsD">
+      <div class="fhead" data-page-node-id="RLvZ31ZUtQxycAfYFm0w2o"><span class="flabel" data-page-node-id="airDoN4MBzNOt9lnpw5wRn">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="A3L3niDPEJFSlQu2Z3DK0G">
+        <div class="val multi" data-page-node-id="nZWiIwOfocPTwC3IR9UpaG">生成报价须先取价目与折扣基线；无基线时明确告知“无报价基线”并转审批。标注折扣率、与基线偏差、是否触碰红线；超权限折扣一律走 CRM_APPROVAL_FLOW 并带 decision_id。写入走两阶段（取表单→确认→执行→验证）。红线：严禁输出仅供线下使用的私下报价，必须提醒报价走系统流程。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【写入】两阶段：先完整展示待写入内容与影响范围，获得用户显式确认后才落库；写操作必经决策第 0 闸与 HITL；绝对禁止删除，只能停用或归档。
+【风险权衡】量化风险与收益比；触碰红线（合规问题、超权限、无书面批文）一票否决；有可行缓解措施才可推进，且缓解措施须写进结论。</div>
+        <button class="copy" data-copy="生成报价须先取价目与折扣基线；无基线时明确告知“无报价基线”并转审批。标注折扣率、与基线偏差、是否触碰红线；超权限折扣一律走 CRM_APPROVAL_FLOW 并带 decision_id。写入走两阶段（取表单→确认→执行→验证）。红线：严禁输出仅供线下使用的私下报价，必须提醒报价走系统流程。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【写入】两阶段：先完整展示待写入内容与影响范围，获得用户显式确认后才落库；写操作必经决策第 0 闸与 HITL；绝对禁止删除，只能停用或归档。
+【风险权衡】量化风险与收益比；触碰红线（合规问题、超权限、无书面批文）一票否决；有可行缓解措施才可推进，且缓解措施须写进结论。" data-page-node-id="SHgU7uGSGZPmd4YGzndFl4">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="Zakr6DEc7TZBEqWvnVn37X">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="UTvsTbj2xQZ6OUeNxQ0FaP">
+          <div class="fhead" data-page-node-id="09r84kddHfebB9QAjxBB3Q"><span class="flabel" data-page-node-id="O6fRaNnGOsNtmQ4sR45l6h">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="EEd6eekx8BNWj4n1DDeHEZ">
+            <div class="val multi" data-page-node-id="rcJeixNoMCE4eSOV8KTkso">为 XX 制造生成一份报价，标注折扣率与是否需要走价格审批</div>
+            <button class="copy" data-copy="为 XX 制造生成一份报价，标注折扣率与是否需要走价格审批" data-page-node-id="qmhDAKEvA4yFRlFECQbLrC">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="j5g8aTO4kKcUhFKEpPXm6F">
+          <div class="fhead" data-page-node-id="IdDeCVyKqsRkgMi7Eq4p09"><span class="flabel" data-page-node-id="e84F5SpbcWGxFaQBsLheNJ">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="d3GqbGLUtfBVcKZH4H5RA6">
+            <div class="val multi" data-page-node-id="nmhqRvXO0P1qQcONjr2CL4">客户要求 8 折再叠加 10%，算最终折扣并判定是否超我的权限</div>
+            <button class="copy" data-copy="客户要求 8 折再叠加 10%，算最终折扣并判定是否超我的权限" data-page-node-id="SMdB6NPB7mqWibrIPktmvQ">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="HGbzhFUMNF71FPHzAJrtcv">
+          <div class="fhead" data-page-node-id="BTAHQmIxIVkCmsR1KPZeWj"><span class="flabel" data-page-node-id="XoXNQ6ASKYScOT8FA9tVRG">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="FjC8yBpt05IE3jZy4Lv3Ao">
+            <div class="val multi" data-page-node-id="AuSrK0gPE0DOjbOnDiOoGP">对比历史成交价，评估这个报价的毛利与风险</div>
+            <button class="copy" data-copy="对比历史成交价，评估这个报价的毛利与风险" data-page-node-id="6SIRatJpgow6gYzvNUPZOM">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="HPZ8AZW759dxMavldv82zy">
+          <div class="fhead" data-page-node-id="PO0dybCKcAEI6LQpxyQGAv"><span class="flabel" data-page-node-id="LvXf40KTDe57jNNOdlZTLx">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="Z9dKtN39iPhivDaJ6mxocf"><div class="val tags" data-page-node-id="CIRLlh9m5fbthgBvJ9d2in"><code data-page-node-id="pndyA1SLzDoeF6Ehtpfwqn">报价审批红线</code> <code data-page-node-id="SvxczcnrvEhDgdFI97A5Ed">折扣超权限必转审批</code> <code data-page-node-id="1cUNGkREC3KhWCEc9gKSH9">off-system 报价红线</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-sales-4" data-page-node-id="FQId8x3bLbDjGU35YKjDQM">
+        <header data-page-node-id="LYww9R7g82xuDbBHLnW9Z5">
+          <img class="ico" src="./daily-followup.svg" alt="今日跟进" data-page-node-id="T7KPlRVBGSp5oYETBqAsVD">
+          <div data-page-node-id="hHkMOXcGijHJU7a872wIho">
+            <h3 data-page-node-id="VfVLpxts7Uf6Lz5PcbbtxC">销售坐席 · 今日跟进</h3>
+            <p class="sub" data-page-node-id="75602FnHfN79gUJjuiHNvf">Daily Follow-up　|　图标文件：<code data-page-node-id="QbhmbBHRsQxLRCQRHv1vTo">daily-followup.svg</code></p>
+          </div>
+          <a class="dl" href="./daily-followup.svg" download="daily-followup.svg" data-page-node-id="qTEk4swHBvzcqyWDWmEqie">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="n3VgSuQhoFIGnm9Ka2snRj">
+          
+    <div class="f" data-page-node-id="I5CJ6liFq9USOKJd2zeqzN">
+      <div class="fhead" data-page-node-id="JrkQ2Q5L5j8b1TLQd0kJBU"><span class="flabel" data-page-node-id="qdK1R8QUcNiAGuVsYjkSps">场景胶囊名称</span><span class="cnt" data-page-node-id="g47FbCWFO0ZNjCGA3tOfIW">4/8</span></div>
+      <div class="fbody" data-page-node-id="kmgvivVj74WmYECJiCtk4X">
+        <div class="val" data-page-node-id="eoCqnHUc5o3Vyw3PobYiBW">今日跟进</div>
+        <button class="copy" data-copy="今日跟进" data-page-node-id="6JXLVvvRuDIBH3N84iDQiE">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="lF8LYYAW7gMXPFaUUqrBZc">
+      <div class="fhead" data-page-node-id="n57Lx89GkuyZRk3YTZZ0oo"><span class="flabel" data-page-node-id="YurBT5d1QmLHjHU3rTDylR">英文名称 *</span><span class="cnt" data-page-node-id="2wvfMtQr3px44SavrBRGg7">15/30</span></div>
+      <div class="fbody" data-page-node-id="sKy81OYFm96AMHztZYxJP6">
+        <div class="val" data-page-node-id="GVxeN9RNwV1G9VBzbt0Vqa">Daily Follow-up</div>
+        <button class="copy" data-copy="Daily Follow-up" data-page-node-id="pg3F6Uo2BJhgdP4WcNPFbk">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="aS6Q2rSj5GNqd10QAH0Fh5">
+            <div class="fhead" data-page-node-id="DB9Ul31hiju5bFB5ZKdYWE"><span class="flabel" data-page-node-id="yNJvhPIhO1GfaotCZ9ptla">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="mXs3cQCdYDNrfRdODEOCz3"><div class="val" data-page-node-id="KdahzZdwZaFarBu1Bv09ya">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="pDOhIgAEpQV3J6pB1tl6Gf">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="8dIqJh61C66t6fINL5RwOn">
+            <div class="fhead" data-page-node-id="mRC6pmVNRy6REY5pt5oI9A"><span class="flabel" data-page-node-id="TwNQEXbg7GjkN7fbDhN0mN">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="8njqcO1heGRHHO0ezFPXUq"><div class="val tags" data-page-node-id="EKiKAMZ5GlE6jSxRqPWWTo"><code data-page-node-id="9gZEpdBTqtZPj8Pmb6sPeo">crm-native</code> <code data-page-node-id="HT32ibNd4oedjf5jO6iLvS">crm-query</code> <code data-page-node-id="rrm5iIP9VHjDxYJX12sw0Q">method-behavior-standard</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="HIhlnQyTAdY5Cz8rxRgKSd">
+      <div class="fhead" data-page-node-id="CYdRl9aSBTEZgTY2LqwG3T"><span class="flabel" data-page-node-id="w4NOyhlQcdln1Gx9X8zEqh">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="eGFqHEcpKw772BVIueAoMY">
+        <div class="val multi" data-page-node-id="z8Ptw4WCS6bENF3KWMdHtz">汇总今日/本周待跟进客户与商机，按紧急度排序（临近决策、承诺到期、长期静默）。每条给出：跟进对象、上次承诺、本次目的、建议动作要点。拜访记录须符合 TAORAN 六要素，缺要素提示补齐。只读为主，写入须确认。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【行为标准】21 条合格线（BH-01~07 有/无检查）+ TAORAN 六要素拜访记录：时间、地点、人物、议题、结论、下一步。</div>
+        <button class="copy" data-copy="汇总今日/本周待跟进客户与商机，按紧急度排序（临近决策、承诺到期、长期静默）。每条给出：跟进对象、上次承诺、本次目的、建议动作要点。拜访记录须符合 TAORAN 六要素，缺要素提示补齐。只读为主，写入须确认。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【行为标准】21 条合格线（BH-01~07 有/无检查）+ TAORAN 六要素拜访记录：时间、地点、人物、议题、结论、下一步。" data-page-node-id="3HPTeHxHlqFp6trRAPCurJ">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="3KZ9FDiMQCnXicMhPsWVBK">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="i3JpdCkLkiFd0zCOALzdWB">
+          <div class="fhead" data-page-node-id="0Vkvtil7xKYpKxeuw0v6G1"><span class="flabel" data-page-node-id="K6gb9WOxhs23Q8BRrTGaFf">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="IwYGa8s4pN3k04tlEr17gE">
+            <div class="val multi" data-page-node-id="ZF9VNHrUR7t5pUwFdja0Rc">列出我今天待跟进的客户与商机，按紧急度排序并给出跟进要点</div>
+            <button class="copy" data-copy="列出我今天待跟进的客户与商机，按紧急度排序并给出跟进要点" data-page-node-id="jVpsvJAMYzfaGXSPBWFnTF">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="6Yu5I5a7vamM4D7ENnCU3Z">
+          <div class="fhead" data-page-node-id="l1iEApAFFJ8P1NY9LoSwaL"><span class="flabel" data-page-node-id="REPQECYRH4DbD9etkFZxNi">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="Zcy5lBKXof2KTGjHzr15kQ">
+            <div class="val multi" data-page-node-id="xtd81DT7FmD0S2hxHeVLXF">帮我写一条符合 TAORAN 六要素的拜访记录（客户：M 涂料科技）</div>
+            <button class="copy" data-copy="帮我写一条符合 TAORAN 六要素的拜访记录（客户：M 涂料科技）" data-page-node-id="31qoA6X8GhHASqq5DpyFvk">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="2AbVj36lHHpmmDuBWT5Zdn">
+          <div class="fhead" data-page-node-id="Z9mn2j1qPkbxAJgEcl2hbL"><span class="flabel" data-page-node-id="y2DF1pZ3pgW19xWgiPxVnk">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="BCrP7Hd9F1OyM0FqquToLG">
+            <div class="val multi" data-page-node-id="qNCHlaHdevhzwk4O9bkG6L">检查我本周拜访记录，标出缺要素或话术化的条目</div>
+            <button class="copy" data-copy="检查我本周拜访记录，标出缺要素或话术化的条目" data-page-node-id="fAfC8DNTZoaT57uzK6JeAC">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="GH09q7rkP5ahLkkimHu1zG">
+          <div class="fhead" data-page-node-id="dCCy7McZP3wHHWpqsg5M6b"><span class="flabel" data-page-node-id="ihLDXER0YjEbjhSXSCVYWe">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="Mrr2M7EYSXzlnrWvQ4GsGq"><div class="val tags" data-page-node-id="LMSyo619bNF0IaVndV6GiU"><code data-page-node-id="S73prmBaZWcKmCCnQtvE5y">TAORAN 六要素</code> <code data-page-node-id="jvVbsHMkEXnpcAkUBlNMKG">承诺到期优先</code> <code data-page-node-id="GGu7dH6JwR4P8MfEYDe3wb">行为合格线 21 条</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-sales-5" data-page-node-id="d9cZ9VO66YPZgHTSCA27AU">
+        <header data-page-node-id="7OIL6kiwZUSiHYCRZAPtla">
+          <img class="ico" src="./risk-alert.svg" alt="风险预警" data-page-node-id="WNCXTpOZEcDwOtfhBIojgO">
+          <div data-page-node-id="mnpjYhO1tiePrqZzgQg611">
+            <h3 data-page-node-id="OVHCRXr1NHKAqAPhMQbbOk">销售坐席 · 风险预警</h3>
+            <p class="sub" data-page-node-id="IK3vAtUnyR7MOTTTVhoqNI">Risk Alert　|　图标文件：<code data-page-node-id="3kntz8QkQSMsOJ5oWHSm05">risk-alert.svg</code></p>
+          </div>
+          <a class="dl" href="./risk-alert.svg" download="risk-alert.svg" data-page-node-id="4VqbCdxrFPIdme4t6qjyyg">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="a2xupn3hB9CeKZMGStfTS6">
+          
+    <div class="f" data-page-node-id="wuqRgj4Iw003zIZaKoAAXZ">
+      <div class="fhead" data-page-node-id="K9LzibLj2djzEFLjOMqApT"><span class="flabel" data-page-node-id="D5ng6kCus6TUkeZJOmhHJZ">场景胶囊名称</span><span class="cnt" data-page-node-id="cXdEwNxiNs4imTGxZID6ei">4/8</span></div>
+      <div class="fbody" data-page-node-id="TDzQCSBLgTIuViqWt4Z038">
+        <div class="val" data-page-node-id="hfDN6XdYAT3BnqE6xIFD5Z">风险预警</div>
+        <button class="copy" data-copy="风险预警" data-page-node-id="Rx5yvPSxJMKV4KBqlGmSAC">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="trvHiazZXD12IIY7Kyeqek">
+      <div class="fhead" data-page-node-id="mhgK4DKqlLdzqAu3mW6OTv"><span class="flabel" data-page-node-id="JOKmE3ae2I69RaYxaiszJj">英文名称 *</span><span class="cnt" data-page-node-id="IkqIS3ZU0Gq8AJOBqxFNW5">10/30</span></div>
+      <div class="fbody" data-page-node-id="XnCwgIBDg2hWpMVMvWefNc">
+        <div class="val" data-page-node-id="25PR5qKekGDRFefFPEGX1S">Risk Alert</div>
+        <button class="copy" data-copy="Risk Alert" data-page-node-id="NLQkvNoXPzcWlY49YRQ9TB">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="t1l999CtopUa3W0IzaCZCl">
+            <div class="fhead" data-page-node-id="IIqjVTVjf3oa65eD2R1AOR"><span class="flabel" data-page-node-id="6HHtH0wupGGayPXcRT9MKb">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="Z6L7WLDuBQwCNZVeE7Efb6"><div class="val" data-page-node-id="9Jasg1dBpvuaBmjEE1nA9B">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="NCGlCHRnpchwB58XLIeAzY">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="klAByMtxmCRU9lWZIKNYOb">
+            <div class="fhead" data-page-node-id="RvbYbDM7DijyEZhenEAQcc"><span class="flabel" data-page-node-id="0XUdexxevJcZNlbbOCRuTT">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="Yd8y9SCnaPqDqjW3nkMrrc"><div class="val tags" data-page-node-id="sH8SYVTel0G2F2Un2eUzop"><code data-page-node-id="wDIaVd6uSDvklrBkjzuYOg">crm-native</code> <code data-page-node-id="lyrF1h6rVO43ThG7zDDG2M">crm-risk</code> <code data-page-node-id="nEAvWW15YGZilnQyUr2WkW">method-stop-loss</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="BUJaomSeeOYyxRumPeCIcT">
+      <div class="fhead" data-page-node-id="CmxAimtDQrxLAM2dUvePju"><span class="flabel" data-page-node-id="vHIwt8iK3YHEJA5reM1v7h">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="dLCOAAeU1bDTqXSMF5EEIn">
+        <div class="val multi" data-page-node-id="Zg69EVUQ8Na5d4J2bIt9qp">扫描名下商机，检出：链断裂（商机→技术方案超 30 天无方案/赢单前无方案）、回款逾期、阶段只进不退异常、预算未落实。每条给出风险等级、依据（时间/数据）、止损建议（投入预算/退出门）。触碰红线一票否决。只告警不代执行。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【风险探测】常驻检查四类异常：商机到技术方案超 30 天、赢单前无方案、回款逾期、阶段倒挂。命中即预警并给出止损建议。
+【止损点】预设三条退出线：负净值、投入预算上限、退出门条件。触发即建议退出并说明沉没成本，防止被已投入绑架。</div>
+        <button class="copy" data-copy="扫描名下商机，检出：链断裂（商机→技术方案超 30 天无方案/赢单前无方案）、回款逾期、阶段只进不退异常、预算未落实。每条给出风险等级、依据（时间/数据）、止损建议（投入预算/退出门）。触碰红线一票否决。只告警不代执行。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【风险探测】常驻检查四类异常：商机到技术方案超 30 天、赢单前无方案、回款逾期、阶段倒挂。命中即预警并给出止损建议。
+【止损点】预设三条退出线：负净值、投入预算上限、退出门条件。触发即建议退出并说明沉没成本，防止被已投入绑架。" data-page-node-id="bGIi053DaiMSyHPibXIsRl">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="y89E7nidY1VeoDezpSZDI0">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="ggxSHn8GFuv931sbDTcip1">
+          <div class="fhead" data-page-node-id="fi9IGJC1BQHr3gElFXpqXw"><span class="flabel" data-page-node-id="tQBZRHzkGTFr87G0T7PP8x">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="QynhTkEntBxhcZ1UQQ6UUR">
+            <div class="val multi" data-page-node-id="c5rAIbnBxQt20QKIDUgZS0">扫描我名下商机，标出停滞、预算未落实、决策链缺失的高风险项</div>
+            <button class="copy" data-copy="扫描我名下商机，标出停滞、预算未落实、决策链缺失的高风险项" data-page-node-id="e0lyqNw0uCEfoSNWHbIw6M">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="BW5ZPoTqdgE9wb4FhZS47I">
+          <div class="fhead" data-page-node-id="W8kDZkhyWHRuBWq4033so6"><span class="flabel" data-page-node-id="UVxgL3WGODRZ1UBUyNrqXD">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="e6LPpEGumfhNJm7I9wqIRG">
+            <div class="val multi" data-page-node-id="NmxrShsBFERrgMYLGfroVj">哪些商机已触发链断裂预警？给出依据和建议动作</div>
+            <button class="copy" data-copy="哪些商机已触发链断裂预警？给出依据和建议动作" data-page-node-id="t8p4WW8AFCw7jT7QUYjWFH">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="SDHhOYwpg09shlJzBcoHpP">
+          <div class="fhead" data-page-node-id="k71iqTWJEsO3IuSzSBriNs"><span class="flabel" data-page-node-id="yTpdIoJ7gd97L10yLNsrZp">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="PcdF7MesdzFZcThF9jVvHD">
+            <div class="val multi" data-page-node-id="SEuGWKDB1XfPA7IOqij8fR">给这个持续投入未见进展的商机设一个止损点</div>
+            <button class="copy" data-copy="给这个持续投入未见进展的商机设一个止损点" data-page-node-id="bHNy8T0s2qKCG5VvujEPdc">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="BHPCBDBi2P4Em4YtfixVZm">
+          <div class="fhead" data-page-node-id="JVMXlKKyyZm5TCLvMyp9w6"><span class="flabel" data-page-node-id="vWHK3Pd03VWatZ8jpr2tM4">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="TMKk6UOzcY1QbX1NGwlh1W"><div class="val tags" data-page-node-id="agwPMAU6GwxhzXIWfCxvb1"><code data-page-node-id="n3KGz76I7cI4iXPGXyofZ4">链断裂四类异常</code> <code data-page-node-id="HveuxxM7j2XQzKTxtnjDAV">止损点三要素</code> <code data-page-node-id="ONCeNEnylvmB8bezusw1Xk">沉没成本不绑架决策</code></div></div>
+        </div>
+      </section>
+    <h2 class="mode" data-page-node-id="OwmfY2DJTndMjXSVjjEdyr">销售管理 <span class="muted" data-page-node-id="wYRrHLPELW9s8s6ZpdE8aT">（5 个胶囊）</span></h2>
+    
+      <section class="card" id="cap-manager-1" data-page-node-id="He1oZXh2JEMgRaCD3Eksj3">
+        <header data-page-node-id="6STxanm93A7h0T1iSqENMF">
+          <img class="ico" src="./pipeline-board.svg" alt="管道看板" data-page-node-id="lbGIhQtCzYZw3vcZhDpJfN">
+          <div data-page-node-id="cnI7qGf5yFiAZ1hqOcnMc9">
+            <h3 data-page-node-id="0YMFKaFcoNIkIaeNZX1zFT">销售管理 · 管道看板</h3>
+            <p class="sub" data-page-node-id="tRlhDRXOb6QQUGFfeDegLk">Pipeline Board　|　图标文件：<code data-page-node-id="N4LXGaYBPR1db6f70vraMB">pipeline-board.svg</code></p>
+          </div>
+          <a class="dl" href="./pipeline-board.svg" download="pipeline-board.svg" data-page-node-id="BbdhbxjBfLXVBbfCTDJpCg">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="yMH6Smedug7rEI0kQZo7Dc">
+          
+    <div class="f" data-page-node-id="GGcmHhTBAwXDlyiCV5xZOs">
+      <div class="fhead" data-page-node-id="V3WXZPMABEfzCphPcSUiOH"><span class="flabel" data-page-node-id="zTu9t8EfMKoaiEjjsBX5XF">场景胶囊名称</span><span class="cnt" data-page-node-id="ieIhOx1Y5GNb3BvMDANuLo">4/8</span></div>
+      <div class="fbody" data-page-node-id="LAACjpf4wGnXwKE4vEfgc1">
+        <div class="val" data-page-node-id="VPv8d5fdOWpa7aQw6bBCuG">管道看板</div>
+        <button class="copy" data-copy="管道看板" data-page-node-id="lzvTdFO2bcTr8eMnG8RS0U">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="zbkKDEuaJNsl3crvUuYENA">
+      <div class="fhead" data-page-node-id="HcmuuQ4wOLajV3uFBg8CTX"><span class="flabel" data-page-node-id="bxKkzFEilVV0UCCF1CeOD0">英文名称 *</span><span class="cnt" data-page-node-id="sRzobqMsCnZwyATYOryVx5">14/30</span></div>
+      <div class="fbody" data-page-node-id="Whn8PTkdKyVcBK10HjFS1A">
+        <div class="val" data-page-node-id="djGU2gDaRWOvQT72PjjD67">Pipeline Board</div>
+        <button class="copy" data-copy="Pipeline Board" data-page-node-id="xTeRxOuG3Wa0iG8E2lyi5X">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="7w2rvb8THZ468CirQtBCME">
+            <div class="fhead" data-page-node-id="dLyMvcruBVK92hW8AFscCW"><span class="flabel" data-page-node-id="RkpLpaDgICogLcb3hLIABw">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="44FzNZDuBvbEbuNfV2CUwJ"><div class="val" data-page-node-id="eY0nBIgLZmoawNX0nJi9f3">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="zvLGs2tCmLGFhQcWrbnfSB">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="ByzjG0a2yuwd8zGHS4TGOp">
+            <div class="fhead" data-page-node-id="ycIbJMTcBGXUXioDJ0h7GL"><span class="flabel" data-page-node-id="Ojf37OxCbTdRk5o1SSOCg7">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="yG2dCoHRClsqgsZjICBqzN"><div class="val tags" data-page-node-id="88ddaqDFIx3lWCduV6G2mh"><code data-page-node-id="acZ8cHiNe8RoDURjmae6Bt">crm-native</code> <code data-page-node-id="YUVrkBCG5AiVgnVyExuCGO">crm-query</code> <code data-page-node-id="NF1Hj1Ns2cDjNhJtE4TSsd">method-funnel-classification</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="GDfYcAjvCArt5ExDYNDtRz">
+      <div class="fhead" data-page-node-id="WQLskUpgCFay2kwh8we2lx"><span class="flabel" data-page-node-id="NzxXqLhmYACNN0KUSubROG">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="YeNlRbd2hzvnsdFOWQAyJk">
+        <div class="val multi" data-page-node-id="fdDSGvYYrgbTUZkKGxPVm2">按 S1-S6 统计管道分布：金额、笔数、加权预测、环比变化、平均停留时长。必须声明统计口径与时间范围、样本量；同时给出客户分档（商机/目标/潜力）构成。不下无数据的判断。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。</div>
+        <button class="copy" data-copy="按 S1-S6 统计管道分布：金额、笔数、加权预测、环比变化、平均停留时长。必须声明统计口径与时间范围、样本量；同时给出客户分档（商机/目标/潜力）构成。不下无数据的判断。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。" data-page-node-id="GpLxBnwyH65HauM81CXdkO">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="QOOe2kP4b4heTH0bLJwff8">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="MjuWB9RoeeeIVD08Y6bAtF">
+          <div class="fhead" data-page-node-id="P0ZIx6Zx5f56lccSvkwWHL"><span class="flabel" data-page-node-id="h5Hz7ON6ENeteOKAyqWIDy">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="MiXyznAHcnr8GL1oUj8zJE">
+            <div class="val multi" data-page-node-id="jOiJJ8uBdy2tFevMRnPtGo">按 S1-S6 统计本季度管道分布，标出金额、笔数与环比变化</div>
+            <button class="copy" data-copy="按 S1-S6 统计本季度管道分布，标出金额、笔数与环比变化" data-page-node-id="AbH9QqCKd0tZVxghwNHtIV">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="ZgprFDrRpzAopILYetu4I1">
+          <div class="fhead" data-page-node-id="XGcvFl2YvnoMErCRFTW6GE"><span class="flabel" data-page-node-id="fktOLRbTHGHIeHK9P9aDtI">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="ukU0hXXLCczrijbN2dHVq5">
+            <div class="val multi" data-page-node-id="Lt7fOSvTrk68AqmrlMKJQV">列出停留超过阈值的商机及卡在哪个阶段</div>
+            <button class="copy" data-copy="列出停留超过阈值的商机及卡在哪个阶段" data-page-node-id="VhFLOKaQud0UAShs3mPdZL">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="VkRKK7IqTvYlwgfESHtK5K">
+          <div class="fhead" data-page-node-id="TotR8CeLL0ccgQZurRof7P"><span class="flabel" data-page-node-id="LsNR0zhS4EFf18ADVTDi32">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="0LuL4DgPwEtO2tIOuVbXDX">
+            <div class="val multi" data-page-node-id="iPzR2hFy8OjTFHcpnMG6R4">对比上月，本季度管道净增/净减来自哪些商机</div>
+            <button class="copy" data-copy="对比上月，本季度管道净增/净减来自哪些商机" data-page-node-id="zjhn10YqKDvy1tTwjlF1jt">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="DDPQ26lWgEmSbeOQR25xmO">
+          <div class="fhead" data-page-node-id="dZMKgQbh7O40KFnj6z2qBH"><span class="flabel" data-page-node-id="V18EofJa7jk21rDPGC7Ga5">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="crcQODp6htm7HE5Bn8b5cJ"><div class="val tags" data-page-node-id="Huh47yrqOeFiz7LBuDq249"><code data-page-node-id="6mAWQo6ivAkDlZACre8bbo">加权预测口径</code> <code data-page-node-id="OPNDSyDqGxgDESCzysYCbW">阶段停留时长</code> <code data-page-node-id="ABdnktilEq95iO8HgEMzGm">客户分档四象限</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-manager-2" data-page-node-id="6fe86TUMoP3Em9IBQp1Kw4">
+        <header data-page-node-id="QGTNyHRjuFflJMdRqGN8nn">
+          <img class="ico" src="./funnel-diagnosis.svg" alt="漏斗诊断" data-page-node-id="AEtfjabnPnC0z8FFCJHnZ3">
+          <div data-page-node-id="7CwfUZqapwKePOXag0iQqh">
+            <h3 data-page-node-id="zn4gOiPq7T7Sgl77TCui7x">销售管理 · 漏斗诊断</h3>
+            <p class="sub" data-page-node-id="iN84NX0EEijDgQ60Oa2zhv">Funnel Diagnosis　|　图标文件：<code data-page-node-id="VaJYrGjvTaFJrBXBYT4q3s">funnel-diagnosis.svg</code></p>
+          </div>
+          <a class="dl" href="./funnel-diagnosis.svg" download="funnel-diagnosis.svg" data-page-node-id="2mJVbdiVpAyMQWmUedaeXX">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="UYd80u2lGxYYhH2umkXxOH">
+          
+    <div class="f" data-page-node-id="xOTWbwZ0xWsvzE001k5Kol">
+      <div class="fhead" data-page-node-id="boLJs4WBxaMeObTzBbHIYD"><span class="flabel" data-page-node-id="u7Ne5YKvCl1QeFBJgLv7HV">场景胶囊名称</span><span class="cnt" data-page-node-id="Vym9UDbdfuv1veEkJs0hNQ">4/8</span></div>
+      <div class="fbody" data-page-node-id="rQWxjlGnZOtLn7FF2QYHPC">
+        <div class="val" data-page-node-id="cwe55STFDROL1yxymniCTH">漏斗诊断</div>
+        <button class="copy" data-copy="漏斗诊断" data-page-node-id="Y9hK8oXPFQAsJjS5YlAFem">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="8iYKekG1fxCvrNikCYHuXa">
+      <div class="fhead" data-page-node-id="17HtTfVDuDCreWsbPfZ5w1"><span class="flabel" data-page-node-id="mMtPu0azHCkeqK7Av1X36P">英文名称 *</span><span class="cnt" data-page-node-id="q2lznlCFGSTvj6HVAlGpkJ">16/30</span></div>
+      <div class="fbody" data-page-node-id="yKN498RBW83W0uhhxNqPeX">
+        <div class="val" data-page-node-id="34HL2fLIGJoZTH85VpmWrC">Funnel Diagnosis</div>
+        <button class="copy" data-copy="Funnel Diagnosis" data-page-node-id="hsbimWFtiGghtvDWZDXjbq">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="FjQfEUN7w8mmTjnmSwHTZi">
+            <div class="fhead" data-page-node-id="9c4Sl03MqaejEtOYRfBQC5"><span class="flabel" data-page-node-id="mhrpP3XGmkqjuH1DX0pg9d">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="y0C8YlmFJRnp3tXuj9djKO"><div class="val" data-page-node-id="oAFFfxRxwwC5DyEYB3I2qv">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="vnuI04ZoUBeLHNSJUVpE69">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="ZBo93cy4uUHMOBQD6b68HU">
+            <div class="fhead" data-page-node-id="67vvCo9Y6jbvNuDwHGYnAP"><span class="flabel" data-page-node-id="ZDbUFThbZr7BoOCbGz81bu">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="MqSfrIRlz8Wa0RkPmHIC92"><div class="val tags" data-page-node-id="9qvLPtHG596lpPTsjk1EmI"><code data-page-node-id="Gfi0Z97fMJZO9D01PDrhEs">crm-native</code> <code data-page-node-id="C2h0XlM1VABIR1KkbOGInq">method-funnel-classification</code> <code data-page-node-id="LBqECoLtzhO4rU3T4W8oPu">method-opportunity-matrix</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="HF67ObeAFeDvtQMLOTW086">
+      <div class="fhead" data-page-node-id="9Gf2HIwdi6zeGuqDmo7ybg"><span class="flabel" data-page-node-id="FDr4LJZfU0EEk5kD0Stm4n">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="nrHdty06BTq1Qeg6rOtp28">
+        <div class="val multi" data-page-node-id="BGIME2j5cjgAiY5bDIro62">计算各阶段转化率，定位瓶颈环节（转化率显著低于基线或停留时长异常）。用机会矩阵（商业价值×可行性×竞争定位）给出资源重配建议：高价值高可行优先投入，低价值低可行建议暂缓或淘汰。给出可执行动作而非泛泛建议。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。
+【机会矩阵】按商业价值 × 可行性 × 竞争定位三轴排序：高价值高可行主攻、高价值低可行培育、低价值高可行快打、低价值低可行暂缓。</div>
+        <button class="copy" data-copy="计算各阶段转化率，定位瓶颈环节（转化率显著低于基线或停留时长异常）。用机会矩阵（商业价值×可行性×竞争定位）给出资源重配建议：高价值高可行优先投入，低价值低可行建议暂缓或淘汰。给出可执行动作而非泛泛建议。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。
+【机会矩阵】按商业价值 × 可行性 × 竞争定位三轴排序：高价值高可行主攻、高价值低可行培育、低价值高可行快打、低价值低可行暂缓。" data-page-node-id="9wzac4EAiM14gbBB4TNADy">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="9ElpF6uWSHRHCxUAEV0MYK">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="RyvjGwLSlHoX2YRjoRpSny">
+          <div class="fhead" data-page-node-id="Hgh6j9hDhxTtw4NdoBSBwB"><span class="flabel" data-page-node-id="ffXtuXjBrALBCWDOTMNkgw">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="jpTBsLnkEOvnL7S4uynGY1">
+            <div class="val multi" data-page-node-id="tjIKvnpRgw4xhHwbc4nBdj">诊断当前销售漏斗卡点，给出各阶段转化率与最需要补的环节</div>
+            <button class="copy" data-copy="诊断当前销售漏斗卡点，给出各阶段转化率与最需要补的环节" data-page-node-id="mW5xfrHmO9bFSjrTHi1Lau">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="vbrcexfYHgHzf82WzhZLjm">
+          <div class="fhead" data-page-node-id="rSANjuO3RRxC4YOaE9v6vc"><span class="flabel" data-page-node-id="ki8E8SBEcevuTS2o8zQMez">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="WaYHaqvF6YJf8iLtB5SATu">
+            <div class="val multi" data-page-node-id="8tEnEHQ2AU3DVsT3bukt8S">用机会矩阵给我名下商机排序，指出该砍掉的</div>
+            <button class="copy" data-copy="用机会矩阵给我名下商机排序，指出该砍掉的" data-page-node-id="Anu1tnlyDgOmEiNOb8bsJ6">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="njHp5C7rSvPuHb1IulRPYd">
+          <div class="fhead" data-page-node-id="VsdKH92lP5VyxRCyA84EsS"><span class="flabel" data-page-node-id="Vs1Guuj3mczc7UKyPQ1223">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="uPT7PngDUF0YliLCouAC8I">
+            <div class="val multi" data-page-node-id="5P4xDvhMaeEFyRhMNgibcT">为什么这个阶段转化率偏低？给根因与整改动作</div>
+            <button class="copy" data-copy="为什么这个阶段转化率偏低？给根因与整改动作" data-page-node-id="4AvExEaXfUbKUxviWRRU60">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="AnDlFQH4BjPgsUifeKw872">
+          <div class="fhead" data-page-node-id="1AtaVcz2nf69l0UfkCNLnk"><span class="flabel" data-page-node-id="KpdBAHpGSo5ykA7VLMuWgd">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="zhsgSSRCe1yEpQ7srgGzpa"><div class="val tags" data-page-node-id="GfNd8BEdmhNYDAdBdfUbTe"><code data-page-node-id="aLG52daw0fETztXGWhICBX">转化率基线</code> <code data-page-node-id="pkjxugakygcRpWMVxJCxos">机会矩阵三要素</code> <code data-page-node-id="04gWg9TEIiAAyjFggE37zI">低价值低可行即止损</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-manager-3" data-page-node-id="OGfrGmZMKY3jrWiNj5GJRh">
+        <header data-page-node-id="N6fDj4sZFNwrQPQ5mCBxM5">
+          <img class="ico" src="./deal-retrospective.svg" alt="商机复盘" data-page-node-id="fYEhIuGLhCtDwoWbcjnhGH">
+          <div data-page-node-id="9dCaGM3NGChrfdwAMXObZ1">
+            <h3 data-page-node-id="0REdkOCsu5wvCzeNhIRQhE">销售管理 · 商机复盘</h3>
+            <p class="sub" data-page-node-id="szJ9eAuq2FHae8DxikVkGQ">Deal Retrospective　|　图标文件：<code data-page-node-id="l7thHh0uKAdOlJYG8Fdaeg">deal-retrospective.svg</code></p>
+          </div>
+          <a class="dl" href="./deal-retrospective.svg" download="deal-retrospective.svg" data-page-node-id="ApYseYnCmEmToOSlf5jN4S">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="RpQLtAn2XxuOhmTOPjUGpi">
+          
+    <div class="f" data-page-node-id="QOE8kNf3eTN0p112QMKqHJ">
+      <div class="fhead" data-page-node-id="tVtWAX2kRlxUS9kmTr2OIW"><span class="flabel" data-page-node-id="Jkr8KgXCQBwECXtHF8q2Gf">场景胶囊名称</span><span class="cnt" data-page-node-id="nn0aif096kEKRy2GeXrPG4">4/8</span></div>
+      <div class="fbody" data-page-node-id="caFlVh334xl9kjFnMhUbi0">
+        <div class="val" data-page-node-id="yMaw0wtMDIaRbYHdgZBfIS">商机复盘</div>
+        <button class="copy" data-copy="商机复盘" data-page-node-id="wVqTi2SB5A98iBHj5v2Fxf">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="T9d1rk00QkQVLRHbr79GMk">
+      <div class="fhead" data-page-node-id="VJfme28F6rbFupiJl1qFUp"><span class="flabel" data-page-node-id="lDjaQBMBd97amtrMaz7Coe">英文名称 *</span><span class="cnt" data-page-node-id="WB3stak654zhmfVOMf6gqD">18/30</span></div>
+      <div class="fbody" data-page-node-id="ACyZX6e2OILhpvQkQo5NW8">
+        <div class="val" data-page-node-id="fvbVSGL9Tbpxi9diz92muv">Deal Retrospective</div>
+        <button class="copy" data-copy="Deal Retrospective" data-page-node-id="iglSZpCkW9jc4vn53JkpIf">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="qVfeDFnksjXauTgX4hlwZX">
+            <div class="fhead" data-page-node-id="rVzblY7tOpb2Gz03JQP4NG"><span class="flabel" data-page-node-id="DAzcD7OBxaHlIBci7aIA2z">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="PqsQjkFIbLVrymImHeHVsx"><div class="val" data-page-node-id="cTqWWz2aotcAhWk4D523UC">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="uLXWKdUB39ohYIboWXTboy">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="xX9CEG8U2UrjAHihhfPoFB">
+            <div class="fhead" data-page-node-id="rv7zwfTBbgiB4Mv7zVgtup"><span class="flabel" data-page-node-id="HigGBkmYSYtGGd231Pv5Cl">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="Q8BrYVYQQdd7OhMI7FqhmZ"><div class="val tags" data-page-node-id="8o3iHf2NHe0TwKJMlpRhc2"><code data-page-node-id="H5TEZOADWCFQrhWDc1BzZ9">crm-native</code> <code data-page-node-id="UjFR4DcOcLOdVdNHW2VhIX">decision-retrospective</code> <code data-page-node-id="RseH1GfwE24tcWGVHHxzar">method-fact-vs-script</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="It48dMtUAhy7hdl3LBQQhY">
+      <div class="fhead" data-page-node-id="Fc9GtrBDV3mghTKqqzeeIn"><span class="flabel" data-page-node-id="5Ebc37w2LotzYv7sYEn0Rm">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="HfoiuKbFmW4H4BWstG5qNn">
+        <div class="val multi" data-page-node-id="Rwk46kS2hoKWLIEQl4VK89">对窗口内输单/停滞商机汇总根因分布、应连边缺失率、决策校验态。区分事实与话术：把口头承诺当作决策依据的条目单独标出。产出可复核的整改处方（draft_patches），不直接落库。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【决策复盘】按时间窗口统计决策质量：根因分布、应连边缺失率、结果校验态。产出可复核的整改处方，复盘时区分事实与话术。
+【事实 vs 话术】严格区分可验证证据（有记录 / 有文件 / 有第三方佐证）与口头表述。以事实为决策依据，话术仅作跟进线索，并标注来源与日期。</div>
+        <button class="copy" data-copy="对窗口内输单/停滞商机汇总根因分布、应连边缺失率、决策校验态。区分事实与话术：把口头承诺当作决策依据的条目单独标出。产出可复核的整改处方（draft_patches），不直接落库。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【决策复盘】按时间窗口统计决策质量：根因分布、应连边缺失率、结果校验态。产出可复核的整改处方，复盘时区分事实与话术。
+【事实 vs 话术】严格区分可验证证据（有记录 / 有文件 / 有第三方佐证）与口头表述。以事实为决策依据，话术仅作跟进线索，并标注来源与日期。" data-page-node-id="1BF4EDAzjD1MJFi7k3VskB">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="D46oDVCMT8bSoln4lYEmcN">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="PgtHi9GBEDb3bh65XPXufq">
+          <div class="fhead" data-page-node-id="U7effeA5F4hAFIUHGBWE84"><span class="flabel" data-page-node-id="ThilbwLw2ndcNYzQk1sbwZ">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="98ZhVZc4tKKc1S34xJBmkB">
+            <div class="val multi" data-page-node-id="FyKEbJAOprtxSu3RoMYuG1">对本季度丢失商机做复盘，归类根因并给出可执行的改进动作</div>
+            <button class="copy" data-copy="对本季度丢失商机做复盘，归类根因并给出可执行的改进动作" data-page-node-id="gD9BvwmHlDlhZG4Z8EYiNa">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="y2gnV6XLrh0UQsdWXu17HT">
+          <div class="fhead" data-page-node-id="UTC0jsCwz7HMJF1Evm0sWB"><span class="flabel" data-page-node-id="8GSAmVJYqNyeyjgfPNbfFw">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="mAArQtyWjoFxh8N93sbtvW">
+            <div class="val multi" data-page-node-id="dVIqpzznzcrKZrvhmBhnoe">这次输单是能力问题还是判断问题？用事实证据说明</div>
+            <button class="copy" data-copy="这次输单是能力问题还是判断问题？用事实证据说明" data-page-node-id="SzuvxRaDgD5qgSAlE2HW9T">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="1DmcnJPw789OXbCKk62xew">
+          <div class="fhead" data-page-node-id="9uVLkPWs4AbKZhIRwyqW4S"><span class="flabel" data-page-node-id="T70pN9SJVbuZLtAyaRMIAM">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="O20fvjT1xcyqnPrCo8fs5X">
+            <div class="val multi" data-page-node-id="CxtOeFO9m7QXZUiR2O5bhY">哪些决策把口头承诺当成了依据？逐条列出</div>
+            <button class="copy" data-copy="哪些决策把口头承诺当成了依据？逐条列出" data-page-node-id="LlzjSKaDzBQ2OdhxJ5LnAL">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="KTCN8noyDozbxsucBkHnJx">
+          <div class="fhead" data-page-node-id="SU9pYfcaH6rHdbIfGNwADr"><span class="flabel" data-page-node-id="KmFah3ctLgvO236w78AzZH">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="rytEw8p6lQhCK7dqsI2vTY"><div class="val tags" data-page-node-id="AEBg38DAcAmjmq4tux6n4Q"><code data-page-node-id="CslB4N7w2HeNWSpLofze1g">根因分布</code> <code data-page-node-id="d8CQv6DLzYMbQYTwrcWY2i">应连边缺失率</code> <code data-page-node-id="DHDAuXtnNo7WgawvBTZllT">事实 vs 话术</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-manager-4" data-page-node-id="mcGscpN3inhqTcZX5muVuA">
+        <header data-page-node-id="UfJlVuMCds06bGwp6XRCom">
+          <img class="ico" src="./team-performance.svg" alt="团队业绩" data-page-node-id="QByCAvoy3b8YUeeuzlt4LX">
+          <div data-page-node-id="0d6wOAbs3MxEK97BY64Zqh">
+            <h3 data-page-node-id="4ka8WHc53dv4E3rUtryx8b">销售管理 · 团队业绩</h3>
+            <p class="sub" data-page-node-id="yDOXgWkU9LICsX7tLAFyco">Team Performance　|　图标文件：<code data-page-node-id="yXVtiCDxACzCAWKJZrkzXG">team-performance.svg</code></p>
+          </div>
+          <a class="dl" href="./team-performance.svg" download="team-performance.svg" data-page-node-id="GQbZzoV27TE19qz3Zev2HA">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="XwxdZsc8G8Le0uuVCheT7v">
+          
+    <div class="f" data-page-node-id="MrE176GCS97pJY02hGtSNV">
+      <div class="fhead" data-page-node-id="UB4lUeEtheA8CWKi3Tet34"><span class="flabel" data-page-node-id="tZRzcLBwyoErAEwb51Lhs8">场景胶囊名称</span><span class="cnt" data-page-node-id="C13angLw0FENuQOZAmY5i5">4/8</span></div>
+      <div class="fbody" data-page-node-id="SBs1SZk5Ez1ZXr6Ib9dM4r">
+        <div class="val" data-page-node-id="DdeDfrdBKz5b8APwPkW5Go">团队业绩</div>
+        <button class="copy" data-copy="团队业绩" data-page-node-id="eKpKU2BCMZZTFfZ7qeD6Pz">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="XgoHj7VL8gG6sIeuASP9G4">
+      <div class="fhead" data-page-node-id="PL7Ox5ri3EiMm9yC18UWqW"><span class="flabel" data-page-node-id="8xeipblFMrK7VnhooIXeeH">英文名称 *</span><span class="cnt" data-page-node-id="j7LFnnvNBuhO1NBWjww28U">16/30</span></div>
+      <div class="fbody" data-page-node-id="OTbgv5k0Ex4h7Y43Xd57Xk">
+        <div class="val" data-page-node-id="EhmHPOwnyvtnnrsmSH8Y2I">Team Performance</div>
+        <button class="copy" data-copy="Team Performance" data-page-node-id="5ZBCcZVKrqUC0W6Fs7Shrj">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="ITeBGXbo8tC28X3SSxIvbM">
+            <div class="fhead" data-page-node-id="6afPQKAYiypPJYHuGzNAqX"><span class="flabel" data-page-node-id="AbVGUyoPZFgQKDl8Bz2DAU">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="0Ody8UURFGB2GqQBHQh4OD"><div class="val" data-page-node-id="G32IEER2Nx8ugdE2YyO52C">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="fyboHqzmYoTcMDFNW4uNiK">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="sBu5vnJFm4YStLrLKYSEfe">
+            <div class="fhead" data-page-node-id="AA31t35lUjxTLUBVnED6Dn"><span class="flabel" data-page-node-id="YHAbmnpQo5sBDmrC8Rub9o">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="Ut1x6gpbHZWw3ckA3g1TFQ"><div class="val tags" data-page-node-id="GJWO1rtKXl0782sylOCk2l"><code data-page-node-id="ymtJ2gGXzt3AIfAiytqoMo">crm-native</code> <code data-page-node-id="yvi5nKFVvRTr6uCsKiSsVp">crm-query</code> <code data-page-node-id="PmfCNDtVjbJfZcAmTONOsh">method-behavior-standard</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="Es4EAKPOkSs1kUzBsJu2Ie">
+      <div class="fhead" data-page-node-id="vQHqDRJ3JbktypUAtOzHoD"><span class="flabel" data-page-node-id="FsVx4kQfF5a4i8o4CM0r3z">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="vR50behfWUdfgLU5vQ6hCe">
+        <div class="val multi" data-page-node-id="Tqh1boUInaeJd0hrjWKa5B">按成员统计目标完成率、管道覆盖倍数、行为合格项达成（21 条可观察项，只判有无不设评分）。指出缺口最大的成员与系统性原因（覆盖不足/阶段误判/行为缺失）。给补救动作与时间表。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【行为标准】21 条合格线（BH-01~07 有/无检查）+ TAORAN 六要素拜访记录：时间、地点、人物、议题、结论、下一步。</div>
+        <button class="copy" data-copy="按成员统计目标完成率、管道覆盖倍数、行为合格项达成（21 条可观察项，只判有无不设评分）。指出缺口最大的成员与系统性原因（覆盖不足/阶段误判/行为缺失）。给补救动作与时间表。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。
+【行为标准】21 条合格线（BH-01~07 有/无检查）+ TAORAN 六要素拜访记录：时间、地点、人物、议题、结论、下一步。" data-page-node-id="3K1wUXGqWyoXTkEZH2vOCU">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="PjyWgr6fsyTHsJQcrPltYC">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="1yex4C8Ta1Slm8PFPG174D">
+          <div class="fhead" data-page-node-id="7rpM5mkmTAEJ1YEGeV7fH9"><span class="flabel" data-page-node-id="1EI1uTRLSUuENY6tMnfzDs">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="BMgBuxXWupArYBtZNNFGid">
+            <div class="val multi" data-page-node-id="z2vcTmdtB2doQsPlIiWGmW">对比团队各成员目标完成率，指出缺口最大的三人与补救建议</div>
+            <button class="copy" data-copy="对比团队各成员目标完成率，指出缺口最大的三人与补救建议" data-page-node-id="JdTBnl8ciQWTm7HIMKmgV4">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="sFpESNZLALUcA3IbtzgUe0">
+          <div class="fhead" data-page-node-id="AlewDHoTBgAgFjRVuHEP0Z"><span class="flabel" data-page-node-id="Uh4FtCMYquEpkbCHLUAL1X">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="05dOf4EPUAEDsg9Tsdh6uh">
+            <div class="val multi" data-page-node-id="r4rAfMve4wobiwZWhYNwKu">谁的管道覆盖倍数不足？差多少，怎么补</div>
+            <button class="copy" data-copy="谁的管道覆盖倍数不足？差多少，怎么补" data-page-node-id="zlArX9FDJV8Xwi8YJokmDF">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="Gxba1JCNQQ2rHCvdLfkRRv">
+          <div class="fhead" data-page-node-id="aapLYcjCDkFA956A22wQmm"><span class="flabel" data-page-node-id="g7tNUCSzvhNGg7tgCFUf0u">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="mr3CCgOppSCgkBGZNKx4on">
+            <div class="val multi" data-page-node-id="k4yOoewUKNXgWGywrvz78B">按行为合格线检查团队拜访质量，列出普遍缺失项</div>
+            <button class="copy" data-copy="按行为合格线检查团队拜访质量，列出普遍缺失项" data-page-node-id="I3F6etLUZA8ocNigfQsPDX">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="a2EXoDV58x9IJuGdJx1qpB">
+          <div class="fhead" data-page-node-id="vCqamC8SDqF6kz26nfncQp"><span class="flabel" data-page-node-id="kaiCYzRkBhceZ3tH7vCXhY">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="8EnQ1F75QWY8hb2hLoa5TD"><div class="val tags" data-page-node-id="Dly8HytBnku7gpI7Vv1Iqw"><code data-page-node-id="Be3ekKkmXmYZT7O6Fsqtep">管道覆盖倍数</code> <code data-page-node-id="pwb300lGKMm4zPCRvgHctR">行为合格线 21 条</code> <code data-page-node-id="yxqhsB9cjQAgYL6ofj4MYQ">缺口归因要落到动作</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-manager-5" data-page-node-id="j2WxBAFdTWOS2PAXtlLjKb">
+        <header data-page-node-id="hHbDBQcTRCrEiGyuF6s9bV">
+          <img class="ico" src="./approval-decision.svg" alt="审批决策" data-page-node-id="Ei2ImjTF37sfIhCYuKA2wO">
+          <div data-page-node-id="nIRHcA6zpUSIAdSw2tyc5D">
+            <h3 data-page-node-id="yG7GFH6uUoNfcvF9iWkY6f">销售管理 · 审批决策</h3>
+            <p class="sub" data-page-node-id="bVVdBmbQYynlv34WyFEw0Q">Approval Decision　|　图标文件：<code data-page-node-id="qHrJcxKVnNOAAId4xoV8kg">approval-decision.svg</code></p>
+          </div>
+          <a class="dl" href="./approval-decision.svg" download="approval-decision.svg" data-page-node-id="ne5ECQyg4yj5C0cwFATuPD">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="LPLXT1aBdHiVitQNRnFAh7">
+          
+    <div class="f" data-page-node-id="YF5FM3DfYrcU4qEckTGa6n">
+      <div class="fhead" data-page-node-id="eXZKaBUH4msG7SBWrfStXl"><span class="flabel" data-page-node-id="FY37z4lznvt7aluzHzlfTQ">场景胶囊名称</span><span class="cnt" data-page-node-id="bont7hvQ4bYfX0uYj0sF4z">4/8</span></div>
+      <div class="fbody" data-page-node-id="2gEi3LPzdxen77EG9COYbk">
+        <div class="val" data-page-node-id="yxUlJlrY0SjoAHlev15187">审批决策</div>
+        <button class="copy" data-copy="审批决策" data-page-node-id="HTAirUa8D3L6x7uOi0Mv0q">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="HOqa1oEnK0QOb09bfUuSHv">
+      <div class="fhead" data-page-node-id="fPtu34glPrZVwDiph41SJx"><span class="flabel" data-page-node-id="uqE7DAf7gYNqidDJT0vSbI">英文名称 *</span><span class="cnt" data-page-node-id="PDPnnfRBGknGkkiv78t6R9">17/30</span></div>
+      <div class="fbody" data-page-node-id="4dc8cAA7PuXA79f0QDh7KG">
+        <div class="val" data-page-node-id="8b7u5zfvljwOC06GqsT7ck">Approval Decision</div>
+        <button class="copy" data-copy="Approval Decision" data-page-node-id="K9wBRh1ZHRfesp12mG3Pt9">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="wo8KVnqhuswEpgKmrwuOaM">
+            <div class="fhead" data-page-node-id="4X3UM8fgHzKO3flVgcYMqD"><span class="flabel" data-page-node-id="BGqEc9sCFKjlVWrdez3G0R">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="a9EcW0gAErNKwyT0ZehANt"><div class="val" data-page-node-id="8jtiqY0sRlNkm3aI1zoiCc">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="oZKBppS3914pVvCpDWCxo4">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="300Vm645P0cqMpsCXe43wC">
+            <div class="fhead" data-page-node-id="9FFoZDGO8u2FoghHpYRqz6"><span class="flabel" data-page-node-id="dG0e0n3abIgoB73QZUttLi">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="sWAOCxHmMBgHtwqK60gV5u"><div class="val tags" data-page-node-id="D0uunCjxnQdORaU6Rus0xw"><code data-page-node-id="U1LmTeeoKvu8DEIzx79aY5">crm-native</code> <code data-page-node-id="PM0tXEnEmFeAsQFGdpd7Gj">method-risk-tradeoff</code> <code data-page-node-id="ypiZnqNkTTJ6ZaowMuJ8Qh">decision-retrospective</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="F4tApNmAS1GNcJKWVhFrxQ">
+      <div class="fhead" data-page-node-id="k4PVv5C6kZhza1MPZOFIBW"><span class="flabel" data-page-node-id="SxoWuYfCkMeVHqi1zUHjnE">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="owdnriFXqVo8hrMtlBD58x">
+        <div class="val multi" data-page-node-id="C4kdHzASsTrOjWUX4iuQ7S">列出待审批的折扣/决策项，逐项给出闸门判定：风险等级、收益预期、是否触碰红线、缓解措施。触碰红线一票否决；无书面批文的口头预算一律不视为已批准。只给判定与补齐建议，不代为放行。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【风险权衡】量化风险与收益比；触碰红线（合规问题、超权限、无书面批文）一票否决；有可行缓解措施才可推进，且缓解措施须写进结论。
+【决策复盘】按时间窗口统计决策质量：根因分布、应连边缺失率、结果校验态。产出可复核的整改处方，复盘时区分事实与话术。</div>
+        <button class="copy" data-copy="列出待审批的折扣/决策项，逐项给出闸门判定：风险等级、收益预期、是否触碰红线、缓解措施。触碰红线一票否决；无书面批文的口头预算一律不视为已批准。只给判定与补齐建议，不代为放行。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【风险权衡】量化风险与收益比；触碰红线（合规问题、超权限、无书面批文）一票否决；有可行缓解措施才可推进，且缓解措施须写进结论。
+【决策复盘】按时间窗口统计决策质量：根因分布、应连边缺失率、结果校验态。产出可复核的整改处方，复盘时区分事实与话术。" data-page-node-id="pUw1I7d9CmgAsc9bG513Fv">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="2HStBmpbpnBaZbr9GBkPrP">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="9Ej8Q4LAfK2JHRstuYsdus">
+          <div class="fhead" data-page-node-id="B5olxPuR9TtKK59n31sUc0"><span class="flabel" data-page-node-id="sDWBd0VgRoHV52wf3M1HA2">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="jeVA5WTP4JO7LbGktYQEJs">
+            <div class="val multi" data-page-node-id="3uK2YteuQRjAgo9eql8G6B">列出待我审批的折扣与决策项，给出闸门判定依据与风险提示</div>
+            <button class="copy" data-copy="列出待我审批的折扣与决策项，给出闸门判定依据与风险提示" data-page-node-id="HLG1B8WxBTlkuNI0jVqgHH">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="ccCHeHLF6x0YjEzn127gEs">
+          <div class="fhead" data-page-node-id="dv3dr9seTvbdL2AVAC9HPu"><span class="flabel" data-page-node-id="20GWvdXyfgzzKiEWQ56oQM">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="1swsfXFCxo8YDf84o2CHN8">
+            <div class="val multi" data-page-node-id="G9P3XunyYIjEtILHguUoAK">这个 8 折再降 10% 的组合申请，批还是不批？给依据</div>
+            <button class="copy" data-copy="这个 8 折再降 10% 的组合申请，批还是不批？给依据" data-page-node-id="KDKgmwJPJwPPIHfnLAccBe">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="8ri1I5P4HLzBSRxPk4FBzN">
+          <div class="fhead" data-page-node-id="UluyC3OL6NbfFwopIW0jHb"><span class="flabel" data-page-node-id="y9sExA00jCgUFrBI9FXVc7">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="F4DGF86Eoo5pZoVtNRYeZI">
+            <div class="val multi" data-page-node-id="YnZOmyLuZb75Heb03EG9jC">哪些待审批项缺书面批文？逐条列出并要求补齐</div>
+            <button class="copy" data-copy="哪些待审批项缺书面批文？逐条列出并要求补齐" data-page-node-id="bSjuZ4XL4RBoTZM2OTXzT0">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="HK1FKjwZ6W82iJgruIw6xY">
+          <div class="fhead" data-page-node-id="3uESKTIfXMkHcSBkh0oLqL"><span class="flabel" data-page-node-id="pJ4wSDnZXOtHG3r5UfhhTW">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="CIyYCLYrmBfq4RFoUnNbq4"><div class="val tags" data-page-node-id="bR4CTPE0usXPsjLgTHmmZH"><code data-page-node-id="pgLM6CrgRx9hStSsaOnPfb">报价审批红线</code> <code data-page-node-id="T2H0q5bSXHOjHg1bbU7kP3">B 新能源口头预算教训</code> <code data-page-node-id="zR8Smq6NZMbobDbUoaS7NF">红线一票否决</code></div></div>
+        </div>
+      </section>
+    <h2 class="mode" data-page-node-id="h11zonZQJFKR3EuhJGO4JA">平台管理 <span class="muted" data-page-node-id="GixO6kxehTOPTlVq7kBy36">（4 个胶囊）</span></h2>
+    
+      <section class="card" id="cap-admin-1" data-page-node-id="gYPKf3kWchAsoM12bxI6gN">
+        <header data-page-node-id="xLQXUQFsZRVgbt4PbbB2mT">
+          <img class="ico" src="./industry-onboarding.svg" alt="行业上线" data-page-node-id="SGxMTCf8pCd4IEJdXNFA6c">
+          <div data-page-node-id="i3eqtUMh4mD4HwcDcfDNHk">
+            <h3 data-page-node-id="mmjBMfOERk1Lj9rgSWzjsg">平台管理 · 行业上线</h3>
+            <p class="sub" data-page-node-id="4QTaJJHl1zYgiHR3sKEocf">Industry Onboarding　|　图标文件：<code data-page-node-id="ol5fbw5YR4UjK9nSAhit9G">industry-onboarding.svg</code></p>
+          </div>
+          <a class="dl" href="./industry-onboarding.svg" download="industry-onboarding.svg" data-page-node-id="uQNfgGCu8xOS1Lj6MJG7LO">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="EqlHusIgj6FQcaCFMX03pn">
+          
+    <div class="f" data-page-node-id="NpAASeahnitjAH4SMHDug2">
+      <div class="fhead" data-page-node-id="lj54IU12Bg5Dg3iVOtcD9m"><span class="flabel" data-page-node-id="P3MkgBA1w3jgtkbmfNZD0t">场景胶囊名称</span><span class="cnt" data-page-node-id="DqZnnA10rTpHUGkeLyxncN">4/8</span></div>
+      <div class="fbody" data-page-node-id="b7QB56tJIp6G7HorgiZ1AE">
+        <div class="val" data-page-node-id="uoJCrS9Kb0IVhw3cXng2am">行业上线</div>
+        <button class="copy" data-copy="行业上线" data-page-node-id="U5UJeX7WpaVWb4tWe8tnWL">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="Ni5xERclBMvMG0gucXSqn7">
+      <div class="fhead" data-page-node-id="adiE8CLdr4WB6d54xSRNmh"><span class="flabel" data-page-node-id="jVms6U9b4A4ja2V8hEgXbl">英文名称 *</span><span class="cnt" data-page-node-id="6CIBWJqBIv0rKnxX1K9LdB">19/30</span></div>
+      <div class="fbody" data-page-node-id="FLLwhG0LfpfoU29lD1HtwU">
+        <div class="val" data-page-node-id="jL3mbdAZcSCXBlgoRnQte2">Industry Onboarding</div>
+        <button class="copy" data-copy="Industry Onboarding" data-page-node-id="htAbr5zOXhKnHB21PUejW5">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="j3AE6jnWI6tFHUkCIkEMNY">
+            <div class="fhead" data-page-node-id="3l9wzILzOsimCWpRw2fwom"><span class="flabel" data-page-node-id="5FJuf7CBTGmieGffiEDKZk">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="prye5cWgVksKhvTXEfTTvx"><div class="val" data-page-node-id="v5blq6y21QvC90pTCS2m2T">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="lnhPkBmQDUESpFpPosVC1t">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="cr5xp73RHe5qqdqAGTOdfc">
+            <div class="fhead" data-page-node-id="qbtKKhzLUc64tmfHFdfk9z"><span class="flabel" data-page-node-id="IHibzRlGjlPAtjvwpwtEHD">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="vwoFmX2orbzsBycKULcUk1"><div class="val tags" data-page-node-id="hBeGILCXNC4Ifi3wia2tkZ"><code data-page-node-id="jWXzXjD1Hp16mRDHJpuI76">crm-native</code> <code data-page-node-id="fYYKOcz6p7GmD33C1WB8ZP">method-funnel-classification</code> <code data-page-node-id="thAmSFuFN90bal8owWjsZB">method-role-map</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="YdHAcZJCYIhlrAZ7y6bpKi">
+      <div class="fhead" data-page-node-id="vM8z8hMgtxd9mp02C3jIVu"><span class="flabel" data-page-node-id="lfiMo0E9FM7ZCGp1PtGQvR">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="gg0U2blItQUE2b2E2FpMoo">
+        <div class="val multi" data-page-node-id="kh5th5wArTBTroUur0B4hI">梳理新增行业租户的配置清单与顺序：客户分档规则、阶段推进条件、角色地图模板、告警与阈值配置。强调配置驱动——不得新增粒子类型或写行业硬编码；每项配置须说明来源（system 模板 vs 租户覆盖）与回滚方式。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。
+【角色地图】识别决策链四类角色：决策者（拍板）、影响者（左右）、使用者（实际用）、利益相关方（受影响）。标注各自立场（支持 / 中立 / 反对）与影响力权重；缺失关键角色即判高风险。</div>
+        <button class="copy" data-copy="梳理新增行业租户的配置清单与顺序：客户分档规则、阶段推进条件、角色地图模板、告警与阈值配置。强调配置驱动——不得新增粒子类型或写行业硬编码；每项配置须说明来源（system 模板 vs 租户覆盖）与回滚方式。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。
+【角色地图】识别决策链四类角色：决策者（拍板）、影响者（左右）、使用者（实际用）、利益相关方（受影响）。标注各自立场（支持 / 中立 / 反对）与影响力权重；缺失关键角色即判高风险。" data-page-node-id="NbPDKKkHMHezddjmm61GID">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="TWDvfVCT56JEzJnAN7OWcC">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="6Kl4CuS3QGKPJPKAT7paGh">
+          <div class="fhead" data-page-node-id="XHwZzrVOmOVf9aJelgyGKa"><span class="flabel" data-page-node-id="ldhPJwbmrrtYfZR3rTLypf">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="xqZB6y8461o33pCtoOHNh2">
+            <div class="val multi" data-page-node-id="ZzEVqYEvTo77YCzwPGsSna">梳理新增一个行业租户需要配置哪些项，给出清单与顺序</div>
+            <button class="copy" data-copy="梳理新增一个行业租户需要配置哪些项，给出清单与顺序" data-page-node-id="VgZ2mOIKKXghGza5S48a4j">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="iY04V5qSy7HSQUwn3guHwx">
+          <div class="fhead" data-page-node-id="mGFZbxtlKOIjPbuizpLf5G"><span class="flabel" data-page-node-id="Y1QhaYOGozB58zyU4HAUg2">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="cFb0AO82ZLdERQEofTn6ln">
+            <div class="val multi" data-page-node-id="g5KyiMoG3bUYVBrjvQBoJZ">acme-auto 上线还差哪些配置项？按优先级排</div>
+            <button class="copy" data-copy="acme-auto 上线还差哪些配置项？按优先级排" data-page-node-id="0LxKFpJuzHotY3PDRq8Thz">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="vFJZuE5qXFrDCIMauhTi1h">
+          <div class="fhead" data-page-node-id="ErBzIDWj2BM5rToI0QLAHi"><span class="flabel" data-page-node-id="F3N7ASTyxNhElCPM1lwtDy">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="ceMBbyyyCXZWTwHvFbANYR">
+            <div class="val multi" data-page-node-id="5kiIAqmDlgydzzIpjxUrYj">对比行业模板与各租户实际配置，标出分叉项</div>
+            <button class="copy" data-copy="对比行业模板与各租户实际配置，标出分叉项" data-page-node-id="5jguVcvFbb4ol7X6WdswQa">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="kwXDJJB4N9baeRqHJGkZFD">
+          <div class="fhead" data-page-node-id="7LjBQurAw0CmxpQ2Yl6BsF"><span class="flabel" data-page-node-id="d8YXhwUwWkbHNlKAiFGSAz">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="ME7CZ3k7Ze9OGWIK6nHiLU"><div class="val tags" data-page-node-id="KMcja7QKXTwvw6egKr4pii"><code data-page-node-id="tgiKiFwmYin8Cpq7dmAKDb">配置驱动差异化</code> <code data-page-node-id="nnfySvSzBilfV6EHeuOnnY">system 模板 + 租户覆盖</code> <code data-page-node-id="9GDBcvRJSUIx6g1ibZaNRh">禁止新增粒子类型</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-admin-2" data-page-node-id="7SvqkBPdczSG4xNPrtDloD">
+        <header data-page-node-id="FMxS3eXK2s4mZZCZjQBHvp">
+          <img class="ico" src="./access-control.svg" alt="权限管理" data-page-node-id="ZmwvAZNUHiITBUnbQgCKzG">
+          <div data-page-node-id="776JZAJZwsV7eOuzmouEJi">
+            <h3 data-page-node-id="FpDLMnaGE65sL0XqcXQe0f">平台管理 · 权限管理</h3>
+            <p class="sub" data-page-node-id="M2E1sEeqSH0xU0H41Uuyfg">Access Control　|　图标文件：<code data-page-node-id="zHUplFST2xyag7lbrDaJTP">access-control.svg</code></p>
+          </div>
+          <a class="dl" href="./access-control.svg" download="access-control.svg" data-page-node-id="oE5dHsGAIFAAdlDd9AFtbY">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="Tzpn1b7lOvEHojBc05L5EE">
+          
+    <div class="f" data-page-node-id="p7drA1VAhOcN4SxJwV3jhn">
+      <div class="fhead" data-page-node-id="1UqPmC0GhR61UXE7LydP6z"><span class="flabel" data-page-node-id="K7uTjURcuUxrGeNNkwEzjL">场景胶囊名称</span><span class="cnt" data-page-node-id="r5o6mMeULle7pJecTbCvBm">4/8</span></div>
+      <div class="fbody" data-page-node-id="JDDJnlpiUb5zA2GeTWtRcL">
+        <div class="val" data-page-node-id="bMOaqd1lghZEwWdemb90Mh">权限管理</div>
+        <button class="copy" data-copy="权限管理" data-page-node-id="9mB6QYHOEkX7tTOqPzOQcq">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="CdiYAcRjQ5sYlNIsXBfTlb">
+      <div class="fhead" data-page-node-id="M9Wz2NBenPKN8FMXGyPaps"><span class="flabel" data-page-node-id="KajhGlKpdhDc0AEFYXhRK3">英文名称 *</span><span class="cnt" data-page-node-id="BLPG9BLfPYgx0uG8hNP1X8">14/30</span></div>
+      <div class="fbody" data-page-node-id="NBcJFYYUu9AnH0AQRZULQ2">
+        <div class="val" data-page-node-id="NNUxHI99RhnFtLT7A1Ep0a">Access Control</div>
+        <button class="copy" data-copy="Access Control" data-page-node-id="mlyQMIgkPdo4jlKQgc8uho">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="XOq5CAztW62hIujmQBYWl8">
+            <div class="fhead" data-page-node-id="vE0StyHUrfVob2eTPJab9X"><span class="flabel" data-page-node-id="X0yhsEpro0GiKk8M9VawUh">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="YKFrnaZGkwsfQywoeOD3At"><div class="val" data-page-node-id="kkDP1TZBaB0fF1it6UkOnr">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="okULZScyBlCedvAV3ZoLet">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="ADh9rmcyjNeIiKJ510smej">
+            <div class="fhead" data-page-node-id="edYiBZJwQGha2wFMo9Zp2k"><span class="flabel" data-page-node-id="RhA9KTBTDJbzAJvoRrTl1h">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="OEHcWXaCixNrlS8te1Pxpj"><div class="val tags" data-page-node-id="woHNI5X5iWY4g37ZVZVBN3"><code data-page-node-id="1ZfUBn7MFxSnMcbVOsU76g">crm-native</code> <code data-page-node-id="6PpUpT04OXSGtRrL98xeAB">crm-query</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="DrccaeZwl3IB310g82HToa">
+      <div class="fhead" data-page-node-id="ZNdnMcdh8rqad9OiwJ8sON"><span class="flabel" data-page-node-id="p6sOBRTQWd4uFTmjoN0L5z">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="sNYbScLMCjL5l3IDXSy2hR">
+        <div class="val multi" data-page-node-id="ctf4bHa4HspbXmJtnM8vgr">检查角色与权限分配：标出越权项、缺失项、与最小权限原则冲突处。租户用户只读本租户，admin 通配。变更须经决策第 0 闸与 HITL 确认，禁止删除只能停用。注：本胶囊无专属 RBAC 技能，深度操作请走平台管理页。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。</div>
+        <button class="copy" data-copy="检查角色与权限分配：标出越权项、缺失项、与最小权限原则冲突处。租户用户只读本租户，admin 通配。变更须经决策第 0 闸与 HITL 确认，禁止删除只能停用。注：本胶囊无专属 RBAC 技能，深度操作请走平台管理页。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。" data-page-node-id="JtRRETfu1EX0bYJG5MXCs4">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="xJXm0BXyH0Bm8cCutDS14J">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="S9n04A3mjIwSRjTXkjznYc">
+          <div class="fhead" data-page-node-id="ROnCqtl25YjaWJS3iT3rfD"><span class="flabel" data-page-node-id="XJ6pZ5P5C6xmFhFH7DxzLi">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="W0xgLxhAmPFlTeEyawF7fz">
+            <div class="val multi" data-page-node-id="JBjzRCmzaL12szWTv7bdxw">检查当前租户的角色与权限分配，标出越权与缺失项</div>
+            <button class="copy" data-copy="检查当前租户的角色与权限分配，标出越权与缺失项" data-page-node-id="jgDmfETSMdVWJd63BIFKAf">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="MCbTxjB6sndBbrCExIH6Fw">
+          <div class="fhead" data-page-node-id="qnRFa5DBInPCrYXByB2npj"><span class="flabel" data-page-node-id="VGaFtD3Y6NNwo8fMfIHTnF">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="0LAuigLyH6sJxwMPaZQB2p">
+            <div class="val multi" data-page-node-id="GLX8RBWLtwCCNm7YFv24Nb">谁能查看跨租户数据？列出并评估风险</div>
+            <button class="copy" data-copy="谁能查看跨租户数据？列出并评估风险" data-page-node-id="XHED40W0EBovNfzLC7AwLF">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="L8prg9H9VW7XSxLEvGWjxE">
+          <div class="fhead" data-page-node-id="6lK7HAGwh70fuS0f0NNUAb"><span class="flabel" data-page-node-id="h8JrSZfT24ObQGw9rST5Zi">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="3HFBh7ekgJuT88Gd0th2h8">
+            <div class="val multi" data-page-node-id="LKgFZDsHRhsyKH2nrBaogP">按最小权限原则，给新入职销售配一套权限</div>
+            <button class="copy" data-copy="按最小权限原则，给新入职销售配一套权限" data-page-node-id="OwHY6sRB1ne7N1sZCvRCg0">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="ysWUSV27vyBQW5zTVDCsqG">
+          <div class="fhead" data-page-node-id="5LbfzrEEH8g3TmaxtDBqrI"><span class="flabel" data-page-node-id="WP8EWj4mEDDtE8YSuUYg5M">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="ADKVF3cnVEIpjjaaPK5bVH"><div class="val tags" data-page-node-id="NP0LYwWTrqDZ8V22m0bnp4"><code data-page-node-id="5MoriWLbCmFgeyzuM7b612">最小权限原则</code> <code data-page-node-id="IrXeQWEFq4Ea9MQeMB5sKD">租户数据隔离</code> <code data-page-node-id="TyKhzy7qMXzHvNxOUNuMK0">停用优于删除</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-admin-3" data-page-node-id="BFuV53MH8sz8aTwwYiVYy0">
+        <header data-page-node-id="TSHoUqjCX26kklAfDdoqA8">
+          <img class="ico" src="./billing-plans.svg" alt="计费套餐" data-page-node-id="msHa7uGJqX5VDQvsX9T8Oy">
+          <div data-page-node-id="0DkKETZsIXe7V5UGFDj9vo">
+            <h3 data-page-node-id="ZC7fv50nIQasf4KWDoYNvB">平台管理 · 计费套餐</h3>
+            <p class="sub" data-page-node-id="FQzSTj4J25bqqKmJ90oeKo">Billing Plans　|　图标文件：<code data-page-node-id="SD5OFk4yBZxGwS6EAKR622">billing-plans.svg</code></p>
+          </div>
+          <a class="dl" href="./billing-plans.svg" download="billing-plans.svg" data-page-node-id="GJ9XDXPpBaHrowJBeH4NjJ">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="LxUHmBCrvYAw6KIbBpzU64">
+          
+    <div class="f" data-page-node-id="44Lh85mlC999sisHwJcOeD">
+      <div class="fhead" data-page-node-id="u3TqjAIIeZgXRUnEwn5DQW"><span class="flabel" data-page-node-id="AfNlaRpQhovoIUKK6e6Z9t">场景胶囊名称</span><span class="cnt" data-page-node-id="sNc3cq1vVwkaOElBsDnIFi">4/8</span></div>
+      <div class="fbody" data-page-node-id="aV26Hy0JRigaNx4WCjRCya">
+        <div class="val" data-page-node-id="7WxD34va6x1KRzXdhxtT1B">计费套餐</div>
+        <button class="copy" data-copy="计费套餐" data-page-node-id="u67uHRJJsTux30xrLIt3pq">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="8RtDAQIWVOOF531sMARH7Z">
+      <div class="fhead" data-page-node-id="BqrGyJ2zkN56F5TYQlQGwq"><span class="flabel" data-page-node-id="u0z4kpu6nXctUDGPa5jPDq">英文名称 *</span><span class="cnt" data-page-node-id="745pgBXoAKLvIbDkHlM0TJ">13/30</span></div>
+      <div class="fbody" data-page-node-id="CZDozCLVuk2DO5JVGrSS3u">
+        <div class="val" data-page-node-id="DdUCCFdF6S6ngvPy8D1fjY">Billing Plans</div>
+        <button class="copy" data-copy="Billing Plans" data-page-node-id="4BcvfHrnRGKSrbg7YwzFE5">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="VptZXaDDz0epWKS9KdsYKb">
+            <div class="fhead" data-page-node-id="l5C5YDJKGrU3PR7btNuhkh"><span class="flabel" data-page-node-id="cabmNthTWZePqpljvwzGrV">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="EycQgU6qCCVt0LIfTsJzD6"><div class="val" data-page-node-id="A3ui6R9marLBqFWdCCkmlN">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="Qv6rfQZs9KzXEAXPJZxRfe">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="UTLx8Q3B6LDeGoSPULHOeJ">
+            <div class="fhead" data-page-node-id="wFzNPnWHkUhWsjHOBYDNZX"><span class="flabel" data-page-node-id="JYnsVVfE6TfIjGjCzbVKDn">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="hpFAjJtuae2IUjsqcmdb3K"><div class="val tags" data-page-node-id="ze97eGfeF19wQEA2QqU0Jz"><code data-page-node-id="dqiusyZVUiqqItr8taHnYh">crm-native</code> <code data-page-node-id="MDrHnrHvMNY6E6WfQnFo0s">crm-query</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="DllDtMoZnX0DsBXgPJg4H0">
+      <div class="fhead" data-page-node-id="YIYFun7pNYsoSnP0Alma4x"><span class="flabel" data-page-node-id="5ZmGxAnV4VC3KNoI2BEVxq">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="ABMcHbG0DoRW1sdOMoEZV1">
+        <div class="val multi" data-page-node-id="eBaGqsF0TCcGXGAKOmcTYW">对比 5 档套餐的席位、Token、功能权益。三源一致性铁律：配置中心 ≡ seed-billing-config.sql ≡ seedBillingPlans.js，发现不一致立即报为 P0。权益须随档位单调递增；不得出现不限量配置。给选型建议时说明客户画像依据。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。</div>
+        <button class="copy" data-copy="对比 5 档套餐的席位、Token、功能权益。三源一致性铁律：配置中心 ≡ seed-billing-config.sql ≡ seedBillingPlans.js，发现不一致立即报为 P0。权益须随档位单调递增；不得出现不限量配置。给选型建议时说明客户画像依据。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。
+【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。" data-page-node-id="yukdhGNkM13EJmwGuNloq1">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="U1aEGxZ6LtW4bEK5hrBbZD">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="Goh7at5jptzAmKhUpj4qBM">
+          <div class="fhead" data-page-node-id="jJYR0RPILM5ovvUREGM5qd"><span class="flabel" data-page-node-id="4roNO1ySOqLfLsLBCEL60L">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="ajmz7kEZIZF1hb6VZit004">
+            <div class="val multi" data-page-node-id="OnR7n7M6LfTX42ZoVAOgAf">对比 5 档套餐的席位、Token 与功能权益，说明各档适用客户</div>
+            <button class="copy" data-copy="对比 5 档套餐的席位、Token 与功能权益，说明各档适用客户" data-page-node-id="B76OkdxUMXmWSN6yQqRcai">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="WQEySgxjKoistdn2D6B4no">
+          <div class="fhead" data-page-node-id="7M16qAXpKLSRKt6BStIHoz"><span class="flabel" data-page-node-id="dbfpm1hwA6sqA2chvXRz9C">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="TzVN270PBJBZDzR5Z4Dayz">
+            <div class="val multi" data-page-node-id="VWZRqiOuj5wVtBdC1V4VsG">这个客户 50 账号、3 个月上线，推荐哪一档？给依据</div>
+            <button class="copy" data-copy="这个客户 50 账号、3 个月上线，推荐哪一档？给依据" data-page-node-id="biSrPfyh8P1CbfU3jbkJc6">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="LLQnkKtspF72vfEe1DaImw">
+          <div class="fhead" data-page-node-id="Lo0Ps2oz7rmMkB5fDuiFqI"><span class="flabel" data-page-node-id="CLq1rytwSRSJAPmFpmrsQ4">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="QGoZwEKl0TgECn4ERGHgw1">
+            <div class="val multi" data-page-node-id="nkzLfIqPG5RjbEvMTXnDof">校验套餐三源配置是否一致，不一致处列出</div>
+            <button class="copy" data-copy="校验套餐三源配置是否一致，不一致处列出" data-page-node-id="gD9u6UpRC9u67217PwT0fG">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="HtWy71JHOhGXsOkZo8T93b">
+          <div class="fhead" data-page-node-id="LKeOldIDxSYaPp5JQlinaD"><span class="flabel" data-page-node-id="pmOZc45i7UFOOtf8B7fvje">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="FR2eYmaaGIsC1oBAdd7WZy"><div class="val tags" data-page-node-id="o7V5cGfcPS6IjbpMlBJ6Uu"><code data-page-node-id="7EKZG9BwiRaeMjYzCEqMi9">三源一致性铁律</code> <code data-page-node-id="T8C1UDzT9dZ7ggLxI3xnBb">权益单调递增</code> <code data-page-node-id="GCsnV6CfbTevrLs6tSzIQT">席位/Token/功能三闸</code></div></div>
+        </div>
+      </section>
+      <section class="card" id="cap-admin-4" data-page-node-id="bFnySkZam2s5mQ1bX3QOZJ">
+        <header data-page-node-id="OG0aXi1i8kBVEkGRyxK3TA">
+          <img class="ico" src="./skill-switch.svg" alt="技能开关" data-page-node-id="43of0mrwnSVHooYZwEaQyT">
+          <div data-page-node-id="jCl8CCzvRjgI7tz50kRwW7">
+            <h3 data-page-node-id="GcAj2WHMP2jLwEoeL6Rrc6">平台管理 · 技能开关</h3>
+            <p class="sub" data-page-node-id="0LujVZL01CxiAEQe8GJRh1">Skill Switch　|　图标文件：<code data-page-node-id="s2GwKqM9ClMsHgUehTwXNV">skill-switch.svg</code></p>
+          </div>
+          <a class="dl" href="./skill-switch.svg" download="skill-switch.svg" data-page-node-id="40I3psGlRif1ad9jwZ8JAU">下载 SVG</a>
+        </header>
+        <div class="grid" data-page-node-id="BVgdwQ5dOeR6dvUvsefcXG">
+          
+    <div class="f" data-page-node-id="g5pJmYHdl72aRc8LRcPgTx">
+      <div class="fhead" data-page-node-id="E7D5LzpX5QYXuJXJA86kDN"><span class="flabel" data-page-node-id="XFKFiyoeTNrg1G9upIDdlw">场景胶囊名称</span><span class="cnt" data-page-node-id="sZpSvDtoQcCD6Mi5GQD8xS">4/8</span></div>
+      <div class="fbody" data-page-node-id="Ko8HqkXX0A6WlZgwszCYkx">
+        <div class="val" data-page-node-id="wzDnTmo8vmAApSwa6gCvPY">技能开关</div>
+        <button class="copy" data-copy="技能开关" data-page-node-id="gbH1yBbPvmpQSyZD7rzpWF">复制</button>
+      </div>
+    </div>
+          
+    <div class="f" data-page-node-id="4kdUptBSoz9dIVlqpsECJK">
+      <div class="fhead" data-page-node-id="7UbZBaROZBXI5EZBnVnAX8"><span class="flabel" data-page-node-id="xNgk4ta6yTrGUrLtQfoEAA">英文名称 *</span><span class="cnt" data-page-node-id="rM5Cnay0LBtzFNXf0hS41K">12/30</span></div>
+      <div class="fbody" data-page-node-id="hqSYtr0uB9RE779JNzOvlD">
+        <div class="val" data-page-node-id="YhJYpbWqY40DIsh3c6ETq1">Skill Switch</div>
+        <button class="copy" data-copy="Skill Switch" data-page-node-id="pFkwuDJCthBenSMCDJKlxt">复制</button>
+      </div>
+    </div>
+          <div class="f" data-page-node-id="mXH62DENS5J8f1uBFmMzUZ">
+            <div class="fhead" data-page-node-id="iQBwngNWkGBc2sWyx7Xq7B"><span class="flabel" data-page-node-id="ABK65x8BHuijmaM3o9xyfO">绑定专家</span></div>
+            <div class="fbody" data-page-node-id="OzBSbuxqRbLHelzXVZyhyM"><div class="val" data-page-node-id="g68q3ZcGsEN1oqELSTrJz5">AI 原生销售管理助手</div><button class="copy" data-copy="AI 原生销售管理助手" data-page-node-id="e9rXcAMEsuuuCtRA1SJEjQ">复制</button></div>
+          </div>
+          <div class="f" data-page-node-id="CVcjGPTxd1LHuoZJVYACTd">
+            <div class="fhead" data-page-node-id="noH61vr3rrHQFRJXDuXNxn"><span class="flabel" data-page-node-id="bIXvY0hRifKWBNxdulM7mH">绑定技能（未上架可留空）</span></div>
+            <div class="fbody" data-page-node-id="0FqsIB6yoEMYrgqbJ77XjS"><div class="val tags" data-page-node-id="C7oB01T0ibNT6chWEgexCt"><code data-page-node-id="YakZQGsHDISYdvzDLcxvn1">crm-native</code></div></div>
+          </div>
+        </div>
+        
+    <div class="f" data-page-node-id="kS6Z7jXtFP8MF81EGbZiqY">
+      <div class="fhead" data-page-node-id="MMfilz1tYIVHKHXNiEEUOA"><span class="flabel" data-page-node-id="dWarenw7HE3zi1REy2RqoG">系统提示词</span></div>
+      <div class="fbody" data-page-node-id="IbEGocqPz9OberQF96V2Vn">
+        <div class="val multi" data-page-node-id="iijyNriEYypPmhM23X2sI3">列出各租户已启用技能、告警规则与阈值配置，标出与 system 模板不一致的分叉项。说明每个技能的开关影响面（涉及哪些 Action 与闸门）。变更须经决策第 0 闸与 HITL 确认。注：本胶囊无专属技能，仅做只读盘点。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。</div>
+        <button class="copy" data-copy="列出各租户已启用技能、告警规则与阈值配置，标出与 system 模板不一致的分叉项。说明每个技能的开关影响面（涉及哪些 Action 与闸门）。变更须经决策第 0 闸与 HITL 确认。注：本胶囊无专属技能，仅做只读盘点。
+
+【方法论内核】
+【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。" data-page-node-id="7jjECKKthRa5yWexCOWGmv">复制</button>
+      </div>
+    </div>
+        <div class="sub-head" data-page-node-id="9W6aXfLHpY4zFBc1mElRME">提示词模版（3 条，要求 2-10）</div>
+        
+        <div class="f" data-page-node-id="CIv5DZHuzwQKmdu7idPHmu">
+          <div class="fhead" data-page-node-id="M0nPfvoDVRCnS463aAnWQ8"><span class="flabel" data-page-node-id="rwyoegj92dF4ng6XW629Qq">提示词模版 1</span></div>
+          <div class="fbody" data-page-node-id="TCZsv1TicMsTiJB2mrxe2c">
+            <div class="val multi" data-page-node-id="XBfpf13M2dNtC3AD8AigUV">列出各租户已启用的技能与告警规则，标出与模板不一致的分叉</div>
+            <button class="copy" data-copy="列出各租户已启用的技能与告警规则，标出与模板不一致的分叉" data-page-node-id="CCdRmeKptledll05k9NEsJ">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="mWA9Waz80MMkCb224GHcaQ">
+          <div class="fhead" data-page-node-id="fEdtOVKQbHnGRPPCBzOBgl"><span class="flabel" data-page-node-id="1sDx4hkVXbpICnWLzfQACU">提示词模版 2</span></div>
+          <div class="fbody" data-page-node-id="iPyuZIAPdnBxFwv3ncjAmi">
+            <div class="val multi" data-page-node-id="LbXJlVdBriQH5gQnZtfP5k">关掉某个方法论技能会影响哪些闸门与 Action？</div>
+            <button class="copy" data-copy="关掉某个方法论技能会影响哪些闸门与 Action？" data-page-node-id="sZTpBxCX4P0gDgxjJEpt5W">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="eeQQOLl4h24mDbslp4JDxd">
+          <div class="fhead" data-page-node-id="ppMGxeE9QH7QppmCofJJyQ"><span class="flabel" data-page-node-id="qpzdw0fDvSZc5F2BDjx1Nn">提示词模版 3</span></div>
+          <div class="fbody" data-page-node-id="Rnk8vYf4Lgfdaj4ruMnf34">
+            <div class="val multi" data-page-node-id="3v5BMtDjvXv3A2AgAHWGOw">哪些租户的阈值配置偏离出厂值？逐个列出</div>
+            <button class="copy" data-copy="哪些租户的阈值配置偏离出厂值？逐个列出" data-page-node-id="Nkpi4y1whUQXcOH8CmaJZX">复制</button>
+          </div>
+        </div>
+        <div class="f" data-page-node-id="NYBOvFW6p8KsFhgpQpMKrj">
+          <div class="fhead" data-page-node-id="xW57DgCCPH6K1XgvYPNo6b"><span class="flabel" data-page-node-id="ckVh1T35PAyq1MEzuJBj9Z">关联灵感（最多 4 个，需在灵感库对照勾选）</span></div>
+          <div class="fbody" data-page-node-id="eHXHoNED9QNZ7PpmXLObD2"><div class="val tags" data-page-node-id="S2PIpm0M3nJRpdWtyh8uUI"><code data-page-node-id="Gipagp2tEVrftrpEK9hkFi">阈值配置化</code> <code data-page-node-id="p21Bp4mbyyL1tnyOV9mt5s">system 模板 + 租户分叉</code> <code data-page-node-id="EDNCDKIiNJfqrp3OOwWJZS">开关前先看影响面</code></div></div>
+        </div>
+      </section>
+<script>
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.copy');
+    if (!btn) return;
+    const text = btn.getAttribute('data-copy');
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; }
+    } catch (_) { /* fall through */ }
+    if (!ok) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+      document.body.removeChild(ta);
+    }
+    const old = btn.textContent;
+    btn.textContent = ok ? '已复制' : '请手动复制';
+    btn.classList.toggle('done', ok);
+    setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1200);
+  });
+</script>
+</body>
+</html>
