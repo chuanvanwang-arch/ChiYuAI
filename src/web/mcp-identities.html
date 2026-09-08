@@ -17,6 +17,8 @@
   .token-modal code { display:block; background:var(--bg); padding:10px; margin:10px 0; word-break:break-all; color:var(--ok); }
   .note { color:var(--warn); font-size:12px; margin-top:8px; }
   .empty { color:var(--mut); padding:20px; }
+  .add-form { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px; }
+  .add-form label { font-size:13px; color:var(--mut); display:flex; flex-direction:column; gap:4px; }
 </style>
 <link rel="stylesheet" href="/portal/tokens.css" />
 <link rel="stylesheet" href="/portal/common.css" />
@@ -39,14 +41,21 @@
 </div></div>
 <script type="module">
 import { get, post, put } from '/portal/api.js';
-import { renderMcpIdentities, mcpIdentitySummary, roleOptions } from '/portal/mcpIdentityRender.js';
+import { renderMcpIdentities, mcpIdentitySummary, roleOptions, esc } from '/portal/mcpIdentityRender.js';
+
+let ROLES = [];
 
 async function load() {
-  const { rows, roles } = await get('/api/mcp-identities');
-  document.getElementById('list').innerHTML = renderMcpIdentities(rows, roles);
-  const s = mcpIdentitySummary(rows);
-  document.getElementById('summary').textContent = `共 ${s.count} 个 · 启用 ${s.enabled} · 已吊销 ${s.revoked}`;
-  bindRows();
+  try {
+    const { rows, roles } = await get('/api/mcp-identities');
+    ROLES = roles || [];
+    document.getElementById('list').innerHTML = renderMcpIdentities(rows, ROLES);
+    const s = mcpIdentitySummary(rows);
+    document.getElementById('summary').textContent = `共 ${s.count} 个 · 启用 ${s.enabled} · 已吊销 ${s.revoked}`;
+    bindRows();
+  } catch (e) {
+    document.getElementById('list').innerHTML = `<div class="empty">加载失败：${esc(e.message)}（MCP 身份签发仅 ADMIN 可访问；sysadmin 请使用 crm-cli auth login 自助领取）</div>`;
+  }
 }
 function bindRows() {
   document.querySelectorAll('.mcp-row').forEach((tr) => {
@@ -64,16 +73,34 @@ function bindRows() {
     };
   });
 }
-document.getElementById('add').onclick = async () => {
-  const actor = prompt('接入方 actor（如 kavak-bot）：');
-  if (!actor) return;
-  const role_tag = prompt('角色 role_tag（sales/manager/finance/presales/contract_admin）：');
-  if (!role_tag) return;
-  const data = await post('/api/mcp-identities', { actor, role_tag });
-  if (data.token_plaintext) {
-    document.getElementById('tokenText').textContent = data.token_plaintext;
-    document.getElementById('tokenModal').style.display = 'flex';
-  } else { alert('创建失败：' + (data.error || '未知')); }
+document.getElementById('add').onclick = () => {
+  const existing = document.getElementById('addForm');
+  if (existing) { existing.remove(); return; }
+  const form = document.createElement('div');
+  form.id = 'addForm';
+  form.className = 'add-form';
+  form.innerHTML = `
+    <label>接入方 actor <input class="f-actor-new" placeholder="如 kavak-bot" /></label>
+    <label>角色 <select class="role-tag-new">${roleOptions(ROLES)}</select></label>
+    <label>租户 tenant_id（可选，留空=平台级） <input class="f-tenant-new" placeholder="acme-auto 或留空" /></label>
+    <div>
+      <crm-button id="addSubmit">创建</crm-button>
+      <crm-button id="addCancel">取消</crm-button>
+    </div>`;
+  document.querySelector('main').insertBefore(form, document.getElementById('list'));
+  form.querySelector('#addCancel').onclick = () => form.remove();
+  form.querySelector('#addSubmit').onclick = async () => {
+    const actor = form.querySelector('.f-actor-new').value.trim();
+    const role_tag = form.querySelector('.role-tag-new').value;
+    const tenant_id = form.querySelector('.f-tenant-new').value.trim() || undefined;
+    if (!actor || !role_tag) { alert('actor 与 role_tag 必填'); return; }
+    const data = await post('/api/mcp-identities', { actor, role_tag, tenant_id });
+    form.remove();
+    if (data.token_plaintext) {
+      document.getElementById('tokenText').textContent = data.token_plaintext;
+      document.getElementById('tokenModal').style.display = 'flex';
+    } else { alert('创建失败：' + (data.error || '未知')); }
+  };
 };
 document.getElementById('tokenClose').onclick = () => {
   document.getElementById('tokenModal').style.display = 'none';

@@ -32,7 +32,7 @@
   <crm-button id="tokenClose">我已保存</crm-button>
 </div></div>
 <script type="module">
-import { get, post, put, token } from '/portal/api.js';
+import { get, post, put, token, me } from '/portal/api.js';
 import { esc, statusBadge, renderScopes } from '/portal/mcpIdentityRender.js';
 import { injectLayout } from '/portal/layout.js';
 injectLayout();
@@ -57,7 +57,16 @@ function rowHtml(r) {
   </tr>`;
 }
 
-function render(rows) {
+function render(rows, role) {
+  const roleNote = (() => {
+    if (role === 'sysadmin' || role === 'ten_admin') {
+      return `你是平台级角色（${role}）。请使用 <code>crm-cli auth login</code>（或 MCP <code>crm_login</code>）自助领取 8 小时临时 token：<br><code>crm-cli auth login --role ${role}</code><br>如需为具体接入方签发长期凭据，请联系 ADMIN 在「连接器 / MCP 身份配置」操作。`;
+    }
+    if (role === 'admin') {
+      return `admin 为平台治理账号，按设计不持有 MCP 凭据；请以 admin 身份在「连接器 / MCP 身份配置」为具体接入方签发。`;
+    }
+    return `零信任：token 明文仅在创建时一次性返回，系统只存哈希、不可恢复；不再使用请及时吊销（软标记，可追溯）。`;
+  })();
   const body = rows.length
     ? `<table class="api-tbl"><thead><tr><th>接入方</th><th>角色</th><th>域范围</th><th>状态</th><th>有效期</th><th>操作</th></tr></thead>
        <tbody>${rows.map(rowHtml).join('')}</tbody></table>`
@@ -68,7 +77,7 @@ function render(rows) {
       <span class="muted">启用中上限 5 个 · 只显示属于你的身份（共 ${rows.length} 条）</span>
     </div>
     ${body}
-    <div class="note">零信任：token 明文仅在创建时一次性返回，系统只存哈希、不可恢复；不再使用请及时吊销（软标记，可追溯）。平台级角色（admin/ten_admin）请走「连接器 / MCP 身份配置」管理页。</div>`;
+    <div class="note">${roleNote}</div>`;
   bind();
 }
 
@@ -101,8 +110,9 @@ document.getElementById('tokenClose')?.addEventListener('click', () => {
 
 async function load() {
   try {
+    const m = await me().catch(() => null);
     const j = await get('/api/mcp-identities/me');
-    render(j.rows || []);
+    render(j.rows || [], m?.role);
   } catch (e) { root.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
