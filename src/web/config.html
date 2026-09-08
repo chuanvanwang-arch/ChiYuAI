@@ -28,6 +28,9 @@
   #err { color: var(--err); font-size: 12px; }
   #forbidden { display: none; padding: 24px; text-align: center; }
   #forbidden a { color: var(--ac); }
+  .tab.placeholder { opacity: .55; cursor: not-allowed; border-bottom: 2px dashed var(--line); }
+  .cfg-placeholder { padding: 20px; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; color: var(--mut); font-size: 13px; line-height: 1.7; }
+  .cfg-placeholder code { background: var(--bg); padding: 2px 6px; border-radius: 4px; color: var(--ac); }
 </style>
   <script type="module" src="/portal/components.js"></script>
 </head>
@@ -43,6 +46,7 @@
   import { injectLayout } from '/portal/layout.js';
   import { me } from '/portal/api.js';
   import { CONFIG_ITEMS } from '/portal/configCenter.js';
+  import { buildLevelTabs } from '/portal/configTabs.js';
 
   injectLayout();
 
@@ -84,17 +88,12 @@
   function render(me) {
     const tabsEl = document.getElementById('tabs');
     const panelsEl = document.getElementById('panels');
-    // §15.2 两个一级分组：系统级仅 ADMIN 可见；ten_admin/sysadmin 仅见租户级（API 侧注册表闸同步兜底）
-    // 标签不含角色名（2026-09-05 用户决议：菜单是导航不是权限声明）
-    const LEVEL_TABS = [
-      { level: 'system', name: '系统级', visible: me.level === 'ADMIN' },
-      { level: 'tenant', name: '租户级', visible: true },
-      // 第三 TAB（2026-09-05）：传播中枢，仅 ADMIN 可见（上下贯通语义；ten_admin/sysadmin 不可见）
-      { level: 'propagation', name: '全局复用与经验蔓延', visible: me.level === 'ADMIN' },
-    ].filter((t) => t.visible);
-    LEVEL_TABS.forEach((lt, gi) => {
+    // §15.2 + T5：系统级/传播 TAB 非 ADMIN 显示不可点占位 + 替代通路文案（不渲染条目明细）。
+    // 标签不含角色名（2026-09-05 用户决议：菜单是导航不是权限声明）；占位只暴露分组名、不泄露条目。
+    const tabs = buildLevelTabs(me);
+    tabs.forEach((lt, gi) => {
       const tab = document.createElement('div');
-      tab.className = 'tab' + (gi === 0 ? ' on' : '');
+      tab.className = 'tab' + (gi === 0 ? ' on' : '') + (lt.placeholder ? ' placeholder' : '');
       tab.textContent = lt.name;
       tab.dataset.gi = gi;
       tabsEl.appendChild(tab);
@@ -102,24 +101,32 @@
       const panel = document.createElement('div');
       panel.className = 'cfg-group' + (gi === 0 ? ' on' : '');
       panel.dataset.gi = gi;
-      // 组内仍按 G1–G4 子组陈列（蓝图 §1.1 分组保留，仅外层加权限一级分组）
-      panel.innerHTML = LEVEL_GROUPS_MARKUP
-        .map((g) => {
-          const items = g.items.filter((id) => (byId[id]?.level || 'tenant') === lt.level);
-          if (!items.length) return '';
-          return `<div class="cfg-sub" data-group="${esc(g.name)}">
-            <h3>${esc(g.name)}</h3>
-            <h4>${items.map((id) => byId[id]?.name || id).join(' · ')}</h4>
-            <div class="cfg-grid">${items.map((id) => {
-              const it = byId[id]; if (!it) return '';
-              return `<article class="cfg-card read" data-id="${id}">
-                <div class="cfg-head"><span class="badge read">可编辑</span><h4>#${it.id}${it.sRef ? ' · ' + esc(it.sRef) : ''} ${esc(it.name)}</h4></div>
-                <p class="cfg-sum">${esc(it.note || '')}</p>
-                <div class="cfg-act"><a class="btn-anchor" href="${esc(it.page || '#')}">打开编辑</a></div>
-              </article>`;
-            }).join('')}</div>
-          </div>`;
-        }).join('');
+      if (lt.placeholder) {
+        // 看得见但点不进：明确告知分组存在与替代通路，杜绝"死循环"体感
+        panel.innerHTML = `<div class="cfg-placeholder">
+          <p><b>${esc(lt.name)}</b>配置仅 ADMIN 可访问（§15 权限重分组）。</p>
+          <p>MCP 身份（连接器）签发请联系平台管理员，或使用 <code>crm-cli auth login</code> 自助领取 8 小时临时 token。</p>
+        </div>`;
+      } else {
+        // 组内仍按 G1–G4 子组陈列（蓝图 §1.1 分组保留，仅外层加权限一级分组）
+        panel.innerHTML = LEVEL_GROUPS_MARKUP
+          .map((g) => {
+            const items = g.items.filter((id) => (byId[id]?.level || 'tenant') === lt.level);
+            if (!items.length) return '';
+            return `<div class="cfg-sub" data-group="${esc(g.name)}">
+              <h3>${esc(g.name)}</h3>
+              <h4>${items.map((id) => byId[id]?.name || id).join(' · ')}</h4>
+              <div class="cfg-grid">${items.map((id) => {
+                const it = byId[id]; if (!it) return '';
+                return `<article class="cfg-card read" data-id="${id}">
+                  <div class="cfg-head"><span class="badge read">可编辑</span><h4>#${it.id}${it.sRef ? ' · ' + esc(it.sRef) : ''} ${esc(it.name)}</h4></div>
+                  <p class="cfg-sum">${esc(it.note || '')}</p>
+                  <div class="cfg-act"><a class="btn-anchor" href="${esc(it.page || '#')}">打开编辑</a></div>
+                </article>`;
+              }).join('')}</div>
+            </div>`;
+          }).join('');
+      }
       panelsEl.appendChild(panel);
     });
 
