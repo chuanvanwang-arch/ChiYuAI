@@ -35,8 +35,12 @@ function pairVerdict(a, b) {
   return { decision: 'CREATE' };
 }
 
-const TENANT = process.env.TENANT || process.argv[2] || 'system';
+// 2026-09-08 修复：原 `process.argv[2]` 会把 `--dry` 本身当成租户名
+//   （`node dedup-backfill.mjs --dry` → tenant_id='--dry' → 查 0 行 → 报告全空「假绿」）。
+//   租户只认 TENANT 环境变量或**非 --flag 的位置实参**。
 const DRY = process.argv.includes('--dry');
+const POSITIONAL = process.argv.slice(2).filter((s) => !String(s).startsWith('--'));
+const TENANT = process.env.TENANT || POSITIONAL[0] || 'system';
 
 const accounts = (await query(
   `SELECT id, payload, meta FROM crm.particles
