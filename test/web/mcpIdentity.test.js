@@ -24,9 +24,9 @@ function makeDeps(over = {}) {
     },
     put: async (id, patch) => {
       const row = store.find((s) => s.id === id);
-      if (!row) return null;
+      if (!row) return { notFound: true };
       Object.assign(row, patch);
-      return row;
+      return { row };
     },
     produceDecision: async () => ({ decisionId: 'd-' + (++decisionCount), ok: true }),
   };
@@ -93,6 +93,14 @@ test('put 未知 id → 404', async () => {
   const res = mockRes();
   await router.handlers.put({ params: { id: 'nope' }, body: { actor: 'x' } }, res);
   expect(res._code).toBe(404);
+});
+
+test('put 已吊销行 → 409 且 revoked_at 未清空', async () => {
+  const deps = makeDeps({ put: async () => ({ revoked: true }) });
+  const router = createMcpIdentityRouter(deps);
+  const res = mockRes();
+  await router.handlers.put({ params: { id: 'id-1' }, body: { actor: 'x' } }, res);
+  expect(res._code).toBe(409);
 });
 
 test('router.handlers 无 delete 键（绝对禁删）', async () => {

@@ -79,12 +79,26 @@ const defaultDeps = {
     return { row: r.rows[0], token_plaintext: tokenPlain };
   },
   put: async (id, patch) => {
+    // 吊销不可逆（与"绝对禁删"同源纪律）：已吊销行拒绝任何再修改，
+    // 否则编辑操作会清空 revoked_at 使失效凭据复活（D5 安全事故）。
+    const cur = (await query(
+      `SELECT id, revoked_at FROM crm.mcp_identity WHERE id=$1`, [id])).rows[0];
+    if (!cur) return { notFound: true };
+    if (cur.revoked_at) return { revoked: true };
+    // 真 PATCH：只写"显式传入"的列（未传 → 不出现在 SET 中，避免被覆盖为 NULL）
+    const COLS = ['actor', 'role_tag', 'scopes', 'enabled', 'expires_at', 'revoked_at'];
+    const sets = []; const vals = [id]; let n = 1;
+    for (const c of COLS) {
+      if (!(c in patch)) continue;
+      n += 1;
+      sets.push(`${c}=$${n}${c === 'scopes' ? '::jsonb' : ''}`);
+      vals.push(c === 'scopes' ? JSON.stringify(patch[c] || {}) : patch[c]);
+    }
+    if (!sets.length) return { noop: true };
     const r = await query(
-      `UPDATE crm.mcp_identity SET actor=$2, role_tag=$3, scopes=$4::jsonb, enabled=$5, expires_at=$6, revoked_at=$7
-       WHERE id=$1 RETURNING id, actor, role_tag, enabled, revoked_at`,
-      [id, patch.actor, patch.role_tag, JSON.stringify(patch.scopes || {}),
-       patch.enabled !== false, patch.expires_at || null, patch.revoked_at || null]);
-    return r.rows[0] || null;
+      `UPDATE crm.mcp_identity SET ${sets.join(', ')}
+        WHERE id=$1 RETURNING id, actor, role_tag, enabled, revoked_at`, vals);
+    return { row: r.rows[0] || null };
   },
   // 按 username 反查 user_id（JWT 不含 user_id，方案 B 绑定 person_id 用）；用户不存在返回 null
   findUserId: async (username) => {
@@ -233,9 +247,11 @@ export function createMcpIdentityRouter(deps = {}) {
         if (revoked_at !== undefined) patch.revoked_at = revoked_at;
         if (patch.revoked_at) patch.enabled = false; // 吊销 = 软标记 + 停用
         const updated = await D.put(id, patch);
-        if (!updated) return res.status(404).json({ error: '身份不存在' });
+        if (updated?.notFound) return res.status(404).json({ error: '身份不存在' });
+        if (updated?.revoked)  return res.status(409).json({ error: '身份已吊销，不可再修改（吊销不可逆）' });
+        if (updated?.noop)     return res.status(400).json({ error: '无可更新字段' });
         const decision = await D.produceDecision({ key: 'mcp-identity', id });
-        res.json({ ok: true, row: updated, decision: decision?.decisionId || null });
+        res.json({ ok: true, row: updated.row, decision: decision?.decisionId || null });
       } catch (e) { res.status(400).json({ error: e.message }); }
     },
   };
