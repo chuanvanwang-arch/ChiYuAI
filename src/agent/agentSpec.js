@@ -4,8 +4,8 @@ export const agentSpecs = {
   'intake-router': {
     identity: { name: 'intake-router', derivedFrom: 'taskFlow:crm-intake-routing', autonomy: 'recommend' },
     capabilities: {
-      actions: ['data-particle-read', 'data-particle-create', 'data-particle-edge-create', 'crm-deal-advance', 'crm-account-360', 'method-intake-routing'],
-      skillCalls: ['data-particle-read', 'method-intake-routing'],
+      actions: ['data-particle-read', 'data-particle-create', 'data-particle-edge-create', 'crm-deal-advance', 'crm-account-360', 'method-intake-routing', 'method-dialog-router'],
+      skillCalls: ['data-particle-read', 'method-intake-routing', 'method-dialog-router'],
       knowledgeScope: { layers: ['L1', 'L2'], maxHops: 3 },
     },
     context: { knowledgeLevel: 2, coverage: '>=80%', coldStart: 'adaptive' },

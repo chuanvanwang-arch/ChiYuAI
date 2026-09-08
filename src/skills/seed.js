@@ -175,6 +175,21 @@ export function seedSkills() {
     registerSkill(skill);
   }
 
+  // 对话坐标路由（2026-09-08 设计 §4）：销售自然语言诉求 → 8 大决策场景 × S1-S8 阶段坐标。
+  // step2 依赖 action crm-decision-advise（Task 6 注册），执行前须确保其已注册。
+  registerSkill({
+    slug: 'method-dialog-router', version: 1,
+    description: '对话坐标路由方法论（诉求关键词×商机阶段→8 大决策场景）——把销售自然语言诉求定位到决策坐标并产出阶段化建议',
+    rbac_roles: ['sales', 'manager'],
+    steps: [
+      { step: 1, action: 'data-particle-read', decision: 'rule', params: { type: 'CRM_DEAL' }, preconditions: [], postconditions: [] },
+      { step: 2, action: 'crm-decision-advise', decision: 'rule', params: {}, preconditions: ['steps[0].done'], postconditions: ['result.ok'] },
+      { step: 3, action: null, decision: 'j_judge',
+        prompt: '基于决策坐标与建议卡 {{steps[1].result}} 用一句话向销售说明：当前处于哪个决策阶段、建议怎么做、还缺什么信息',
+        preconditions: ['steps[1].done'], postconditions: ['decision.finalized'] },
+    ],
+  });
+
   // 4 个 CRM 智能体 SKILL（§6.13 对话式 CRM 智能体包：编排/查询/写入/风险）
   // registry 仅登记元数据；skills/crm-{native,query,write,risk}/ 目录承载完整 SKILL
   const AGENT_SKILLS = [
