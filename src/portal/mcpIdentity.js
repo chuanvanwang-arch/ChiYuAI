@@ -71,11 +71,12 @@ const defaultDeps = {
   create: async (input) => {
     const { id, tokenPlain } = newStructuredToken();
     const r = await query(
-      `INSERT INTO crm.mcp_identity (id, token_hash, actor, person_id, role_tag, scopes, expires_at)
-       VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, $5, $6::jsonb, $7)
-       RETURNING id, actor, role_tag, enabled, revoked_at`,
+      `INSERT INTO crm.mcp_identity (id, token_hash, actor, person_id, role_tag, scopes, expires_at, tenant_id)
+       VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, $5, $6::jsonb, $7, $8)
+       RETURNING id, actor, role_tag, enabled, revoked_at, tenant_id`,
       [id, tokenPlain, input.actor, input.person_id || null, input.role_tag,
-       JSON.stringify(input.scopes || {}), input.expires_at || null]);
+       JSON.stringify(input.scopes || {}), input.expires_at || null,
+       input.tenant_id || 'system']);   // 平台级接入方默认 system；租户接入方由管理页显式指定
     return { row: r.rows[0], token_plaintext: tokenPlain };
   },
   put: async (id, patch) => {
@@ -225,9 +226,9 @@ export function createMcpIdentityRouter(deps = {}) {
       try {
         const me = await requireAdmin(req, res);
         if (!me) return;
-        const { actor, person_id, role_tag, scopes, expires_at } = req.body || {};
+        const { actor, person_id, role_tag, scopes, expires_at, tenant_id } = req.body || {};
         if (!actor || !role_tag) return res.status(400).json({ error: 'actor 与 role_tag 必填' });
-        const created = await D.create({ actor, person_id, role_tag, scopes, expires_at });
+        const created = await D.create({ actor, person_id, role_tag, scopes, expires_at, tenant_id });
         const decision = await D.produceDecision({ key: 'mcp-identity', id: created.row.id });
         res.json({ id: created.row.id, token_plaintext: created.token_plaintext, decision: decision?.decisionId || null });
       } catch (e) { res.status(400).json({ error: e.message }); }
