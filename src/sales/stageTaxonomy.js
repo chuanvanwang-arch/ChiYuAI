@@ -58,3 +58,15 @@ export function toStageCode(v) {
 export function fromStageCode(code) {
   return S_ALIAS_REV[code] || code;
 }
+
+// 阶段 → 默认决策场景（2026-09-08：从 src/action/seed-actions.js 上移为单一事实源，
+//   供第 0 闸场景推断与对话坐标判定共用；值对齐 design doc §4.2 出厂默认表）
+// 2026-09-02 修正说明（随常量一并上移）：原表自 S3 起整体错位一格（S3→QUOTE_PRICING / S4→SIGN_RISK /
+//   S5→POST_CONTRACT），导致「方案匹配」阶段的决策全部被记成「报价定价」、S8 丢单缺键退回 OPP_QUALIFY。
+//   生产实测佐证：decision 表 SOLUTION_VALUE / CLIENT_STRATEGY / POST_CONTRACT 三类场景均 0 行。
+//   对齐依据：本文件 S_LABEL（S3 方案匹配 / S4 报价谈判 / S5 合同确认 / S6 赢单移交）。
+export const STAGE_DEFAULT_SCENARIO = {
+  S1: 'LEAD_FOLLOW_UP', S2: 'OPP_QUALIFY', S3: 'SOLUTION_VALUE',
+  S4: 'QUOTE_PRICING', S5: 'SIGN_RISK', S6: 'POST_CONTRACT',
+  S7: 'LOSS_REVIEW', S8: 'LOSS_REVIEW',
+};
