@@ -126,7 +126,7 @@ def check_zip(path, expect_name, expect_version, skill_names, content_rules):
 check_zip(
     os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
     expect_name="crm-native",
-    expect_version="1.5.0",
+    expect_version="1.6.0",
     skill_names=["crm-native", "crm-query", "crm-write", "crm-risk", "decision-retrospective",
                  "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map",
                  "method-risk-tradeoff", "method-stop-loss", "method-fact-vs-script",
@@ -138,6 +138,8 @@ check_zip(
         "端点已参数化（写明由连接器决定）": (r"端点地址由连接器配置决定", True),
         "无写死的 StreamableHTTP @ localhost 表述": (r"StreamableHTTP `@ http://localhost:3001/mcp`", False),
         "保留 crm_login 强制登录铁律": (r"crm_login", True),
+        "含决策建议工具 crm-decision-advise（2026-09-08 新增）": (r"crm-decision-advise", True),
+        "含决策建议三档（A 处置 / B 红线审批 / C 补信息）": (r"B 风险提示", True),
     },
 )
 

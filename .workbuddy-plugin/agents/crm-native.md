@@ -62,6 +62,7 @@ description:
 | "我的待办 / 待我审批 / 批准" | `my-todo-query` / `my-todo-approve` / `my-todo-reject`（两阶段写签批） |
 | "查业务单据（合同/报价/订单）" | `data-particle-read`（by type 单据清单） |
 | "查客户记忆" | `crm-memory-read`（客户记忆时间线检索，按 tenant 隔离） |
+| "客户要 8 折 / 要不要寄样 / 这单还能跟吗" | `crm-decision-advise` → 决策建议卡（8 大决策 × S1-S8；A 处置 / B 红线走审批 / C 补信息） |
 
 ## 安全红线（零信任，继承总则）
 
@@ -81,4 +82,4 @@ npm run mcp:http
 npm run mcp:stdio
 ```
 
-外部智能体经 MCP 工具即可：「一句话查询」（读工具直连）、「对话式写入」（写工具两阶段）、「链断裂预警」（crm-risk 主动探测 + SSE 推送）。
+外部智能体经 MCP 工具即可：「一句话查询」（读工具直连）、「对话式写入」（写工具两阶段）、「链断裂预警」（crm-risk 主动探测 + SSE 推送）、「决策建议」（`crm-decision-advise`：销售每次对话 → 8 大决策 × S1-S8 → 建议卡，B 档红线必须走审批）。

@@ -99,3 +99,46 @@ npm run mcp:stdio     # stdio（供本地 Agent 子进程调用）
 | `GET /api/monitor/audit?decision_id=` | **deprecated** | 兼容薄转发 → graph/provenance |
 
 **纪律**：新代码/新智能体一律接 `/api/graph/*`；monitor 壳仅供旧调用兼容，不得新增引用；未来无流量（可观测确认）后经决策事件主轴批准再删。
+
+---
+
+## 2026-09-08 同步说明：决策建议（8 大决策 × S1-S8）
+
+> 对应平台侧交付：`docs/2026-09-08-dialog-driven-decision-advice-design.md` +
+> 实施计划 `docs/plans/2026-09-08-dialog-driven-decision-advice.md`（T0-T9，E2E 15/15 通过）。
+
+**版本 1.5.0 → 1.6.0。**
+
+### 新增能力：销售每次对话都拿到决策建议
+
+销售员的每一句话都是决策输入——不论他是否明确提出决策要求。
+新 MCP 工具 **`crm-decision-advise`**（只读、需 `crm_login`）：
+
+- **入参**：`utterance`（销售原话；服务端立即丢弃，**对话原文零落库**）、`stage`（S1-S8，可选）、`deal`（可选）。
+- **坐标**：8 大决策场景（线索跟进 / 机会评估 / 客户策略 / 方案价值 / 商务报价 / 签单风险 / 终局决策 / 丢单复盘）× 商机阶段 S1-S8。
+- **产出建议卡三档**：
+  - **A 明确处置**——条件齐备且证据充分，给推荐 disposition + 依据 + 先例；
+  - **B 风险提示**——触碰红线（如毛利低于下限）或 HIGH 级场景（报价/签单类），**必须走审批流**；
+  - **C 只补信息**——坐标不明或必填条件缺失，只列缺口与追问话术，不给处置。
+
+### 触发纪律（写进 crm-native 编排路由）
+
+识别出销售诉求（报价/折扣/样品/方案/拜访/预算/竞品/合同/回款/丢单/新线索）时，
+**先调 `crm-decision-advise` 取建议卡**，再走查询或两阶段写入；不得跳过建议直接给处置结论。
+建议卡为 B 档时禁止直接触发写工具，必须引导发起审批并明确告知「这超出你的权限，需审批」。
+
+### 本包改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `skills/crm-native/SKILL.md` | 意图路由表增「任何销售诉求 → 先过 crm-decision-advise」+ 新增「决策建议优先」小节；Action 读清单增 `crm-decision-advise` |
+| `.workbuddy-plugin/agents/crm-native.md` | 一句话能力映射增决策建议行；能力收尾段补「决策建议」 |
+| `.workbuddy-plugin/plugin.json` / `openclaw.plugin.json` / `package.json` | 版本 1.5.0 → 1.6.0 |
+
+### 打包
+
+```bash
+python scripts/pack-crm-plugin.py        # 输出 plugin/crm-native-plugin.zip
+```
+
+> 权威源是**仓库根 `skills/`**；`plugin/skills/` 为分发副本，已同步。
