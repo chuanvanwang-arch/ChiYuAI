@@ -64,6 +64,14 @@ describe('mergeIntoExisting（静默归并，不新建）', () => {
     expect(merged.payload.phone).toBe('123');
     expect(merged.payload.contacts.length).toBe(2);
   });
+
+  it('身份字段保护：主档名称不被从档后缀污染', async () => {
+    // 回归：2026-09-08 实测从档带 "(中试推进)" 后缀，曾把主档名称覆盖成从档名
+    const a = await createParticle('CRM_ACCOUNT', { name: 'M 涂料科技有限公司', industry: '涂料/化工', named_owner: 'alice' });
+    const merged = await mergeIntoExisting(a.id, { name: 'M 涂料科技有限公司(中试推进)', stage: 'S1' }, 'system');
+    expect(merged.payload.name).toBe('M 涂料科技有限公司'); // 主档身份不得被覆盖
+    expect(merged.payload.stage).toBe('S1');               // 业务字段照常并入
+  });
 });
 
 describe('mergeTwoAccounts（存量双账户软合并）', () => {
@@ -81,6 +89,13 @@ describe('mergeTwoAccounts（存量双账户软合并）', () => {
     expect(secAfter.meta.merged_into).toBe(primary.id);
     const e = (await query(`SELECT source_id FROM crm.edges WHERE target_id=$1`, [contact.id])).rows[0];
     expect(e.source_id).toBe(primary.id); // 边已迁移
+  });
+
+  it('跨租户归并被硬闸拒绝', async () => {
+    // 实测库中存在同名不同租户的 M 涂料科技（system / acme-chem），跨租户并进会污染数据隔离
+    const p = await createParticle('CRM_ACCOUNT', { name: '跨租户甲', named_owner: 'alice' }, { tenantId: 'system' });
+    const s = await createParticle('CRM_ACCOUNT', { name: '跨租户甲', named_owner: 'zhao' }, { tenantId: 'acme-chem' });
+    await expect(mergeTwoAccounts(p.id, s.id, 'system')).rejects.toThrow(/cross_tenant_merge_denied/);
   });
 });
 

@@ -142,12 +142,17 @@ function collectPhones(obj) {
 
 // ─── 客户去重系统（2026-09-08 任务3 · 归并执行器）───────────────────────────
 // 字段级 merge + 软合并（confirmMerge）；不物理删，守禁删铁律
+// 身份字段：主档已有值时禁止被从档覆盖
+// 背景：从档常带 "(中试推进)" 之类后缀，若无保护会把主档名称污染成从档名（2026-09-08 实测）
+const IDENTITY_KEYS = new Set(['name', 'id', 'slug', 'title', 'account_name']);
+
 // 字段级并入：非空覆盖、数组追加去重、对象深合并
 function mergePayloads(base, inc) {
   const out = { ...base };
   for (const [k, v] of Object.entries(inc || {})) {
     if (v === undefined || v === null) continue;
     if (k === 'possible_duplicate_of' || k === 'merged_into') continue; // 不回写查重标记
+    if (IDENTITY_KEYS.has(k) && out[k] != null && out[k] !== '') continue; // 主档身份优先，仅在主档缺失时补齐
     if (Array.isArray(v) && Array.isArray(out[k])) out[k] = [...new Set([...out[k], ...v])];
     else if (v && typeof v === 'object' && out[k] && typeof out[k] === 'object') out[k] = { ...out[k], ...v };
     else out[k] = v;
@@ -171,6 +176,19 @@ export async function mergeIntoExisting(candidateId, incomingPayload, tenantId =
 
 // 存量双账户归并：边迁移 + 字段并入 + 软合并标记（不物理删）
 export async function mergeTwoAccounts(primaryId, secondaryId, tenantId = 'system') {
+  // 0) 多租户硬闸：两侧必须同租户。
+  // 背景：updateParticle 对 tenantId='system' 有跨租户豁免，若不校验会把 acme-chem 的客户
+  // 静默并进 system 租户（实测库中存在同名不同租户的 M 涂料科技），属数据隔离事故。
+  const [pRow, sRow] = await Promise.all([getParticle(primaryId), getParticle(secondaryId)]);
+  if (!pRow || !sRow) throw new Error('mergeTwoAccounts: 粒子不存在');
+  const pTenant = pRow.tenant_id || 'system';
+  const sTenant = sRow.tenant_id || 'system';
+  if (pTenant !== sTenant) {
+    throw new Error(`cross_tenant_merge_denied: 主档属 ${pTenant}，从档属 ${sTenant}，禁止跨租户归并`);
+  }
+  if (tenantId && tenantId !== 'system' && pTenant !== tenantId) {
+    throw new Error(`cross_tenant_merge_denied: 目标租户 ${pTenant} ≠ 调用方 ${tenantId}`);
+  }
   // 1) 迁移受控边：source/target = secondary → primary
   await queryWrite(`UPDATE crm.edges SET source_id=$1 WHERE source_id=$2 AND tenant_id=$3`,
     [primaryId, secondaryId, tenantId]).catch(() => {});
