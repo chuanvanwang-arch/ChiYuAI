@@ -1,0 +1,11 @@
+{
+  "name": "crm-native-cli",
+  "version": "1.0.0",
+  "description": "CRM-ai-native 本地 CLI 连接器：只读直连 CRM MCP 通道（生产/本机/域名三档端点）",
+  "type": "module",
+  "bin": { "crm-cli": "src/cli.js" },
+  "files": ["src", "README.md"],
+  "engines": { "node": ">=22.20.0" },
+  "scripts": { "test": "vitest run" },
+  "license": "MIT"
+}

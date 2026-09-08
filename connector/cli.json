@@ -1,0 +1,17 @@
+{
+  "init": {
+    "win32": "npm install -g crm-native-cli",
+    "darwin": "npm install -g crm-native-cli",
+    "linux": "npm install -g crm-native-cli"
+  },
+  "auth":   { "win32": "crm-cli auth login",  "darwin": "crm-cli auth login",  "linux": "crm-cli auth login" },
+  "unAuth": { "win32": "crm-cli auth logout", "darwin": "crm-cli auth logout", "linux": "crm-cli auth logout" },
+  "status": { "win32": "crm-cli auth status", "darwin": "crm-cli auth status", "linux": "crm-cli auth status" },
+  "statusMatchJson": { "status": "valid" },
+  "versionCheck": {
+    "command": { "win32": "crm-cli version", "darwin": "crm-cli version", "linux": "crm-cli version" },
+    "minVersion": "1.0.0",
+    "versionPattern": "(\\d+\\.\\d+\\.\\d+)"
+  },
+  "runtime": { "type": "node", "version": ">=22.20.0" }
+}
