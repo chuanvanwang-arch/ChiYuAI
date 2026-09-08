@@ -8,6 +8,7 @@ import { resolveEffectiveRole } from './intent.js';
 import { MCP_CONFIG } from './config.js';
 import { requireDecision } from '../decision/autonomyEngine.js';
 import { resolveEntitlements } from '../billing/entitlements.js';
+import { advise } from '../decision/adviseService.js';
 
 const SWITCH_OPTIONS = ['sales', 'manager', 'presales', 'exec', 'finance', 'contract_admin'];
 const CONFIRM_TTL_MS = 10 * 60 * 1000;
@@ -178,7 +179,13 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
   emit('trace', 'mcp-write-phase1-confirm-issued', { action: actionName, actor: ctx.actor, focus_domain: intent.focus_domain });
   // 降级软提示：仍发 confirm_token，但附带 prompt 让客户端显式提示补完凭证（不硬阻断写）
   const extra = (ctx.degraded && ctx.prompt_needed) ? { degraded: true, prompt: buildDegradedPrompt() } : {};
-  return { ok: true, confirm_token, ...extra, form: { ...buildConfirmForm(actionName, def, ctx, params, intent.focus_domain), degraded: ctx.degraded } };
+  // 对话驱动建议（2026-09-08 T6）：仅附加字段，不改变 confirm_token 与闸语义；fail-open（异常不阻断）
+  let advice = null;
+  try {
+    const a = await advise({ utterance: params?.utterance || '', ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || null });
+    advice = a.advice;
+  } catch { advice = null; }
+  return { ok: true, confirm_token, ...extra, advice, form: { ...buildConfirmForm(actionName, def, ctx, params, intent.focus_domain), degraded: ctx.degraded } };
 }
 
 // 敏感读 phase1：无决策闸，仅 confirm（读不写）；降级同样软提示
@@ -258,7 +265,12 @@ export async function mcpReadDirect(actionName, params = {}, headers = {}) {
     const intent = await resolveEffectiveRole(ctx.role, actionName, ctx.scopes || {});
     ctx.focus_domain = intent.focus_domain;
     ctx.over_scope = intent.over_scope;
-    return actionExecutor.dispatch(actionName, params, ctx);
+    const res = await actionExecutor.dispatch(actionName, params, ctx);
+    // 对话驱动建议（2026-09-08 T6）：读结果附加建议卡；fail-open（异常原样返回，绝不阻断读）
+    try {
+      const a = await advise({ utterance: params?.utterance || '', ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || null });
+      return { ...res, advice: a.advice };
+    } catch { return res; }
   }
   return { ok: false, error: `未知读 Action: ${actionName}` };
 }

@@ -27,6 +27,7 @@ import { writeOutcome, listOutcomes } from '../decision/outcome.js';
 import { setDecisionFeedback } from '../decision/feedback.js';
 import { traceRootCause } from '../decision/traceRootCause.js';
 import { classifyRootCause } from '../decision/rootCauseClassifier.js';
+import { advise } from '../decision/adviseService.js'; // 对话驱动建议（2026-09-08 T7）：NL 生成页面时附带决策建议卡
 import { detectConflicts } from '../decision/conflict.js'; // P4 冲突保留：4 问审计 Q3 数据源
 // P0② 出参脱敏中间件（展示层，不落库；字段表 config_store['mask-fields'] 可覆盖）
 import { createMaskMiddleware } from './middleware/mask.js';
@@ -2140,7 +2141,13 @@ export function createRoutes(app, hub) {
     const { nl } = req.body || {};
     const r = createPageFromNl(nl);
     if (!r.ok) return res.status(400).json({ error: r.error, errors: r.errors, needsClarification: r.needsClarification });
-    res.status(201).json({ page_id: r.page_id, schema: r.schema, confidence: r.confidence, needsClarification: r.needsClarification, previewHtml: r.previewHtml });
+    // 对话驱动建议（2026-09-08 T7）：把 NL 原文当销售诉求定位决策坐标（原文不落库，仅用于规则匹配）
+    let advice = null;
+    try {
+      const a = await advise({ utterance: String(nl || ''), ctx: {}, deal: null, stage: null });
+      advice = a.advice;
+    } catch { advice = null; }
+    res.status(201).json({ page_id: r.page_id, schema: r.schema, confidence: r.confidence, needsClarification: r.needsClarification, previewHtml: r.previewHtml, advice });
   });
 
   // 页面清单（draft/published 摘要）

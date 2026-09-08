@@ -15,6 +15,7 @@ import { recordTokens } from '../alerts/tokenAccounting.js'; // 09-V6 token 计�
 import { deterministicEval } from '../aiAttributes/evaluator.js'; // 门控现场复算 BANTCC 六维明细
 import { readThreshold, DEFAULT_THRESHOLDS } from '../sales/salesThresholds.js'; // 门控阈值（走配置，禁硬编码）
 import { toStageCode, S_ATTACHMENT_GATES } from '../sales/stageTaxonomy.js'; // 阶段码归一（lead→S1 等）+ 第3.5闸强制附件门禁定义
+import { advise } from '../decision/adviseService.js'; // 对话驱动建议（2026-09-08 T7）：仅阻断路径附加，合规写零侵入
 
 export const registry = { list: listActions, get: getAction };
 
@@ -48,7 +49,14 @@ export const actionExecutor = {
     const decisionId = ctx.decision_id || params?.decision_id;
     if (def.kind === 'write' && !decisionId && !ctx.bootstrap && !def.autoDecision) {
       emit('trace', 'action-write-blocked', { action: actionName, actor: ctx.actor, reason: 'no_decision_id' });
-      return { ok: false, gate: 'decision_required', error: '第0闸: 写操作必须携带 decision_id（无决策不写）' };
+      // 对话驱动建议（2026-09-08 T7）：阻断时顺带给出决策建议卡，帮助销售补齐 decision_id 所需的决策。
+      // 只在阻断路径附加，不改变第 0 闸任何判定语义；fail-open（advise 异常不影响阻断返回）。
+      let advice = null;
+      try {
+        const a = await advise({ utterance: params?.utterance || '', ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || null });
+        advice = a.advice;
+      } catch { advice = null; }
+      return { ok: false, gate: 'decision_required', error: '第0闸: 写操作必须携带 decision_id（无决策不写）', advice };
     }
     // T1：autoDecision 统一 mint——仅声明 decisionScenario 且已注册才代 handler mint（防硬抛 + 防双 mint）
     // 未声明 decisionScenario（含已合规 7 个 handler 内 mint 的 action）→ 跳过，不双 mint

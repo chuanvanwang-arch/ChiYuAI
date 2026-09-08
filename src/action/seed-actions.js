@@ -10,8 +10,10 @@ import { emit } from '../events/bus.js';
 import { listMetaAttr, setMetaAttr } from '../metaAttr/metaAttrRepo.js';
 import { readConfig } from '../config/configStore.js';
 import { recordFailure } from '../monitor/monitorStore.js';
+import { advise } from '../decision/adviseService.js';
 import {
   S_STAGES, S_LABEL, S_TRANSITIONS, S_GATE_DEFS, S_ATTACHMENT_GATES, toStageCode,
+  STAGE_DEFAULT_SCENARIO as STAGE_SCENARIO, // 2026-09-08：上移至 stageTaxonomy.js 为单一事实源（注释随之上移）
 } from '../sales/stageTaxonomy.js';
 import { scoreBantcc6 } from '../sales/gateThresholdDelta.js';
 import { mantOk, funnelZone, forecastClass, weightedAmount } from '../sales/funnelQuality.js';
@@ -37,16 +39,6 @@ import {
 
 // 阶段 → 决策场景映射（写通道第 0 闸：每次商机推进都是一个决策事件）
 // 2026-08-31 统一术语：键改用 S1-S8 单一事实源
-// 2026-09-02 修正：原表自 S3 起整体错位一格（S3→QUOTE_PRICING / S4→SIGN_RISK / S5→POST_CONTRACT），
-//   导致「方案匹配」阶段的决策全部被记成「报价定价」、S8 丢单缺键退回 OPP_QUALIFY。
-//   生产实测佐证：decision 表 SOLUTION_VALUE / CLIENT_STRATEGY / POST_CONTRACT 三类场景均 0 行。
-//   对齐依据：src/sales/stageTaxonomy.js S_LABEL（S3 方案匹配 / S4 报价谈判 / S5 合同确认 / S6 赢单移交）。
-const STAGE_SCENARIO = {
-  S1: 'LEAD_FOLLOW_UP', S2: 'OPP_QUALIFY', S3: 'SOLUTION_VALUE',
-  S4: 'QUOTE_PRICING', S5: 'SIGN_RISK', S6: 'POST_CONTRACT',
-  S7: 'LOSS_REVIEW', S8: 'LOSS_REVIEW',
-};
-
 // 方案 A 接线（2026-08-31）：submit 不传 flow_id 时按 business_type → domain 解析粒子 id
 // 配置页 flow_id 即业务域字符串；运行态引擎按粒子 id 查，需经 getFlowByDomain 桥接
 const BIZ_DOMAIN = {
@@ -1441,6 +1433,9 @@ export function seedActions() {
     //   execute = 决策后治理写回（记忆沉淀×决策复盘，写步骤由 crm-memory-upsert 自身过第 0 闸）。
     ['decision-enrich', '决策前富集：装配上下文×记忆线索×风险注解（只读，零写）'],
     ['decision-execute', '决策后执行：记忆沉淀×决策复盘×治理写回（写步骤各自过第 0 闸）'],
+    // 2026-09-08 对话驱动决策建议（docs/plans/2026-09-08-dialog-driven-decision-advice.md T0）：
+    //   方法论壳（本项，读 SKILL.md）+ 执行体 crm-decision-advise（T6 注册，产出建议卡，零写）。
+    ['dialog-router', '对话坐标路由：诉求关键词×商机阶段→8 大决策场景 × S1-S8 阶段建议'],
   ].forEach(([id, desc]) => registerAction({
     name: `method-${id}`, kind: 'read', permission: 'auth', requiresEntitlement: ['core_crm'],
     namespace: 'method', agentTool: true, needsApproval: false,
@@ -1864,6 +1859,24 @@ export function seedActions() {
 
   // 2026-09-03 C 方案 T2/T4：lifecycle 元数据集中标注（不破坏上方 66 个业务块）
   // engine = 审批流/校准/决策/agent 引擎类 + method 命名空间（由引擎内部触发，MCP 暴露但标注 [引擎]）
+  // crm-decision-advise：对话决策建议（T6）——把销售诉求定位到 8 大决策坐标并给出建议卡。
+  // kind=read：不落库、不过第 0 闸（建议本身不是写）。
+  // 注：`persist` 参数为 T8 落锚点预留，当前**未接线**（返回体不含 decision_id），T8 完成后生效。
+  registerAction({
+    name: 'crm-decision-advise', kind: 'read', permission: 'auth', requiresEntitlement: ['core_crm'],
+    namespace: 'crm', agentTool: true, needsApproval: false, mcpExpose: true,
+    version: '1.0.0', owner: 'crm-native',
+    description: '把销售诉求定位到 8 大决策场景 × S1-S8 阶段并给出决策建议卡（A 明确处置/B 风险提示/C 只补信息）',
+    schema: { utterance: 'string', deal_id: 'string', stage: 'string', persist: 'boolean' },
+    parameters: { properties: { utterance: { type: 'string' }, deal_id: { type: 'string', candidateSource: 'CRM_DEAL' }, stage: { type: 'string' }, persist: { type: 'boolean' } } },
+    handler: async ({ utterance = '', deal_id, stage = null, persist = false }, ctx) => {
+      const tid = ctx.tenantId || 'system';
+      const deal = deal_id ? await getParticle(deal_id).catch(() => null) : null;
+      const r = await advise({ utterance, ctx: { tenantId: tid }, deal, stage });
+      return { ok: r.ok, advice: r.advice, degraded: r.degraded || null };
+    },
+  });
+
   // reserved = 注册暴露但确无运行调用点的业务 action（死表面降级，遵守禁 DELETE 铁律不物理删；
   //   审计修正：用户原选"物理删除重复项"，但 52 死表面中无真正重复项——
   //   crm-customer-360 实为 read_sensitive 通道 action（SKILL×12 + 2 专项测试消费），其余为商机生命周期
