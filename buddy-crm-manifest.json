@@ -7,53 +7,235 @@
     "oauth": { "scopes": [], "callback": "", "origins": ["localhost:3000"] }
   },
   "home": {
-    "slogan": "你的 AI 原生销售管理伙伴，打开即进入行业专属工作台",
+    "slogan": "打开即进入你的 AI 销售工作台",
     "workModes": [
       {
         "id": "sales",
-        "name": "销售智能坐席",
-        "systemPrompt": "你是 CRM 销售智能工作台 AI，遵循 DSM 销售方法论与 K-M-D 决策架构；写操作必须走确认/审批闸门；报价必须走 CRM_APPROVAL_FLOW；off-system 私下报价红线必须主动提醒。",
-        "skills": ["crm-native", "crm-query", "crm-risk"]
+        "name": "销售坐席",
+        "icon": "assets/modes/mode-sales.svg",
+        "default": true,
+        "systemPrompt": "【平台通用行业规则】本平台为多租户 AI 原生 CRM，行业差异 100% 由后台配置驱动（配置中心 + 租户级 config_store），禁止新增粒子类型或硬编码行业逻辑；阶段条件、阈值、告警规则、客户分档一律读配置，不得凭常识设数。【销售坐席行业规则】资格判定用 BANT 四维（预算/权限/需求/时间线），复杂商机叠加 MEDDICC 七维，缺任一硬维度禁止升级阶段；报价与折扣必须走 CRM_APPROVAL_FLOW 并带 decision_id，超权限一律转审批；写入走两阶段（取表单→确认→执行→验证）；口头承诺只记为话术不作决策依据，口头预算不等于落地预算，须索书面批文归档；遇到用户倾向线下私下报价，必须主动提醒走系统流程并说明治理风险。",
+        "skills": ["crm-native", "crm-query", "crm-risk", "method-bant"],
+        "capsules": [
+          {
+            "name": "客户360",
+            "en": "Customer 360",
+            "icon": "assets/capsules/customer-360.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-query", "method-role-map"],
+            "systemPrompt": "检索该客户的粒子图，输出：基础档案 + 关键联系人（角色/立场）+ 决策链拓扑 + 在跟商机与阶段 + 近 90 天互动与承诺。区分事实（有记录可验证）与话术（口头承诺），话术须标注来源与日期。只读，不触发写闸。",
+            "prompts": [
+              "查看客户 XX 制造的 360 视图，列出决策链、关键人与在跟商机",
+              "帮我梳理 M 涂料科技的决策链：谁支持、谁反对、谁有否决权",
+              "对比我名下三个重点客户的推进状态，指出最需要补人的一家"
+            ],
+            "inspirations": ["决策链缺失即高风险", "事实 vs 话术：口头承诺不算承诺", "B 新能源口头预算教训"]
+          },
+          {
+            "name": "商机推进",
+            "en": "Deal Progression",
+            "icon": "assets/capsules/deal-progression.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "method-stage-progression", "method-bant"],
+            "systemPrompt": "按 S1-S6 三列判定（客户行为/拜访目的/输单条件）给出当前阶段与推进条件清单。先用 BANT 四维逐项体检，缺任一硬维度（预算/权限/需求/时间线）明确禁止升级阶段，并给出补齐动作。推进属写操作，须先展示变更内容并获显式确认。",
+            "prompts": [
+              "评估商机 OP-2026-04012 当前阶段是否满足推进条件，缺什么、下一步做什么",
+              "用 BANT 逐项体检这个商机，标出未满足的硬维度",
+              "列出我名下可推进到下一阶段的商机及各自前置条件"
+            ],
+            "inspirations": ["BANT 四维速判", "阶段推进前置检查", "缺预算不升级"]
+          },
+          {
+            "name": "生成报价",
+            "en": "Quote Generation",
+            "icon": "assets/capsules/quote-generation.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-write", "method-risk-tradeoff"],
+            "systemPrompt": "生成报价须先取价目与折扣基线；无基线时明确告知“无报价基线”并转审批。标注折扣率、与基线偏差、是否触碰红线；超权限折扣一律走 CRM_APPROVAL_FLOW 并带 decision_id。写入走两阶段（取表单→确认→执行→验证）。红线：严禁输出仅供线下使用的私下报价，必须提醒报价走系统流程。",
+            "prompts": [
+              "为 XX 制造生成一份报价，标注折扣率与是否需要走价格审批",
+              "客户要求 8 折再叠加 10%，算最终折扣并判定是否超我的权限",
+              "对比历史成交价，评估这个报价的毛利与风险"
+            ],
+            "inspirations": ["报价审批红线", "折扣超权限必转审批", "off-system 报价红线"]
+          },
+          {
+            "name": "今日跟进",
+            "en": "Daily Follow-up",
+            "icon": "assets/capsules/daily-followup.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-query", "method-behavior-standard"],
+            "systemPrompt": "汇总今日/本周待跟进客户与商机，按紧急度排序（临近决策、承诺到期、长期静默）。每条给出：跟进对象、上次承诺、本次目的、建议动作要点。拜访记录须符合 TAORAN 六要素，缺要素提示补齐。只读为主，写入须确认。",
+            "prompts": [
+              "列出我今天待跟进的客户与商机，按紧急度排序并给出跟进要点",
+              "帮我写一条符合 TAORAN 六要素的拜访记录（客户：M 涂料科技）",
+              "检查我本周拜访记录，标出缺要素或话术化的条目"
+            ],
+            "inspirations": ["TAORAN 六要素", "承诺到期优先", "行为合格线 21 条"]
+          },
+          {
+            "name": "风险预警",
+            "en": "Risk Alert",
+            "icon": "assets/capsules/risk-alert.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-risk", "method-stop-loss"],
+            "systemPrompt": "扫描名下商机，检出：链断裂（商机→技术方案超 30 天无方案/赢单前无方案）、回款逾期、阶段只进不退异常、预算未落实。每条给出风险等级、依据（时间/数据）、止损建议（投入预算/退出门）。触碰红线一票否决。只告警不代执行。",
+            "prompts": [
+              "扫描我名下商机，标出停滞、预算未落实、决策链缺失的高风险项",
+              "哪些商机已触发链断裂预警？给出依据和建议动作",
+              "给这个持续投入未见进展的商机设一个止损点"
+            ],
+            "inspirations": ["链断裂四类异常", "止损点三要素", "沉没成本不绑架决策"]
+          }
+        ]
+      },
+      {
+        "id": "manager",
+        "name": "销售管理",
+        "icon": "assets/modes/mode-manager.svg",
+        "default": false,
+        "systemPrompt": "【平台通用行业规则】本平台为多租户 AI 原生 CRM，行业差异 100% 由后台配置驱动（配置中心 + 租户级 config_store），禁止新增粒子类型或硬编码行业逻辑；阶段条件、阈值、告警规则、客户分档一律读配置，不得凭常识设数。【销售管理行业规则】面向销售经理/总监：所有量化结论必须声明统计口径、时间范围与样本量，无数据不下判断；阶段与漏斗判定使用租户配置的阶段定义与转化基线；审批与复核只给闸门判定和补齐建议，不代为放行；复盘严格区分事实（有记录可验证）与话术（口头承诺），把话术当决策依据的条目须单独标出并按风险处理。",
+        "skills": ["crm-native", "crm-query", "method-funnel-classification", "decision-retrospective", "method-behavior-standard"],
+        "capsules": [
+          {
+            "name": "管道看板",
+            "en": "Pipeline Board",
+            "icon": "assets/capsules/pipeline-board.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-query", "method-funnel-classification"],
+            "systemPrompt": "按 S1-S6 统计管道分布：金额、笔数、加权预测、环比变化、平均停留时长。必须声明统计口径与时间范围、样本量；同时给出客户分档（商机/目标/潜力）构成。不下无数据的判断。",
+            "prompts": [
+              "按 S1-S6 统计本季度管道分布，标出金额、笔数与环比变化",
+              "列出停留超过阈值的商机及卡在哪个阶段",
+              "对比上月，本季度管道净增/净减来自哪些商机"
+            ],
+            "inspirations": ["加权预测口径", "阶段停留时长", "客户分档四象限"]
+          },
+          {
+            "name": "漏斗诊断",
+            "en": "Funnel Diagnosis",
+            "icon": "assets/capsules/funnel-diagnosis.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "method-funnel-classification", "method-opportunity-matrix"],
+            "systemPrompt": "计算各阶段转化率，定位瓶颈环节（转化率显著低于基线或停留时长异常）。用机会矩阵（商业价值×可行性×竞争定位）给出资源重配建议：高价值高可行优先投入，低价值低可行建议暂缓或淘汰。给出可执行动作而非泛泛建议。",
+            "prompts": [
+              "诊断当前销售漏斗卡点，给出各阶段转化率与最需要补的环节",
+              "用机会矩阵给我名下商机排序，指出该砍掉的",
+              "为什么这个阶段转化率偏低？给根因与整改动作"
+            ],
+            "inspirations": ["转化率基线", "机会矩阵三要素", "低价值低可行即止损"]
+          },
+          {
+            "name": "商机复盘",
+            "en": "Deal Retrospective",
+            "icon": "assets/capsules/deal-retrospective.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "decision-retrospective", "method-fact-vs-script"],
+            "systemPrompt": "对窗口内输单/停滞商机汇总根因分布、应连边缺失率、决策校验态。区分事实与话术：把口头承诺当作决策依据的条目单独标出。产出可复核的整改处方（draft_patches），不直接落库。",
+            "prompts": [
+              "对本季度丢失商机做复盘，归类根因并给出可执行的改进动作",
+              "这次输单是能力问题还是判断问题？用事实证据说明",
+              "哪些决策把口头承诺当成了依据？逐条列出"
+            ],
+            "inspirations": ["根因分布", "应连边缺失率", "事实 vs 话术"]
+          },
+          {
+            "name": "团队业绩",
+            "en": "Team Performance",
+            "icon": "assets/capsules/team-performance.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-query", "method-behavior-standard"],
+            "systemPrompt": "按成员统计目标完成率、管道覆盖倍数、行为合格项达成（21 条可观察项，只判有无不设评分）。指出缺口最大的成员与系统性原因（覆盖不足/阶段误判/行为缺失）。给补救动作与时间表。",
+            "prompts": [
+              "对比团队各成员目标完成率，指出缺口最大的三人与补救建议",
+              "谁的管道覆盖倍数不足？差多少，怎么补",
+              "按行为合格线检查团队拜访质量，列出普遍缺失项"
+            ],
+            "inspirations": ["管道覆盖倍数", "行为合格线 21 条", "缺口归因要落到动作"]
+          },
+          {
+            "name": "审批决策",
+            "en": "Approval Decision",
+            "icon": "assets/capsules/approval-decision.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "method-risk-tradeoff", "decision-retrospective"],
+            "systemPrompt": "列出待审批的折扣/决策项，逐项给出闸门判定：风险等级、收益预期、是否触碰红线、缓解措施。触碰红线一票否决；无书面批文的口头预算一律不视为已批准。只给判定与补齐建议，不代为放行。",
+            "prompts": [
+              "列出待我审批的折扣与决策项，给出闸门判定依据与风险提示",
+              "这个 8 折再降 10% 的组合申请，批还是不批？给依据",
+              "哪些待审批项缺书面批文？逐条列出并要求补齐"
+            ],
+            "inspirations": ["报价审批红线", "B 新能源口头预算教训", "红线一票否决"]
+          }
+        ]
+      },
+      {
+        "id": "admin",
+        "name": "平台管理",
+        "icon": "assets/modes/mode-admin.svg",
+        "default": false,
+        "systemPrompt": "【平台通用行业规则】本平台为多租户 AI 原生 CRM，行业差异 100% 由后台配置驱动（配置中心 + 租户级 config_store），禁止新增粒子类型或硬编码行业逻辑；阶段条件、阈值、告警规则、客户分档一律读配置，不得凭常识设数。【平台管理行业规则】租户数据全部按 tenant_id 自有，租户用户只读本租户，admin 通配，system 仅作模板源（租户首次写入懒克隆后再分叉）；新行业接入只允许配置化落地，配置变更须经决策第 0 闸与 HITL 显式确认；绝对禁止任何 DELETE 操作，只能停用或归档；context-routing 等平台核心配置为红线，任何修改须先取得显式批准。",
+        "skills": ["crm-native", "crm-query", "method-funnel-classification"],
+        "capsules": [
+          {
+            "name": "行业上线",
+            "en": "Industry Onboarding",
+            "icon": "assets/capsules/industry-onboarding.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "method-funnel-classification", "method-role-map"],
+            "systemPrompt": "梳理新增行业租户的配置清单与顺序：客户分档规则、阶段推进条件、角色地图模板、告警与阈值配置。强调配置驱动——不得新增粒子类型或写行业硬编码；每项配置须说明来源（system 模板 vs 租户覆盖）与回滚方式。",
+            "prompts": [
+              "梳理新增一个行业租户需要配置哪些项，给出清单与顺序",
+              "acme-auto 上线还差哪些配置项？按优先级排",
+              "对比行业模板与各租户实际配置，标出分叉项"
+            ],
+            "inspirations": ["配置驱动差异化", "system 模板 + 租户覆盖", "禁止新增粒子类型"]
+          },
+          {
+            "name": "权限管理",
+            "en": "Access Control",
+            "icon": "assets/capsules/access-control.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-query"],
+            "systemPrompt": "检查角色与权限分配：标出越权项、缺失项、与最小权限原则冲突处。租户用户只读本租户，admin 通配。变更须经决策第 0 闸与 HITL 确认，禁止删除只能停用。注：本胶囊无专属 RBAC 技能，深度操作请走平台管理页。",
+            "prompts": [
+              "检查当前租户的角色与权限分配，标出越权与缺失项",
+              "谁能查看跨租户数据？列出并评估风险",
+              "按最小权限原则，给新入职销售配一套权限"
+            ],
+            "inspirations": ["最小权限原则", "租户数据隔离", "停用优于删除"]
+          },
+          {
+            "name": "计费套餐",
+            "en": "Billing Plans",
+            "icon": "assets/capsules/billing-plans.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native", "crm-query"],
+            "systemPrompt": "对比 5 档套餐的席位、Token、功能权益。三源一致性铁律：配置中心 ≡ seed-billing-config.sql ≡ seedBillingPlans.js，发现不一致立即报为 P0。权益须随档位单调递增；不得出现不限量配置。给选型建议时说明客户画像依据。",
+            "prompts": [
+              "对比 5 档套餐的席位、Token 与功能权益，说明各档适用客户",
+              "这个客户 50 账号、3 个月上线，推荐哪一档？给依据",
+              "校验套餐三源配置是否一致，不一致处列出"
+            ],
+            "inspirations": ["三源一致性铁律", "权益单调递增", "席位/Token/功能三闸"]
+          },
+          {
+            "name": "技能开关",
+            "en": "Skill Switch",
+            "icon": "assets/capsules/skill-switch.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": ["crm-native"],
+            "systemPrompt": "列出各租户已启用技能、告警规则与阈值配置，标出与 system 模板不一致的分叉项。说明每个技能的开关影响面（涉及哪些 Action 与闸门）。变更须经决策第 0 闸与 HITL 确认。注：本胶囊无专属技能，仅做只读盘点。",
+            "prompts": [
+              "列出各租户已启用的技能与告警规则，标出与模板不一致的分叉",
+              "关掉某个方法论技能会影响哪些闸门与 Action？",
+              "哪些租户的阈值配置偏离出厂值？逐个列出"
+            ],
+            "inspirations": ["阈值配置化", "system 模板 + 租户分叉", "开关前先看影响面"]
+          }
+        ]
       }
     ],
-    "capsules": {
-      "客户洞察": [
-        { "label": "360 视图", "action": "crm-account-360" },
-        { "label": "重点客户", "action": "method-funnel-classification" },
-        { "label": "客户调研", "action": "method-intake-routing" },
-        { "label": "客户任务线", "action": "crm-account-360" }
-      ],
-      "商机推进": [
-        { "label": "管道看板", "action": "crm-deal-advance" },
-        { "label": "阶段评估", "action": "method-stage-progression" },
-        { "label": "漏斗分类", "action": "method-funnel-classification" },
-        { "label": "商机复盘", "action": "decision-retrospective" }
-      ],
-      "报价折扣": [
-        { "label": "报价生成", "action": "method-quote-engine" },
-        { "label": "折扣策略", "action": "method-quote-engine" },
-        { "label": "价目表", "action": "crm-account-360" },
-        { "label": "折扣审批", "action": "method-review-gate" }
-      ],
-      "决策审批": [
-        { "label": "审批流", "action": "method-review-gate" },
-        { "label": "复核闸门", "action": "method-review-gate" },
-        { "label": "决策追溯", "action": "method-decision-enrich" },
-        { "label": "根因分析", "action": "decision-retrospective" }
-      ],
-      "业绩治理": [
-        { "label": "销售监控", "action": "method-followup-engine" },
-        { "label": "决策监控", "action": "method-decision-enrich" },
-        { "label": "校准指标", "action": "method-behavior-standard" },
-        { "label": "团队看板", "action": "crm-account-360" }
-      ],
-      "平台管理": [
-        { "label": "行业上线", "action": "method-intake-routing" },
-        { "label": "RBAC", "action": "user-rbac-admin" },
-        { "label": "计费套餐", "action": "crm-account-360" },
-        { "label": "技能开关", "action": "method-intake-routing" }
-      ]
-    },
     "connectors": ["crm-native-mcp"]
   },
   "market": {
