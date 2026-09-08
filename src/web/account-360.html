@@ -83,8 +83,12 @@
 
     function renderSelect(items, currentId) {
       const pickId = currentId && items.find(a => a.id === currentId || a.slug === currentId)?.slug;
+      // 低置信重复（创建闸写入 payload.possible_duplicate_of）在下拉打标，供人工核对
       select.innerHTML = '<option value="">— 选择客户 —</option>' +
-        items.map(a => `<option value="${a.slug}" ${a.slug === pickId ? 'selected' : ''}>${a.title || a.payload?.name || a.slug}</option>`).join('');
+        items.map(a => {
+          const dupMark = a.payload && a.payload.possible_duplicate_of ? ' \u26a0\ufe0f疑似重复' : '';
+          return `<option value="${a.slug}" ${a.slug === pickId ? 'selected' : ''}>${a.title || a.payload?.name || a.slug}${dupMark}</option>`;
+        }).join('');
     }
 
     let accounts = [];
@@ -92,7 +96,10 @@
     async function loadAccounts() {
       try {
         const list = await api('/api/particles?type=CRM_ACCOUNT');
-        accounts = (list.items || []).filter(a => a.type === 'CRM_ACCOUNT');
+        // 2026-09-08 客户去重（docs/plans/2026-09-07-crm-dedup.md 任务5）：
+        //   已软合并（meta.merged_into）的账户不再进下拉 → 消除「同一客户双显」；
+        //   不物理删除，仅视图层隐藏，守禁删铁律且误并可恢复。
+        accounts = (list.items || []).filter(a => a.type === 'CRM_ACCOUNT' && !(a.meta && a.meta.merged_into));
         renderSelect(accounts, accountId);
       } catch (e) { /* 权限/加载问题由 loadProfile 暴露 */ }
     }
@@ -122,6 +129,17 @@
             banner.className = 'pg-profile-hint';
             banner.textContent = j.profileHint;
             profileRoot.prepend(banner);
+          }
+          // 2026-09-08 客户去重：低置信重复提示（创建闸标 possible_duplicate_of，未自动归并）
+          const cur = accounts.find(x => x.id === accountId || x.slug === accountId);
+          const dupOf = cur && cur.payload && cur.payload.possible_duplicate_of;
+          if (dupOf) {
+            const dupAcc = accounts.find(x => x.id === dupOf);
+            const dupName = dupAcc ? (dupAcc.title || dupAcc.payload?.name || dupAcc.slug) : dupOf;
+            const dupBanner = document.createElement('div');
+            dupBanner.className = 'pg-profile-hint';
+            dupBanner.innerHTML = `\u26a0\ufe0f 疑似重复客户（低置信）：本客户与 <a href="?id=${encodeURIComponent(dupAcc?.slug || dupOf)}">${esc(dupName)}</a> 名称相似，请人工核对后决定是否合并。`;
+            profileRoot.prepend(dupBanner);
           }
           // S13：目标达标卡（renderer 输出 target-card 与 JS 注入二选一防双份：已存在 .pg-target-card 则不重复 append）
           if (j.data?.components?.['target-card'] && !profileRoot.querySelector('.pg-target-card')) {
