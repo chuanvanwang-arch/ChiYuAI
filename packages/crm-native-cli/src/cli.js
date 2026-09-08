@@ -21,5 +21,16 @@ if (cmd === 'version') {
   process.exit(0);
 }
 
-console.error(`未实现的命令: ${cmd}\n${USAGE}`);
-process.exit(2);
+const dispatch = {
+  use:     () => import('./commands/use.js').then((m) => m.useEndpoint(rest)),
+  auth:    () => import('./commands/auth.js').then((m) => (rest[0] === 'login' ? m.authLogin() : m.authStatus())),
+  call:    () => import('./commands/call.js').then((m) => m.callTool(rest)),
+  deal:    () => import('./commands/deal.js').then((m) => m.dealList(rest)),
+  account: () => import('./commands/account.js').then((m) => m.accountShow(rest)),
+};
+if (dispatch[cmd]) {
+  dispatch[cmd]().catch((e) => { console.error(e.message); process.exit(1); });
+} else {
+  console.error(`未知命令: ${cmd}\n${USAGE}`);
+  process.exit(2);
+}
