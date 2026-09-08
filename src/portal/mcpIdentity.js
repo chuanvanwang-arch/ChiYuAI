@@ -5,6 +5,7 @@ import { query } from '../db.js';
 import { requireDecision } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { newStructuredToken } from '../mcp/tokenFormat.js';
+import { hasRole } from '../http/middleware/rbac.js';
 
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -145,6 +146,18 @@ const defaultDeps = {
 
 export function createMcpIdentityRouter(deps = {}) {
   const D = { ...defaultDeps, ...deps };
+  // 管理通道统一闸：MCP 身份签发 = 平台最高敏感写，仅 ADMIN。
+  // 与 createConfigLevelGate（rbac.js:86，路径精确匹配）纵深防御——
+  // 全局闸覆盖 /api/mcp-identities 精确路径，本闸覆盖含参数的子路径（如 PUT /:id）。
+  const requireAdmin = async (req, res) => {
+    const me = await D.resolveMe(req);
+    if (!me?.ok) { res.status(401).json({ error: me?.error || '未登录' }); return null; }
+    if (!hasRole(me, 'ADMIN')) {
+      res.status(403).json({ error: 'MCP 身份签发仅 ADMIN 可操作（凭据签发为平台最高敏感写）' });
+      return null;
+    }
+    return me;
+  };
   const router = Router();
   const handlers = {
     // 个人「我的 API Key」（只读，任意登录角色；零信任：永不回显 token_hash/明文）
@@ -187,6 +200,8 @@ export function createMcpIdentityRouter(deps = {}) {
     },
     list: async (req, res) => {
       try {
+        const me = await requireAdmin(req, res);
+        if (!me) return;
         const { rows, roles } = await D.list();
         const safe = (rows || []).map(({ token_hash, ...rest }) => rest);
         res.json({ rows: safe, roles });
@@ -194,6 +209,8 @@ export function createMcpIdentityRouter(deps = {}) {
     },
     create: async (req, res) => {
       try {
+        const me = await requireAdmin(req, res);
+        if (!me) return;
         const { actor, person_id, role_tag, scopes, expires_at } = req.body || {};
         if (!actor || !role_tag) return res.status(400).json({ error: 'actor 与 role_tag 必填' });
         const created = await D.create({ actor, person_id, role_tag, scopes, expires_at });
@@ -203,6 +220,8 @@ export function createMcpIdentityRouter(deps = {}) {
     },
     put: async (req, res) => {
       try {
+        const me = await requireAdmin(req, res);
+        if (!me) return;
         const { id } = req.params;
         const { actor, role_tag, scopes, enabled, expires_at, revoked_at } = req.body || {};
         const patch = {};

@@ -10,6 +10,8 @@ function makeDeps(over = {}) {
   const store = [{ id: 'id-1', actor: 'a', role_tag: 'sales', enabled: true, revoked_at: null, scopes: {} }];
   let decisionCount = 0;
   const base = {
+    // T1 起 list/create/put 加 requireAdmin 闸：默认以 ADMIN 通过（旧用例不变）
+    resolveMe: async () => ({ ok: true, username: 'admin', tenantId: 'system', role: 'admin', level: 'ADMIN' }),
     list: async () => ({
       rows: store.map((s) => ({ ...s, token_hash: 'HIDDEN' })),
       roles: ['sales', 'manager', 'finance'],
