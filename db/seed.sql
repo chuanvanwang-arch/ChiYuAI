@@ -491,3 +491,19 @@ VALUES
    '评审把关契约三维度合规通过（演示 ✓）', 'info')
 ON CONFLICT (contract_task_id, gap_type) DO UPDATE SET
   observed = EXCLUDED.observed, ts = now();
+
+-- ============ 对话决策建议配置（2026-09-08 设计 §4.2；后台可改，禁硬编码）============
+-- 对话驱动决策建议（docs/2026-09-08-dialog-driven-decision-advice-design.md）：
+--   dialog-scenario-map = 诉求关键词 → 8 大决策场景 × S1-S8 阶段映射表（后台可改，代码仅为缺配置兜底）
+--   dialog-advisor-config = 建议阈值（毛利下限/成本估算比例/阶段停留/跟进超期），禁硬编码
+INSERT INTO crm.config_store (tenant_id, key, value, updated_by)
+VALUES ('system', 'dialog-scenario-map',
+  '{"map":[{"scenario_id":"QUOTE_PRICING","keywords":["报价","折扣","降价","价格","账期","付款","让价","折"],"stages":["S4","S5"]},{"scenario_id":"SOLUTION_VALUE","keywords":["样品","寄样","试用","演示","方案","定制","需求变更"],"stages":["S3"]},{"scenario_id":"CLIENT_STRATEGY","keywords":["拜访","跟进","联系","谁拍板","关键人","决策链"],"stages":["S2","S3"]},{"scenario_id":"OPP_QUALIFY","keywords":["预算","竞品","值不值得","真需求","陪标"],"stages":["S2"]},{"scenario_id":"SIGN_RISK","keywords":["合同","签单","风险","卡住","反对"],"stages":["S5"]},{"scenario_id":"POST_CONTRACT","keywords":["回款","续约","交付变更","验收"],"stages":["S6"]},{"scenario_id":"LOSS_REVIEW","keywords":["丢单","输单","复盘","放弃"],"stages":["S7","S8"]},{"scenario_id":"DEAL_REOPEN","keywords":["重新跟","再跟","重开"],"stages":["S7","S8"]},{"scenario_id":"LEAD_FOLLOW_UP","keywords":["新线索","跟不跟","询盘"],"stages":["S1"]}]}'::jsonb,
+  'system')
+ON CONFLICT (tenant_id, key) DO NOTHING;
+
+INSERT INTO crm.config_store (tenant_id, key, value, updated_by)
+VALUES ('system', 'dialog-advisor-config',
+  '{"margin_floor_pct":20,"cost_estimate_ratio":0.6,"stuck_days":30,"forgotten_days":7}'::jsonb,
+  'system')
+ON CONFLICT (tenant_id, key) DO NOTHING;
