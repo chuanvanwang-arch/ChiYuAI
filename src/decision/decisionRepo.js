@@ -51,11 +51,13 @@ const TIER_RANK = { LEAD: 1, NORMAL: 2, HIGH: 3 };
 const TIER_FROM_RANK = { 1: 'LEAD', 2: 'NORMAL', 3: 'HIGH' };
 
 // 业务分级：DEAL = 客户维 × 项目维；两维取高风险优先（HIGH>NORMAL>LEAD），引擎只读配置
-export async function computeBusinessTier({ customer, project } = {}) {
+// 2026-09-09 修复：按 tenant_id 隔离读取（此前无 tenant 过滤 → 决策引擎跨租户混读全表，
+//   同名客户/项目被任一本租户高 tier 全局抬升 = 多租户纯度红线破坏）。tenantId 缺省 'system'（模板源）。
+export async function computeBusinessTier({ customer, project, tenantId = 'system' } = {}) {
   const rows = await query(
     `SELECT dimension, dimension_value, tier FROM business_tier_config
-     WHERE (dimension=$1 AND dimension_value=$2) OR (dimension=$3 AND dimension_value=$4)`,
-    ['customer', customer || null, 'project', project || null]
+     WHERE tenant_id=$5 AND ((dimension=$1 AND dimension_value=$2) OR (dimension=$3 AND dimension_value=$4))`,
+    ['customer', customer || null, 'project', project || null, tenantId]
   );
   let rank = 0;
   for (const r of rows.rows) rank = Math.max(rank, TIER_RANK[r.tier] || 0);

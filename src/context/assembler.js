@@ -177,10 +177,12 @@ export async function buildRoutingBrief(routing, scenarioId, { tenantId = 'syste
   };
 }
 
-async function retrieveL4(actor) {
+// 2026-09-09 修复：按 tenant 隔离读取 business_tier_config（此前无 tenant 过滤 → 把全部租户的
+//   tier 矩阵注入每个决策的 L4 上下文 = 跨租户上下文泄漏）。tenant 缺省 'system'。
+async function retrieveL4(actor, tenant = 'system') {
   const role = await safeActorRole(actor);
   const cfgProfile = role ? await loadProfile(role.role_tag) : null;
-  const t = await query(`SELECT dimension, dimension_value, tier FROM crm.business_tier_config`);
+  const t = await query(`SELECT dimension, dimension_value, tier FROM crm.business_tier_config WHERE tenant_id=$1`, [tenant]);
   return { profile: cfgProfile?.seven_elements || null, data_scope: cfgProfile?.data_scope || null, tiers: t.rows };
 }
 
@@ -232,6 +234,9 @@ async function retrieveNarrative(actor, intent = {}, profile = null) {
 // 任一层抛错降级不崩；叙事被路由排除 ≠ 缺失，不标记 degraded（可审计原因留痕）
 // P0① 注入前置：profile 缺省 null（=all，保持现状）；显式传入时 L1/LK/NAR 按 data_scope 裁剪
 export async function assembleContext({ actor, intent, query: q, tenantId = 'system', profile = null }, retrievers = {}) {
+  // 租户化（T4，P1）：显式传租户（调用方从 ctx.tenantId 传入，缺省 system 保持既有行为）；
+  //   兜底行：actor 若为对象形态取自身租户（字符串形态回退入参）。必须在 L4 调用前定义。
+  const actorTenant = (actor && (actor.tenantId || actor.tenant_id)) || tenantId || 'system';
   const L1 = retrievers.L1 || ((a, qq) => retrieveL1(a, qq, profile));
   const L2 = retrievers.L2 || retrieveL2;
   const L3 = retrievers.L3 || retrieveL3;
@@ -246,16 +251,13 @@ export async function assembleContext({ actor, intent, query: q, tenantId = 'sys
   try { layers.L1 = await withTimeout(callL1(actor, q), L1_TIMEOUT); } catch { missing.L1 = true; }
   try { layers.L2 = await L2(actor, intent); } catch { missing.L2 = true; }
   try { layers.L3 = await L3(actor); } catch { missing.L3 = true; }
-  try { layers.L4 = await L4(actor); } catch { missing.L4 = true; }
+  try { layers.L4 = await L4(actor, actorTenant); } catch { missing.L4 = true; }
   try { layers.LK = await callLK(actor, intent); } catch { missing.LK = true; }
 
   // 场景路由（融合设计 §2.5）：按 intent.scenario 选轨（读 config_store['context-routing']，缺省全轨）
   // tracks 决定叙事是否注入；L 轨道保留（层级检索始终执行）。路由信息回带 bundle.routing 供可观测。
   const scenarioId = intent?.scenario || null;
   let routing = { scene: scenarioId, tracks: null, L: null, mode: 'UNKNOWN', score: 0 };
-  // 租户化（T4，P1）：显式传租户（调用方从 ctx.tenantId 传入，缺省 system 保持既有行为）；
-  //   兜底行：actor 若为对象形态取自身租户（字符串形态回退入参）
-  const actorTenant = (actor && (actor.tenantId || actor.tenant_id)) || tenantId || 'system';
   try {
     const { resolveTracks } = await import('./routing.js');
     routing = await resolveTracks(scenarioId, { tenantId: actorTenant });

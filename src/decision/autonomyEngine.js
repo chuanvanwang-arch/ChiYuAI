@@ -141,8 +141,9 @@ export async function requireDecision(scenario_id, trigger_context = {}, involve
   await recordDecisionEvent('required', { scenario_id, trigger_context });
 
   // ① 业务分级（DEAL = 客户维 × 项目维；无配置回退 scenario.default_tier）
+  // 2026-09-09 修复：透传 tenant（requireDecision 内 tenant=opts.tenantId），隔离跨租户读取
   const tier = (await computeBusinessTier({
-    customer: trigger_context.customer, project: trigger_context.project,
+    customer: trigger_context.customer, project: trigger_context.project, tenantId: tenant,
   })) || sc.default_tier;
 
   // ②a 加载方法论证据（F5：输入端接线，7 个业务通道零改动全生效）
