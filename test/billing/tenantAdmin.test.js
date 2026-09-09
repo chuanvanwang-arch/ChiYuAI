@@ -116,15 +116,20 @@ describe('改套餐', () => {
 });
 
 describe('行业画像分配', () => {
-  it('T8 分配 → 租户 tenant-profile 出现模板 prototypes + meta.template_id', async () => {
+  it('T8 分配 → 租户 tenant-profile 落 v2 industries[]（含模板 prototypes + meta.template_id）', async () => {
     const U = NS + '_prof';
     await queryWrite(`INSERT INTO crm.tenants (tenant_id,name,status,plan) VALUES ($1,$1,'active','free') ON CONFLICT (tenant_id) DO NOTHING`, [U]);
-    expect((await call('assign-profile', { tenantId: U, templateId: 'demo' })).body.ok).toBe(true);
+    const r = await call('assign-profile', { tenantId: U, templateIds: ['demo'] });
+    expect(r.body.ok).toBe(true);
+    expect(r.body.industries[0]).toMatchObject({ id: 'demo', label: '演示' });
     const v = (await query(`SELECT value FROM crm.config_store WHERE tenant_id=$1 AND key='tenant-profile'`, [U])).rows[0].value;
-    expect(v.meta.template_id).toBe('demo');
-    expect(v.prototypes.DEMO_CUST.label).toBe('演示客户');
+    expect(v.version).toBe(2);
+    expect(Array.isArray(v.industries)).toBe(true);
+    expect(v.industries[0].id).toBe('demo');
+    expect(v.industries[0].assigned_from_template_id).toBe('demo');
+    expect(v.industries[0].prototypes.DEMO_CUST.label).toBe('演示客户');
   });
-  it('T8b 不存在模板 → 400', async () => { expect((await call('assign-profile', { tenantId: T, templateId: '__x__' })).status).toBe(400); });
+  it('T8b 不存在模板 → 400', async () => { expect((await call('assign-profile', { tenantId: T, templateIds: ['__x__'] })).status).toBe(400); });
 });
 
 describe('第0闸', () => {
@@ -136,7 +141,7 @@ describe('第0闸', () => {
     await call('freeze', { tenantId: U });
     await call('extend', { tenantId: U, days: 5 });
     await call('change-plan', { tenantId: U, planId: 'starter' });
-    await call('assign-profile', { tenantId: U, templateId: 'demo' });
+    await call('assign-profile', { tenantId: U, templateIds: ['demo'] });
     await call('cancel', { tenantId: U });
     const c1 = await decisionCount('tenant:' + U);
     expect(c1 - c0).toBe(5);
@@ -152,6 +157,8 @@ describe('订阅全景 profile_summary', () => {
     const j = await res.json();
     const row = (j.rows || []).find((r) => r.tenant_id === T);
     expect(row).toBeTruthy();
-    expect(row.profile_summary.industry_label).toBe('演示');
+    expect(row.profile_summary).toBeTruthy();
+    expect(Array.isArray(row.profile_summary.industries)).toBe(true);
+    expect(row.profile_summary.industries[0].label).toBe('演示');
   });
 });
