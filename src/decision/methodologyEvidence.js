@@ -125,3 +125,15 @@ export async function listEvidenceHistory({ subject_id, tenantId = 'system' } = 
       return Number(b.payload?.version_no || 0) - Number(a.payload?.version_no || 0);
     });
 }
+
+// REQUIREMENT 方法论薄封装：methodology_id 固定 'REQUIREMENT'，便于 7 通道与 intake/followup 统一采集。
+export async function assertRequirementEvidence({
+  subject_id, dim_key, met, value = null, source = 'manual',
+  evidence_ref = null, asserted_by = null, evidence_reason = null,
+  tenantId = 'system', decision_id = null,
+} = {}) {
+  return assertEvidence({
+    subject_id, methodology_id: 'REQUIREMENT', dim_key, met, value,
+    source, evidence_ref, asserted_by, evidence_reason, tenantId, decision_id,
+  });
+}

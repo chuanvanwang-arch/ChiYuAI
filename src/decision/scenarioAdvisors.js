@@ -1,6 +1,9 @@
 // src/decision/scenarioAdvisors.js — 按场景分派的业务事实采集（唯一接触 DB/业务规则的建议层）
 // 设计：docs/2026-09-08-dialog-driven-decision-advice-design.md §3、§8.1（T3/T4/T5 按 agent 分派）
 // 铁律：阈值一律来自 config（advisorConfig），禁硬编码业务常量；失败 fail-open 返回空事实，不抛错
+import { marginView } from './offerPolicyMath.js';
+import { discountAuthorityCheck } from './offerPolicyFacts.js';
+
 export const DEFAULT_ADVISOR_CONFIG = Object.freeze({
   margin_floor_pct: 20,      // 毛利下限（%），低于即红线
   cost_estimate_ratio: 0.6,  // 无成本字段时的出厂估算比例
@@ -9,24 +12,68 @@ export const DEFAULT_ADVISOR_CONFIG = Object.freeze({
 });
 
 // ── 报价类（quote-engine 契约 ct-quote-calc）：毛利红线 ──
-export function gatherQuoteFacts(deal, { advisorConfig = DEFAULT_ADVISOR_CONFIG } = {}) {
+// 报价毛利口径：与门户口径一致 —— 成本取自政策包 cost_structure，红线取自政策 margin_redline，
+// 比较对象是 deal 报价 amount。无政策时退回 advisorConfig 出厂下限（向后兼容既有测试）。
+// 折扣权限红线：角色缺失 → 仅按 default 上限提示需审批（设计 D6 降级）。
+export function gatherQuoteFacts(deal, {
+  advisorConfig = DEFAULT_ADVISOR_CONFIG,
+  ctx = {},
+  offerPolicy = null,
+  discountMatrix = null,
+  requestedDiscountPct = null,
+} = {}) {
   const cfg = { ...DEFAULT_ADVISOR_CONFIG, ...(advisorConfig || {}) };
   const amount = Number(deal?.payload?.amount) || 0;
   const hasCost = deal?.payload?.cost !== undefined && deal?.payload?.cost !== null;
   const cost = hasCost ? Number(deal.payload.cost) : amount * cfg.cost_estimate_ratio;
   const marginPct = amount > 0 ? ((amount - cost) / amount) * 100 : 0;
   const redlines = [];
-  if (marginPct < Number(cfg.margin_floor_pct)) {
+  let marginSource = hasCost ? 'actual' : 'estimated';
+  let floor = null;
+  let redlinePct = null;
+
+  if (offerPolicy) {
+    const mv = marginView(offerPolicy, amount);
+    if (mv) {
+      floor = mv.floor;
+      redlinePct = mv.redline;
+      marginSource = 'policy';
+      if (mv.pass === false) {
+        const gap = Number(((Number(mv.redline) - mv.marginRate) * 100).toFixed(2));
+        redlines.push({
+          cond: 'margin_redline', label: '毛利红线',
+          detail: `毛利率 ${Number((mv.marginRate * 100).toFixed(1))}% < 租户红线 ${Number((mv.redline * 100).toFixed(1))}%（差 ${gap} 个百分点）`,
+        });
+      }
+    }
+  } else if (marginPct < Number(cfg.margin_floor_pct)) {
+    // 无政策时退回出厂下限（向后兼容既有测试）
     redlines.push({
       cond: 'margin_redline', label: '毛利红线',
       detail: `毛利率 ${marginPct.toFixed(1)}% < 下限 ${cfg.margin_floor_pct}%`,
     });
   }
+
+  // 折扣权限红线（角色缺失 → 仅按 default 上限提示需审批，D6 降级）
+  const role = ctx?.role || null;
+  if (requestedDiscountPct != null && discountMatrix) {
+    const d = discountAuthorityCheck(role, requestedDiscountPct, discountMatrix);
+    if (d.evaluated && d.exceeded) {
+      redlines.push({
+        cond: 'discount_authority_exceeded', label: '折扣超权限',
+        detail: d.reason,
+        gap_pct: d.gapPct, role: d.role, role_cap: d.roleCap, requested: d.requestedDiscountPct,
+      });
+    }
+  }
+
   return {
     facts: {
       price_vs_floor: amount > 0 ? `报价 ${amount}，成本 ${cost.toFixed(0)}，毛利率 ${marginPct.toFixed(1)}%` : null,
       margin_pct: Number(marginPct.toFixed(2)),
-      margin_source: hasCost ? 'actual' : 'estimated',
+      margin_source: marginSource,
+      price_floor: floor,
+      margin_redline: redlinePct,
     },
     redlines,
   };
