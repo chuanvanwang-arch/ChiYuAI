@@ -88,6 +88,14 @@ node db/seed/tenant-profile-training.js   # 参考实现：db/seed/tenant-profil
 ```
 > 生产写须经决策第 0 闸；种子脚本 `bootstrap` 旁路仅用于测试 / 系统引导。
 
+> ⚠️ **Windows 直跑守卫坑（2026-09-09 实践实证）**：种子脚本内的直跑守卫若写成
+> `if (import.meta.url === \`file://${process.argv[1]}\`)`（现状：`db/seed/tenant-profile-chemical.js:64`），
+> 在 win32 下因**盘符大小写（d: vs D:）+ 路径分隔符（\ vs /）不一致**永不成立 →
+> `node db/seed/xxx.js` 直跑**静默无操作**（守卫失效，main 永不执行）。
+> 正解二选一：
+> ① **归一化守卫**：`const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();`（范式：`scripts/seed-tenant-master-data.mjs:116-118`）；
+> ② **显式调用**：守卫失效时直接 `import { seedXxx } from 'db/seed/xxx.js'` 后 `await seedXxx()`，不依赖直跑。
+
 ## 4. Step 3 — 验证双源类型解析（隔离自检）
 
 ```js
@@ -140,19 +148,27 @@ node scripts/seed-tenant-master-data.mjs --tenant acme-chem
 
 ## 4.5 Step 4.5 — 播种租户 KNOWLEDGE 种子（P0-② 领域 Know-How）
 
-新行业上线即拥有本租户自有的领域 Know-How（设计：`docs/2026-09-03-tenant-knowledge-design.md` §8）。经 `crm-knowledge-upsert`（同 Step 4 的 MCP 写通道）批量建四类初始条目，落 `tenant_id=本租户`（方案 B：全部数据按租户自有）。
+新行业上线即拥有本租户自有的领域 Know-How（设计：`docs/2026-09-03-tenant-knowledge-design.md` §8）。批量建四类初始条目，落 `tenant_id=本租户`（方案 B：全部数据按租户自有）。
+
+> ⚠️ **通道选择（2026-09-09 实践实证）**：`crm-knowledge-upsert` 的 `rbac_roles` 白名单为
+> `['manager','presales','exec','sysadmin']`（`src/action/seed-actions.js:224`；`POST /api/knowledge` 角色闸 `routes.js:3156` 同白名单），
+> **不含 `sales`**——上线刚产出的初始销售员（role=sales）经 MCP / API 通道播种知识必被
+> 第 1.5 闸拒（`gate='permission_denied'`，`src/action/executor.js:92-96`）。
+> **上线引导正解 = bootstrap 通道**：dispatch 时 ctx 带 `bootstrap:true` + `actor:'system'`，
+> 依 `executor.js:50/92/105` 同时豁免第 0 闸 / 第 1.5 角色闸 / 套餐闸。
+> bootstrap 旁路**仅限系统引导 / 种子态**；上线后的日常知识录入仍走角色闸（manager 及以上 + 第 0 闸 decision_id）。
 
 ```js
-// 等价于经 MCP / API POST /api/knowledge 调 crm-knowledge-upsert
+// 上线引导播种：bootstrap 通道（sales 角色不可经 MCP/API 通道录入，见上注）
 await actionExecutor.dispatch('crm-knowledge-upsert', {
   term: '化工买手-决策链', kind: 'icp',
   content: '主要对接采购/技术双线，预算单在 Q3 集中释放',
   source: 'industry-bootstrap',
-}, { tenantId: 'acme-chem', actor: 'system', decision_id: '<第0闸 mint 的 decision_id>' });
+}, { tenantId: 'acme-chem', actor: 'system', bootstrap: true });
 // 同法播种 competitors / objections / buyer_language 各 ≥1 条
 ```
 
-链路：`POST /api/knowledge` → `crm-knowledge-upsert` → 第0闸 + confirm 双段 → `createParticle('CRM_KNOWLEDGE')` → 写时 embedding + meta_attr 自适应登记。
+链路：bootstrap dispatch → `crm-knowledge-upsert` → 闸门豁免（bootstrap:true）→ `createParticle('CRM_KNOWLEDGE')` → 写时 embedding + meta_attr 自适应登记。
 
 **验收**：`resolvePrototype` 隔离依旧成立；本租户 `GET /api/knowledge` 可见 icp/competitors/objections/buyer_language 各 ≥1；`assembleContext` 装配输出含 `layers.LK`（对应 scenario 的 kind）。
 
@@ -213,7 +229,7 @@ export async function seed<Ind>SalesUser(tenantId = IND_TENANT,
    （PUT 自带决策第 0 闸，无需命令行绕行 —— 详见 `crm-config-center-settings`）
 3. `resolvePrototype('CHEM_PRODUCT','acme-chem')` → `{source:'config',...}`；`resolvePrototype('CHEM_PRODUCT','crm')` → `null`（隔离验证）。
 4. `actionExecutor.dispatch('crm-import-batch',{particle_type:'CHEM_SETTLEMENT',rows:[{slug:'s1',title:'结算1',revenue:10000,commission_rate:0.1}],mode:'upsert',required:['slug']},{tenantId:'acme-chem',actor:'system',decision_id:'<第0闸>'})` → on_write 公式自动算 `commission=1000`。
-5. `actionExecutor.dispatch('crm-knowledge-upsert',{term:'化工买手-决策链',kind:'icp',content:'主要对接采购/技术双线，预算单在 Q3 集中释放',source:'industry-bootstrap'},{tenantId:'acme-chem',actor:'system',decision_id:'<第0闸>'})` → 本租户 KNOWLEDGE 种子（同法建 competitors/objections/buyer_language 各 ≥1）。
+5. `actionExecutor.dispatch('crm-knowledge-upsert',{term:'化工买手-决策链',kind:'icp',content:'主要对接采购/技术双线，预算单在 Q3 集中释放',source:'industry-bootstrap'},{tenantId:'acme-chem',actor:'system',bootstrap:true})` → 本租户 KNOWLEDGE 种子（bootstrap 通道豁免角色闸——sales 不在 `crm-knowledge-upsert` 白名单；同法建 competitors/objections/buyer_language 各 ≥1）。
 6. `db/seed/tenant-users-chem.js` 建初始销售员 → **最终交付：用户名 `chem_sales01` / 密码 `Chem@2026!`**（角色 `sales`，租户 `acme-chem`，token.tenantId 隔离）。
 
 ## 9. 铁律声明
