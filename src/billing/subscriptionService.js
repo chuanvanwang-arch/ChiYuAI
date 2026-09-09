@@ -110,3 +110,21 @@ export async function bumpModuleUsage(tenantId, module, { calls = 0, tokensIn = 
   );
   return { ok: true };
 }
+
+// 确保租户拥有默认订阅（缺省 free）。幂等：仅当该租户无任何订阅行时插入。
+// 用于新租户开通默认免费档；free 为免费档，直接 active（免支付激活）。
+export async function ensureDefaultSubscription(tenantId, defaultPlan = 'free') {
+  const has = await query(
+    `SELECT 1 FROM crm.tenant_subscription WHERE tenant_id=$1 LIMIT 1`,
+    [tenantId]
+  );
+  if (has.rows.length) return { ok: true, created: false, tenantId };
+  const r = await queryWrite(
+    `INSERT INTO crm.tenant_subscription
+       (tenant_id, plan_id, status, started_at, expires_at, created_at, updated_at)
+     VALUES ($1, $2, 'active', now(), now() + interval '3 months', now(), now())
+     RETURNING *`,
+    [tenantId, defaultPlan]
+  );
+  return { ok: true, created: true, tenantId, row: r.rows[0] };
+}
