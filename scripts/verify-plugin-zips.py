@@ -126,12 +126,15 @@ def check_zip(path, expect_name, expect_version, skill_names, content_rules):
 check_zip(
     os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
     expect_name="crm-native",
-    expect_version="1.6.0",
+    expect_version="1.6.1",
     skill_names=["crm-native", "crm-query", "crm-write", "crm-risk", "decision-retrospective",
                  "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map",
                  "method-risk-tradeoff", "method-stop-loss", "method-fact-vs-script",
                  "method-presales", "method-behavior-standard", "method-funnel-classification",
-                 "method-stage-progression"],
+                 "method-stage-progression",
+                 # 2026-09-09 补纳包：4 个已注册但未进分发包的 method-* 技能
+                 "method-followup-engine", "method-intake-routing", "method-quote-engine",
+                 "method-review-gate"],
     content_rules={
         "无「无需登录即可被办公智能体调用」旧错误文案": (r"无需登录即可被办公智能体调用", False),
         "crm-risk 含 stop_loss_triggered 止损规则": (r"stop_loss_triggered", True),
@@ -140,6 +143,8 @@ check_zip(
         "保留 crm_login 强制登录铁律": (r"crm_login", True),
         "含决策建议工具 crm-decision-advise（2026-09-08 新增）": (r"crm-decision-advise", True),
         "含决策建议三档（A 处置 / B 红线审批 / C 补信息）": (r"B 风险提示", True),
+        "agent 含 4 个补纳包 method-* 路由（2026-09-09）": (r"method-intake-routing", True),
+        "agent 含报价引擎路由 method-quote-engine": (r"method-quote-engine", True),
     },
 )
 
@@ -147,7 +152,7 @@ check_zip(
 check_zip(
     os.path.join(REPO, "plugin-platform-admin.zip"),
     expect_name="crm-platform-admin",
-    expect_version="1.1.0",
+    expect_version="1.1.1",
     skill_names=["industry-onboarding", "user-rbac-admin", "system-bootstrap", "platform-ops-insight"],
     content_rules={
         "industry-onboarding 含 Step 4B 按租户播种主数据": (r"Step 4B", True),
@@ -155,6 +160,7 @@ check_zip(
         "端点已参数化（写明由连接器决定）": (r"端点地址由连接器配置决定", True),
         "无写死的 StreamableHTTP @ localhost 表述": (r"StreamableHTTP `@ http://localhost:3001/mcp`", False),
         "保留 sysadmin 准入双闸": (r"sysadmin", True),
+        "含首次接入引导（注册→激活→登录，2026-09-09 新增）": (r"首次接入引导", True),
     },
 )
 
