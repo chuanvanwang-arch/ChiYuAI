@@ -1,6 +1,6 @@
 {
   "name": "@chuanvanwang-arch/crm-native",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "type": "module",
   "description": "AI-native CRM agent package for the Lead-to-Cash pipeline",
   "author": "CRM-ai-native <chuan.van.wang@gmail.com>",

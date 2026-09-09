@@ -126,7 +126,7 @@ def check_zip(path, expect_name, expect_version, skill_names, content_rules):
 check_zip(
     os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
     expect_name="crm-native",
-    expect_version="1.6.1",
+    expect_version="1.7.0",
     skill_names=["crm-native", "crm-query", "crm-write", "crm-risk", "decision-retrospective",
                  "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map",
                  "method-risk-tradeoff", "method-stop-loss", "method-fact-vs-script",
@@ -145,6 +145,10 @@ check_zip(
         "含决策建议三档（A 处置 / B 红线审批 / C 补信息）": (r"B 风险提示", True),
         "agent 含 4 个补纳包 method-* 路由（2026-09-09）": (r"method-intake-routing", True),
         "agent 含报价引擎路由 method-quote-engine": (r"method-quote-engine", True),
+        # 2026-09-09 新增对外 MCP 工具：data-particle-update（事实变更通道，防「已上线但包里看不到」漂移）
+        "skill 含 data-particle-update 事实变更路由": (r"data-particle-update", True),
+        "skill 含字段级并入语义说明（禁删）": (r"字段级并入", True),
+        "agent 含 data-particle-update 事实变更路由": (r"更正/补录字段", True),
     },
 )
 

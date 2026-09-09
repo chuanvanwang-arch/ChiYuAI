@@ -51,6 +51,7 @@ security:
 | "用 BANT 评一下这个商机/机会矩阵排个序" | `method-bant`/`method-opportunity-matrix` 等 7 个 method-* |
 | "我的待办 / 待我审批 / 批准" | `crm-query` → `my-todo-query`（查视图）/ `crm-write` → `my-todo-approve` / `my-todo-reject`（两阶段签批） |
 | "查目前所有合同/报价/订单" | `crm-query` → `data-particle-read`（by type 单据清单） |
+| "更正/补录 XX 客户的字段（改金额、补联系人、改地址）" | `crm-write` → `data-particle-update`（**字段级并入，只改传入字段，其余原样保留；禁删**） |
 | "查 XX 客户的记忆" | `crm-query` → `crm-memory-read`（客户记忆时间线检索） |
 | 任何销售诉求/对话（报价、寄样、跟进、丢单…） | **先过 `crm-decision-advise`**（决策建议，见下节）→ 再按建议走查询或写入 |
 
@@ -122,6 +123,7 @@ security:
 | Action | 用途 |
 |---|---|
 | `data-particle-create` / `data-particle-update` / `data-particle-edge-create` / `data-particle-attr-update` | 粒子底座写（第0闸） |
+| ↳ `data-particle-update` 语义（2026-09-09 起经 MCP 对外开放） | **字段级并入**：`payload = {...原payload, ...patch}`，仅覆盖传入字段，未传字段原样保留；**无删除通道（禁删铁律）**；软停用走 `state` 流转 + `force=true` 双闸；`decision_id` 落粒子列留痕；跨租户写被拒（`cross_tenant_write_denied`） |
 | `crm-deal-advance` / `crm-lead-pick` / `crm-lead-recycle` / `crm-deal-rollback` | 商机/线索推进（只进不退/输单必填/高危 force） |
 | `crm-proposal-write` | 技术方案写（presales） |
 | `crm-quote-create` / `crm-quote-submit` / `crm-quote-activate` | 报价三段 |

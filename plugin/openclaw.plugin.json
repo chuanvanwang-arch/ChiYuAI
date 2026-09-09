@@ -2,7 +2,7 @@
   "id": "crm-native",
   "name": "CRM Native Agent",
   "description": "AI-native CRM agent package for the Lead-to-Cash pipeline. Provides role-adaptive querying, conversational write, proactive risk alerts, and sales methodology skills.",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

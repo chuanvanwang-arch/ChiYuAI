@@ -15,6 +15,31 @@ security:
 > 定位：任意办公智能体（WorkBuddy/其他 Agent）挂载本 SKILL 后，获得「AI 原生 CRM」的对话式能力——一句话查商机、一句话写入（两阶段）、链断裂预警。
 > 设计输入：总体设计 §6.13（对话式 CRM 智能体包）+ §6.13.8 设计原则六条。
 
+## 第 0 步 · 激活首务：连接 crm-native-mcp（强制，先于一切）
+
+> **铁律：用户一旦选择「AI 原生销售助手」，第一件事必须是连上 crm-native-mcp；未连接则停止，绝不凭空作答。**
+
+- 本助手的全部数据/工具能力经 `crm-native-mcp` 连接器暴露（StreamableHTTP 为主，stdio 为本地嵌入备选，服务由 `src/mcp/server.js` 提供）。
+- **端点地址由连接器配置决定，包内不写死主机**：本地默认 `http://localhost:3001/mcp`（`npm run mcp:http`）；生产为 `http://<生产域名或IP>/mcp`（经 Nginx 反代，凭据配在连接器的 `Authorization` 头，勿内嵌于 URL）。同一套包可切本地与生产，**换环境只改连接器配置，不需要重新打包**。
+- **强制首步**：每次被激活、进入首轮对话时，第一步必须是「确认 crm-native-mcp 已连接」——做一次只读探活（如 `initialize` 握手，或调用任意只读 Action 如 `data-particle-read`），确认工具列表可用。
+- **未连接 → 立即停**：出现 `ECONNREFUSED` / 超时 / 工具列表为空 / 调用报错时，**显式告知用户「crm-native-mcp 未连接，AI 原生销售助手暂时无法工作」并停止**；绝不降级到无数据推理、绝不凭记忆编造 CRM 数据。
+- 仅在 MCP 连接确认就绪后，才进入下方「意图路由 / 角色自适应 / 惰性编排」等后续流程。
+- **恢复**：本地环境若 MCP 服务未运行，先执行 `npm run mcp:http`（默认端口 3001）再重试；生产环境由服务端常驻进程提供，无需本地启动。workbuddy 侧 `crm-native-mcp` 连接器须处于 enabled。
+
+## 第 0.5 步 · 首次接入：先去平台网站注册并激活，再回来登录（仅首次）
+
+> 用户首次使用「AI 原生销售助手」前，必须先在平台官网拥有**已激活**的账号；本助手不提供注册/激活界面，只做登录凭证校验。
+
+- **触发**：调用任意业务工具时若网关返回 `gate:'auth_required'`（无有效凭证），即进入本引导，绝不降级为匿名只读放行。
+- **引导话术（给用户）**：
+  1. 打开平台官网首页（含「免费注册」入口，注册即按公司名自动开通企业租户）：http://81.70.184.198/
+  2. 填写公司名称 / 邮箱 / 密码（手机号选填：填则走短信激活，否则走邮箱激活）→ 提交注册。
+  3. 查收邮箱 / 手机短信中的 6 位激活码，在网站激活页输入完成激活。
+  4. 回到本助手，触发**安全凭据对话框**（见下方红线），输入用户名（邮箱）与密码完成 `crm_login` 登录。
+- **仅首次**：`crm_login` 成功后，连接器持久化 token，后续会话自动携带 → 用户无需再次输入用户名密码。
+- **激活闸**：未激活账号 `crm_login` 会被拒（提示「请先通过邮箱/手机激活」）。若用户是某租户首位注册用户（自动成为 admin），MCP 助手仅接受业务角色账号（sales/manager/presales/exec/finance/contract_admin）——admin 仅限 HTTP 后台；请让其在网站「用户管理」加一个业务角色账号用于助手登录。
+- 严禁在对话中索要/回显密码明文（见安全红线）；凭据仅经安全对话框回传用于 `crm_login` 鉴权。
+
 ## 意图路由（一句话 → 技能分发）
 
 | 用户自然语言意图 | 分发技能 |
@@ -24,6 +49,31 @@ security:
 | "最近有没有链断裂/哪些商机要预警" | `crm-risk`（常驻主动探测） |
 | "这个决策为什么这么定/它的影响地图/这个实体的关系网" | `crm-query` → **graph_query**（决策图只读查询面 `/api/graph/*`） |
 | "用 BANT 评一下这个商机/机会矩阵排个序" | `method-bant`/`method-opportunity-matrix` 等 7 个 method-* |
+| "我的待办 / 待我审批 / 批准" | `crm-query` → `my-todo-query`（查视图）/ `crm-write` → `my-todo-approve` / `my-todo-reject`（两阶段签批） |
+| "查目前所有合同/报价/订单" | `crm-query` → `data-particle-read`（by type 单据清单） |
+| "更正/补录 XX 客户的字段（改金额、补联系人、改地址）" | `crm-write` → `data-particle-update`（**字段级并入，只改传入字段，其余原样保留；禁删**） |
+| "查 XX 客户的记忆" | `crm-query` → `crm-memory-read`（客户记忆时间线检索） |
+| 任何销售诉求/对话（报价、寄样、跟进、丢单…） | **先过 `crm-decision-advise`**（决策建议，见下节）→ 再按建议走查询或写入 |
+
+### 决策建议优先（2026-09-08 新增，8 大决策 × S1-S8）
+
+> 设计：`docs/2026-09-08-dialog-driven-decision-advice-design.md`。销售员的**每一次**对话都是决策输入，
+> 不论他是否明确提出决策要求（"要不要寄样""客户要 8 折"都算）。
+
+- **触发纪律**：识别出销售诉求（报价/折扣/样品/方案/拜访/预算/竞品/合同/回款/丢单/新线索）时，
+  **先调 `crm-decision-advise` 取建议卡**，再把建议与实操（查询或两阶段写入）一并给用户；
+  不得跳过建议直接给处置结论。
+- **入参**：`utterance`（销售原话，服务端立即丢弃不落库）、`stage`（可选，S1-S8；不传则按上下文推断）、
+  `deal`（可选商机粒子）。需先 `crm_login`。
+- **返回建议卡三档**：
+  - **A 明确处置**——条件齐备且证据充分，给推荐 disposition + 依据 + 先例引用；
+  - **B 风险提示**——触碰红线（如毛利低于下限）或属 HIGH 级场景（报价/签单类），
+    **必须走审批流**（`crm-approval-*`），不得自治放行；
+  - **C 只补信息**——坐标不明或必填条件缺失，只列缺口与追问话术，**不给处置**。
+- **红线铁律**：建议卡为 B 档时，禁止直接触发写工具；必须引导用户发起审批，
+  并明确告知"这超出你的权限，需审批"。这与既有第 0 闸（无 `decision_id` 不写）叠加，不冲突。
+- **坐标口径**：8 大决策场景（线索跟进/机会评估/客户策略/方案价值/商务报价/签单风险/终局决策/丢单复盘）
+  × 商机阶段 S1-S8，由服务端按配置化的场景映射表判定，本 SKILL 不重复判定。
 
 ## 角色自适应（不问你是谁，自推断）
 
@@ -37,7 +87,9 @@ security:
 
 ## 安全红线（继承总则）
 
+- **MCP 凭据验证铁律：不得在对话中直接向用户索要用户名/密码。** 凡需经 `crm-native-mcp` 做用户名+密码验证（登录/身份校验），必须**弹出系统对话框/凭据输入界面**（对话框式采集），由用户在界面内输入后回传，仅将验证结果用于 MCP 鉴权；绝不让用户在聊天里明文报出账号密码。若环境无对话框能力（CLI/受限环境），则**明确告知用户无法安全采集、并停止该操作**，绝不退化为对话问密码。
 - 只读直连放行；写必须两阶段（phase1 取表单 → phase2 confirm_token 执行）+ decision_id（第0闸）。
+- 待办签批为两阶段写：phase1 表单 → phase2 confirm_token；approver 匹配才可签（越权拒）。
 - 绝对禁删：无 delete/remove 工具；凭证隔离：客户端 token 只映射 actor，不直达 Action ctx。
 
 ## 决策图查询（graph_query · 只读查询面）
@@ -51,6 +103,38 @@ security:
   - `GET /api/graph/provenance?decision_id=` → 决策 PROV-O 溯源审计（链完整性 + 条目 + 上下游 + 引用先例）
 - **纪律（零信任）**：① 只读，绝不写图；② 绝对禁删；③ RBAC 数据范围过滤（`role_context_profile.data_scope` 行级过滤，越权实体返回空）；④ 返回受限范围，不暴露内部 Action/agent 名。
 - **实现**：REST 端点位于 `src/http/routes.js`（`/api/graph/*` 段）；可视化看板 `web/decision-graph.html`（路由 `/decision-graph`）消费上述端点。
+
+## Action 读清单（编排入口总览：只读直连 + 敏感读需确认）
+
+| Action | 用途 |
+|---|---|
+| `crm-decision-advise` | **决策建议**：销售对话 → 8 大决策场景 × S1-S8 阶段 → 建议卡（A 明确处置 / B 红线走审批 / C 只补信息）。只读、不落原文、不产生写，需 `crm_login` |
+| `data-particle-read` | 粒子图检索（商机/客户/联系人/产品/报价/合同/回款/发票/订单） |
+| `data-particle-attr-read` | 属性元模型读取 |
+| `crm-field-permission` | 字段级权限校验 |
+| `crm-account-360` | 客户 360（账户全景） |
+| `crm-customer-360` | 敏感读：客户全维度（需角色确认） |
+| `crm-cross-entity-query` | 敏感读：跨实体查询（需角色确认） |
+| `crm-finance-receivables` | 敏感读：财务应收（需角色确认） |
+| `crm-contract-expiring` | 敏感读：合同到期（需角色确认） |
+
+## Action 写清单（编排入口总览：写全量两阶段 + 第0闸；写经 crm-write 子技能分发）
+
+| Action | 用途 |
+|---|---|
+| `data-particle-create` / `data-particle-update` / `data-particle-edge-create` / `data-particle-attr-update` | 粒子底座写（第0闸） |
+| ↳ `data-particle-update` 语义（2026-09-09 起经 MCP 对外开放） | **字段级并入**：`payload = {...原payload, ...patch}`，仅覆盖传入字段，未传字段原样保留；**无删除通道（禁删铁律）**；软停用走 `state` 流转 + `force=true` 双闸；`decision_id` 落粒子列留痕；跨租户写被拒（`cross_tenant_write_denied`） |
+| `crm-deal-advance` / `crm-lead-pick` / `crm-lead-recycle` / `crm-deal-rollback` | 商机/线索推进（只进不退/输单必填/高危 force） |
+| `crm-proposal-write` | 技术方案写（presales） |
+| `crm-quote-create` / `crm-quote-submit` / `crm-quote-activate` | 报价三段 |
+| `crm-contract-create` / `crm-contract-submit` | 合同两段 |
+| `crm-invoice-create` / `crm-invoice-submit` / `crm-invoice-reconcile` | 发票三段 |
+| `crm-order-create` / `crm-order-submit` / `crm-order-advance` | 订单三段 |
+| `crm-payment-plan-create` / `crm-payment-record-create` | 回款两段 |
+| `crm-import-batch` | 批量导入（高危 force） |
+| `crm-approval-flow-define` / `crm-approval-start` / `crm-approval-approve` / `crm-approval-withdraw` / `crm-approval-transfer` / `crm-approval-add-sign` | 审批流定义与操作 |
+
+> 上述写 Action 由 crm-write 子技能经两阶段协议分发（phase1 取表单 → phase2 confirm 执行），本 SKILL 仅编排路由，不直接 dispatch。清单 Action 全部 ∈ `seedActions()` 注册集（防漂移）。
 
 ## 安全红线
 - AI 永远不在对话中接收或显示密钥明文（凭证补完走 .env / 环境变量 / 命令 三种安全通道）。

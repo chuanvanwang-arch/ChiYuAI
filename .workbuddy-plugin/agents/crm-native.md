@@ -65,6 +65,7 @@ description:
 | "这个决策为什么这么定 / 可审计性 4Q" | `crm-query` → 决策可审计性（`/api/decision/:id/audit-4q`、`/api/monitor/auditability`） |
 | "我的待办 / 待我审批 / 批准" | `my-todo-query` / `my-todo-approve` / `my-todo-reject`（两阶段写签批） |
 | "查业务单据（合同/报价/订单）" | `data-particle-read`（by type 单据清单） |
+| "更正/补录字段（改金额、补联系人、改地址）" | `data-particle-update`（字段级并入，只改传入字段；禁删；跨租户拒绝） |
 | "查客户记忆" | `crm-memory-read`（客户记忆时间线检索，按 tenant 隔离） |
 | "客户要 8 折 / 要不要寄样 / 这单还能跟吗" | `crm-decision-advise` → 决策建议卡（8 大决策 × S1-S8；A 处置 / B 红线走审批 / C 补信息） |
 
