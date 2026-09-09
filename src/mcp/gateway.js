@@ -18,7 +18,11 @@ const confirmSessions = new Map(); // confirm_token → { action, kind, params, 
 function hashParams(params = {}) { try { return JSON.stringify(params); } catch { return String(params); } }
 
 // 协议位（不参与业务参数合并/冲突判定）：这些键由 MCP 传输层或本模块自身消费
-const PROTOCOL_KEYS = new Set(['confirm_token', 'api_token', 'choice', 'switched_role', 'utterance', 'force', 'decision_id']);
+// force 不在此列（2026-09-09 修复）：executor 第 2 闸（R6 高危写 force 双闸）读 params.force，
+//   若把 force 列为协议位，mergePhase2Params 遍历时 continue 跳过 → force 永不进 execParams →
+//   data-particle-update（force:true）经 MCP 通道恒被 needs_force 拒绝（回归根因，17c8faf 引入）。
+//   故 force 作为业务执行参数随 phase2 增补合并，参与第 2 闸判定。
+const PROTOCOL_KEYS = new Set(['confirm_token', 'api_token', 'choice', 'switched_role', 'utterance', 'decision_id']);
 
 // phase2 参数合并：**只增补、禁止覆盖**（confirm 语义保护，2026-09-09）
 // 背景：原实现（:253）执行时一律用 session.params（phase1 冻结值），phase2 传入的 params 仅用于
