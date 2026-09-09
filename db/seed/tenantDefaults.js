@@ -8,6 +8,8 @@
 import { writeConfig } from '../../src/config/configStore.js';
 // 写走 queryWrite（src/db.js 的 query 是读池，INSERT 必须经写池——以实际源码为准修正计划）
 import { queryWrite } from '../../src/db.js';
+// 新租户开通默认免费档：接入幂等 ensureDefaultSubscription（fail-open 不阻断开通）
+import { ensureDefaultSubscription } from '../../src/billing/subscriptionService.js';
 
 // 默认「必须按租户差异化」的键清单（可增量扩展；其余键一律回退 system）
 // 2026-09-05 扩展至 8 键（设计 §A-2 + 用户裁决）：完全独立不共享——租户缺键 autoSeed 落模板、播种器为新租户显式落 8 键。
@@ -67,6 +69,13 @@ export async function seedTenantDefaults(tenantId, opts = {}) {
     } catch {
       skippedKeys.push(key); // 播种失败跳过（fail-open 不阻断新租户开通）
     }
+  }
+
+  // 默认免费档：新租户开通即获 free 订阅（幂等；已有订阅不覆盖；失败 fail-open 不阻断开通）
+  try {
+    await ensureDefaultSubscription(tenant);
+  } catch {
+    // fail-open：订阅写入失败不影响租户开通
   }
 
   return { ok: true, tenantId: tenant, seededKeys, skippedKeys };
