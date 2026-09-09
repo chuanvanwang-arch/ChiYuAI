@@ -24,6 +24,20 @@ export const S_P_ALIAS = {
   S1: 'P1', S2: 'P2', S3: 'P3', S4: 'P4', S5: 'P5', S6: 'P6',
 };
 
+// 终态 / 在跟（2026-09-09：「待跟进」视角判定，设计 docs/2026-09-09-follow-stage-filter-fix-design.md §3.1）
+//   语义：S7 输单 / S8 丢单 为退出态，其余 S1–S6 均属「在跟」，需出现在待办。
+//   单一事实源：判定逻辑不得在调用方另写 value 列表（杜绝第三套命名）。
+export const S_TERMINAL_STAGES = ['S7', 'S8'];
+export const S_OPEN_STAGES = S_STAGES.filter((s) => !S_TERMINAL_STAGES.includes(s)); // S1–S6
+
+// 是否「在跟」：先归一（旧英文 lead/quoted/contracted…→S 码），再判非终态。
+// 未知值（含脏值 'leads'）与缺失 → true（fail-open：宁可多报，不可漏报漏跟进）
+export function isOpenStage(v) {
+  const code = toStageCode(v);
+  if (!code) return true;
+  return !S_TERMINAL_STAGES.includes(code);
+}
+
 // 合法推进边（含退出边 S7/S8，任意阶段可进；赢单 S6 后不再向前）
 export const S_TRANSITIONS = [
   { from: 'S1', to: 'S2' }, { from: 'S2', to: 'S3' }, { from: 'S3', to: 'S4' },

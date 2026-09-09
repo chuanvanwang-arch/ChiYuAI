@@ -21,6 +21,7 @@ import { renderPage } from '../page/renderer.js';
 import { resolveMe } from './auth.js';
 import { scopeTenant, scopeOf } from './tenantScope.js';
 import { schema as WORKBENCH_SCHEMA } from '../pages/S33-workbench.schema.js';
+import { toStageCode, isOpenStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）
 import { advanceTask } from '../approval/engine.js';
 import { query } from '../db.js';
 
@@ -181,8 +182,12 @@ async function buildViewRows(view, actor, deps) {
         if (APPROVAL_TYPES[t] && p.payload?.status === 'submitted') {
           todos.push({ deal: `${APPROVAL_TYPES[t]}单 ${p.payload?.name || p.slug || p.id}`, customer: p.payload?.customer || p.payload?.account_name || '—', stage: '待审批', due: '待审批', action: '审批' });
         } else if (t === 'CRM_DEAL') {
-          const st = p.payload?.stage || 'lead';
-          if (st === 'lead' || st === 'opportunity') todos.push({ deal: p.payload?.name || p.slug || '商机', customer: p.payload?.customer || p.payload?.account_name || '—', stage: st, due: '跟进', action: '跟进' });
+          // 2026-09-09 修复：原按旧英文值 lead/opportunity 过滤，术语改为 S1–S8 后 18 条商机仅 2 条进待办（漏报 16）。
+          //   现归一为 S 码 + 「在跟 = 非终态（排除 S7 输单 / S8 丢单）」；脏值/缺失 fail-open 计入并保留原值。
+          const raw = p.payload?.stage;
+          if (!isOpenStage(raw)) continue;
+          const st = toStageCode(raw) || raw || 'S1'; // 缺失兜底 S1（对齐 particleRepo.js:23 新建商机默认）
+          todos.push({ deal: p.payload?.name || p.slug || '商机', customer: p.payload?.customer || p.payload?.account_name || '—', stage: st, due: '跟进', action: '跟进' });
         } else if (t === 'CRM_PAYMENT_PLAN' || t === 'CRM_PAYMENT_RECORD') {
           if (p.payload?.status === 'submitted' || p.payload?.status === 'pending') todos.push({ deal: `${t === 'CRM_PAYMENT_PLAN' ? '回款计划' : '回款记录'} ${p.payload?.name || p.slug || p.id}`, customer: p.payload?.customer || '—', stage: p.payload?.status, due: '应收', action: '核对' });
         }

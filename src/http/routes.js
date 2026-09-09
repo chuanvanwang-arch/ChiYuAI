@@ -23,6 +23,7 @@ import { GATE_SCENARIOS, getGateMetrics, getSevenDimCoverage, getDecisionList, g
 // 决策网络视图 API（C2/C4：因果链 / 影响地图 / 审计导出；与既有 /api/monitor/* 并列）
 import { traceDecision, getImpact } from '../decision/decisionTrace.js';
 import { exportAudit, exportTurtle } from '../decision/provenance.js';
+import { toStageCode, isOpenStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）
 import { writeOutcome, listOutcomes } from '../decision/outcome.js';
 import { setDecisionFeedback } from '../decision/feedback.js';
 import { traceRootCause } from '../decision/traceRootCause.js';
@@ -1611,16 +1612,18 @@ export function createRoutes(app, hub) {
           }
         }
       }
-      // ② 商机跟进（lead/opportunity 阶段需销售跟进）
+      // ② 商机跟进（在跟 = 非终态 S1–S6，排除 S7 输单 / S8 丢单）
+      // 2026-09-09 修复：与 workbenchRouter follow 视角同构（原按旧英文值 lead/opportunity 过滤 → 漏报）。
+      //   判定统一走 stageTaxonomy.isOpenStage（单一事实源），脏值/缺失 fail-open 计入。
       for (const d of (grouped.CRM_DEAL || [])) {
-        const st = d.payload?.stage || 'lead';
-        if (st === 'lead' || st === 'opportunity') {
-          todos.push({
-            deal: d.payload?.name || d.slug || '商机',
-            customer: d.payload?.customer || d.payload?.account_name || '—',
-            stage: st, due: '跟进', action: '跟进',
-          });
-        }
+        const raw = d.payload?.stage;
+        if (!isOpenStage(raw)) continue;
+        const st = toStageCode(raw) || raw || 'S1';
+        todos.push({
+          deal: d.payload?.name || d.slug || '商机',
+          customer: d.payload?.customer || d.payload?.account_name || '—',
+          stage: st, due: '跟进', action: '跟进',
+        });
       }
       // ③ 回款/应收（payment 类 pending/submitted）
       for (const t of ['CRM_PAYMENT_PLAN', 'CRM_PAYMENT_RECORD']) {

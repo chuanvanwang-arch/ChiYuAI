@@ -148,13 +148,21 @@ describe('G3-T2 待办工作台 /workbench 端点', () => {
     expect(VIEW_ALIASES.cc).toBe('抄送我的');
   });
 
-  it('⑦ GET /workbench?view=follow 200 + 待跟进（CRM_DEAL lead/opportunity + 审批单 submitted + 回款 pending）', async () => {
+  // 2026-09-09 修复：术语改造后阶段为 S1–S8，原「仅 lead/opportunity 计入」的断言前提已过期
+  //   （contracted→S4 属在跟，应计入；S7 输单 / S8 丢单为终态，应排除）。
+  //   现固件显式覆盖判定表关键行，防回归：设计 docs/2026-09-09-follow-stage-filter-fix-design.md §3.2
+  it('⑦ GET /workbench?view=follow 200 + 待跟进（在跟=S1–S6 非终态，旧英文值归一计入，S7/S8 排除）', async () => {
     const deps = makeDeps({
       queryFollowSource: async () => ([
-        { id: 'd-lead', type: 'CRM_DEAL', payload: { name: '彩盒打样', customer: '甲', stage: 'lead' } },
+        { id: 'd-lead', type: 'CRM_DEAL', payload: { name: '彩盒打样', customer: '甲', stage: 'lead' } },       // 旧值 → S1 计入
+        { id: 'd-s3', type: 'CRM_DEAL', payload: { name: '方案验证中', customer: '甲', stage: 'S3' } },          // S 码计入
+        { id: 'd-s6', type: 'CRM_DEAL', payload: { name: '赢单移交', customer: '甲', stage: 'S6' } },            // 边界：S6 计入
+        { id: 'x-1', type: 'CRM_DEAL', payload: { name: '已签约', customer: '丁', stage: 'contracted' } },        // 旧值 → S4 计入
+        { id: 'd-s7', type: 'CRM_DEAL', payload: { name: '输单', customer: '戊', stage: 'S7' } },                // 终态排除
+        { id: 'd-s8', type: 'CRM_DEAL', payload: { name: '丢单', customer: '己', stage: 'S8' } },                // 终态排除
+        { id: 'd-lost', type: 'CRM_DEAL', payload: { name: '旧值输单', customer: '庚', stage: 'lost' } },         // 旧值 → S7 排除
         { id: 'q-1', type: 'CRM_QUOTATION', payload: { name: '报价A', customer: '乙', status: 'submitted' } },
         { id: 'p-1', type: 'CRM_PAYMENT_PLAN', payload: { name: '回款A', customer: '丙', status: 'pending' } },
-        { id: 'x-1', type: 'CRM_DEAL', payload: { name: '已赢单', customer: '丁', stage: 'contracted' } },
       ]),
     });
     const router = createWorkbenchRouter({ deps });
@@ -164,8 +172,16 @@ describe('G3-T2 待办工作台 /workbench 端点', () => {
     await router.handlers.get({ query: { view: 'follow' } }, res);
     expect(res.statusCode).toBe(200);
     const rows = res.body.data.components?.table?.rows || [];
-    expect(rows.length).toBe(3); // d-lead + q-1 + p-1；x-1 contracted 不计入
+    // 4 条在跟商机（lead/S3/S6/contracted）+ 报价审批 + 回款核对 = 6；S7/S8/lost 三条终态不计入
+    expect(rows.length).toBe(6);
     expect(rows.every((r) => ['跟进', '审批', '核对'].includes(r.action))).toBe(true);
+    // 阶段归一：旧英文值输出 S 码，脏值/终态不在结果中
+    const dealStages = rows.filter((r) => r.action === '跟进').map((r) => r.stage).sort();
+    expect(dealStages).toEqual(['S1', 'S3', 'S4', 'S6']);
+    const dealNames = rows.map((r) => r.deal);
+    expect(dealNames).not.toContain('输单');
+    expect(dealNames).not.toContain('丢单');
+    expect(dealNames).not.toContain('旧值输单');
   });
 
   // ── 侧栏角标端点（/api/my-todo/badge，对齐 followReminders 模式）───

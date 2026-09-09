@@ -164,7 +164,30 @@ export function isOpenStage(v) {
 
 ---
 
-## §8 自查
+## §8 实施结果（2026-09-09 已落地）
+
+**代码**（3 处 + 1 测试）
+- `src/sales/stageTaxonomy.js`：新增 `S_TERMINAL_STAGES` / `S_OPEN_STAGES` / `isOpenStage()`
+- `src/http/workbenchRouter.js:184-190`：follow 视角归一 + 非终态判定
+- `src/http/routes.js:1616-1628`：孪生点同构改造（新增 `stageTaxonomy` import）
+- `test/http/workbench-routes.test.js:151-186`：固件扩到判定表关键行，断言 6 行 + 阶段归一 `['S1','S3','S4','S6']`
+
+**验收**
+| 项 | 结果 |
+|---|---|
+| 单测（workbench-routes / todo / todo-finance / my-todo-page） | 32/32 绿 |
+| 生产数据复核（只读探针） | CRM_DEAL 19 条 → follow 命中 **18**，排除 1（B新能源 S7） |
+| 真实 HTTP（实例 3110，alice） | `/api/my-todo?view=follow` 商机跟进 **11 条**（修复前 2 条）；含 XX制造 **S4** ✅；不含 B新能源 S7 ✅ |
+| 旧入口 `/api/page/todo?role=sales` | 含 XX制造 ✅ / 不含 B新能源 ✅（孪生点同步生效） |
+| 回归（串行） | http 358/359、mcp+action+sales 400/400、decision 398/398、context+calibration+page 498/498 |
+
+**已知既有失败（经 A/B 证实与本次无关）**
+- `test/http/nightlyReportRoute.test.js`：期望 `2026-09-05` 实得 `2026-09-08`（共享测试库脏数据）
+- `test/particles/particleRepo.tenant.test.js` 3 项：`required 属性缺失: name`（元模型 required 变更在前，固件 payload 仍为 `{}`）
+
+**遗留**：脏值 `leads` 按 fail-open 计入并原样显示（A4 断言中唯一非 S 码，已确认符合设计）。
+
+## §9 自查
 
 - [x] 无占位符 / TODO
 - [x] 判定表与方案 A 一致，无矛盾
