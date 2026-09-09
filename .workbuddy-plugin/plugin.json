@@ -1,6 +1,6 @@
 {
   "name": "crm-native",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "AI 原生 CRM 智能体包——角色自适应、管道原生、跨模块推理查询、两阶段对话式写入、链断裂主动预警。覆盖线索到现金（L2C）全链路，可经 MCP Server 接入任意办公智能体（首次须 crm_login 用户名密码验证）。",
   "author": {
     "name": "CRM-ai-native",
@@ -25,7 +25,11 @@
     "./skills/method-presales",
     "./skills/method-behavior-standard",
     "./skills/method-funnel-classification",
-    "./skills/method-stage-progression"
+    "./skills/method-stage-progression",
+    "./skills/method-followup-engine",
+    "./skills/method-intake-routing",
+    "./skills/method-quote-engine",
+    "./skills/method-review-gate"
   ],
   "expertType": "agent",
   "agentName": "crm-native",

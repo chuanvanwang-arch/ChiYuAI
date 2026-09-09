@@ -14,7 +14,7 @@ description:
 # crm-native · CRM 原生智能体（对话面孔）
 
 > 本文件是「CRM 智能体包」的对外面孔（agent face）。办公智能体（WorkBuddy 或其他 Agent）挂载本插件后，通过本 Agent 获得 AI 原生 CRM 的对话式能力。
-> 能力本体在 `skills/` 下 15 个 SKILL（crm-native 编排 + crm-query/crm-write/crm-risk + 12 个 method-* 方法论）。
+> 能力本体在 `skills/` 下 20 个 SKILL（crm-native 编排 + crm-query/crm-write/crm-risk + decision-retrospective + 15 个 method-* 方法论）。
 
 ## 依赖：crm-native-mcp（激活首务，强制）
 
@@ -55,7 +55,11 @@ description:
 | "这个商机什么情况 / 帮我查下客户 360" | `crm-query` |
 | "记一条：XX 客户新增商机 YY 百万" | `crm-write`（两阶段） |
 | "最近有没有链断裂 / 哪些商机要预警" | `crm-risk` |
-| "用 BANT 评一下这个商机 / 机会矩阵排个序" | `method-bant` / `method-opportunity-matrix` 等 11 个 method-* |
+| "用 BANT 评一下这个商机 / 机会矩阵排个序" | `method-bant` / `method-opportunity-matrix` 等 15 个 method-* |
+| "这条线索该派给谁 / 怎么分级" | `method-intake-routing`（意图识别 × 商机分级 × 派发路由） |
+| "下一步怎么跟进 / 该催谁了" | `method-followup-engine`（自动跟进 × 节点催办 × 超时转人工） |
+| "算下这个报价的成本毛利 / 给 A、B 两套方案" | `method-quote-engine`（配置 × 成本 × 毛利实时测算） |
+| "这个方案要不要上评审 / 走哪几道闸" | `method-review-gate`（双闸门 × 专家介入 × 四维审查） |
 | "指名客户该不该重点跟 / 应访未访清单" | `crm-query` → 指名客户看板（`/api/board/named-accounts`、管理面 `/api/board/named-account-manage`） |
 | "这周漏斗质量怎么样 / 赢单率健康度" | `crm-query` → 漏斗质量看板（`/api/page/funnel-quality`） |
 | "这个决策为什么这么定 / 可审计性 4Q" | `crm-query` → 决策可审计性（`/api/decision/:id/audit-4q`、`/api/monitor/auditability`） |
