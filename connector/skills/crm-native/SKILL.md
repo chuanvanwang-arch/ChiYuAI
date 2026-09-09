@@ -134,6 +134,9 @@ security:
 | `crm-import-batch` | 批量导入（高危 force） |
 | `crm-approval-flow-define` / `crm-approval-start` / `crm-approval-approve` / `crm-approval-withdraw` / `crm-approval-transfer` / `crm-approval-add-sign` | 审批流定义与操作 |
 
+> **起单指定审批人**：`crm-approval-start` 支持可选参数 `approvers`（字符串数组，如 `["role:presales","role:manager"]`）显式指定审批链；省略时按流配置的节点规则解析（ROLE/SPECIFIC_PERSON）。
+> ⚠ 显式指定时**必须覆盖该流程的全部审批节点**，否则起单会被拒绝（fail-closed，避免剩余节点被静默跳过）。
+
 > 上述写 Action 由 crm-write 子技能经两阶段协议分发（phase1 取表单 → phase2 confirm 执行），本 SKILL 仅编排路由，不直接 dispatch。清单 Action 全部 ∈ `seedActions()` 注册集（防漂移）。
 
 ## 安全红线

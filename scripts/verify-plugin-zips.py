@@ -126,7 +126,7 @@ def check_zip(path, expect_name, expect_version, skill_names, content_rules):
 check_zip(
     os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
     expect_name="crm-native",
-    expect_version="1.7.0",
+    expect_version="1.7.1",
     skill_names=["crm-native", "crm-query", "crm-write", "crm-risk", "decision-retrospective",
                  "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map",
                  "method-risk-tradeoff", "method-stop-loss", "method-fact-vs-script",
@@ -148,6 +148,9 @@ check_zip(
         # 2026-09-09 新增对外 MCP 工具：data-particle-update（事实变更通道，防「已上线但包里看不到」漂移）
         "skill 含 data-particle-update 事实变更路由": (r"data-particle-update", True),
         "skill 含字段级并入语义说明（禁删）": (r"字段级并入", True),
+        # 2026-09-09：crm-approval-start 新增 approvers 透传（审批失效根治，防「参数上线但文档没有」漂移）
+        "skill 含起单指定审批人 approvers 说明": (r"起单指定审批人", True),
+        "skill 含 approvers 覆盖全部节点 fail-closed 说明": (r"覆盖该流程的全部审批节点", True),
         "agent 含 data-particle-update 事实变更路由": (r"更正/补录字段", True),
     },
 )
