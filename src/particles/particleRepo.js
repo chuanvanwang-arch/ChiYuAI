@@ -116,7 +116,12 @@ export async function createParticle(type, payload, { tenantId = 'system', actor
   );
   const particle = r.rows[0];
   // 写时自适应：新键自动登记元模型（enabled=false/source=ai），在 AI 求值前（payload 原始键可推断）
-  await ensureAdaptiveRegistration(type, payload, tenantId, 'system');
+  // 元模型自适应登记：fail-open —— 登记失败不得阻断主写，更不能让已落库的粒子变成孤儿。
+  // 与同文件 ensureAgeSync(…).catch(()=>{}) 的既有风格一致（2026-09-09 孤儿粒子根治）。
+  await ensureAdaptiveRegistration(type, payload, tenantId, 'system').catch((e) => {
+    emit('trace', 'meta-attr-registration-failed', { type, tenantId, error: String(e?.message || e) });
+    return [];
+  });
   // P4(T13)：on_write 公式触发（租户 profile.calculations）——沙箱求值，fail-safe 不阻断主写
   const { runProfileCalculations } = await import('../calc/formulaEngine.js');
   const calcOut = await runProfileCalculations(type, payload, tenantId);
@@ -218,7 +223,10 @@ export async function updateParticle(id, { state, patch = {}, event, requireDeci
   );
   const p = r.rows[0];
   // 写时自适应：patch 新键自动登记元模型（在 AI 求值前）
-  await ensureAdaptiveRegistration(p.type, patch, cur.tenant_id || 'system', 'system');
+  await ensureAdaptiveRegistration(p.type, patch, cur.tenant_id || 'system', 'system').catch((e) => {
+    emit('trace', 'meta-attr-registration-failed', { type: p.type, tenantId: cur.tenant_id, error: String(e?.message || e) });
+    return [];
+  });
   // P4(T13)：on_write 公式触发（更新路径同样；cur.type/cur.tenant_id 安全可用）
   const { runProfileCalculations } = await import('../calc/formulaEngine.js');
   const calcOut = await runProfileCalculations(cur.type, newPayload, cur.tenant_id || 'system');

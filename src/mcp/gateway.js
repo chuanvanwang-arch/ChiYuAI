@@ -17,6 +17,29 @@ const confirmSessions = new Map(); // confirm_token → { action, kind, params, 
 
 function hashParams(params = {}) { try { return JSON.stringify(params); } catch { return String(params); } }
 
+// 协议位（不参与业务参数合并/冲突判定）：这些键由 MCP 传输层或本模块自身消费
+const PROTOCOL_KEYS = new Set(['confirm_token', 'api_token', 'choice', 'switched_role', 'utterance', 'force', 'decision_id']);
+
+// phase2 参数合并：**只增补、禁止覆盖**（confirm 语义保护，2026-09-09）
+// 背景：原实现（:253）执行时一律用 session.params（phase1 冻结值），phase2 传入的 params 仅用于
+//   extractToken → 用户在 phase2 补的扩展明细（如基础/标准档定价明细）被**静默丢弃**。
+// 语义取舍：
+//   ① 全量合并 → 用户确认 A、实际执行 B，confirm 闸门形同虚设（否决）；
+//   ② 严格拒绝一切额外参数 → 安全但体验差，补明细必须重走 phase1；
+//   ③ 只增补、禁覆盖（采用）：已展示给用户的键不可改写（hashParams 比对，不一致即拒绝并要求重发确认），
+//      phase1 未出现的键允许补入 —— 兼顾 confirm 语义完整性与分段提交的可用性。
+export function mergePhase2Params(session, phase2 = {}) {
+  const p1 = session.params || {};
+  const added = {};
+  let conflict = null;
+  for (const [k, v] of Object.entries(phase2 || {})) {
+    if (PROTOCOL_KEYS.has(k)) continue;                       // 协议位不参与业务参数合并
+    if (!Object.prototype.hasOwnProperty.call(p1, k)) { added[k] = v; continue; }  // 新键 → 允许增补
+    if (hashParams(p1[k]) !== hashParams(v)) { conflict = k; break; }              // 覆盖已展示字段 → 冲突
+  }
+  return { params: { ...p1, ...added }, conflict, added: Object.keys(added) };
+}
+
 // ─── 套餐权益闸：MCP 通道整体（2026-09-06 交付补齐）─────────────────────────────────────────
 // 设计依据：docs/2026-09-06-billing-gate-repair-design.md §7 映射表
 //   「mcp_access | MCP 通道整体（在 gateway 层校验，不逐 Action 声明）」
@@ -113,6 +136,10 @@ function buildConfirmForm(actionName, def, ctx, params, focusDomain = null) {
 
 // 写 phase1：决策第 0 闸 → 降级软提示（仍发 confirm_token，符合 §6「写仍走 action-confirm」）→ 不执行
 export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
+  // 对话诉求原文：MCP 协议级透传（tools.js protocolShape 已声明，否则被 zod strip）。
+  // 取出后立即从 params 删除——D2 铁律：对话原文零落库，不得随写参数进入粒子 payload。
+  const utteranceText = typeof params?.utterance === 'string' ? params.utterance : '';
+  if (params && Object.prototype.hasOwnProperty.call(params, 'utterance')) delete params.utterance;
   const token = extractToken(params, headers);
   const ctx = await buildMcpCtx({ token, channel: 'mcp', decisionId: params?.decision_id || null });
   if (MCP_CONFIG.security.requireAuth && ctx.degraded) {
@@ -160,8 +187,19 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
     // 设计落点：推进商机（crm-deal-advance）为 autoDecision Action——引擎（或升级人工）自动 mint 决策，
     //   无需外部 decision_id（对齐 test/decision-gate.test.js:33-51）。因此提示面向用户问「是否推进」，
     //   由用户拍板后引擎产生决策 → 写放行；而非要求用户去页面手动创建决策（那是误导）。
+    // 对话驱动建议（2026-09-08 T6）：第 0 闸阻断时同样产出建议——「缺决策依据」正是销售最需要建议的时刻。
+    // fail-open：异常或无诉求文本时保持 null，绝不改变既有闸语义。
+    let blockedAdvice = null;
+    try {
+      if (utteranceText) {
+        // 阶段优先取显式 stage，其次推进类动作的 to_stage（如 crm-deal-advance 推进到 S4）
+        const a = await advise({ utterance: utteranceText, ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || params?.to_stage || null });
+        blockedAdvice = a.advice;
+      }
+    } catch { blockedAdvice = null; }
     return {
       ok: false,
+      advice: blockedAdvice,
       gate: 'decision_required',
       code: 'DECISION_NEEDED',
       // action 为商机推进类（autoDecision）→ 直接问推进；其余写 → 问是否发起对应决策
@@ -182,7 +220,7 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
   // 对话驱动建议（2026-09-08 T6）：仅附加字段，不改变 confirm_token 与闸语义；fail-open（异常不阻断）
   let advice = null;
   try {
-    const a = await advise({ utterance: params?.utterance || '', ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || null });
+    const a = await advise({ utterance: utteranceText, ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || params?.to_stage || null });
     advice = a.advice;
   } catch { advice = null; }
   return { ok: true, confirm_token, ...extra, advice, form: { ...buildConfirmForm(actionName, def, ctx, params, intent.focus_domain), degraded: ctx.degraded } };
@@ -233,9 +271,20 @@ export async function mcpConfirmPhase2(confirmToken, choice = '1', switchedRole 
     role = switchedRole;
   }
   confirmSessions.delete(confirmToken); // 一次性消费
+  // phase2 参数合并（只增补、禁覆盖）：执行前先合并，冲突则不执行（confirm 语义保护）
+  const { params: execParams, conflict, added } = mergePhase2Params(session, params);
+  if (conflict) {
+    emit('trace', 'mcp-confirm-params-conflict', { action: session.action, field: conflict, actor: session.actor });
+    return {
+      ok: false, gate: 'confirm_params_conflict',
+      error: `字段 ${conflict} 与确认时展示的值不一致，已拒绝执行（confirm 语义保护）`,
+      hint: '如需修改已确认的字段，请重新发起一次工具调用走完整确认流程',
+    };
+  }
   const ctx = await buildMcpCtx({ token: extractToken(params, headers), channel: 'mcp', decisionId: session.params?.decision_id });
   ctx.role = role; // 应用切换后的角色
-  const r = await actionExecutor.dispatch(session.action, session.params, ctx);
+  if (added.length) emit('trace', 'mcp-confirm-params-augmented', { action: session.action, added, actor: session.actor });
+  const r = await actionExecutor.dispatch(session.action, execParams, ctx);
   emit('trace', 'mcp-confirm-executed', { action: session.action, ok: r.ok, role });
   return r;
 }
@@ -280,4 +329,4 @@ export async function mcpWritePhase2(confirmToken, params = {}, headers = {}) {
   return mcpConfirmPhase2(confirmToken, '1', null, params, headers);
 }
 
-void hashParams;
+// hashParams 已接线（2026-09-09）：mergePhase2Params 用它做「已确认字段是否被改写」的冲突校验，不再是死代码。

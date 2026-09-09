@@ -124,11 +124,19 @@ export async function ensureAdaptiveRegistration(particleType, payload, tenantId
     if (exists) continue;
     const rec = adaptiveRecordFor(particleType, slug, payload[slug], actor);
     if (!rec) continue;
+    // 并发安全（2026-09-09 孤儿粒子根治）：
+    //   旧写法是 check-then-act —— 先 SELECT 判存在、再 INSERT ... WHERE NOT EXISTS，两条语句分属不同连接、
+    //   无事务包裹。并发下同一 (type, slug, tenant) 的两个请求可双双通过检查 → 双双 INSERT →
+    //   撞 meta_attr_pkey（PK = particle_type, attr_slug, tenant_id）抛错；
+    //   而粒子已在 particleRepo.js 的 INSERT 处落库 → **抛错也留下一颗孤儿粒子**（本次产物 6b3f6f8f…）。
+    //   现改为 DB 层幂等：主键直接 ON CONFLICT DO NOTHING，竞态在数据库层消解，冲突不再抛错上抛。
+    //   （不采用 withTx 全包：createParticle 后续还有 embedding/审计/AGE 图/AI 属性等**故意 fail-open**
+    //    的非事务副作用，整体包进事务会把它们变成阻塞点。）
     await queryWrite(
       `INSERT INTO crm.meta_attr
          (particle_type, attr_slug, title, attr_type, semantic_tag, source, enabled, version, created_by, tenant_id)
-       SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
-       WHERE NOT EXISTS (SELECT 1 FROM crm.meta_attr WHERE particle_type=$1 AND attr_slug=$2 AND tenant_id=$10)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (particle_type, attr_slug, tenant_id) DO NOTHING`,
       [rec.particle_type, rec.attr_slug, rec.title, rec.attr_type, rec.semantic_tag,
        rec.source, rec.enabled, rec.version, rec.created_by, tenantId]
     );
