@@ -67,22 +67,28 @@ function materializeNode(node, flowData, ctx, visited = new Set()) {
   return materializeNode(target, flowData, ctx, visited);
 }
 
-// 审批人解析：实例传入 approvers 优先；否则走审批规则兜底（C9 emptyApproverAction）
-// 语义修正（计划内部矛盾，同 F4 类）：AUTO_PASS 是显式配置的兜底，非默认值——
-// 默认 empty_approver_action='ASSIGN_ADMIN'（转交管理员），否则无审批人=自动放行（审批流形同虚设，危险默认）
-function resolveApprovers(approverRule, { submitter, approvers = [] }) {
+// 审批人解析：显式 approvers → 节点规则（ROLE/SPECIFIC_PERSON）→ 才轮到 empty_approver_action 兜底
+//
+// ⚠ 顺序铁律（2026-09-09 审批失效根治，docs/2026-09-09-approval-failure-and-write-side-fix-design.md §1）：
+//   empty_approver_action 的语义是「**审批人为空时**怎么办」。节点规则配了 role/assigned_to 就是**有**审批人，
+//   此时 AUTO_PASS 绝不能介入。
+//   旧实现把 AUTO_PASS 判定排在 ROLE/SPECIFIC_PERSON **之前**（commit 前 :77-78），导致生产 63 条规则中
+//   50 条 AUTO_PASS（含 role:presales / role:manager / role:finance 等）被整体架空——起单即 APPROVED、
+//   无任何待签任务（用户报「这不是审批通过，是审批失效」）。
+//   修复后：只有 ROLE 无 role 值、SPECIFIC_PERSON 无 assigned_to、或 approver_type 为其它值时，
+//   才算「审批人真的为空」，此时 empty_approver_action 才生效（AUTO_PASS / ASSIGN_ADMIN / ASSIGN_SPECIFIC）。
+export function resolveApprovers(approverRule, { submitter, approvers = [] }) {
   if (approvers.length) return approvers;
-  // 显式兜底优先：empty_approver_action='AUTO_PASS' 是「审批人为空即自动通过」的显式声明，
-  // 高于节点规则——节点规则是默认审批人指派；AUTO_PASS 声明空则直接放行，防止规则兜底掩盖显式配置
-  const action = approverRule.payload.empty_approver_action || getDefaultEmptyApproverAction();
-  if (action === 'AUTO_PASS') return { auto_pass: true };
-  // 节点规则（默认指派）：ROLE/SPECIFIC_PERSON 优先于 ASSIGN_ADMIN 兜底（08-26 根因修复：退回重审/未传 approvers 场景审批人错误为 role:admin）
+  // ① 节点规则（默认指派）：ROLE / SPECIFIC_PERSON —— 解析出审批人即返回，AUTO_PASS 不介入
   if (approverRule.payload.approver_type === 'ROLE' && approverRule.payload.role) {
     return [`role:${approverRule.payload.role}`];   // 前缀规范化：role:<role> 与兜底/测试契约一致
   }
   if (approverRule.payload.approver_type === 'SPECIFIC_PERSON' && approverRule.payload.assigned_to) {
     return [approverRule.payload.assigned_to];
   }
+  // ② 走到此处 = 审批人确实为空 → 才应用 empty_approver_action 兜底（字段本意）
+  const action = approverRule.payload.empty_approver_action || getDefaultEmptyApproverAction();
+  if (action === 'AUTO_PASS') return { auto_pass: true };
   if (action === 'ASSIGN_ADMIN') return ['role:admin'];
   if (action === 'ASSIGN_SPECIFIC') {
     return approverRule.payload.assigned_to ? [approverRule.payload.assigned_to] : ['role:admin'];
@@ -106,7 +112,7 @@ function fallbackNoApprover() {
 //   (B) 单 APPROVER 节点流（同节点多审批人，SEQUENTIAL/ALL 顺序签）→ 全链落在当前节点（全部 TODO，按 seq 顺序签）。
 //   - 未传 tierApprovers（向后兼容旧调用 / 演示流）→ 回退 seeded role（等同 T3 满链）。
 // ordinal 由调用方按「链路中位于本节点之前的 APPROVER 节点数」计算，与节点 pos 绝对编号无关。
-function resolveNodeApprover(tierApprovers, approverOrdinal, approverRule, { submitter }, totalApprovers = 0) {
+function resolveNodeApprover(tierApprovers, approverOrdinal, approverRule, { submitter, approvers = [] }, totalApprovers = 0) {
   // 仅当调用方显式传入非空档位链（tier_approvers）才启用跨节点分发；
   // 空数组（向后兼容旧调用 / 演示流未传档位）视为「未分级」→ 回退 seeded role（等同 T3 满链）。
   if (Array.isArray(tierApprovers) && tierApprovers.length > 0 && approverOrdinal >= 0) {
@@ -122,7 +128,8 @@ function resolveNodeApprover(tierApprovers, approverOrdinal, approverRule, { sub
       return tierApprovers.map(norm);
     }
   }
-  return approverRule ? resolveApprovers(approverRule, { submitter, approvers: [] }) : fallbackNoApprover();
+  // 未走分级链 → 把调用方 approvers 透传给 resolveApprovers（不再硬编码 []，消除死参数）
+  return approverRule ? resolveApprovers(approverRule, { submitter, approvers }) : fallbackNoApprover();
 }
 
 // 计算某 APPROVER 节点在链路中的序位（0 起）：位于其 pos 之前的 APPROVER 节点数
@@ -147,7 +154,7 @@ async function loadFlow(flow_id, tenantId = 'system') {
 
 // 起单：startInstance(flow_id, business_type, business_id, ctx, { submitter, approvers })
 // 路由到首个审批节点；无审批规则/空审批人 → AUTO_PASS 直接 APPROVED
-export async function startInstance(flow_id, business_type, business_id, ctx, { submitter, approvers = [], tenantId = 'system' }) {
+export async function startInstance(flow_id, business_type, business_id, ctx, { submitter, approvers = [], tenantId = 'system', requireFullChain = false }) {
   const fd = await loadFlow(flow_id, tenantId);
   const start = fd.nodes.find(n => n.payload.node_type === 'START');
   if (!start) throw new Error(`审批流缺少 START 节点: ${flow_id}`);
@@ -163,7 +170,17 @@ export async function startInstance(flow_id, business_type, business_id, ctx, { 
 
   const approverRule = fd.approvers.find(a => a.payload.node_id === node.id);
   const totalApprovers = fd.nodes.filter(n => n.payload.node_type === 'APPROVER').length;
-  const resolved = approverRule ? resolveNodeApprover(approvers, approverOrdinalOf(fd, node), approverRule, { submitter }, totalApprovers) : fallbackNoApprover();
+  // fail-closed（2026-09-09）：调用方**显式指定**审批链但长度不足以覆盖全部 APPROVER 节点 → 拒绝起单。
+  //   背景：resolveNodeApprover 在「链已尽」时对剩余节点返回 auto_pass（engine.js:119 附近），
+  //   那是分级审批 T1 单签的**既定语义**（T1 单不需要总监/总裁签），不可改；
+  //   但若「调用方显式指定」也走这条路，就等于新开一条静默跳审通道——与本次根治目标直接冲突。
+  //   故显式指定（requireFullChain=true）时要求链长 ≥ 节点数，起单前拒绝，无需回滚（禁删铁律）。
+  if (requireFullChain && approvers.length > 0 && approvers.length < totalApprovers) {
+    throw new Error(
+      `审批链长度 ${approvers.length} 少于审批节点数 ${totalApprovers}（flow=${flow_id}）：` +
+      `显式指定审批人时必须覆盖全部节点，否则剩余节点会被静默跳过（fail-closed）`);
+  }
+  const resolved = approverRule ? resolveNodeApprover(approvers, approverOrdinalOf(fd, node), approverRule, { submitter, approvers }, totalApprovers) : fallbackNoApprover();
 
   if (resolved.auto_pass) {
     return createParticle('CRM_APPROVAL_INSTANCE', {

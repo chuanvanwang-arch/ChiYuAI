@@ -78,7 +78,24 @@ describe('审批引擎（条件路由/三种模式/兜底，Task 4）', () => {
     expect(instBig.payload.current_node_name).toBe('多级上级');
   });
 
-  it('审批模式：ANY 或签一过即通过；兜底 AUTO_PASS 审批人为空自动通过', async () => {
+  // 2026-09-09 审批失效根治：原用例固件为「ROLE:contract-admin + AUTO_PASS + approvers:[] → 断言 APPROVED」，
+  // 该断言**锚定的正是被扭曲的语义**——节点规则明明配了 role（审批人非空），却因 AUTO_PASS 判定排在 ROLE
+  // 之前而被架空、起单即通过。现拆成两条，分别锁定两种语义：
+  it('兜底 AUTO_PASS：审批人**确实为空**（无 approver_type / 无 role）→ 自动通过', async () => {
+    const flow = await createFlow({ name: '空审批人兜底流', enabled: true });
+    const start = await addNode(flow.id, { node_type: 'START', name: '开始', pos: 0 });
+    const n = await addNode(flow.id, { node_type: 'APPROVER', name: '无人节点', pos: 1 });
+    await addLink(start.id, n.id, {});
+    // 只声明 empty_approver_action，不给 approver_type/role → 审批人真的解析不出
+    await addApprover(n.id, { multi_approver_mode: 'ANY', empty_approver_action: 'AUTO_PASS' });
+
+    const { startInstance } = await import('../src/approval/engine.js');
+    const inst = await startInstance(flow.id, 'CONTRACT', 'c1', { amount: 10000 }, { submitter: 'u1', approvers: [] });
+    expect(inst.payload.status).toBe('APPROVED');  // 真·无审批人 → AUTO_PASS 兜底（字段本意）
+    expect(inst.payload.auto_pass_reason).toBe('empty_approver AUTO_PASS');
+  });
+
+  it('审批失效反锚点：AUTO_PASS 不得架空 ROLE 规则（配了 role 就必须生成待签任务）', async () => {
     const flow = await createFlow({ name: '合同审批流', enabled: true });
     const start = await addNode(flow.id, { node_type: 'START', name: '开始', pos: 0 });
     const n = await addNode(flow.id, { node_type: 'APPROVER', name: '商务', pos: 1 });
@@ -87,7 +104,13 @@ describe('审批引擎（条件路由/三种模式/兜底，Task 4）', () => {
 
     const { startInstance } = await import('../src/approval/engine.js');
     const inst = await startInstance(flow.id, 'CONTRACT', 'c1', { amount: 10000 }, { submitter: 'u1', approvers: [] });
-    expect(inst.payload.status).toBe('APPROVED');  // 审批人为空 → AUTO_PASS 兜底
+    // 修复前：AUTO_PASS 抢在 ROLE 之前 → APPROVED（起单即通过，审批失效）
+    // 修复后：ROLE 规则优先 → APPROVING + 1 条 role:contract-admin 待签任务
+    expect(inst.payload.status).toBe('APPROVING');
+    const tasks = await listApprovalTasks(inst.id);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].payload.approver).toBe('role:contract-admin');
+    expect(tasks[0].payload.status).toBe('TODO');
   });
 
   it('SEQUENTIAL 顺序签全链路：逐次 approve，最后一人通过才 APPROVED（顺序闸拒绝越序）', async () => {

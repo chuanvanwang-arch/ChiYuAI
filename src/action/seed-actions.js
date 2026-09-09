@@ -1266,12 +1266,28 @@ export function seedActions() {
   registerAction({
     name: 'crm-approval-start', kind: 'write', permission: 'auth', requiresEntitlement: ['approval_flow'], confirm: 'critical',
     namespace: 'crm', agentTool: true, force: false, needsApproval: false,
-    version: '1.0.0', owner: 'crm-native',
-    schema: { flow_id: 'string', business_type: 'string', business_id: 'string', ctx: 'object' },
-    parameters: { required: ['flow_id', 'business_type', 'business_id'] },
-    handler: async ({ flow_id, business_type, business_id, ctx }, actionCtx) => {
+    version: '1.1.0', owner: 'crm-native',
+    schema: { flow_id: 'string', business_type: 'string', business_id: 'string', ctx: 'object', approvers: 'array' },
+    parameters: {
+      required: ['flow_id', 'business_type', 'business_id'],
+      properties: {
+        approvers: {
+          type: 'array', items: { type: 'string' },
+          description: '显式审批人/审批链（如 ["role:presales","role:manager"]）；省略则按流配置的节点规则解析。显式指定时必须覆盖全部审批节点，否则拒绝起单（fail-closed）',
+        },
+      },
+    },
+    handler: async ({ flow_id, business_type, business_id, ctx, approvers }, actionCtx) => {
       const { startInstance } = await import('../approval/engine.js');
-      const inst = await startInstance(flow_id, business_type, business_id, ctx || {}, { submitter: actionCtx.actor, tenantId: actionCtx.tenantId });
+      const explicit = Array.isArray(approvers) ? approvers.filter((a) => typeof a === 'string' && a) : [];
+      // approvers 透传（2026-09-09 审批失效根治）：此前恒传空数组，调用方只能落进「空审批人」分支，
+      //   叠加 engine 的 AUTO_PASS 前置判定 → 起单即通过。现支持显式指定审批链；
+      //   requireFullChain 防止「链长 < 节点数」时剩余节点被静默跳过（新的跳审通道）。
+      const inst = await startInstance(flow_id, business_type, business_id, ctx || {}, {
+        submitter: actionCtx.actor, tenantId: actionCtx.tenantId,
+        approvers: explicit,
+        requireFullChain: explicit.length > 0,
+      });
       emit('approval', 'instance-started', { instance_id: inst.id, business_type, business_id, status: inst.payload.status });
       return inst;
     },
