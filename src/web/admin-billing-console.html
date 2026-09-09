@@ -307,8 +307,10 @@
         const days = s?.expires_at ? daysLeft(s.expires_at) : '—';
         const status = s ? s.status : '未开通';
         const statusClass = status === 'active' ? 'ok' : (status === '未开通' ? 'sub' : 'bad');
-        const ps = r.profile_summary;
-        const indCell = ps && ps.industry_label ? `${esc(ps.industry_label)}<div class="sub">${ps.prototype_count} 类型</div>` : '<span class="sub">—</span>';
+        const inds = (r.profile_summary && Array.isArray(r.profile_summary.industries)) ? r.profile_summary.industries : [];
+        const indCell = inds.length
+          ? inds.slice(0, 3).map((i) => `<span class="chip">${esc(i.label || i.id)}</span>`).join(' ') + (inds.length > 3 ? ` <span class="chip more">+${inds.length - 3}</span>` : '')
+          : '<span class="sub">—</span>';
         const isSys = r.tenant_id === 'system';
         const st = r.tenant_status;
         const ops = isSys
@@ -523,7 +525,7 @@
     TA_CTX = { act, tenantId };
     const title = { freeze: '冻结租户', unfreeze: '解冻租户', extend: '延期订阅', plan: '改套餐', profile: '分配行业画像', cancel: '退订（软）' }[act] || '租户操作';
     document.getElementById('ta-title').textContent = title + '：' + tenantId;
-    const hint = { freeze: '冻结后新登录即被拒，定时任务暂停；已登录会话在 token 过期后失效。', cancel: '退订将置租户为 retired（数据全保留，禁物理删除），订阅标记 cancelled。', profile: '将整体覆盖该租户现有行业画像（旧画像可由决策行追溯）。' }[act] || '';
+    const hint = { freeze: '冻结后新登录即被拒，定时任务暂停；已登录会话在 token 过期后失效。', cancel: '退订将置租户为 retired（数据全保留，禁物理删除），订阅标记 cancelled。', profile: '为该租户追加/移除行业画像（多行业可共存；同名类型后者覆盖前者，无自动告警）。' }[act] || '';
     document.getElementById('ta-hint').textContent = hint;
     let fields = '';
     if (act === 'extend') fields = `<label>延期天数（1-365）</label><crm-input id="ta-days" type="number" min="1" max="365" value="30"></crm-input>`;
@@ -531,8 +533,14 @@
       const opts = (PLANS || []).map((p) => `<option value="${escAttr(p.plan_id)}">${esc(p.plan_id)} · ${esc(p.name || '')}</option>`).join('');
       fields = `<label>目标套餐</label><crm-select id="ta-plan">${opts}</crm-select>`;
     } else if (act === 'profile') {
-      const tpls = (window.__TA_TPLS || []).map((t) => `<option value="${escAttr(t.template_id)}">${esc(t.industry_label)}（${t.prototype_count} 类型）</option>`).join('');
-      fields = `<label>行业模板</label><crm-select id="ta-tpl">${tpls}</crm-select>`;
+      const cur = SUBS_DATA.find((s) => s.tenant_id === tenantId);
+      const curInds = (cur && cur.profile_summary && Array.isArray(cur.profile_summary.industries)) ? cur.profile_summary.industries : [];
+      const curHtml = curInds.length
+        ? curInds.map((i) => `<span class="chip">${esc(i.label || i.id)} <a class="rm" data-rm="${escAttr(i.id)}" title="移除">✕</a></span>`).join(' ')
+        : '<span class="sub">（暂无已分配行业）</span>';
+      const tpls = (window.__TA_TPLS || []).map((t) => `<label class="tpl-chk"><input type="checkbox" value="${escAttr(t.template_id)}"> ${esc(t.industry_label)}（${t.prototype_count} 类型）</label>`).join('');
+      fields = `<div class="ta-block"><div class="ta-sub">当前已分配（点 ✕ 移除）：</div><div id="ta-cur">${curHtml}</div></div>
+                <div class="ta-block"><div class="ta-sub">待分配模板（多选）：</div><div id="ta-tpls">${tpls || '<span class="sub">无模板</span>'}</div></div>`;
     } else if (act === 'cancel' || act === 'freeze') {
       fields = `<label>原因（可选）</label><crm-input id="ta-reason" placeholder="如 逾期未续费"></crm-input>`;
     } else if (act === 'unfreeze') fields = '';
@@ -547,20 +555,61 @@
   document.addEventListener('click', (ev) => {
     const btn = ev.target.closest('crm-button[data-act]');
     if (!btn) return;
+    if (window.__TA_DEBUG) console.log('[ta] click', btn.getAttribute('data-act'), btn.getAttribute('data-t'));
     openTenantAction(btn.getAttribute('data-act'), btn.getAttribute('data-t'));
-  });
+  }, { capture: true });
+  // 行业画像「移除 ✕」委托（capture：避免被祖先 stopPropagation 截断）
+  document.addEventListener('click', (ev) => {
+    const rm = ev.target.closest('[data-rm]');
+    if (!rm) return;
+    const industryId = rm.getAttribute('data-rm');
+    const tenantId = TA_CTX?.tenantId;
+    if (!tenantId) return;
+    if (!window.confirm(`确认从租户 ${tenantId} 移除行业画像「${industryId}」？`)) return;
+    removeIndustryAction(tenantId, industryId);
+  }, { capture: true });
+  async function removeIndustryAction(tenantId, industryId) {
+    try {
+      await api('/api/billing/tenant-admin/remove-profile', { method: 'POST', body: JSON.stringify({ tenantId, industryId }) });
+      await loadSubs();
+      refreshTaCur(tenantId);
+    } catch (e) { alert('移除失败：' + (e?.error || e?.message || '未知错误')); }
+  }
+  function refreshTaCur(tenantId) {
+    const cur = SUBS_DATA.find((s) => s.tenant_id === tenantId);
+    const inds = (cur && cur.profile_summary && Array.isArray(cur.profile_summary.industries)) ? cur.profile_summary.industries : [];
+    const el = document.getElementById('ta-cur');
+    if (!el) return;
+    el.innerHTML = inds.length
+      ? inds.map((i) => `<span class="chip">${esc(i.label || i.id)} <a class="rm" data-rm="${escAttr(i.id)}" title="移除">✕</a></span>`).join(' ')
+      : '<span class="sub">（暂无已分配行业）</span>';
+  }
+  function showConflictBar(msg) {
+    let bar = document.getElementById('ta-conflict-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'ta-conflict-bar';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b3261e;color:#fff;padding:8px 16px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+      (document.body || document.documentElement).appendChild(bar);
+    }
+    bar.textContent = '⚠ ' + msg;
+    bar.style.display = 'block';
+  }
   document.getElementById('ta-ok').onclick = async () => {
     if (!TA_CTX) return;
     const { act, tenantId } = TA_CTX;
     const body = { tenantId };
     if (act === 'extend') body.days = Number(document.getElementById('ta-days')?.value);
-    if (act === 'plan') body.planId = document.getElementById('ta-plan')?.value;
-    if (act === 'profile') body.templateId = document.getElementById('ta-tpl')?.value;
-    if (act === 'freeze' || act === 'cancel') body.reason = document.getElementById('ta-reason')?.value || '';
+    else if (act === 'plan') body.planId = document.getElementById('ta-plan')?.value;
+    else if (act === 'profile') body.templateIds = Array.from(document.querySelectorAll('#ta-tpls input[type=checkbox]:checked')).map((c) => c.value);
+    else if (act === 'freeze' || act === 'cancel') body.reason = document.getElementById('ta-reason')?.value || '';
     const realAct = act === 'unfreeze' ? 'unfreeze' : act;
     const errEl = document.getElementById('ta-err');
     try {
-      await post(`/api/billing/tenant-admin/${realAct}`, body);
+      const resp = await api(`/api/billing/tenant-admin/${realAct}`, { method: 'POST', body: JSON.stringify(body) });
+      if (act === 'profile' && resp && resp.merge_meta && Array.isArray(resp.merge_meta.conflict_keys) && resp.merge_meta.conflict_keys.length) {
+        showConflictBar(`租户 ${tenantId} 分配画像发生同名类型静默覆盖：${resp.merge_meta.conflict_keys.join(', ')}（决策 C：不告警、已覆盖，可查决策行追溯）`);
+      }
       closeTaModal();
       await loadSubs();
     } catch (e) {
