@@ -3,6 +3,7 @@
 // 关键纪律：新行业上线 = 写一份后台配置画像，**零粒子类型字面量、零新增代码**。
 // prototype 仅声明行业自有对象（客户/讲师/机构/项目/合同/结算）+ 各自阶段流水线 + 审批域 + 计算规则，
 // 全落 config_store，其它租户天然不可见（按 tenant_id 隔离）。
+import { pathToFileURL } from 'url';
 import { writeConfig } from '../../src/config/configStore.js';
 
 export const TRAINING_TENANT = 'acme-training';
@@ -61,7 +62,11 @@ export async function seedTrainingProfile(tenantId = TRAINING_TENANT) {
 }
 
 // 允许直接 node 运行（须先 SET 测试库；生产须经决策第0闸）
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Windows 适配（2026-09-09 实践实证）：win32 下 import.meta.url 与 process.argv[1]
+// 在盘符大小写/路径分隔符上不一致，裸比较永不成立 → 直跑静默无操作。
+// 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
+const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
+if (isMain) {
   seedTrainingProfile().then(() => { console.log('seeded training tenant-profile'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }

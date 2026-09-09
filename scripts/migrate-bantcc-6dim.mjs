@@ -4,6 +4,7 @@
 // 迁移动作：为尚未落 bantcc_detail（六维明细）的 CRM_DEAL 补算并写入 payload.ai.bantcc_detail。
 // 幂等：已落库且为六键的跳过；重复执行 changed=0。全量覆盖不删除任何字段（禁 DELETE 铁律）。
 // 用法：node scripts/migrate-bantcc-6dim.mjs
+import { pathToFileURL } from 'url';
 import { pool } from '../src/db.js';
 import { deterministicEval } from '../src/aiAttributes/evaluator.js';
 
@@ -54,7 +55,11 @@ export async function migrateBantcc6Dim() {
 }
 
 // 直接执行入口
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Windows 适配（2026-09-09 实践实证）：win32 下 import.meta.url 与 process.argv[1]
+// 在盘符大小写/路径分隔符上不一致，裸比较永不成立 → 直跑静默无操作。
+// 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
+const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
+if (isMain) {
   migrateBantcc6Dim()
     .then((r) => { console.log('BANTCC 六维迁移完成', r); return pool.end(); })
     .then(() => process.exit(0))

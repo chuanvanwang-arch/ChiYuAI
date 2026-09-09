@@ -3,6 +3,7 @@
 // 行业模型：厂商 →（直销/经销商）→ 医院终端；关键对象：医院客户/经销商/临床试用/招标项目/结算。
 // 关键纪律：零粒子类型字面量、零新增代码——prototypes 全落 config_store（tenant_id=acme-meddev），
 // 其它租户天然不可见（按 tenant_id 隔离）；resolvePrototype 双源解析（代码基线 ∪ 租户画像）。
+import { pathToFileURL } from 'url';
 import { writeConfig } from '../../src/config/configStore.js';
 
 export const MEDDEV_TENANT = 'acme-meddev';
@@ -56,7 +57,11 @@ export async function seedMeddevProfile(tenantId = MEDDEV_TENANT) {
 }
 
 // 允许直接 node 运行（须先 SET 测试库；生产须经决策第0闸）
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Windows 适配（2026-09-09 实践实证）：win32 下 import.meta.url 与 process.argv[1]
+// 在盘符大小写/路径分隔符上不一致，裸比较永不成立 → 直跑静默无操作。
+// 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
+const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
+if (isMain) {
   seedMeddevProfile().then(() => { console.log('seeded meddev tenant-profile'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }

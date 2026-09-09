@@ -2,6 +2,7 @@
 // 新行业上线 Runbook · Step 5：企业管理咨询行业初始销售员账号（最终交付物）。
 // 账号落 crm.crm_users，tenant_id=acme-consult；pgcrypto crypt 哈希，明文永不出库/不写日志。
 // 幂等（WHERE NOT EXISTS）；生产环境应经 user-rbac-admin 通道落库并强制首登改密。
+import { pathToFileURL } from 'url';
 import { queryWrite } from '../../src/db.js';
 import { CONSULT_TENANT } from './tenant-profile-consult.js';
 
@@ -19,7 +20,11 @@ export async function seedConsultSalesUser(tenantId = CONSULT_TENANT,
   return r.rowCount; // 1=新建, 0=已存在（幂等）
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Windows 适配（2026-09-09 实践实证）：win32 下 import.meta.url 与 process.argv[1]
+// 在盘符大小写/路径分隔符上不一致，裸比较永不成立 → 直跑静默无操作。
+// 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
+const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
+if (isMain) {
   seedConsultSalesUser().then((n) => { console.log('seeded consult sales user, inserted=', n); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }
