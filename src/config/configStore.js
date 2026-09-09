@@ -4,6 +4,7 @@
 //   此后该租户完全自持一份；system 仅作模板源，不再运行时回退（G1 修复）。
 // 禁删铁律：写用 upsert（ON CONFLICT DO UPDATE），绝不物理删除配置行。
 import { query, queryWrite } from '../db.js';
+import { mergeProfile } from './profileMerger.js';
 
 const PLATFORM = 'system';
 const WILDCARD = '*'; // admin/sysadmin 通配视界（scopeTenant 返回值）——非真实租户，禁 autoSeed 落行
@@ -12,7 +13,7 @@ const WILDCARD = '*'; // admin/sysadmin 通配视界（scopeTenant 返回值）�
 // 返回 { value, decision_id } 或 null（与历史 configRouter 契约一致）
 // ⚠ '*' 是 admin/sysadmin 通配视界（scopeTenant），不是真实租户——不 autoSeed 写（避免污染 '*' 伪租户行），
 //   直接读 system 模板（通配读语义 = 看平台默认）。2026-09-05 修复：此前 '*' 读触发 autoSeed 落 '*' 行。
-export async function readConfig(key, { tenantId = PLATFORM } = {}) {
+async function rawRead(key, tenantId = PLATFORM) {
   if (tenantId !== PLATFORM && tenantId !== WILDCARD) {
     const r = await query(
       `SELECT value, decision_id FROM crm.config_store WHERE tenant_id=$1 AND key=$2`,
@@ -45,6 +46,18 @@ export async function readConfig(key, { tenantId = PLATFORM } = {}) {
     [PLATFORM, key]
   );
   return r.rows[0] || null;
+}
+
+export async function readConfig(key, { tenantId = PLATFORM } = {}) {
+  const row = await rawRead(key, tenantId);
+  if (!row) return null;
+  // 多行业画像（tenant-profile）：把多 industry 合并成扁平对象（prototypes/calculations/approvalDomains），
+  // 下游三消费点（resolvePrototype / isControlledPredicateConfig / runProfileCalculations）接口零变动。
+  // v1 单行业格式（无 industries 数组）原样返回（兼容未迁移租户）。design §4.3。
+  if (key === 'tenant-profile') {
+    return { ...row, value: mergeProfile(row.value) };
+  }
+  return row;
 }
 
 // 写：按 tenantId 落 (tenant_id, key)；冲突更新（禁删铁律）
