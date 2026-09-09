@@ -84,9 +84,11 @@ Body: { "value": <上面的 JSON>, "tenantId": "acme-training" }
 **方式 B — 种子脚本（系统引导，须显式 decision_id）**
 ```powershell
 $env:PGDATABASE="crm_native_test"
-node db/seed/tenant-profile-training.js   # 参考实现：db/seed/tenant-profile-<industry>.js
+# ⚠ 必须先拿到真实 tenantId（自助注册返回 co-<hash>，或建租户 API 指定 slug），再传给脚本：
+node db/seed/tenant-profile-<industry>.js <真实tenantId>   # 例：node db/seed/tenant-profile-consult2.js co-036cq4k
 ```
 > 生产写须经决策第 0 闸；种子脚本 `bootstrap` 旁路仅用于测试 / 系统引导。
+> ⚠ **tenantId 必须传真实值**：脚本已改为必传参数（缺省即报错退出）。切勿套用 `acme-<行业>` 占位 slug —— 会与自助注册生成的 `co-<hash>` 真实租户 ID 分裂，导致种子数据写偏/写丢（本次 6-vs-8 漂移根因）。
 
 > ⚠️ **Windows 直跑守卫坑（2026-09-09 实践实证）**：种子脚本内的直跑守卫若写成
 > `if (import.meta.url === \`file://${process.argv[1]}\`)`（现状：`db/seed/tenant-profile-chemical.js:64`），
@@ -230,7 +232,7 @@ export async function seed<Ind>SalesUser(tenantId = IND_TENANT,
 3. `resolvePrototype('CHEM_PRODUCT','acme-chem')` → `{source:'config',...}`；`resolvePrototype('CHEM_PRODUCT','crm')` → `null`（隔离验证）。
 4. `actionExecutor.dispatch('crm-import-batch',{particle_type:'CHEM_SETTLEMENT',rows:[{slug:'s1',title:'结算1',revenue:10000,commission_rate:0.1}],mode:'upsert',required:['slug']},{tenantId:'acme-chem',actor:'system',decision_id:'<第0闸>'})` → on_write 公式自动算 `commission=1000`。
 5. `actionExecutor.dispatch('crm-knowledge-upsert',{term:'化工买手-决策链',kind:'icp',content:'主要对接采购/技术双线，预算单在 Q3 集中释放',source:'industry-bootstrap'},{tenantId:'acme-chem',actor:'system',bootstrap:true})` → 本租户 KNOWLEDGE 种子（bootstrap 通道豁免角色闸——sales 不在 `crm-knowledge-upsert` 白名单；同法建 competitors/objections/buyer_language 各 ≥1）。
-6. `db/seed/tenant-users-chem.js` 建初始销售员 → **最终交付：用户名 `chem_sales01` / 密码 `Chem@2026!`**（角色 `sales`，租户 `acme-chem`，token.tenantId 隔离）。
+6. `db/seed/tenant-users-chem.js acme-chem` 建初始销售员 → **最终交付：用户名 `chem_sales01` / 密码 `Chem@2026!`**（角色 `sales`，租户 `acme-chem`，token.tenantId 隔离；脚本 tenantId 必传，须传真实租户 ID）。
 
 ## 9. 铁律声明
 
