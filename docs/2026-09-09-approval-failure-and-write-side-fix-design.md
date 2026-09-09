@@ -292,6 +292,45 @@ await queryWrite(`INSERT INTO crm.meta_attr … WHERE NOT EXISTS (…)`);  // IN
 
 ---
 
+## §7 实施结果回填（2026-09-09 已完成，用户已批准）
+
+### 7.1 改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `src/approval/engine.js` | `resolveApprovers` 判定顺序重排（ROLE/SPECIFIC_PERSON 优先于 `empty_approver_action`）并 `export`（可测 + 生产复算）；`startInstance` 新增 `requireFullChain` fail-closed 校验；`resolveNodeApprover` 接收并透传 `approvers`（消除硬编码 `[]` 死参数） |
+| `src/action/seed-actions.js` | `crm-approval-start` version 1.0.0→1.1.0；schema 加 `approvers:'array'`；parameters 补 `approvers` 声明；handler 透传 `approvers` + `requireFullChain` |
+| `src/mcp/gateway.js` | 新增 `PROTOCOL_KEYS` + `mergePhase2Params`（只增补禁覆盖，已 export）；`mcpConfirmPhase2` 接线（冲突 → `confirm_params_conflict` 拒绝执行）；`hashParams` 死代码接线 |
+| `src/metaAttr/metaAttrRepo.js` | `ensureAdaptiveRegistration` 的 INSERT 改 `ON CONFLICT (particle_type, attr_slug, tenant_id) DO NOTHING` |
+| `src/particles/particleRepo.js` | 两处 `ensureAdaptiveRegistration` 调用加 `.catch` fail-open 兜底（与既有 `ensureAgeSync` 风格一致） |
+| 插件包 | SKILL.md 加「起单指定审批人」段；版本 1.7.0→1.7.1；四份副本一致；`verify-plugin-zips.py` 升 `expect_version` + 2 条防漂移规则；重打包校验通过 |
+
+### 7.2 验收结果
+
+**① 生产数据复算（只读，零写）** —— 用真实 `resolveApprovers` 对生产 63 条规则重算：
+
+| 指标 | 修复前 | 修复后 |
+|---|---|---|
+| 解析出真实审批人 | 13 | **63** |
+| 落入 AUTO_PASS（无审批人） | **50** | **0** |
+
+审批人分布：`role:sales` 23 / `role:manager` 17 / `role:presales` 7 / `role:contract_admin` 7 / `role:finance` 7 / `role:admin` 2。
+
+**② 真实 MCP E2E**（`scripts/e2e-approval-start-mcp.mjs`，**11/11 通过**）：起单 → `status=APPROVING`（非 APPROVED）→ 生成 1 条 `role:presales` TODO 任务；`approvers` 透传落 `tier_approvers`；链长不足 → 拒绝且**无残留实例**；phase2 改写已确认字段 → `confirm_params_conflict` 拒绝执行。
+
+**③ 单测**：新增 `test/approval/approval-fix-2026-09-09.test.js`（5 项）+ `test/mcp/confirm-params-merge.test.js`（6 项）全绿；改写 `test/approval-engine.test.js:81-91` 拆为两条（真·无审批人仍 APPROVED / AUTO_PASS 不得架空 ROLE）；受影响模块回归 **48 文件 / 338 用例全绿**。
+
+### 7.3 实施期新发现
+
+1. **executor 把 handler 异常吞成 `{ok:false, error}` 而非 reject** —— ③ fail-closed 用例初版用 `rejects.toThrow` 断言失败，实际应断言返回值。已修正。
+2. **`crm-approval-start` 未声明 `decisionScenario`** → MCP 通道不代 mint，必须由调用方透传 `decision_id`（E2E 已按真实合规路径 mint 后透传）。这是既有设计取舍（gateway 注释：未声明场景的写 Action 行为不变），本次未改。
+
+### 7.4 未做（需你决策）
+
+- 3 个失效期脏实例（`bf454b96` / `49e73998` / `6ad02eed`）**未处置**，按设计默认「不动、先出报告」。
+- 50 条 `AUTO_PASS` 数据未清洗（方案 B 下不需要）。
+- 自审自 P1（`workbenchRouter.js:83` 缺 `submitter ≠ approver`）未纳入本轮。
+
 ## §6 自查
 
 - [x] 无占位符、无矛盾（§1.4 显式列出「不改」清单，与 §1.3 无冲突）
