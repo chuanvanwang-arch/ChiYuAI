@@ -316,6 +316,9 @@ export async function mcpReadDirect(actionName, params = {}, headers = {}) {
     ctx.over_scope = intent.over_scope;
     const res = await actionExecutor.dispatch(actionName, params, ctx);
     // 对话驱动建议（2026-09-08 T6）：读结果附加建议卡；fail-open（异常原样返回，绝不阻断读）
+    // 关键修正：若 handler 已在 data.advice 返回建议卡（如 crm-decision-advise 已结合 deal 算出红线/B档），
+    // 必须沿用 handler 的结果提到顶层，绝不用 deal:null 重算覆盖（否则红线/approval_prefill 被丢弃，且 tier 被错误降级）。
+    if (res?.data?.advice) return { ...res, advice: res.data.advice };
     try {
       const a = await advise({ utterance: params?.utterance || '', ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || null });
       return { ...res, advice: a.advice };

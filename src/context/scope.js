@@ -2,6 +2,10 @@
 // 纯判定部分（T3）：scopeModel / inScopeByModel —— 不触 DB，可单测
 import { query } from '../db.js';
 import { loadProfile } from './roleProfiles.js';
+import { BUSINESS_PARTICLE_TYPES } from './particleTypes.js';
+
+// 再导出以保全向后兼容（原定义在此文件，可能有其他消费方）
+export { BUSINESS_PARTICLE_TYPES };
 
 export function scopeModel(profile) {
   return profile?.data_scope?.model || 'all';
@@ -77,13 +81,8 @@ export async function resolveTargetOwner(params) {
 
 const SCOPED_TYPES = ['CRM_DEAL', 'CRM_ACCOUNT', 'CRM_CONTACT'];
 
-// 业务粒子类型（治理写范围 exclude 清单；单一事实源，与 SCOPED_TYPES 同文件）
-// 设计：docs/2026-09-06-rbac-f4-design.md §C1（方案 C）——sysadmin 写范围收敛为治理类
-export const BUSINESS_PARTICLE_TYPES = [
-  'CRM_DEAL', 'CRM_ACCOUNT', 'CRM_CONTACT',
-  'CRM_TECHNICAL_PROPOSAL', 'CRM_INVOICE', 'CRM_PAYMENT_RECORD',
-  'CRM_CONTRACT', 'CRM_QUOTATION', 'CRM_ORDER',
-];
+// 业务粒子类型（治理写范围 exclude 清单）已迁至独立模块 src/context/particleTypes.js
+// （消除与 roleProfiles.js 的循环依赖，避免 MCP 通道启动 TDZ 崩溃）；此处仅再导出。
 
 // executor 第 1 闸（permission boundary）：返回 { ok, gate?, reason? }
 // 豁免：调用方已判 bootstrap 跳过；demo/未命中角色回退无限制（调用方负责）

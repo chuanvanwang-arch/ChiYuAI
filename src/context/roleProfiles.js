@@ -2,7 +2,7 @@
 // 角色 = 上下文配置（七要素 + 数据范围 + 检索配置），config 驱动非硬编码
 import { query, queryWrite } from '../db.js';
 import { emit } from '../events/bus.js';
-import { BUSINESS_PARTICLE_TYPES } from './scope.js';
+import { BUSINESS_PARTICLE_TYPES } from './particleTypes.js';
 
 const cache = new Map();
 
@@ -23,7 +23,11 @@ export const SEED_PROFILES = [
   { role_tag: 'presales', seven_elements: SEVEN('解决方案与技术方案设计', '按 technical domain（商机/技术方案）', '商机→技术方案→报价支撑→赢单', '方案采纳率/技术匹配度/POC通过率/投标命中率', '→销售 商机支持 / →商务 合同技术条款 / →财务 方案成本', 'CRM_DEAL + CRM_TECHNICAL_PROPOSAL 域读写', '售前顾问/解决方案架构师'), data_scope: { model: 'domain', domain: ['CRM_DEAL', 'CRM_TECHNICAL_PROPOSAL'] }, retrieval_cfg: DEFAULT_RETRIEVAL },
   { role_tag: 'contract_admin', seven_elements: SEVEN('合同全生命周期', '按 domain', '合同→回款/开票/续约', '合同执行率/到期率', '→财务 回款 / →销售 合同支持', 'contract/invoice 域读写', '商务经理'), data_scope: { model: 'domain', domain: ['contract', 'invoice'] }, retrieval_cfg: DEFAULT_RETRIEVAL },
   { role_tag: 'sysadmin', seven_elements: SEVEN('平台运营与租户治理', '全量', '行业初始化→租户新增→用户新增→RBAC', '租户健康/开通数', '→各租户销售团队', '跨租户平台治理读写', '平台管理员'),
-    data_scope: { model: 'all', write_scope: { model: 'governance', exclude_types: BUSINESS_PARTICLE_TYPES } }, retrieval_cfg: DEFAULT_RETRIEVAL },
+    // 2026-09-09 循环导入修复（scope.js ↔ roleProfiles.js TDZ）：BUSINESS_PARTICLE_TYPES 来自 scope.js，
+    //   而 scope.js 又 import 本模块的 loadProfile——若 scope.js 先被求值，本行顶层读 BUSINESS_PARTICLE_TYPES
+    //   会触发 ReferenceError（server.js 启动即崩，npm run mcp:http 复现）。改为惰性 getter：
+    //   形状/可枚举性不变，求值推迟到模块图初始化完成之后。
+    get data_scope() { return { model: 'all', write_scope: { model: 'governance', exclude_types: BUSINESS_PARTICLE_TYPES } }; }, retrieval_cfg: DEFAULT_RETRIEVAL },
   { role_tag: 'ten_admin', seven_elements: SEVEN('租户内管理与开通', '本租户', '用户管理+本租户计费/阈值', '租户内用户活跃/席位', '→平台 sysadmin', '仅本租户管理读写', '租户管理员'), data_scope: { model: 'tenant' }, retrieval_cfg: DEFAULT_RETRIEVAL },
 ];
 
