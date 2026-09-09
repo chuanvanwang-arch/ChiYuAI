@@ -1920,7 +1920,10 @@ export function seedActions() {
     handler: async ({ utterance = '', deal_id, stage = null, persist = false }, ctx) => {
       const tid = ctx.tenantId || 'system';
       const deal = deal_id ? await getParticle(deal_id).catch(() => null) : null;
-      const r = await advise({ utterance, ctx: { tenantId: tid }, deal, stage });
+      // 关键修正：MCP 通道已解析出登录者角色（buildMcpCtx→ctx.role），务必透传给 advise，
+      // 否则 actorRole 回退 default 上限（D6 降级）丢失真实角色 → 红线 detail 显示「默认 权限」
+      // 而非真实角色上限。scopes 一并透传供 over_scope 判定。
+      const r = await advise({ utterance, ctx: { tenantId: tid, role: ctx.role, scopes: ctx.scopes }, deal, stage });
       return { ok: r.ok, advice: r.advice, degraded: r.degraded || null };
     },
   });
