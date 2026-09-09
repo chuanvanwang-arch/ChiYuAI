@@ -4,13 +4,14 @@
 // 幂等（WHERE NOT EXISTS）；生产环境应经 user-rbac-admin 通道落库并强制首登改密。
 import { pathToFileURL } from 'url';
 import { queryWrite } from '../../src/db.js';
-import { MEDDEV_TENANT } from './tenant-profile-meddev.js';
 
 export const MEDDEV_INITIAL_SALES_USERNAME = 'meddev_sales01';
 export const MEDDEV_INITIAL_SALES_PASSWORD = 'Meddev@2026!'; // 初始密码，交付后须改密
 
-export async function seedMeddevSalesUser(tenantId = MEDDEV_TENANT,
+export async function seedMeddevSalesUser(tenantId,
   { username = MEDDEV_INITIAL_SALES_USERNAME, password = MEDDEV_INITIAL_SALES_PASSWORD } = {}) {
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   const r = await queryWrite(
     `INSERT INTO crm.crm_users (username, password_hash, role, display_name, org_id, tenant_id, enabled, activated)
      SELECT $1, crypt($2, gen_salt('bf')), 'sales', $3, $4, $5, true, true
@@ -25,6 +26,8 @@ export async function seedMeddevSalesUser(tenantId = MEDDEV_TENANT,
 // 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
 const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
 if (isMain) {
-  seedMeddevSalesUser().then((n) => { console.log('seeded meddev sales user, inserted=', n); process.exit(0); })
+  const tenantId = process.argv[2];
+  if (!tenantId) { console.error('Usage: node db/seed/tenant-users-meddev.js <tenantId>'); process.exit(1); }
+  seedMeddevSalesUser(tenantId).then((n) => { console.log('seeded meddev sales user, inserted=', n); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }

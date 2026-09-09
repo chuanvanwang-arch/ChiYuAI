@@ -1,13 +1,12 @@
-// db/seed/tenant-profile-consult.js
-// 新行业上线 Runbook · 企业管理咨询行业租户 `tenant-profile` 配置画像。
-// 行业模型：咨询公司 →（自有顾问/外部专家）→ 企业客户；关键对象：企业客户/顾问资源/咨询项目/交付物/结算。
-// 关键纪律：零粒子类型字面量、零新增代码——prototypes 全落 config_store（tenant_id=acme-consult），
-// 其它租户天然不可见（按 tenant_id 隔离）；resolvePrototype 双源解析（代码基线 ∪ 租户画像）。
+// db/seed/tenant-profile-consult2.js
+// 新行业上线 Runbook · 企业管理咨询行业 · 第二家公司独立租户（acme-consult2）。
+// 与 acme-consult 同行业模型（企业客户/顾问资源/咨询项目/交付物/结算），但按 tenant_id 完全隔离：
+// 配置、主数据、知识、账号、粒子互不可见；类型名复用 CONSULT_*（租户内解析，无跨租户冲突）。
 import { pathToFileURL } from 'url';
 import { writeConfig } from '../../src/config/configStore.js';
 
 
-export async function seedConsultProfile(tenantId) {
+export async function seedConsult2Profile(tenantId) {
   if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   await writeConfig('tenant-profile', {
@@ -64,7 +63,7 @@ export async function seedConsultProfile(tenantId) {
 const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
 if (isMain) {
   const tenantId = process.argv[2];
-  if (!tenantId) { console.error('Usage: node db/seed/tenant-profile-consult.js <tenantId>'); process.exit(1); }
-  seedConsultProfile(tenantId).then(() => { console.log('seeded consult tenant-profile'); process.exit(0); })
+  if (!tenantId) { console.error('Usage: node db/seed/tenant-profile-consult2.js <tenantId>'); process.exit(1); }
+  seedConsult2Profile(tenantId).then(() => { console.log('seeded consult2 tenant-profile'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }

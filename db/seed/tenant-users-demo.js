@@ -4,7 +4,6 @@
 // 幂等：username 唯一，已存在则跳过。tenant_id 锁定 acme-demo，与 tenant-profile 同源隔离。
 // 账号：admin（治理）/ sales（业务演示）/ manager（审批演示）。
 import { queryWrite } from '../../src/db.js';
-import { DEMO_TENANT } from './tenant-profile-demo.js';
 
 export const DEMO_ADMIN_USERNAME = 'acme_demo_admin';
 export const DEMO_ADMIN_PASSWORD = 'DemoAdmin@2026!';
@@ -13,7 +12,8 @@ export const DEMO_SALES_PASSWORD = 'DemoSales@2026!';
 export const DEMO_MANAGER_USERNAME = 'acme_demo_manager';
 export const DEMO_MANAGER_PASSWORD = 'DemoMgr@2026!';
 
-export async function seedDemoUsers(tenantId = DEMO_TENANT) {
+export async function seedDemoUsers(tenantId) {
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   const users = [
     { username: DEMO_ADMIN_USERNAME, password: DEMO_ADMIN_PASSWORD, role: 'admin', display: 'DEMO 平台管理员' },
     { username: DEMO_SALES_USERNAME, password: DEMO_SALES_PASSWORD, role: 'sales', display: 'DEMO 演示销售员' },

@@ -9,9 +9,10 @@
 import { pathToFileURL } from 'url';
 import { writeConfig } from '../../src/config/configStore.js';
 
-export const DEMO_TENANT = 'acme-demo';
 
-export async function seedDemoProfile(tenantId = DEMO_TENANT) {
+export async function seedDemoProfile(tenantId) {
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   await writeConfig('tenant-profile', {
     tenantId,
     prototypes: {},
@@ -30,6 +31,8 @@ export async function seedDemoProfile(tenantId = DEMO_TENANT) {
 // 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
 const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
 if (isMain) {
-  seedDemoProfile().then(() => { console.log('seeded demo tenant-profile'); process.exit(0); })
+  const tenantId = process.argv[2];
+  if (!tenantId) { console.error('Usage: node db/seed/tenant-profile-demo.js <tenantId>'); process.exit(1); }
+  seedDemoProfile(tenantId).then(() => { console.log('seeded demo tenant-profile'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }

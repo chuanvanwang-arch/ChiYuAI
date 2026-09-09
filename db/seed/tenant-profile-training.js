@@ -6,9 +6,10 @@
 import { pathToFileURL } from 'url';
 import { writeConfig } from '../../src/config/configStore.js';
 
-export const TRAINING_TENANT = 'acme-training';
 
-export async function seedTrainingProfile(tenantId = TRAINING_TENANT) {
+export async function seedTrainingProfile(tenantId) {
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
+  if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   await writeConfig('tenant-profile', {
     tenantId,
     prototypes: {
@@ -67,6 +68,8 @@ export async function seedTrainingProfile(tenantId = TRAINING_TENANT) {
 // 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
 const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
 if (isMain) {
-  seedTrainingProfile().then(() => { console.log('seeded training tenant-profile'); process.exit(0); })
+  const tenantId = process.argv[2];
+  if (!tenantId) { console.error('Usage: node db/seed/tenant-profile-training.js <tenantId>'); process.exit(1); }
+  seedTrainingProfile(tenantId).then(() => { console.log('seeded training tenant-profile'); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }
