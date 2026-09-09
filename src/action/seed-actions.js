@@ -280,11 +280,30 @@ export function seedActions() {
         deal = rows.rows?.[0] ? { id: rows.rows[0].id, payload: rows.rows[0].payload } : null;
       }
       if (!deal) return { ok: false, reason: '无可用商机' };
-      const listPrice = Number(deal.payload?.amount) || 0;
-      const cost = Number(deal.payload?.cost) || listPrice * 0.6; // 无成本字段时按出厂默认 60%
+      const p = deal.payload || {};
+      // 修复（2026-09-09）：读取租户配置的产品单价 + 价目表，使测算基于系统真实价格而非 deal.amount 拍脑袋
+      const { loadTenantPriceData } = await import('../sales/quoteService.js');
+      const { products } = await loadTenantPriceData(tid);
+      const productMap = new Map();
+      for (const pr of (products || [])) {
+        const key = pr.id || pr.product_id || pr.name;
+        if (key != null) { productMap.set(key, pr); if (pr.name != null) productMap.set(pr.name, pr); }
+      }
+      // 商机挂了产品明细 → 基于真实 list_price 测算；否则回退 deal.amount 并标记
+      let listPrice = 0, resolvedCount = 0;
+      const dealProducts = Array.isArray(p.products) ? p.products : [];
+      for (const dp of dealProducts) {
+        const ref = dp.product_id || dp.name || dp.product;
+        const prod = productMap.get(ref);
+        const lp = prod != null ? (prod.list_price != null ? prod.list_price : prod.price) : null;
+        if (lp != null) { listPrice += lp * (Number(dp.qty) || 1); resolvedCount += 1; }
+      }
+      const priceSource = resolvedCount > 0 ? 'price_list' : 'deal_amount_fallback';
+      if (resolvedCount === 0) listPrice = Number(p.amount) || 0;
+      const cost = Number(p.cost) || listPrice * 0.6; // 无成本字段时按出厂默认 60%
       const planA = { name: '方案A·标准报价', price: listPrice, margin: listPrice - cost, marginPct: listPrice ? ((listPrice - cost) / listPrice * 100).toFixed(1) : '0' };
       const planB = { name: '方案B·折扣报价', price: +(listPrice * 0.92).toFixed(2), margin: +(listPrice * 0.92 - cost).toFixed(2), marginPct: listPrice ? (((listPrice * 0.92 - cost) / (listPrice * 0.92)) * 100).toFixed(1) : '0' };
-      return { ok: true, deal_id: deal.id, listPrice, cost, plans: [planA, planB], recommended: planB.margin >= planA.margin ? 'B' : 'A' };
+      return { ok: true, deal_id: deal.id, priceSource, productsResolved: resolvedCount, productCatalogSize: (products || []).length, listPrice, cost, plans: [planA, planB], recommended: planB.margin >= planA.margin ? 'B' : 'A' };
     },
   });
   // crm-review-gate-evaluate：评审把关四维审查（功能/架构/安全/合规），不落库、不批准
@@ -947,8 +966,10 @@ export function seedActions() {
         decision_id = res.decision.decision_id;
         emit('decision', 'quote-create', { deal_id, decision_id, mode: res.mode });
       }
-      const { createQuote } = await import('../sales/quoteService.js');
-      const quote = await createQuote({ name, deal_id, valid_until, items, tenantId: ctx.tenantId, decisionId: decision_id });
+      const { createQuote, loadTenantPriceData } = await import('../sales/quoteService.js');
+      // 修复（2026-09-09）：按租户读取配置的产品单价 + 价目表，使报价真正取价（此前从不加载 → 单价缺失）
+      const { priceLists, products } = await loadTenantPriceData(ctx.tenantId);
+      const quote = await createQuote({ name, deal_id, valid_until, items, products, priceLists, tenantId: ctx.tenantId, decisionId: decision_id });
       emit('crm', 'quote-created', { quote_id: quote.id, deal_id, amount: quote.amount, decision_id });
       return { ...quote, decision_id };
     },

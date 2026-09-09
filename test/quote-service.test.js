@@ -63,3 +63,35 @@ describe('自动取价 fillUnitPrices（E15：报价自动取价）', () => {
     expect(filled[0].source).toBe('missing');
   });
 });
+
+// 2026-09-09 修复：价目表 products 仅存产品名分组、不带单价 → 必须回退 CRM_PRODUCT.list_price
+// 真实价目表（name 数组、无 price）喂给 fillUnitPrices，产品单价来自产品主数据
+const REAL_PRICE_LISTS = [
+  { name: '标准价', status: 'active', valid_from: '2026-01-01', valid_to: '2026-12-31', products: ['CRM 标准版（SaaS 年费）', '实施服务'] },
+];
+const REAL_PRODUCTS = [
+  { id: 'b0000001-0000-0000-0000-000000000001', name: 'CRM 标准版（SaaS 年费）', list_price: 98000 },
+  { id: 'b0000001-0000-0000-0000-000000000004', name: '实施服务', list_price: 2000 },
+];
+
+describe('自动取价回退产品主数据 list_price（2026-09-09 修复）', () => {
+  it('价目表无单价 → 回退 CRM_PRODUCT.list_price（按 id 引用）', () => {
+    const filled = fillUnitPrices([{ product_id: 'b0000001-0000-0000-0000-000000000001', qty: 1 }], REAL_PRODUCTS, REAL_PRICE_LISTS, { today: TODAY });
+    expect(filled[0].unit_price).toBe(98000);
+    expect(filled[0].source).toBe('product_master');
+  });
+  it('按产品名引用也能命中 list_price', () => {
+    const filled = fillUnitPrices([{ product_id: '实施服务', qty: 3 }], REAL_PRODUCTS, REAL_PRICE_LISTS, { today: TODAY });
+    expect(filled[0].unit_price).toBe(2000);
+    expect(filled[0].source).toBe('product_master');
+  });
+  it('已带 unit_price 的行不覆盖（仍是 price_list/沿用传入）', () => {
+    const filled = fillUnitPrices([{ product_id: '实施服务', qty: 1, unit_price: 1500 }], REAL_PRODUCTS, REAL_PRICE_LISTS, { today: TODAY });
+    expect(filled[0].unit_price).toBe(1500);
+  });
+  it('价目表与产品主数据均无此产品 → missing', () => {
+    const filled = fillUnitPrices([{ product_id: '不存在产品', qty: 1 }], REAL_PRODUCTS, REAL_PRICE_LISTS, { today: TODAY });
+    expect(filled[0].unit_price).toBeNull();
+    expect(filled[0].source).toBe('missing');
+  });
+});

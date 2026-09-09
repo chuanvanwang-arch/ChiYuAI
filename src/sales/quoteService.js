@@ -37,12 +37,47 @@ export function verifyQuoteAmount(amount, lineAmounts) {
 
 // 报价自动取价：items 无 unit_price → 从价格表取（resolvePrice：产品价 → 价格表 → 回退产品价）
 // 依赖 priceCalc.getUnitPrice（E15：同一产品多套定价取最低生效档）
-export function fillUnitPrices(items, products, priceLists, { today = new Date() } = {}) {
+// 修复（2026-09-09）：此前价格表 products 仅存产品名分组、不带单价，且调用链从不加载产品主数据，
+//   导致 getUnitPrice 恒 null → 报价单价缺失/金额静默漏算。现补回退：价格表无价 → 取 CRM_PRODUCT.list_price。
+export function fillUnitPrices(items, products = [], priceLists = [], { today = new Date() } = {}) {
+  // 产品主数据索引：按 id / product_id / name 多键，兼容 item 用 id 或 name 引用产品
+  const productMap = new Map();
+  for (const p of (products || [])) {
+    const key = p.id || p.product_id || p.name;
+    if (key != null) {
+      productMap.set(key, p);
+      if (p.name != null) productMap.set(p.name, p);
+    }
+  }
   return (items || []).map(it => {
     if (it.unit_price != null) return it;
-    const unit_price = getUnitPrice(it.product_id, priceLists, { today }) ?? null;
-    return { ...it, unit_price, source: unit_price != null ? 'price_list' : 'missing' };
+    // ① 价格表取价（价目表若带 price 则优先）
+    let unit_price = getUnitPrice(it.product_id, priceLists, { today });
+    let source = unit_price != null ? 'price_list' : null;
+    // ② 回退产品主数据单价（CRM_PRODUCT.list_price；兼容旧 product.price 写法）
+    if (unit_price == null) {
+      const prod = productMap.get(it.product_id) || productMap.get(it.product_name) || productMap.get(it.name);
+      const lp = prod != null ? (prod.list_price != null ? prod.list_price : prod.price) : null;
+      if (lp != null) { unit_price = lp; source = 'product_master'; }
+    }
+    return { ...it, unit_price: unit_price ?? null, source: source || 'missing' };
   });
+}
+
+// 读取租户配置的价格数据（报价自动取价真相源）
+// - priceLists：CRM_PRICE_LIST 粒子 payload（分组/有效期/权限；products 为产品名数组，本系统不带单价）
+// - products：CRM_PRODUCT 粒子（含 list_price 产品单价，报价取价最终回退源）
+// 返回 { priceLists, products } 直接喂给 createQuote / fillUnitPrices。
+// 修复（2026-09-09）：报价路径此前从未调用本函数 → 报价取价恒为 missing。
+export async function loadTenantPriceData(tenantId = 'system') {
+  const { queryParticles } = await import('../particles/particleRepo.js');
+  const [plRows, prodRows] = await Promise.all([
+    queryParticles({ type: 'CRM_PRICE_LIST', tenantId, limit: 200 }),
+    queryParticles({ type: 'CRM_PRODUCT', tenantId, limit: 500 }),
+  ]);
+  const priceLists = (plRows || []).map(p => ({ ...(p.payload || {}), status: p.state || (p.payload && p.payload.status) }));
+  const products = (prodRows || []).map(p => ({ id: p.id, ...(p.payload || {}) }));
+  return { priceLists, products };
 }
 
 // 创建报价（写时管线）：
