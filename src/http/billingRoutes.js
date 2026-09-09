@@ -11,7 +11,8 @@
 // 租户隔离：读经 applyTenantOverride(req,me) 收敛；写经 scopeTenant(me) 强制本租户
 import express from 'express';
 import { query, queryWrite } from '../db.js';
-import { readConfig } from '../config/configStore.js';
+import { readConfig, writeConfig } from '../config/configStore.js';
+import { assignIndustry, removeIndustry } from '../config/profileMerger.js';
 import { resolveMe } from './auth.js';
 import { applyTenantOverride, scopeTenant } from './tenantScope.js';
 import { resolveEntitlements } from '../billing/entitlements.js';
@@ -245,12 +246,19 @@ export function createBillingRouter() {
       const { computeLiveCost } = await import('../billing/subscriptionService.js');
       const tq = scope === '*' ? '' : `WHERE tenant_id=$1`;
       const tenants = await query(`SELECT tenant_id, name, status, plan, created_by_username FROM crm.tenants ${tq} ORDER BY created_at DESC`, scope === '*' ? [] : [scope]);
-      // 批量取行业画像（避免 N+1）：tenant_id -> {industry_label, prototype_count}
+      // 批量取行业画像（避免 N+1）：tenant_id -> { industries:[{id,label}] }
+      // v2（industries 数组）→ 抽 id/label；v1（无 industries）→ 退化单 legacy chip
       const profRows = await query(
-        `SELECT tenant_id, value->'meta'->>'industry_label' AS il, (SELECT count(*)::int FROM jsonb_object_keys(value->'prototypes')) AS pc
+        `SELECT tenant_id,
+           CASE WHEN jsonb_typeof(value->'industries') = 'array' THEN
+             (SELECT jsonb_agg(jsonb_build_object('id', e->>'id', 'label', e->>'label'))
+              FROM jsonb_array_elements(value->'industries') e)
+           ELSE
+             jsonb_build_array(jsonb_build_object('id','legacy','label', coalesce(value->'meta'->>'industry_label','—')))
+           END AS industries
          FROM crm.config_store WHERE key='tenant-profile' AND tenant_id = ANY($1)`,
         [tenants.rows.map((t) => t.tenant_id)]);
-      const profMap = new Map(profRows.rows.map((r) => [r.tenant_id, { industry_label: r.il || null, prototype_count: Number(r.pc) || 0 }]));
+      const profMap = new Map(profRows.rows.map((r) => [r.tenant_id, { industries: Array.isArray(r.industries) ? r.industries : [] }]));
       const rows = [];
       for (const t of tenants.rows) {
         const s = await query(`SELECT plan_id, status, started_at, expires_at, grace_until, upgraded_from FROM crm.tenant_subscription WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 1`, [t.tenant_id]);
@@ -385,21 +393,54 @@ export function createBillingRouter() {
   router.post('/api/billing/tenant-admin/assign-profile', async (req, res) => {
     const me = resolveMe(req);
     if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
-    const { tenantId, templateId } = req.body || {};
-    if (!tenantId || !templateId) return res.status(400).json({ error: 'tenantId & templateId required' });
+    const { tenantId, templateIds } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
     if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可分配画像' });
+    const ids = Array.isArray(templateIds) ? templateIds : (templateIds ? [templateIds] : []);
+    if (!ids.length) return res.status(400).json({ error: 'templateIds required' });
     try {
-      const tpl = (await query(`SELECT value FROM crm.config_store WHERE tenant_id='system' AND key=$1`, ['tenant-profile-template-' + templateId])).rows[0];
-      if (!tpl) return res.status(400).json({ error: `模板不存在：${templateId}` });
-      const base = JSON.parse(JSON.stringify(tpl.value || {}));
-      base.meta = { ...(base.meta || {}), template_id: templateId, assigned_at: new Date().toISOString(), assigned_by: me?.username || 'admin' };
-      await gateDecision(me, [`tenant:${tenantId}`, `profile<-${templateId}`]);
-      const r = await queryWrite(
-        `INSERT INTO crm.config_store (tenant_id, key, value, updated_by, updated_at)
-         VALUES ($1,'tenant-profile',$2::jsonb,'admin',now())
-         ON CONFLICT (tenant_id, key) DO UPDATE SET value=$2::jsonb, updated_at=now()`,
-        [tenantId, JSON.stringify(base)]);
-      res.json({ ok: true, updated: r.rowCount });
+      // 读取现有（原始，不走 readConfig 自动合并）
+      const cur = (await query(`SELECT value FROM crm.config_store WHERE tenant_id=$1 AND key='tenant-profile'`, [tenantId])).rows[0];
+      const rawValue = cur ? cur.value : null;
+      let next = rawValue;
+      let merge_meta = { conflict_keys: [] };
+      let skippedAll = true;
+      for (const templateId of ids) {
+        const tpl = (await query(`SELECT value FROM crm.config_store WHERE tenant_id='system' AND key=$1`, ['tenant-profile-template-' + templateId])).rows[0];
+        if (!tpl) return res.status(400).json({ error: `模板不存在：${templateId}` });
+        const dId = await gateDecision(me, [`tenant:${tenantId}`, `profile+=${templateId}`]);
+        const r = assignIndustry(next, { template: tpl.value, templateId, decisionId: dId });
+        next = r.next;
+        merge_meta = r.merge_meta;
+        if (!r.skipped) skippedAll = false;
+      }
+      await writeConfig('tenant-profile', next, { tenantId, decisionId: null, updatedBy: 'admin' });
+      res.json({ ok: true, skipped: skippedAll, industries: (next.industries || []).map((i) => ({ id: i.id, label: i.label })), merge_meta });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // 移除某一行业画像（软移除：drop industries 元素 + 整体 UPDATE；禁物理 DELETE）
+  router.post('/api/billing/tenant-admin/remove-profile', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, industryId } = req.body || {};
+    if (!tenantId || !industryId) return res.status(400).json({ error: 'tenantId & industryId required' });
+    if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可移除画像' });
+    try {
+      const cur = (await query(`SELECT value FROM crm.config_store WHERE tenant_id=$1 AND key='tenant-profile'`, [tenantId])).rows[0];
+      if (!cur) return res.status(400).json({ error: '该租户无画像' });
+      await gateDecision(me, [`tenant:${tenantId}`, `profile-=${industryId}`]);
+      let next, removed;
+      try {
+        ({ next, removed } = removeIndustry(cur.value, industryId));
+      } catch (e) {
+        const msg = String(e.message || '');
+        if (msg.startsWith('INDUSTRY_NOT_FOUND')) return res.status(400).json({ error: `行业不存在：${industryId}` });
+        if (msg.startsWith('INVALID_PROFILE')) return res.status(400).json({ error: '画像格式非法（非 v2）' });
+        throw e;
+      }
+      await writeConfig('tenant-profile', next, { tenantId, decisionId: null, updatedBy: 'admin' });
+      res.json({ ok: true, removed: { id: removed.id, label: removed.label }, industries: (next.industries || []).map((i) => ({ id: i.id, label: i.label })) });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
