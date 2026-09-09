@@ -64,6 +64,15 @@ export function buildMcpTools({ seed = true } = {}) {
     choice: z.string().optional(),
     decision_id: z.string().optional(),
     api_token: z.string().optional(),
+    // 2026-09-08 对话驱动决策建议（T6）：销售诉求原文。同 api_token 的 strip 陷阱——
+    //   未在此声明则被 zod 剥离，gateway 永远收不到 utterance。声明后由 gateway 取出并
+    //   立即从 params 删除（D2：对话原文零落库，不得随写参数进粒子 payload）。
+    utterance: z.string().optional(),
+    // 2026-09-09 第 0 闸/第 2 闸确认位：`force` 是高危写（def.force===true，如 data-particle-update /
+    //   crm-import-batch）的显式确认位，属**协议级**参数而非业务参数，不出现在 Action 的扁平 schema 中。
+    //   未在此声明 → 被 z.object 剥离 → gateway 永远收不到 → 第 2 闸恒报「需 force=true」，
+    //   高危写经 MCP 永久不可用（与 api_token / utterance 同一 strip 陷阱，第三次踩）。
+    force: z.boolean().optional(),
   };
 
   // 读直连：Action Registry 中 kind=read 的全部暴露（data-particle-read 等）

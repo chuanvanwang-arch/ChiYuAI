@@ -558,12 +558,23 @@ export function seedActions() {
   registerAction({
     name: 'data-particle-update', kind: 'write', permission: 'auth',
     namespace: 'data', agentTool: true, force: true, needsApproval: false,
-    version: '1.0.0', owner: 'crm-native',
+    version: '1.1.0', owner: 'crm-native',
     schema: { type: 'string', id: 'string', patch: 'object' },
     parameters: { required: ['id', 'patch'] },
+    // 2026-09-09 MCP 事实变更通道（用户拍板方案 A，与 data-particle-create 同构 opt-in）：
+    //   · mcpExpose：解除 tools.js:89 对 data-* 写族的默认屏蔽（此前对外智能体无粒子更新通道，
+    //     事实变更只能绕本地脚本）。
+    //   · decisionScenario：gateway 代为 mint 第 0 闸决策（gateway.js:138）；requireDecision
+    //     强校验场景存在（autonomyEngine.js:124），故 db/seed.sql 必须同步播种 PARTICLE_UPDATE。
+    //   · tenantId 透传：修复前未传 → particleRepo.js:190 的 F1 跨租户防御「不传即不校验」，
+    //     MCP 开放后凭任意 id 可跨租户写。此处显式传 ctx.tenantId 关闭该洞。
+    //   设计：docs/2026-09-09-mcp-particle-update-expose-design.md
+    mcpExpose: true,
+    decisionScenario: 'PARTICLE_UPDATE',
     // state 透传（2026-08-28 业务主数据）：软停用 = state 流转（禁删铁律），非 payload 字段变更；
     // 不传 state 时行为与原先完全一致（updateParticle 默认 state: undefined 不改状态列）
-    handler: async ({ type, id, patch, state }, ctx) => updateParticle(id, { patch, state, requireDecisionId: ctx.decision_id }),
+    handler: async ({ type, id, patch, state }, ctx) =>
+      updateParticle(id, { patch, state, requireDecisionId: ctx.decision_id, tenantId: ctx.tenantId }),
   });
   registerAction({
     name: 'data-particle-edge-create', kind: 'write', permission: 'auth',

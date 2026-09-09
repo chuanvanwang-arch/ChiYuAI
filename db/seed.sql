@@ -316,6 +316,16 @@ INSERT INTO crm.decision_scenario
  '{"action":["data-particle-create"]}'::jsonb,
  ARRAY[]::TEXT[],
  '[{"cond":"data_origin","label":"数据来源与字段合法","weight":0.34},{"cond":"identity_dedup","label":"主体查重（不重复建档）","weight":0.33},{"cond":"ownership","label":"归属完整（named_owner 必填）","weight":0.33},{"cond":"governance_approval","label":"人工确认","weight":0.15}]'::jsonb,
+ 'NORMAL', TRUE),
+-- PARTICLE_UPDATE（2026-09-09）：MCP/对话通道粒子事实变更（字段级并入，禁删）。
+--   第 0 闸锚定载体——无此场景则 gateway mint 抛「未知决策场景」，写操作退回 DECISION_NEEDED
+--   （fail-safe，绝不无决策放行），MCP 侧事实变更永久不可用。
+--   tier=NORMAL + autonomous_allowed=TRUE：硬人工闸门已由 gateway 两阶段 confirm_token 承担，
+--   自治与否交 autonomyEngine 按置信度/先例判定（禁硬编码，走配置）。
+('PARTICLE_UPDATE', 'meta', 'MCP/对话通道粒子事实变更（字段级并入，禁删）',
+ '{"action":["data-particle-update"]}'::jsonb,
+ ARRAY[]::TEXT[],
+ '[{"cond":"data_origin","label":"数据来源与字段合法","weight":0.34},{"cond":"identity_dedup","label":"目标唯一（id 精确定位）","weight":0.33},{"cond":"ownership","label":"归属完整（同租户）","weight":0.33},{"cond":"governance_approval","label":"人工确认","weight":0.15}]'::jsonb,
  'NORMAL', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 

@@ -183,7 +183,30 @@ registerAction({
 
 ---
 
-## §8 自查
+## §8 实施结果（2026-09-09 已落地）
+
+**代码 / SQL**（6 处）
+- `src/action/seed-actions.js:558-577`：version 1.0.0→1.1.0、`mcpExpose: true`、`decisionScenario: 'PARTICLE_UPDATE'`、handler 补 `tenantId: ctx.tenantId`
+- `src/mcp/tools.js:71-76`：**实施期新发现** —— `force` 是协议级参数，不在 Action 扁平 schema 中 → 被 `z.object` 剥离 → 第 2 闸恒报「需 force=true」，高危写经 MCP 永久不可用。已在 `protocolShape` 声明 `force`（与 `api_token` / `utterance` 同一 strip 陷阱，第三次）
+- `db/seed.sql`、`db/test-setup.sql`：`PARTICLE_UPDATE` 场景行
+- `db/migration-particle-update-scenario.sql`：新建，幂等
+- 插件包：`skills/crm-native/SKILL.md`（工具语义 + 意图路由）、`.workbuddy-plugin/agents/crm-native.md`、三清单 1.6.1→1.7.0、`verify-plugin-zips.py`（expect_version + 3 条防漂移规则）、四份 SKILL.md 副本一致、重打包
+
+**验收**
+| 项 | 结果 |
+|---|---|
+| P0-1 红→绿 | 去掉 `tenantId` 透传 → 跨租户写**成功**（`ok=true`，洞真实存在）；补上 → `cross_tenant_write_denied`。用例 `test/action/particle-update-tenant.test.js` 3/3 绿 |
+| P0-2 场景可 mint | `requireDecision('PARTICLE_UPDATE')` 成功产出 `decision_id` |
+| 真实 MCP E2E（`scripts/e2e-particle-update-mcp.mjs`） | **10/10**：工具已暴露（56 个）、两阶段（phase1 不落库 / phase2 `ok===true`）、字段级并入（未传字段保留）、`decision_id` 落粒子列、system 租户治理豁免符合预期 |
+| 插件包 | `verify-plugin-zips.py` 全绿（crm 1.7.0 + 3 条新规则）、`compare-skill-packs.mjs` 通过、技能 20 个 / 文件 133 |
+| 回归（串行） | http 358/359、mcp+action+sales 400/400、decision 398/398、context+calibration+page 498/498 |
+
+**发现与更正**
+1. `skills/crm-native/SKILL.md:124` **早已列出 `data-particle-update`** —— 此前文档宣传了一个实际未暴露的工具（既有漂移），本次修复使其成真。
+2. E2E 第 ⑩ 项初版断言「跨租户必须被拒」失败：alice 属 **system 租户**，命中 `particleRepo.js:190` 的平台治理豁免 → 属**预期行为**，非洞。已改为断言豁免成立，严格隔离锚点保留在单元测试（红绿已验证）。
+3. 并发跑两个 vitest 导致 16 项伪失败（共享测试库踩踏）——串行后全部消失，符合项目既有铁律。
+
+## §9 自查
 
 - [x] 无占位符 / TODO
 - [x] 「工具不存在」的初始假设已被证伪并更正为「暴露面屏蔽」，非沿用用户初判
