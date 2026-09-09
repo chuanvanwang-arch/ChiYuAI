@@ -21,6 +21,7 @@ import {
   tokenQuota, tokenByAccount, tokenByAction,
   updateBillingPlans, updateBillingSettings,
 } from '../billing/billingService.js';
+import { produceDecision } from '../calibration/store.js';
 
 // settings.billing_intro 的兜底默认（仅在 settings 字段整体缺失时补，绝不覆盖现网）
 //   单一事实源 = pricing.billing_intro_defaults，与 landing.html / billing.html 的前端 fallback 一致
@@ -234,7 +235,7 @@ export function createBillingRouter() {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // 管理台租户订阅全景（admin/sysadmin）：列出全部租户，含推荐人、生效套餐、订阅到期、席位/Token 用量
+  // 管理台租户订阅全景（admin/sysadmin）：列出全部租户，含推荐人、生效套餐、订阅到期、席位/Token 用量 + 行业画像概要
   router.get('/api/billing/tenant-subscriptions', async (req, res) => {
     const me = resolveMe(req);
     if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
@@ -244,6 +245,12 @@ export function createBillingRouter() {
       const { computeLiveCost } = await import('../billing/subscriptionService.js');
       const tq = scope === '*' ? '' : `WHERE tenant_id=$1`;
       const tenants = await query(`SELECT tenant_id, name, status, plan, created_by_username FROM crm.tenants ${tq} ORDER BY created_at DESC`, scope === '*' ? [] : [scope]);
+      // 批量取行业画像（避免 N+1）：tenant_id -> {industry_label, prototype_count}
+      const profRows = await query(
+        `SELECT tenant_id, value->'meta'->>'industry_label' AS il, (SELECT count(*)::int FROM jsonb_object_keys(value->'prototypes')) AS pc
+         FROM crm.config_store WHERE key='tenant-profile' AND tenant_id = ANY($1)`,
+        [tenants.rows.map((t) => t.tenant_id)]);
+      const profMap = new Map(profRows.rows.map((r) => [r.tenant_id, { industry_label: r.il || null, prototype_count: Number(r.pc) || 0 }]));
       const rows = [];
       for (const t of tenants.rows) {
         const s = await query(`SELECT plan_id, status, started_at, expires_at, grace_until, upgraded_from FROM crm.tenant_subscription WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 1`, [t.tenant_id]);
@@ -256,9 +263,143 @@ export function createBillingRouter() {
           subscription: s.rows[0] || null,
           live_cost: await computeLiveCost(t.tenant_id),
           quota: await tokenQuota(t.tenant_id, period),
+          profile_summary: profMap.get(t.tenant_id) || null,
         });
       }
       res.json({ rows, period, scope });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // 行业画像模板清单（admin/sysadmin 只读）
+  router.get('/api/billing/tenant-admin/profile-templates', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    try {
+      const rows = (await query(
+        `SELECT key, value FROM crm.config_store WHERE tenant_id='system' AND key LIKE 'tenant-profile-template-%'`
+      )).rows;
+      const templates = rows.map((r) => {
+        const v = r.value || {};
+        const id = String(r.key).replace('tenant-profile-template-', '');
+        const protos = v.prototypes && typeof v.prototypes === 'object' ? Object.keys(v.prototypes).length : 0;
+        return { template_id: id, industry_label: (v.meta && v.meta.industry_label) || id, prototype_count: protos };
+      });
+      res.json({ templates });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── 租户管理操作台（admin/sysadmin；第0闸 produceDecision；system 硬拒；幂等）──
+  // 第0闸：写前落真实决策行；失败则整动作失败（不半截提交）。ctx.by_id/by_role 取自登录身份。
+  async function gateDecision(me, fields) {
+    const d = await produceDecision({ fields, by_id: me?.username, by_role: me?.role || 'sysadmin' });
+    return d?.decisionId || null;
+  }
+
+  router.post('/api/billing/tenant-admin/freeze', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, reason } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可冻结' });
+    try {
+      const cur = (await query(`SELECT status FROM crm.tenants WHERE tenant_id=$1`, [tenantId])).rows[0];
+      if (!cur) return res.status(404).json({ error: 'tenant not found' });
+      if (cur.status === 'retired') return res.status(400).json({ error: 'retired 租户不可冻结（终态）' });
+      if (cur.status === 'suspended') return res.json({ ok: true, noop: true, status: 'suspended' });
+      await gateDecision(me, [`tenant:${tenantId}`, 'freeze', reason || ''].filter(Boolean));
+      const r = await queryWrite(`UPDATE crm.tenants SET status='suspended', suspended_at=now() WHERE tenant_id=$1`, [tenantId]);
+      res.json({ ok: true, updated: r.rowCount, status: 'suspended' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/api/billing/tenant-admin/unfreeze', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    try {
+      const cur = (await query(`SELECT status FROM crm.tenants WHERE tenant_id=$1`, [tenantId])).rows[0];
+      if (!cur) return res.status(404).json({ error: 'tenant not found' });
+      if (cur.status === 'retired') return res.status(400).json({ error: 'retired 租户不可解冻（终态）' });
+      if (cur.status === 'active') return res.json({ ok: true, noop: true, status: 'active' });
+      await gateDecision(me, [`tenant:${tenantId}`, 'unfreeze']);
+      const r = await queryWrite(`UPDATE crm.tenants SET status='active', suspended_at=NULL WHERE tenant_id=$1`, [tenantId]);
+      res.json({ ok: true, updated: r.rowCount, status: 'active' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/api/billing/tenant-admin/extend', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, days } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    if (days === null || days === undefined) return res.status(400).json({ error: 'days required' });
+    const d = Number(days);
+    if (!Number.isInteger(d) || d < 1 || d > 365) return res.status(400).json({ error: 'days 须为 1-365 整数' });
+    try {
+      const sub = (await query(`SELECT id, status FROM crm.tenant_subscription WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 1`, [tenantId])).rows[0];
+      if (!sub) return res.status(400).json({ error: '该租户无订阅记录，无法延期（请先开通订阅）' });
+      await gateDecision(me, [`tenant:${tenantId}`, `extend:${d}d`]);
+      const r = await queryWrite(`UPDATE crm.tenant_subscription SET expires_at = expires_at + ($1)::interval, updated_at=now() WHERE id=$2`, [d + ' days', sub.id]);
+      res.json({ ok: true, updated: r.rowCount });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/api/billing/tenant-admin/cancel', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, reason } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可退订' });
+    try {
+      const cur = (await query(`SELECT status FROM crm.tenants WHERE tenant_id=$1`, [tenantId])).rows[0];
+      if (!cur) return res.status(404).json({ error: 'tenant not found' });
+      if (cur.status === 'retired') return res.json({ ok: true, noop: true, status: 'retired' });
+      await gateDecision(me, [`tenant:${tenantId}`, 'cancel', reason || ''].filter(Boolean));
+      const r1 = await queryWrite(`UPDATE crm.tenants SET status='retired', retired_at=now() WHERE tenant_id=$1`, [tenantId]);
+      const r2 = await queryWrite(`UPDATE crm.tenant_subscription SET status='canceled', updated_at=now() WHERE tenant_id=$1 AND status IN ('active','grace')`, [tenantId]);
+      res.json({ ok: true, tenantUpdated: r1.rowCount, subCancelled: r2.rowCount, status: 'retired' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/api/billing/tenant-admin/change-plan', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, planId } = req.body || {};
+    if (!tenantId || !planId) return res.status(400).json({ error: 'tenantId & planId required' });
+    if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可改套餐' });
+    try {
+      const plansRow = await readConfig('billing-plans', { tenantId: 'system' });
+      const plans = Array.isArray(plansRow?.value) ? plansRow.value : [];
+      if (!plans.some((p) => p.plan_id === planId)) return res.status(400).json({ error: `planId 不存在：${planId}` });
+      await gateDecision(me, [`tenant:${tenantId}`, `plan->${planId}`]);
+      await queryWrite(`UPDATE crm.tenants SET plan=$2 WHERE tenant_id=$1`, [tenantId, planId]);
+      await queryWrite(`UPDATE crm.tenant_subscription SET status='canceled' WHERE tenant_id=$1 AND status IN ('active','grace')`, [tenantId]);
+      await queryWrite(
+        `INSERT INTO crm.tenant_subscription (tenant_id, plan_id, status, started_at, expires_at, upgraded_from)
+         VALUES ($1,$2,'active',now(),now()+'1 month','admin-grant')`, [tenantId, planId]);
+      res.json({ ok: true, plan: planId });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/api/billing/tenant-admin/assign-profile', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, templateId } = req.body || {};
+    if (!tenantId || !templateId) return res.status(400).json({ error: 'tenantId & templateId required' });
+    if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可分配画像' });
+    try {
+      const tpl = (await query(`SELECT value FROM crm.config_store WHERE tenant_id='system' AND key=$1`, ['tenant-profile-template-' + templateId])).rows[0];
+      if (!tpl) return res.status(400).json({ error: `模板不存在：${templateId}` });
+      const base = JSON.parse(JSON.stringify(tpl.value || {}));
+      base.meta = { ...(base.meta || {}), template_id: templateId, assigned_at: new Date().toISOString(), assigned_by: me?.username || 'admin' };
+      await gateDecision(me, [`tenant:${tenantId}`, `profile<-${templateId}`]);
+      const r = await queryWrite(
+        `INSERT INTO crm.config_store (tenant_id, key, value, updated_by, updated_at)
+         VALUES ($1,'tenant-profile',$2::jsonb,'admin',now())
+         ON CONFLICT (tenant_id, key) DO UPDATE SET value=$2::jsonb, updated_at=now()`,
+        [tenantId, JSON.stringify(base)]);
+      res.json({ ok: true, updated: r.rowCount });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

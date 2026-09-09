@@ -119,6 +119,18 @@
   </div>
 </div>
 
+<div class="modal" id="ta-modal">
+  <div class="box" style="width:420px;max-width:92vw">
+    <h3 id="ta-title">租户操作</h3>
+    <p class="sub" id="ta-hint"></p>
+    <div id="ta-fields"></div>
+    <div class="bad" id="ta-err" style="display:none;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <crm-button class="btn ghost" id="ta-cancel">取消</crm-button>
+      <crm-button class="btn" id="ta-ok">确认</crm-button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="plan-edit-modal">
   <div class="box">
     <div class="pf-header">
@@ -272,13 +284,15 @@
   async function loadSubs() {
     const el = document.getElementById('subs-table');
     try {
+      if (!window.__TA_TPLS) { try { window.__TA_TPLS = (await api('/api/billing/tenant-admin/profile-templates'))?.templates || []; } catch { window.__TA_TPLS = []; } }
+      if (!PLANS.length) await loadPlans();
       const d = await api(`/api/billing/tenant-subscriptions${tenantQuery()}`);
       SUBS_DATA = Array.isArray(d?.rows) ? d.rows : [];
       // 展开明细复用本端点已下发的 live_cost / quota，避免逐行再请求
       TOKEN_USAGE_CACHE = SUBS_DATA.map((r) => ({ tenant_id: r.tenant_id, quota: r.quota }));
       LIVE_COST_CACHE = SUBS_DATA.map((r) => r.live_cost).filter(Boolean);
       if (!SUBS_DATA.length) { el.innerHTML = '<tr><td colspan="10" class="ok">暂无租户</td></tr>'; return; }
-      const head = `<tr><th>租户</th><th>推荐人</th><th>当前套餐</th><th>开通日期</th><th>到期日</th><th>剩余</th><th>席位(已用/额度/余)</th><th>已用 Token</th><th>实时费用</th><th>状态</th></tr>`;
+      const head = `<tr><th>租户</th><th>推荐人</th><th>当前套餐</th><th>开通日期</th><th>到期日</th><th>剩余</th><th>席位(已用/额度/余)</th><th>已用 Token</th><th>实时费用</th><th>行业</th><th>状态</th><th>操作</th></tr>`;
       const body = SUBS_DATA.map((r, idx) => {
         const s = r.subscription;
         const lc = r.live_cost || {};
@@ -293,6 +307,17 @@
         const days = s?.expires_at ? daysLeft(s.expires_at) : '—';
         const status = s ? s.status : '未开通';
         const statusClass = status === 'active' ? 'ok' : (status === '未开通' ? 'sub' : 'bad');
+        const ps = r.profile_summary;
+        const indCell = ps && ps.industry_label ? `${esc(ps.industry_label)}<div class="sub">${ps.prototype_count} 类型</div>` : '<span class="sub">—</span>';
+        const isSys = r.tenant_id === 'system';
+        const st = r.tenant_status;
+        const ops = isSys
+          ? '<span class="sub">平台租户</span>'
+          : `<crm-button class="btn" data-act="freeze" data-t="${escAttr(r.tenant_id)}">${st === 'suspended' ? '解冻' : '冻结'}</crm-button>
+             <crm-button class="btn ghost" data-act="extend" data-t="${escAttr(r.tenant_id)}">延期</crm-button>
+             <crm-button class="btn ghost" data-act="plan" data-t="${escAttr(r.tenant_id)}">改套餐</crm-button>
+             <crm-button class="btn ghost" data-act="profile" data-t="${escAttr(r.tenant_id)}">分配画像</crm-button>
+             <crm-button class="btn bad" data-act="cancel" data-t="${escAttr(r.tenant_id)}">退订</crm-button>`;
         return `
         <tr class="sub-row" data-idx="${idx}" onclick="toggleSubDetail(event, '${escAttr(r.tenant_id)}')">
           <td><b>${esc(r.tenant_name || r.tenant_id)}</b><div class="sub">${esc(r.tenant_id)}</div></td>
@@ -304,9 +329,11 @@
           <td>${seatCell}</td>
           <td>${fmtNum(tokenUsed)}</td>
           <td>${fmtMoney(lc.total_fee)}</td>
+          <td>${indCell}</td>
           <td class="${statusClass}">${esc(status)}</td>
+          <td class="ops" onclick="event.stopPropagation()">${ops}</td>
         </tr>
-        <tr class="sub-detail" id="sub-detail-${escAttr(r.tenant_id)}" style="display:none"><td colspan="10" data-tenant="${escAttr(r.tenant_id)}">加载中…</td></tr>
+        <tr class="sub-detail" id="sub-detail-${escAttr(r.tenant_id)}" style="display:none"><td colspan="12" data-tenant="${escAttr(r.tenant_id)}">加载中…</td></tr>
       `;
       }).join('');
       el.innerHTML = head + body;
@@ -489,6 +516,58 @@
   };
   document.getElementById('plan-add-new').onclick = () => openPlanEditFromNew();
   document.getElementById('plan-refresh').onclick = () => { loadPlans(); loadSubs(); };
+
+  // ── 租户管理操作台（冻结/解冻/延期/改套餐/退订/分配画像）──
+  let TA_CTX = null;
+  async function openTenantAction(act, tenantId) {
+    TA_CTX = { act, tenantId };
+    const title = { freeze: '冻结租户', unfreeze: '解冻租户', extend: '延期订阅', plan: '改套餐', profile: '分配行业画像', cancel: '退订（软）' }[act] || '租户操作';
+    document.getElementById('ta-title').textContent = title + '：' + tenantId;
+    const hint = { freeze: '冻结后新登录即被拒，定时任务暂停；已登录会话在 token 过期后失效。', cancel: '退订将置租户为 retired（数据全保留，禁物理删除），订阅标记 cancelled。', profile: '将整体覆盖该租户现有行业画像（旧画像可由决策行追溯）。' }[act] || '';
+    document.getElementById('ta-hint').textContent = hint;
+    let fields = '';
+    if (act === 'extend') fields = `<label>延期天数（1-365）</label><crm-input id="ta-days" type="number" min="1" max="365" value="30"></crm-input>`;
+    else if (act === 'plan') {
+      const opts = (PLANS || []).map((p) => `<option value="${escAttr(p.plan_id)}">${esc(p.plan_id)} · ${esc(p.name || '')}</option>`).join('');
+      fields = `<label>目标套餐</label><crm-select id="ta-plan">${opts}</crm-select>`;
+    } else if (act === 'profile') {
+      const tpls = (window.__TA_TPLS || []).map((t) => `<option value="${escAttr(t.template_id)}">${esc(t.industry_label)}（${t.prototype_count} 类型）</option>`).join('');
+      fields = `<label>行业模板</label><crm-select id="ta-tpl">${tpls}</crm-select>`;
+    } else if (act === 'cancel' || act === 'freeze') {
+      fields = `<label>原因（可选）</label><crm-input id="ta-reason" placeholder="如 逾期未续费"></crm-input>`;
+    } else if (act === 'unfreeze') fields = '';
+    document.getElementById('ta-fields').innerHTML = fields;
+    document.getElementById('ta-err').style.display = 'none';
+    document.getElementById('ta-modal').classList.add('show');
+  }
+  function closeTaModal() { document.getElementById('ta-modal').classList.remove('show'); }
+  document.getElementById('ta-cancel').onclick = closeTaModal;
+  document.getElementById('ta-modal').addEventListener('click', (e) => { if (e.target.id === 'ta-modal') closeTaModal(); });
+  window.openTenantAction = openTenantAction;
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('crm-button[data-act]');
+    if (!btn) return;
+    openTenantAction(btn.getAttribute('data-act'), btn.getAttribute('data-t'));
+  });
+  document.getElementById('ta-ok').onclick = async () => {
+    if (!TA_CTX) return;
+    const { act, tenantId } = TA_CTX;
+    const body = { tenantId };
+    if (act === 'extend') body.days = Number(document.getElementById('ta-days')?.value);
+    if (act === 'plan') body.planId = document.getElementById('ta-plan')?.value;
+    if (act === 'profile') body.templateId = document.getElementById('ta-tpl')?.value;
+    if (act === 'freeze' || act === 'cancel') body.reason = document.getElementById('ta-reason')?.value || '';
+    const realAct = act === 'unfreeze' ? 'unfreeze' : act;
+    const errEl = document.getElementById('ta-err');
+    try {
+      await post(`/api/billing/tenant-admin/${realAct}`, body);
+      closeTaModal();
+      await loadSubs();
+    } catch (e) {
+      errEl.textContent = e?.error || e?.message || '操作失败';
+      errEl.style.display = 'block';
+    }
+  };
   const planModal = document.getElementById('plan-edit-modal');
   const closePlanModal = () => planModal.classList.remove('show');
   document.getElementById('plan-edit-cancel').onclick = closePlanModal;
