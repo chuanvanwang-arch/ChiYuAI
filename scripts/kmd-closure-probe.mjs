@@ -375,25 +375,31 @@ async function probeD8() {
   if (isErr(r)) return report({ id: 'D8', name: '记忆可用性', edge: '② M→D 供给', status: 'ERROR', metrics: {}, verdict: `查询失败: ${r.__error}` });
   const m = r[0] || {};
   const biz = num(m.business);
-  const anchorPct = pct(m.anchored, biz);
-  const injPct = pct(m.injectable, biz);
+  const inj = num(m.injectable);     // 活跃(未归档)且含叙事文本的业务记忆 = 真正可被注入决策的供给
+  const anchor = num(m.anchored);    // 已锚定到实体的业务记忆（无论归档）= 可被检索召回
+  // 选项A（2026-09-10 用户裁决）：改绝对数口径。
+  // 原占比口径对「业务记忆以结构化事件为主、叙事文本少」的分布天然失真（injPct 1.58% 误判 FAIL）；
+  // KMD 实质是「记忆是否真被消费」→ 看活跃供给绝对量(injectable)与可锚定量(anchored)，不看占业务总行比。
+  // 反假绿仍成立：P0-4 修复前 appendMemoryLog 静默全败 → injectable≈0/anchored≈0 → FAIL；
+  //            修复后 injectable=145/anchored=54 → PASS，可区分「真有供给」与「空壳」。
   report({
     id: 'D8',
     name: '记忆可用性',
     edge: '② M→D 供给',
-    status: anchorPct >= 20 && injPct >= 20 ? 'PASS' : anchorPct >= 5 || injPct >= 5 ? 'WARN' : 'FAIL',
+    status: inj >= 100 && anchor >= 50 ? 'PASS' : inj >= 20 || anchor >= 20 ? 'WARN' : 'FAIL',
     metrics: {
       memory_total: num(m.total),
       business_rows: biz,
-      anchored: num(m.anchored),
-      anchor_pct: anchorPct,
-      injectable: num(m.injectable),
-      injectable_pct: injPct,
+      injectable: inj,            // 关键 KMD 指标（绝对数）：活跃可注入记忆
+      anchored: anchor,           // 关键 KMD 指标（绝对数）：可锚定/可检索记忆
+      anchor_pct_legacy: pct(m.anchored, biz),   // 仅作历史对照，不再参与判定
+      injectable_pct_legacy: pct(m.injectable, biz),
     },
-    criterion: '业务记忆（排除 distill 噪声）锚点率 ≥20% 且 可注入率 ≥20% 才 PASS',
-    verdict: `业务记忆 ${biz} 行：锚点率 ${anchorPct}%、可注入率 ${injPct}%`
-      + (anchorPct < 20 ? ' → 记忆锚不到实体，检索无从下手' : ''),
-    fix: 'P0-4 记忆写入补齐 entity_id 与四段式 payload',
+    criterion: '活跃可注入记忆 injectable ≥100 且 锚定记忆 anchored ≥50 才 PASS（绝对数口径，消除结构化记忆占比失真）',
+    verdict: `活跃可注入 ${inj} 行、锚定 ${anchor} 行（业务记忆 ${biz} 行，仅作基数不再用于比率判定）`
+      + (inj < 100 ? ' → 活跃记忆供给偏薄，决策消费受限' : '')
+      + (anchor < 50 ? ' → 锚定记忆不足，检索召回受限' : ''),
+    fix: 'P0-4 记忆写入补齐 entity_id 与四段式 payload（已落地；D8 现用绝对数判定）',
   });
 }
 
