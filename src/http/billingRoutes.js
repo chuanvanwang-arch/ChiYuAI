@@ -370,6 +370,34 @@ export function createBillingRouter() {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  // 恢复退订（B 方案：status 重置 active + 清 retired_at；history 从零重新计）
+  // 设计取舍：保留 retired 状态作为"退订事实"存档（数据不删），仅翻转登录可用性 + 订阅 active 标记
+  // - 不创建新 subscription 行（避免分裂）；仅 UPDATE 单行状态
+  // - requiresGateDecision 过决策第 0 闸（audit 可追溯）
+  // - 幂等：非 retired 状态 noop 返回，不二次翻转
+  router.post('/api/billing/tenant-admin/revert-cancel', async (req, res) => {
+    const me = resolveMe(req);
+    if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });
+    const { tenantId, reason } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    if (tenantId === 'system') return res.status(400).json({ error: 'system 租户不可恢复' });
+    try {
+      const cur = (await query(`SELECT status, plan FROM crm.tenants WHERE tenant_id=$1`, [tenantId])).rows[0];
+      if (!cur) return res.status(404).json({ error: 'tenant not found' });
+      if (cur.status !== 'retired') return res.json({ ok: true, noop: true, status: cur.status });
+      await gateDecision(me, [`tenant:${tenantId}`, 'revert-cancel', reason || ''].filter(Boolean));
+      const r1 = await queryWrite(
+        `UPDATE crm.tenants SET status='active', retired_at=NULL WHERE tenant_id=$1 AND status='retired'`,
+        [tenantId]
+      );
+      const r2 = await queryWrite(
+        `UPDATE crm.tenant_subscription SET status='active', updated_at=now() WHERE tenant_id=$1 AND status='canceled'`,
+        [tenantId]
+      );
+      res.json({ ok: true, tenantReverted: r1.rowCount, subReverted: r2.rowCount, status: 'active' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   router.post('/api/billing/tenant-admin/change-plan', async (req, res) => {
     const me = resolveMe(req);
     if (!isPrivileged(me)) return res.status(403).json({ error: 'forbidden' });

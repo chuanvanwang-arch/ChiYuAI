@@ -10,7 +10,7 @@
       "label_en": "MCP Server URL",
       "type": "text",
       "required": true,
-      "defaultValue": "https://www.chiyuai.com/mcp",
+      "defaultValue": "http://81.70.184.198/mcp",
       "description": "CRM 的 MCP 端点。私有部署或本地联调可改为 http://localhost:3001/mcp。"
     },
     {

@@ -222,6 +222,22 @@ export function createRoutes(app, hub) {
   // 场景路由 A/B 实验配置（config_center id44，2026-09-05 P1 注册）：GET/PUT /api/config/routing-explore
   // 消费端（routingExperiment.js / routingReview.js / assembler.js）恒读 config_store['routing-explore']，未挂载则写不进去、配置卡不可视。
   app.use(createConfigRouter({ key: 'routing-explore', role: 'sysadmin', level: 'system', decisionScene: 'config-change' }));
+  // 线索发现规则后台化（配置中心 id46）：PUT 结构校验前置 —— 不修改共享 configRouter 本体
+  // Express 按注册序执行：本 app.put 先于下面的 app.use(router) 命中同路径，校验后 next() 交棒
+  app.put('/api/config/discovery-rules', (req, res, next) => {
+    const v = req.body?.value;
+    if (v && typeof v === 'object') {
+      const missing = ['icp', 'providers', 'signals'].filter((k) => v[k] === undefined);
+      if (missing.length) {
+        return res.status(400).json({ error: `discovery-rules 缺结构键: ${missing.join(',')}` });
+      }
+    }
+    next();
+  });
+  // GET/PUT /api/config/discovery-rules（写经决策第0闸 + sysadmin 闸；scope 默认 tenant = 租户级差分）
+  app.use(createConfigRouter({ key: 'discovery-rules', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.get('/discovery-rules.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/discovery-rules.html', import.meta.url))));
   app.use(createFunnelRouter());
   // ─── S05 财务应收聚合端点（T1）───
   // 合同维：应收余额=Σplan−Σpaid；逾期天数=plan_end−today(plan_status≠done)；账龄读 config_store aging_buckets；发票对账状态

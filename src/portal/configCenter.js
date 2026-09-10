@@ -69,6 +69,8 @@ export const CONFIG_ITEMS = [
   { id: 44, name: '路由实验（routing-explore）', group: '销售方法论与决策治理', level: 'system', status: 'ready', page: '/decision-route-config.html', endpoint: '/api/config/routing-explore', scope: 'platform', resolve: 'system-only', note: '场景路由时间片 A/B 实验参数（window_days/max_running/blacklist/min_arm_sample/daily_review_enabled）；config_store 承载，写经决策第0闸+sysadmin；红线：只出 PENDING 处方，不自动改 context-routing' },
   // ⑤ 粒子本体只读总览（2026-09-05 拆分 id22：可编辑「业务词汇」留租户级 #22，只读「本体快照」升系统级——纯显示、与词汇按租户隔离原则一致）
   { id: 45, name: '粒子本体总览（只读）', group: '系统日志', level: 'system', status: 'ready', page: '/ontology.html', endpoint: null, scope: 'platform', resolve: 'system-only', note: '粒子实体/关系本体只读快照（代码常量事实源，与 #22 业务词汇分离）；纯显示，系统级' },
+  // 线索发现规则（2026-09-10）：ICP / 数据源三档 / 信号权重 / 查重条件 / 编排 playbooks；租户级
+  { id: 46, name: '线索发现规则', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/discovery-rules.html', endpoint: '/api/config/discovery-rules', scope: 'tenant', resolve: 'tenant-first', note: 'ICP（行业/规模/地域/置信下限）、数据源三档（system/system-candidate/paid，付费源出厂 enabled:false 需显式授权）、信号权重、查重条件 duplicate_criteria（配置驱动，对齐 Twenty flatObjectMetadata.duplicateCriteria）、编排 playbooks（data→condition→ai→action）；config_store 承载，写经决策第0闸' },
 ];
 
 const GROUP_ORDER = ['平台与访问', '销售方法论与决策治理', '业务对象与流程建模', '智能体与运行', '系统日志'];

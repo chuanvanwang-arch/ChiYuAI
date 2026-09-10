@@ -50,7 +50,7 @@ import { get, post, put } from '/portal/api.js';
           //   替代出口（记忆闭环进度可回作战室三闭环条查看），而不是笼统报「加载失败」。
           const isForbidden = r.status === 403 || r.status === 401;
           app.innerHTML = isForbidden
-            ? `<p class="mem-muted">本页为记忆治理视图，仅 <b>sysadmin</b> 可读写（当前账号无该权限）。</p>
+            ? `<p class="mem-muted">本页为记忆治理视图，仅 <b>管理员或租户管理员(ten_admin)</b> 可读写（当前账号无该权限）。</p>
                <p class="mem-muted">记忆仍由业务事件自动捕获并在系统中流转；其闭环进度可在
                <a href="/sales-decision-monitor.html">销售决策监控台</a> 的「三系统闭环条 · 记忆系统」查看，
                或前往 <a href="/decision-graph.html">决策链追溯</a> 查看先例引用边。</p>`

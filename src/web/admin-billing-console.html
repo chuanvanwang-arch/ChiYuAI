@@ -305,8 +305,13 @@
         const started = s?.started_at ? String(s.started_at).slice(0, 10) : '—';
         const expires = s?.expires_at ? String(s.expires_at).slice(0, 10) : '—';
         const days = s?.expires_at ? daysLeft(s.expires_at) : '—';
-        const status = s ? s.status : '未开通';
-        const statusClass = status === 'active' ? 'ok' : (status === '未开通' ? 'sub' : 'bad');
+        const subStatus = s ? s.status : '未开通';
+        const acctStatus = r.tenant_status || '—';
+        // 双状态染色：订阅（active=绿/grace·canceled=红/未开通=灰）；账号（active=绿/suspended·retired=红）
+        // 修「冻结后状态列无视觉反馈」bug 2026-09-10：原本「状态」列只显示订阅，租户冻结写 tenants.status 不影响订阅，造成「冻结像没生效」误判
+        const subCls = subStatus === 'active' ? 'ok' : (subStatus === '未开通' ? 'sub' : 'bad');
+        const acctCls = acctStatus === 'active' ? 'ok' : (acctStatus === 'retired' ? 'sub' : 'bad');
+        const statusHtml = `<span class="${subCls}" title="订阅状态: ${escAttr(subStatus)}&#10;租户账号状态: ${escAttr(acctStatus)}">${esc(subStatus)}</span> <span class="sub">账号:<b class="${acctCls}">${esc(acctStatus)}</b></span>`;
         const inds = (r.profile_summary && Array.isArray(r.profile_summary.industries)) ? r.profile_summary.industries : [];
         const indCell = inds.length
           ? inds.slice(0, 3).map((i) => `<span class="chip">${esc(i.label || i.id)}</span>`).join(' ') + (inds.length > 3 ? ` <span class="chip more">+${inds.length - 3}</span>` : '')
@@ -319,7 +324,9 @@
              <crm-button class="btn ghost" data-act="extend" data-t="${escAttr(r.tenant_id)}">延期</crm-button>
              <crm-button class="btn ghost" data-act="plan" data-t="${escAttr(r.tenant_id)}">改套餐</crm-button>
              <crm-button class="btn ghost" data-act="profile" data-t="${escAttr(r.tenant_id)}">分配画像</crm-button>
-             <crm-button class="btn bad" data-act="cancel" data-t="${escAttr(r.tenant_id)}">退订</crm-button>`;
+             ${st === 'retired'
+               ? `<crm-button class="btn good" data-act="revert" data-t="${escAttr(r.tenant_id)}">恢复</crm-button>`
+               : `<crm-button class="btn bad" data-act="cancel" data-t="${escAttr(r.tenant_id)}">退订</crm-button>`}`;
         return `
         <tr class="sub-row" data-idx="${idx}" onclick="toggleSubDetail(event, '${escAttr(r.tenant_id)}')">
           <td><b>${esc(r.tenant_name || r.tenant_id)}</b><div class="sub">${esc(r.tenant_id)}</div></td>
@@ -332,7 +339,7 @@
           <td>${fmtNum(tokenUsed)}</td>
           <td>${fmtMoney(lc.total_fee)}</td>
           <td>${indCell}</td>
-          <td class="${statusClass}">${esc(status)}</td>
+          <td title="订阅: ${escAttr(subStatus)}&#10;账号: ${escAttr(acctStatus)}">${statusHtml}</td>
           <td class="ops" onclick="event.stopPropagation()">${ops}</td>
         </tr>
         <tr class="sub-detail" id="sub-detail-${escAttr(r.tenant_id)}" style="display:none"><td colspan="12" data-tenant="${escAttr(r.tenant_id)}">加载中…</td></tr>
@@ -523,9 +530,9 @@
   let TA_CTX = null;
   async function openTenantAction(act, tenantId) {
     TA_CTX = { act, tenantId };
-    const title = { freeze: '冻结租户', unfreeze: '解冻租户', extend: '延期订阅', plan: '改套餐', profile: '分配行业画像', cancel: '退订（软）' }[act] || '租户操作';
+    const title = { freeze: '冻结租户', unfreeze: '解冻租户', extend: '延期订阅', plan: '改套餐', profile: '分配行业画像', cancel: '退订（软）', revert: '恢复退订' }[act] || '租户操作';
     document.getElementById('ta-title').textContent = title + '：' + tenantId;
-    const hint = { freeze: '冻结后新登录即被拒，定时任务暂停；已登录会话在 token 过期后失效。', cancel: '退订将置租户为 retired（数据全保留，禁物理删除），订阅标记 cancelled。', profile: '为该租户追加/移除行业画像（多行业可共存；同名类型后者覆盖前者，无自动告警）。' }[act] || '';
+    const hint = { freeze: '冻结后新登录即被拒，定时任务暂停；已登录会话在 token 过期后失效。', cancel: '退订将置租户为 retired（数据全保留，禁物理删除），订阅标记 cancelled。', profile: '为该租户追加/移除行业画像（多行业可共存；同名类型后者覆盖前者，无自动告警）。', revert: '恢复退订后 tenants.status 翻为 active、清 retired_at；订阅重置为 active（history 从零重新计，原 payment/expires_at 保留）。仅 retired 状态有效，其余状态 noop。' }[act] || '';
     document.getElementById('ta-hint').textContent = hint;
     let fields = '';
     if (act === 'extend') fields = `<label>延期天数（1-365）</label><crm-input id="ta-days" type="number" min="1" max="365" value="30"></crm-input>`;
@@ -543,6 +550,8 @@
                 <div class="ta-block"><div class="ta-sub">待分配模板（多选）：</div><div id="ta-tpls">${tpls || '<span class="sub">无模板</span>'}</div></div>`;
     } else if (act === 'cancel' || act === 'freeze') {
       fields = `<label>原因（可选）</label><crm-input id="ta-reason" placeholder="如 逾期未续费"></crm-input>`;
+    } else if (act === 'revert') {
+      fields = `<label>恢复原因（可选）</label><crm-input id="ta-reason" placeholder="如 误点退订 / 客户撤销"></crm-input>`;
     } else if (act === 'unfreeze') fields = '';
     document.getElementById('ta-fields').innerHTML = fields;
     document.getElementById('ta-err').style.display = 'none';
@@ -602,8 +611,10 @@
     if (act === 'extend') body.days = Number(document.getElementById('ta-days')?.value);
     else if (act === 'plan') body.planId = document.getElementById('ta-plan')?.value;
     else if (act === 'profile') body.templateIds = Array.from(document.querySelectorAll('#ta-tpls input[type=checkbox]:checked')).map((c) => c.value);
-    else if (act === 'freeze' || act === 'cancel') body.reason = document.getElementById('ta-reason')?.value || '';
-    const realAct = act === 'unfreeze' ? 'unfreeze' : act;
+    else if (act === 'freeze' || act === 'cancel' || act === 'revert') body.reason = document.getElementById('ta-reason')?.value || '';
+    // 前端 act 名 → 后端端点名（plan/profile/revert 与端点不 1:1，故显式映射）
+    const realActMap = { plan: 'change-plan', profile: 'assign-profile', revert: 'revert-cancel' };
+    const realAct = realActMap[act] || (act === 'unfreeze' ? 'unfreeze' : act);
     const errEl = document.getElementById('ta-err');
     try {
       const resp = await api(`/api/billing/tenant-admin/${realAct}`, { method: 'POST', body: JSON.stringify(body) });
@@ -613,8 +624,15 @@
       closeTaModal();
       await loadSubs();
     } catch (e) {
-      errEl.textContent = e?.error || e?.message || '操作失败';
+      // 暴露 status + body（之前只显示 message，404 误判难定位：详见 2026-09-10「修改进套餐 404」）
+      const status = e?.status ? `HTTP ${e.status}` : '';
+      const bodyTxt = (e?.body && typeof e.body === 'object' && Object.keys(e.body).length)
+        ? ` · ${JSON.stringify(e.body)}`
+        : '';
+      errEl.textContent = `${status}${bodyTxt || e?.message || '操作失败'}`;
       errEl.style.display = 'block';
+      // 调试日志：方便开发期定位（生产可保留）
+      if (window.__TA_DEBUG) console.warn('[ta] failed', realAct, body, e);
     }
   };
   const planModal = document.getElementById('plan-edit-modal');
