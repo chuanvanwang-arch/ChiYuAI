@@ -21,10 +21,12 @@
 
 <div id="system-overview-d-root" class="so-d-loading">决策系统运行概览加载中…</div>
 
-<script type="module">
+  <script type="module">
   import { injectLayout } from '/portal/layout.js';
   import { api } from '/portal/api.js';
+  import { bindDrill } from '/portal/drillModal.js';
   injectLayout();
+  bindDrill('#system-overview-d-root');
 
   const root = document.getElementById('system-overview-d-root');
   const err = document.getElementById('so-d-err');

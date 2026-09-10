@@ -22,10 +22,12 @@
 
 <div id="system-overview-k-root" class="so-k-loading">知识系统运行概览加载中…</div>
 
-<script type="module">
+  <script type="module">
   import { injectLayout } from '/portal/layout.js';
   import { api } from '/portal/api.js';
+  import { bindDrill } from '/portal/drillModal.js';
   injectLayout();
+  bindDrill('#system-overview-k-root');
 
   const root = document.getElementById('system-overview-k-root');
   const err = document.getElementById('so-k-err');
