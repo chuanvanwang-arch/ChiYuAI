@@ -69,24 +69,28 @@ describe('T3: K 渲染器四段式骨架', () => {
     expect(status).toBe(200);
     const html = body.html || '';
     expect(html).toMatch(/loop-state\s+(closed|break|na)/);
-    expect(html).toContain('skill_id');
-    expect(html).toMatch(/维度漂移|dim.?skew|missing_in_db|missing_in_skill/);
+    expect(html).toContain('so-k-panels-sec'); // 四源面板段
+    expect(html).toMatch(/近 30 日知识粒子趋势/);
     expect(html).toMatch(/<svg|data-trend|data-svg/);
+    expect(html).toContain('so-k-governance'); // 治理角落
   });
-  // 设计 §1.3 契约：明细表每行可下钻（data-dk 行 + 同 key 隐藏详情块）
-  it('K 渲染器含 data-dk 下钻行 + 对应 so-detail-hidden 隐藏块', async () => {
+  // 设计 §1.3 契约：四源面板均可下钻（data-dk 面板 + 同 key 隐藏明细块）
+  it('K 渲染器含四源面板 data-dk 下钻 + 对应 so-detail-hidden 隐藏块', async () => {
     const { renderKnowledge } = await import('../../src/http/render/systemOverviewK.js');
-    const r = await renderKnowledge();
+    const r = await renderKnowledge({ me: { role: 'admin', tenantId: '*', scope: 'all' } });
     const html = r.html || '';
-    const dkRows = (html.match(/<tr[^>]*data-dk=/g) || []).length;
-    const hidden = (html.match(/so-detail-hidden[^>]*data-dk=/g) || []).length;
-    expect(dkRows).toBeGreaterThan(0);
-    expect(hidden).toBe(dkRows); // 每行的隐藏详情块数量与可下钻行数一致
+    const panelKeys = ['knowledge-particles', 'source-edges', 'injection-coverage', 'precedent-graph'];
+    for (const k of panelKeys) {
+      expect(html).toMatch(new RegExp(`so-panel[^>]*data-dk="${k}"`));
+      expect(html).toMatch(new RegExp(`so-detail-hidden[^>]*data-dk="${k}"`)); // 每面板有隐藏明细块
+    }
+    // 治理角落保留（SKILL 装配健康度，不再为主体）
+    expect(html).toContain('so-k-governance');
   });
 });
 
-// 4) M 渲染器：四段式骨架 + 权限隔离（非 admin 显权限说明）
-describe('T4: M 渲染器（含权限隔离）', () => {
+// 4) M 渲染器：图模型 + 权限隔离（非 admin 显权限说明）
+describe('T4: M 渲染器（图模型 + 权限隔离）', () => {
   it('GET /api/page/system-overview-m 返回 html 含四段骨架或权限说明', async () => {
     const { status, body } = await getJson('/api/page/system-overview-m');
     expect(status).toBe(200);
@@ -103,26 +107,26 @@ describe('T4: M 渲染器（含权限隔离）', () => {
       expect(html).toContain('sales-decision-monitor.html');
     }
   });
-  // 设计 §1.3 契约：明细表含「先例边 Top + 三构件 + 蒸馏状态」+ 下钻占位段
-  it('M 渲染器含先例边 Top / 三构件 / 蒸馏状态 / 下钻段（admin 视角）', async () => {
+  // 图模型契约：含图模型段 + SVG（或空态）+ 三构件 + 蒸馏状态 + 下钻段
+  it('M 渲染器含图模型段 / 三构件 / 蒸馏状态 / 下钻段（admin 视角）', async () => {
     const { renderMemory } = await import('../../src/http/render/systemOverviewM.js');
     const r = await renderMemory({ me: { role: 'admin', tenantId: '*' } });
-    expect(r.html).toContain('so-m-pred');
-    expect(r.html).toMatch(/先例边\s*Top/);
+    expect(r.html).toContain('so-m-graph-sec');
+    expect(r.html).toMatch(/图模型|REFERENCED_PRECEDENT|暂无先例引用边/);
     expect(r.html).toContain('so-m-tri');
     expect(r.html).toContain('so-m-distill');
     expect(r.html).toMatch(/蒸馏状态/);
     expect(r.html).toContain('so-m-drill');
   });
-  // 设计 §1.3 契约：先例 Top10 每行可下钻（data-dk 行 + 隐藏块）
-  it('M 渲染器含先例下钻 data-dk 行 + 隐藏详情块（admin 视角）', async () => {
+  // 图节点下钻契约：每个 so-m-graph-node[data-dk] 都有对应 so-detail-hidden[data-dk]
+  it('M 渲染器图节点 data-dk 与隐藏详情块配对（admin 视角）', async () => {
     const { renderMemory } = await import('../../src/http/render/systemOverviewM.js');
     const r = await renderMemory({ me: { role: 'admin', tenantId: '*' } });
     const html = r.html || '';
-    const dkRows = (html.match(/<tr[^>]*data-dk=/g) || []).length;
+    const nodes = (html.match(/so-m-graph-node[^>]*data-dk=/g) || []).length;
     const hidden = (html.match(/so-detail-hidden[^>]*data-dk=/g) || []).length;
-    if (dkRows > 0) expect(hidden).toBe(dkRows);
-    else expect(html).toContain('so-m-pred'); // 无数据时至少 Top 段存在
+    if (nodes > 0) expect(hidden).toBe(nodes); // 有图节点则每个都有下钻块
+    else expect(hidden).toBe(0);                // 无数据则无下钻块（空态）
   });
 });
 
@@ -141,25 +145,60 @@ describe('T5: D 渲染器四段式骨架', () => {
     const html = body.html || '';
     expect(html).toMatch(/admin|—/);
   });
-  // 设计 §1.3 契约：明细表必须含「L1 拦截明细（按闸门）」独立段 + 下钻占位段
-  it('D 渲染器含 L1 独立明细段 + 下钻占位段（admin 视角）', async () => {
+  // 设计 §1.3 契约：明细表在「决策数据汇总」段内（L1/L2/L3 汇总卡 + 隐藏明细块）+
+  //   下钻占位段；明细内容仍保留于隐藏块（点卡还原，不再默认铺开）。
+  it('D 渲染器含汇总段（内嵌 L1 拦截明细）+ 下钻占位段（admin 视角）', async () => {
     const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
     const r = await renderDecision({ me: { role: 'admin', tenantId: '*' } });
-    expect(r.html).toContain('so-d-l1');
+    expect(r.html).toContain('so-d-summary');
+    expect(r.html).toMatch(/决策数据汇总/);
     expect(r.html).toMatch(/L1\s*拦截明细/);
     expect(r.html).toContain('so-d-drill');
   });
-  // 设计 §1.3 契约：L1/L2/L3 每行可下钻（data-dk 行 + 隐藏块）
-  it('D 渲染器 L1/L2/L3 含 data-dk 下钻行 + 隐藏块', async () => {
+  // 设计 §1.3 契约：L1/L2/L3 每行可下钻（data-dk 行 + 隐藏块）；汇总卡本身也有隐藏明细块。
+  //   hidden ≥ 行级 dk（三张汇总卡各多 1 个明细块）——点汇总卡还原明细、点行再下钻单项。
+  it('D 渲染器 L1/L2/L3 含 data-dk 下钻行 + 隐藏块（汇总卡隐藏块 ≥ 行级）', async () => {
     const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
     const r = await renderDecision({ me: { role: 'admin', tenantId: '*' } });
     const html = r.html || '';
     const dkRows = (html.match(/<tr[^>]*data-dk=/g) || []).length + (html.match(/so-l3-item[^>]*data-dk=/g) || []).length;
     const hidden = (html.match(/so-detail-hidden[^>]*data-dk=/g) || []).length;
     expect(dkRows).toBeGreaterThan(0);
-    expect(hidden).toBe(dkRows);
+    expect(hidden).toBeGreaterThanOrEqual(dkRows); // 3 张汇总卡各 1 隐藏明细块
     // safeL1 bug 修复：getGateAttribution 返回数组（非 {gates:[]}），safeL1 须识别为闸门数组。
     // 不为空库误判——此处仅断言结构契约（下钻行/隐藏块成对），bug 修复由真实实例冒烟佐证。
+  });
+  // 8 阶段汇总契约：底部含 so-d-stages 段 + 8 个阶段卡片（data-dk 复用 L2 隐藏块下钻）
+  it('D 渲染器底部含 8 阶段汇总卡片（可下钻）', async () => {
+    const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
+    const r = await renderDecision({ me: { role: 'admin', tenantId: '*' } });
+    const html = r.html || '';
+    expect(html).toContain('so-d-stages');
+    const stageCards = (html.match(/class="so-stage"[^>]*data-dk=/g) || []).length;
+    expect(stageCards).toBe(8); // 8 个 SCS 场景各一张卡片
+    // 阶段卡片 data-dk 须与既有 L2 隐藏块同 key（下钻复用）
+    const stageKeys = [...html.matchAll(/class="so-stage"[^>]*data-dk="([^"]+)"/g)].map((m) => m[1]);
+    for (const k of stageKeys) {
+      expect(html).toMatch(new RegExp(`so-detail-hidden[^>]*data-dk="${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
+    }
+  });
+  // 下半区汇总契约：so-d-summary 段含 3 张汇总卡（l1-summary/l2-summary/l3-summary）
+  // 每张卡 data-dk 对应同 key 隐藏明细块（点卡下钻还原原明细）
+  it('D 渲染器下半区含 L1/L2/L3 三张汇总卡（可下钻明细）', async () => {
+    const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
+    const r = await renderDecision({ me: { role: 'admin', tenantId: '*' } });
+    const html = r.html || '';
+    expect(html).toContain('so-d-summary');
+    const cardKeys = ['l1-summary', 'l2-summary', 'l3-summary'];
+    for (const k of cardKeys) {
+      expect(html).toMatch(new RegExp(`class="so-summary-card"[^>]*data-dk="${k}"`));
+      // 每张汇总卡都有对应隐藏明细块（下钻还原）
+      expect(html).toMatch(new RegExp(`so-detail-hidden[^>]*data-dk="${k}"`));
+    }
+    // 明细内容仍存在于隐藏块内（L1 闸门行 / L2 场景行 / L3 处方项 data-dk）
+    const l1Rows = (html.match(/<tr[^>]*data-dk=/g) || []).length;
+    const l2Rows = (html.match(/<tr[^>]*data-dk=/g) || []).length;
+    expect(l1Rows + l2Rows).toBeGreaterThan(0);
   });
 });
 
