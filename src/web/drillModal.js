@@ -86,6 +86,9 @@ export function openDrill({ title, key, root }) {
 export function bindDrill(rootSelector) {
   const root = document.querySelector(rootSelector);
   if (!root) return;
+  // ⚠ 必须在绑定时注入样式：.so-detail-hidden{display:none} 否则要等到首次 openDrill→ensureModal
+  // 才注入，导致页面加载后所有「隐藏明细块」实际可见（汇总卡与旧明细大表同时铺开）。
+  injectStyle();
   root.addEventListener('click', (e) => {
     const row = e.target.closest('[data-dk]');
     if (!row) return;
