@@ -21,6 +21,15 @@ export async function computeMetrics(tenantId, deps = {}) {
   const skills = await listSkill().catch(() => []);
   const kMethod = skills.filter((s) => s.methodology_id != null).length;
 
+  // 知识粒子数（scope 内注册态；tenantId='*' 时省略租户条件）
+  const kRes = await q(
+    `SELECT COUNT(*)::int AS n FROM crm.particles
+     WHERE type='CRM_KNOWLEDGE' AND state='registered'
+       AND ($1::text IS NULL OR tenant_id=$1)`,
+    [tenantId === '*' ? null : tenantId]
+  ).catch(() => ({ rows: [{ n: 0 }] }));
+  const kCount = Number(kRes.rows?.[0]?.n ?? 0);
+
   const mRes = await q(
     `SELECT COUNT(*)::int AS n
      FROM crm.decision_precedent_rel r
@@ -34,6 +43,7 @@ export async function computeMetrics(tenantId, deps = {}) {
 
   return [
     { metric: 'k_method_skill', value: kMethod },
+    { metric: 'k_knowledge_count', value: kCount },
     { metric: 'm_precedent_edge', value: mPrecedent },
     { metric: 'd_l1_intercept', value: dL1 },
   ];
@@ -62,6 +72,18 @@ export async function sampleAll(deps = {}) {
   for (const t of tenants) {
     await sampleTenant(t, today, { ...deps, query: q, queryWrite: qw });
   }
+  // 全租户聚合行（admin 全租户开关读取 k_knowledge_count）
+  const allRes = await q(
+    `SELECT COUNT(*)::int AS n FROM crm.particles
+     WHERE type='CRM_KNOWLEDGE' AND state='registered'`
+  ).catch(() => ({ rows: [{ n: 0 }] }));
+  await qw(
+    `INSERT INTO crm.system_overview_sample (tenant_id, sample_date, metric, value)
+     VALUES ('*', $1, 'k_knowledge_count', $2)
+     ON CONFLICT (tenant_id, sample_date, metric) DO UPDATE SET value = EXCLUDED.value`,
+    [today, Number(allRes.rows?.[0]?.n ?? 0)]
+  );
+  // 全租户聚合 + 各租户
   return tenants.length;
 }
 
