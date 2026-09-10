@@ -17,7 +17,11 @@
     "mcp:stdio": "node src/mcp/server.js --stdio",
     "mcp:http": "node src/mcp/server.js --http",
     "buddy:e2e": "node scripts/buddy-e2e-suite.mjs",
-    "buddy:ui-e2e": "node scripts/buddy-ui-e2e.mjs"
+    "buddy:ui-e2e": "node scripts/buddy-ui-e2e.mjs",
+    "probe:kmd": "node scripts/kmd-closure-probe.mjs",
+    "probe:kmd:self": "node scripts/kmd-closure-probe.mjs --self-test",
+    "probe:kmd:e2e": "node scripts/kmd-closure-probe.mjs --e2e --db=test",
+    "triage:calibration": "node scripts/calibration-triage.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
