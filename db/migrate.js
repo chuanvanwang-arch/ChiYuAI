@@ -37,6 +37,8 @@ export const INCREMENTAL_SQL = [
   'migration-decision-scenario-tenant-pk.sql', // 2026-09-05 decision_scenario PK 复合化 (scenario_id, tenant_id)（G5 方案a）+ 引用 FK 复合化 + 引用对齐前移
   'migrate-billing-features-array.sql',  // 2026-09-06 计费域：billing-plans features string→string[]（landing 卡片项目动态化前置）
   'migrate-sysadmin-write-scope.sql',    // 2026-09-06 F4（方案 C）：sysadmin 写范围收敛（data_scope.write_scope=governance）
+  '2026-09-10-memory-entity-type.sql',   // 2026-09-10 客户记忆写回 C1/C2：memory_log 补 entity_type（锚点类型，与 entity_id 成对解释语义）
+  'migrate-knowledge-kind-backfill.sql',  // 2026-09-10 知识 kind 枚举补齐：CRM_KNOWLEDGE 缺 payload.kind 的按形态回填 vocabulary/transition（用户裁决：先补齐存量）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
