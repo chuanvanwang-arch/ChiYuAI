@@ -8,6 +8,10 @@ const MEMORY_MAX = 100;    // 单条记忆截断预算
 const MEMORY_TOP = 3;      // 记忆最多注入条数（防 token 膨胀）
 const TIMELINE_TOP = 8;    // 叙事时间线最多注入条数（WHEN 轴，防 token 膨胀）
 const TIMELINE_ROW_MAX = 80;
+// P0-3（2026-09-10）：场景知识层 LK 的注入预算。LK 此前装配后无人消费（死层），
+//   本次接通 ① K→D 边；与记忆同量级控预算，避免长文本知识撑爆 prompt。
+const KNOWLEDGE_TOP = 3;       // 场景知识最多注入条数
+const KNOWLEDGE_ROW_MAX = 160; // 单条场景知识截断预算
 
 function clip(text, n) {
   if (!text) return '';
@@ -37,6 +41,25 @@ export function formatForPrompt(bundle) {
     // 方法论强调（设计 §5/§8：L1 知识底座中 行为方法独立成块，sales/manager 决策时优先可见）
     const sales = layers.L1.filter((x) => x.title && /|大漏斗|S1|S6|行为合格|拜访/.test(x.title));
     if (sales.length) parts.push(`行为方法(${sales.length}): ` + sales.map((x) => x.title).join('; '));
+  }
+  // P0-3（2026-09-10）：消费 layers.LK —— 场景知识层。
+  //   背景：`assembler.js:258` 装配 LK 后全仓零消费者（探针 D2 lk_consumers=0），端到端哨兵
+  //   实测「LK 命中 1 行但 prompt 检索不到」→ ① K→D 边在此断裂，12 条真实业务知识
+  //   （ICP / 竞品 / 买手语言 / 客户异议）从未进入任何一次决策。此处接通该边。
+  //   行格式为 buildKnowledgeRows 收敛后的 {kind, term, content}，三字段缺一即跳过（不注空壳）。
+  if (Array.isArray(layers.LK) && layers.LK.length) {
+    const picked = layers.LK.slice(0, KNOWLEDGE_TOP);
+    const lines = picked
+      .map((k) => {
+        const label = [k?.kind, k?.term].filter(Boolean).join('/');
+        const body = clip(k?.content, KNOWLEDGE_ROW_MAX);
+        return body ? `· ${label ? `${label}: ` : ''}${body}` : null;
+      })
+      .filter(Boolean);
+    if (lines.length) {
+      const more = layers.LK.length > picked.length ? `，共${layers.LK.length}条，仅列${picked.length}条` : '';
+      parts.push(`场景知识(${lines.length}${more}):\n${lines.join('\n')}`);
+    }
   }
   if (layers.L2?.decisions?.length) {
     const decs = layers.L2.decisions
