@@ -258,4 +258,20 @@ export function seedSkills() {
   for (const skill of EXEC_SKILLS) {
     registerSkill(skill);
   }
+
+  // 线索自主发现循环 SKILL（Task 5 硬闭包 3/3）：本体优先富集 → 缺口瀑布 → 评分入 payload → 持续监控重评分
+  registerSkill({
+    slug: 'lead-discovery', version: 1, enabled: true, rbac_roles: ['sales', 'ten_admin'],
+    description: '线索自主发现循环：本体优先富集 → 缺口瀑布 → 评分入 payload → 持续监控重评分',
+    steps: [
+      { step: 1, action: 'discovery-run', decision: 'rule',
+        params: { limit: 50 }, preconditions: [], postconditions: ['result.candidates>=0'] },
+      { step: 2, action: 'discovery-enrich', decision: 'rule',
+        params: { fields: ['email', 'phone', 'firmographics'] },
+        preconditions: ['steps[0].done'], postconditions: ['decision.finalized'] },
+      { step: 3, action: 'discovery-research', decision: 'j_judge',
+        prompt: '基于 enrichment+signals 产出 why_narrative 与 2D 判定 {{steps[1].result}}',
+        preconditions: ['steps[1].done'], postconditions: ['payload.research.why_narrative!=null'] },
+    ],
+  });
 }

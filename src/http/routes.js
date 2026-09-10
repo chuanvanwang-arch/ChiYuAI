@@ -16,6 +16,7 @@ import { distillMemory } from '../memory/memoryLog.js';
 import { registerCaptureSubscriber, loadCaptureDomains } from '../memory/capture.js';
 import { ensureTimers } from '../scheduler/timers.js';
 import { seedConnectorActions } from '../connectors/connectorActions.js';
+import { seedDiscoveryActions } from '../action/discoveryActions.js';
 // 非结构化证据挂接（2026-08-31）：上传/下载路由（staging，免 confirm）
 import { createAssetRoutes } from '../assets/upload.js';
 import { registerMonitorSubscriber, ensureMonitorSchema } from '../monitor/monitorSubscriber.js';
@@ -483,6 +484,8 @@ export function createRoutes(app, hub) {
   seedActions();
   // ④ 外部连接器 P0：ATTIO enrichment + 工商校验（autoDecision 过第 0 闸，auto_weak 来源边）
   seedConnectorActions();
+  // 线索自主发现 Action 族（Task 5 硬闭包 1/3）：与 agents.js 同源，两条注册入口都须接线
+  seedDiscoveryActions();
   // 记忆治理底座：事件总线单汇点捕获（residue 零摩擦），建应用时注册一次
   registerCaptureSubscriber();
   // C4（2026-09-10）：捕获域白名单可由 config_store['memory-capture-domains'] 覆盖；

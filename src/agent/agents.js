@@ -3,6 +3,7 @@
 import { agentSpecs } from './agentSpec.js';
 import { getAction } from '../action/registry.js';
 import { seedActions } from '../action/seed-actions.js';
+import { seedDiscoveryActions } from '../action/discoveryActions.js';
 
 // KG 当前全局降级态（阶段1/2 无 KG，统一 degraded）；接 KG 后改为读取真实就绪态。
 // 该标志用于「降级一致性守护」：声明 L3 上下文但 KG 降级属装配失败（契约层只看声明集合、不感知降级，会静默误判）。
@@ -64,6 +65,8 @@ export function resolveRuntimeKgLayers(spec) {
 export async function assertAgentAssembly() {
   // 确保 Action Registry 已注入（Agent 装配断言 4 依赖；幂等）
   seedActions();
+  // 线索发现 Action 族（Task 5 三处硬闭包 1/3）：decision-agent capabilities 依赖其在 Registry 存在（断言 4）
+  seedDiscoveryActions();
   const results = [];
 
   // 断言 3：权限闭包 ⋃(SKILL.calls) ⊆ capabilities.actions

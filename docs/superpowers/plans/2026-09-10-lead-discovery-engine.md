@@ -1043,11 +1043,17 @@ git commit -m "feat(discovery): P0#1 enrichment 2D + judge rule_ref + glass-box 
 ## Task 5: discovery-* Action 三处硬闭包注册
 
 **Files:**
-- Create: `src/action/discoveryActions.js` — `seedDiscoveryActions()`；**仿 `src/connectors/connectorActions.js` 同构范式**（独立文件 + 独立 seed 函数，不塞进 2010 行的 `seed-actions.js`）
-- Modify: `src/agent/agents.js:66`、`src/http/routes.js:467-469`（调用 `seedDiscoveryActions()`）、`src/agent/agentSpec.js:74-89`（`decision-agent` capabilities）、`src/skills/seed.js`（`lead-discovery` SKILL steps）
+- Create: `src/action/discoveryActions.js` — `seedDiscoveryActions()`；**仿 `src/connectors/connectorActions.js` 同构范式**（独立文件 + 独立 seed 函数，不塞进 2000+ 行的 `seed-actions.js`）
+- Modify: `src/agent/agents.js:66`（`seedActions()` 之后）、`src/http/routes.js:485`（`seedConnectorActions()` 之后；import 加在 `:18` 附近）、`src/agent/agentSpec.js`（`decision-agent` capabilities 两数组）、`src/skills/seed.js`（`lead-discovery` SKILL steps）
 - Test: `test/action/discoveryActions.test.js`
 
-> **契约校正声明**：`registerAction` 真实签名为**平铺对象** + `kind/permission/namespace/agentTool/handler`（见 `crm-invoice-create:1196-1210`、`connectors/connectorActions.js:17-49`），**不是** `{schema:{type,properties}, run(ctx,input)}`；`autoWeakEdge`/`weakPredicate` 为连接器族专用扩展字段（`connectorActions.js:21` 实证存在）；`registerSkill` 真实签名为 `{slug, version, steps[]}`（`registry.js:24-30`），**不是** `{name, description}`。
+> **契约校正声明（派发前源码级复查，2026-09-11；6 条，全部经源码实证）**
+> ① `registerAction` 真实签名 = **平铺对象** + `kind/permission/namespace/agentTool/handler`（`registry.js:6-22`、`connectorActions.js:17-32` 实证），**不是** `{schema:{type,properties}, run(ctx,input)}`；`namespace` 缺省由 name 前缀自动推导（`registry.js:20`，`discovery-*` → `discovery`）。
+> ② `registerSkill` 真实签名 `{slug, version, steps[], enabled?, rbac_roles?, description?}`（`skills/registry.js:24-30`）；steps 项 = `{step, action, decision, params, prompt?, preconditions, postconditions}`（`seed.js:8-17` 实证）。
+> ③ **硬错：`assertAgentAssembly()` 是 `async`**（`agents.js:64 export async function`）→ 测试必须 `await`，否则 `.ok` 恒 `undefined`、断言恒红（原稿直接 `assertAgentAssembly().ok`）。
+> ④ **硬错：决策场景 id 冻结为 `'LEAD_FIT'`**（UPPER_SNAKE）。真实 `crm.decision_scenario` 键**全为 UPPER_SNAKE**（`db/seed.sql:227-233`：`LEAD_FOLLOW_UP`/`OPP_QUALIFY`/`CLIENT_STRATEGY`…），且 `executor.js:65 getScenario()` 是**精确匹配** `WHERE scenario_id=$1`。原稿 `'LEAD_DISCOVERY'` 与 Task 6 要 seed 的 `'lead-fit'` **两边都对不上** → 运行时 `executor.js:71` 走 else 分支**静默不 mint**（只 emit trace），写通道第 0 闸形同虚设。Task 6 / Task 18 已同步改齐为 `LEAD_FIT`。
+> ⑤ 下游真实签名（防本 Task 写死错误调用）：`runDiscovery(ctx, input)`（Task 7）、**`claygentResearch(entity, brief, { getLlmJson })` 且模块是 `src/connectors/discovery/claygent.js`**（Task 8）——原稿 `claygentResearch(ctx, input)` 是**错序错模块**；`loadAdapters({tenantId})` + `runWaterfall(adapters, entity, fields, ctx)`（Task 2 已落地）；`selectPlaybook(rules, signals)`（Task 14 真实签名，原稿 `selectPlaybook('enrich', {tenantId})` 错）；`getLlmJson(opts)`（`src/llm/client.js:110`）。原稿 `plan.adapters` / `plan.fields` 字段在 `compilePlaybook()` 返回体里**不存在**（真实返回 `{name, steps[]}`），故本 Task **不前置依赖 Task 14**，enrich 直接走 Task 2 的 `loadAdapters`。
+> ⑥ **`lead-discovery` 不得写进 `skillCalls`**：`assertAgentAssembly` 断言 3（`agents.js:72-78`）要求 `skillCalls ⊆ capabilities.actions`，断言 4（`:81-88`）要求每个 `actions` 项都在 Registry 存在；平台既有惯例是「method-* SKILL slug **同时**登记为同名 Action」才能进 `skillCalls`。本 Task 只把 3 个 `discovery-*` **Action** 写进两数组，SKILL slug 仅经 `registerSkill` 登记（硬闭包 3）。→ **遗留项（交 T6/T7）**：若 `lead-discovery` 需被 agent 自动选中（`agentSkillAllowed` 闸 `skills/registry.js:17-23`），须按 method-* 三处同改惯例补一个同名 Action；否则该 SKILL 只经 MCP 人工调用（`rbac_roles` 已含 `sales`）。
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1056,41 +1062,74 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { getAction } from '../../src/action/registry.js';
 import { seedDiscoveryActions } from '../../src/action/discoveryActions.js';
 import { assertAgentAssembly } from '../../src/agent/agents.js';
+import { agentSpecs } from '../../src/agent/agentSpec.js';
+import { seedSkills } from '../../src/skills/seed.js';
+import { getSkill } from '../../src/skills/registry.js';
 
-beforeAll(() => seedDiscoveryActions());
+beforeAll(() => { seedDiscoveryActions(); seedSkills(); });
+
+const NAMES = ['discovery-run', 'discovery-enrich', 'discovery-research'];
+const FLAT_FIELDS = ['kind', 'permission', 'namespace', 'agentTool', 'handler', 'schema'];
 
 describe('discovery actions hard closures', () => {
-  it('discovery-run registered in Action Registry', () => {
-    expect(getAction('discovery-run')).not.toBeNull();
+  it('① discovery-* registered in Action Registry', () => {
+    for (const n of NAMES) expect(getAction(n), n).not.toBeNull();
   });
-  it('assertAgentAssembly passes with discovery actions wired', () => {
-    expect(assertAgentAssembly().ok).toBe(true);
+  it('④ flat def fields present (non JSON-Schema) + namespace 自动推导', () => {
+    const a = getAction('discovery-run');
+    for (const k of FLAT_FIELDS) expect(a[k], k).toBeDefined();
+    expect(a.namespace).toBe('discovery');
+    expect(a.kind).toBe('write');
+    expect(a.permission).toBe('auth');
+  });
+  it('② assertAgentAssembly passes with discovery actions wired', async () => {
+    const r = await assertAgentAssembly();   // ⚠ async：必须 await（原稿漏 await → 假红）
+    expect(r.ok).toBe(true);
+  });
+  it('③ skillCalls ⊆ capabilities.actions（discovery-* 两数组同改）', () => {
+    const spec = agentSpecs['decision-agent'];
+    for (const c of spec.capabilities.skillCalls) expect(spec.capabilities.actions, c).toContain(c);
+    for (const n of NAMES) expect(spec.capabilities.skillCalls, n).toContain(n);
+  });
+  it('⑤ lead-discovery SKILL registered (slug 精确匹配)', () => {
+    expect(getSkill('lead-discovery')).not.toBeNull();
+    expect(getSkill('lead-discovery').slug).toBe('lead-discovery');
   });
 });
 ```
 
-- [ ] **Step 2: Run test** → FAIL
+- [ ] **Step 2: Run test** → FAIL（`Cannot find module '../../src/action/discoveryActions.js'`）
 
-- [ ] **Step 3: Create `src/action/discoveryActions.js`**（**平台真实契约**）
+- [ ] **Step 3: Create `src/action/discoveryActions.js`**
 
 ```js
 // src/action/discoveryActions.js — 线索自主发现 Action 族
 // 铁律（逐条继承 connectors/connectorActions.js:1-7）：
-//   ① 写通道第 0 闸（autoDecision=true → 自身经决策引擎 mint decision，无决策不写）
+//   ① 写通道第 0 闸（autoDecision=true + decisionScenario → executor.js:64-70 统一 mint，无决策不写）
 //   ② 外部数据只落 payload 事实字段 + sourcedFrom 弱边（auto_weak；relation_confidence 落边 meta）
 //   ③ 低置信 → confirm 信号（stage2 review），绝不冒充人工确认
 //   ④ 禁删：只增改，不删除粒子/边
 import { registerAction } from './registry.js';
 import { createEdge } from '../particles/particleRepo.js';
-import { emit } from '../events/bus.js';
 
-// 决策场景：与 Task 6 登记的 lead-fit decision_scenario 同源（UPPER_SNAKE，对齐既有用例）
-const DISCOVERY_SCENARIO = 'LEAD_DISCOVERY';
+// 决策场景 id（UPPER_SNAKE，与 db/seed.sql 的 crm.decision_scenario 键同源；Task 6 落 'LEAD_FIT' 行）。
+const DISCOVERY_SCENARIO = 'LEAD_FIT';
+
+// 写通道 fail-closed 守卫：executor 已 mint 时 ctx.decision_id 必有值（executor.js:68-70）。
+//   为 undefined 说明场景行缺失 → executor.js:71 只会 emit trace 'auto-decision-no-scenario'
+//   然后**照常执行 handler**（静默无决策写）。此处把静默失败顶成硬错，不留假绿。
+function requireMintedDecision(ctx, actionName) {
+  if (!ctx?.decision_id) {
+    throw new Error(
+      `decision_required: ${actionName} 无 decision_id（检查 crm.decision_scenario 是否已 seed '${DISCOVERY_SCENARIO}'）`
+    );
+  }
+}
 
 function registerDiscovery(def) {
   registerAction({
     kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'],
-    namespace: 'discovery', agentTool: true, force: false, needsApproval: false,
+    namespace: 'discovery', agentTool: true, force: false, needsApproval: true,
     autoDecision: true, confirm: 'stage2', owner: 'crm-native', version: '1.0.0',
     autoWeakEdge: true, weakPredicate: 'sourcedFrom',
     decisionScenario: DISCOVERY_SCENARIO,
@@ -1104,58 +1143,71 @@ export function seedDiscoveryActions() {
   registerDiscovery({
     name: 'discovery-run',
     schema: { tenant_id: 'string', seed: 'object', limit: 'number' },
+    parameters: { required: ['seed'] },
     handler: async (input, ctx) => {
+      requireMintedDecision(ctx, 'discovery-run');
+      // Task 7 落地；动态 import → 注册期零模块依赖（Task 5 可独立绿）
       const { runDiscovery } = await import('../agent/discoveryOrchestrator.js');
       return runDiscovery(ctx, input);
     },
   });
+
   // discovery-enrich：对指定 account 执行一次瀑布富集（写 payload + sourcedFrom 弱边）
   registerDiscovery({
     name: 'discovery-enrich',
     schema: { account_id: 'string', fields: 'array' },
     parameters: { required: ['account_id'] },
     handler: async ({ account_id, fields }, ctx) => {
+      requireMintedDecision(ctx, 'discovery-enrich');
+      const { loadAdapters } = await import('../connectors/discovery/providerRegistry.js');
       const { runWaterfall } = await import('../connectors/discovery/waterfall.js');
-      const { selectPlaybook } = await import('../connectors/discovery/orchestrationCompiler.js');
-      const plan = await selectPlaybook('enrich', { tenantId: ctx.tenantId });
-      const enrichment = await runWaterfall(plan.adapters, 'CRM_ACCOUNT', fields || plan.fields, ctx);
-      if (enrichment?.source_knowledge_id) {
-        await createEdge('CRM_ACCOUNT', account_id, 'sourcedFrom', 'CRM_KNOWLEDGE', enrichment.source_knowledge_id,
-          { edge_source: 'auto_weak', relation_confidence: enrichment.confidence ?? 0.5,
-            provenance: 'discovery-enrich', decision_id: ctx.decision_id }, ctx.tenantId).catch(() => {});
+      const { buildEnrichmentPayload } = await import('../agent/discoverySchema.js');
+      const adapters = await loadAdapters({ tenantId: ctx.tenantId });
+      const entity = (ctx.getParticle ? await ctx.getParticle(account_id) : null) || { id: account_id };
+      const { values, cost } = await runWaterfall(adapters, entity, fields || ['email', 'firmographics'], ctx);
+      const enrichment = buildEnrichmentPayload(values);
+      // 来源语义落边：ACCOUNT --sourcedFrom--> KNOWLEDGE（auto_weak，relation_confidence 落 meta）
+      const k = values?.source_knowledge_id;
+      if (k?.value) {
+        await createEdge('CRM_ACCOUNT', account_id, 'sourcedFrom', 'CRM_KNOWLEDGE', k.value, {
+          edge_source: 'auto_weak', relation_confidence: k.confidence ?? 0.5,
+          provenance: 'discovery-enrich', decision_id: ctx.decision_id,
+        }, ctx.tenantId).catch(() => {});
       }
-      return enrichment;
+      return { account_id, enrichment, cost, decision_id: ctx.decision_id };
     },
   });
+
   // discovery-research：Claygent 式自主研究（区块二分抓取 + getLlmJson 抽取，见 Task 8）
   registerDiscovery({
     name: 'discovery-research',
     schema: { account_id: 'string', brief: 'string' },
-    parameters: { required: ['account_id'] },
-    handler: async (input, ctx) => {
-      const { claygentResearch } = await import('../agent/discoveryOrchestrator.js');
-      return claygentResearch(ctx, input);
+    parameters: { required: ['account_id', 'brief'] },
+    handler: async ({ account_id, brief }, ctx) => {
+      requireMintedDecision(ctx, 'discovery-research');
+      // Task 8 落地（模块 = connectors/discovery/claygent.js，签名 (entity, brief, {getLlmJson})）
+      const { claygentResearch } = await import('../connectors/discovery/claygent.js');
+      const { getLlmJson } = await import('../llm/client.js');
+      const entity = (ctx.getParticle ? await ctx.getParticle(account_id) : null) || { id: account_id };
+      return claygentResearch(entity, brief, { getLlmJson: ctx.getLlmJson || getLlmJson });
     },
   });
 }
 ```
 
-> **命名空间**：`registry.js:22` 由 name 前缀自动推导 `namespace='discovery'`；`run/enrich/research` **非 CRUD 动词**，不触发 `detectCrudExplosion()` 的 R3 护栏（该护栏仅对「同 type 出现 ≥2 个 CRUD 动词」报警，见 `registry.js` 反爆炸段）。
+> **命名空间**：`registry.js:20` 由 name 前缀自动推导 `namespace='discovery'`；`run/enrich/research` **非 CRUD 动词**，不触发 `detectCrudExplosion()` 的 R3 护栏（`registry.js:52-57` 的 `CRUD_VERBS = create/read/update/delete`）。
 > **entitlement**：复用 `core_crm`（既有 41 处），**不新增功能键**——新增键会连动「配置中心 ≡ `db/seed-billing-config.sql` ≡ `seedBillingPlans.js`」三源一致铁律，超本轮范围（标 future）。
+> **`needsApproval: true`**（原稿 `false` 已改）：`discovery-run` 会用外部数据**创建 CRM_ACCOUNT/CRM_DEAL 粒子**，与 `connectorActions.js` 同类 blast radius（该类全部 `needsApproval: true` + `confirm:'stage2'`）；Task 18 亦要求写动作默认 `human_gate`、不进 autonomous 白名单。
 > **`requiresEntitlement` 取值须落在既有集合**：`core_crm / ai_agents / approval_flow / decision_autonomy / event_automation / memory / advanced_reporting / audit_provenance / customer_360 / industry_config / rbac_advanced`。
 
-- [ ] **Step 4: Wire into `src/agent/agentSpec.js`** — 在 `decision-agent`（`:74-89`，`autonomy:'autonomous'`）的 `capabilities.actions` **与** `skillCalls` 两数组追加 `'discovery-run','discovery-enrich','discovery-research'`。硬闭包 2 约束 `skillCalls ⊆ capabilities.actions`（`agents.js:77`），两处必须同改，漏一处整册断言失败。
+- [ ] **Step 4: Wire into `src/agent/agentSpec.js`** — 在 `decision-agent`（`identity.autonomy:'autonomous'`）的 `capabilities.actions` **与** `capabilities.skillCalls` 两数组各追加 `'discovery-run','discovery-enrich','discovery-research'`。硬闭包 2 约束 `skillCalls ⊆ capabilities.actions`（`agents.js:72-78`）+ 断言 4 要求全部在 Registry 存在（`:81-88`），两处必须同改，漏一处整册断言失败。
+  > ⚠ **commit 卫生**：`src/agent/agentSpec.js` 在本次工作前**已存在一处未提交改动**（followup agent 加 `crm-followup-requirement-collect`，mtime 2026-09-09）——按「每 Task 一 commit / 禁混功能线」铁律，请**先把该既有改动单独提交**，再提交本 Task；否则 `git add src/agent/agentSpec.js` 会把两条功能线裹进同一个 commit。
 
-- [ ] **Step 4b: 注册入口接线** — `src/agent/agents.js:66`（`seedActions()` 之后）与 `src/http/routes.js:469`（`seedConnectorActions()` 之后）各加：
+- [ ] **Step 4b: 注册入口接线** — 两条路径都要接（否则 Action 表在真实运行时为空、MCP 工具缺失）：
+  - `src/agent/agents.js`：顶部（`import { seedActions } from '../action/seed-actions.js';`，`:5` 附近）加 `import { seedDiscoveryActions } from '../action/discoveryActions.js';`；在 `assertAgentAssembly()` 内 `seedActions();`（`:66`）之后加 `seedDiscoveryActions();`。
+  - `src/http/routes.js`：`import { seedConnectorActions } from '../connectors/connectorActions.js';`（`:18`）附近加 `import { seedDiscoveryActions } from '../action/discoveryActions.js';`；在 `seedConnectorActions();`（**`:485`**，非原稿 `:469`）之后加 `seedDiscoveryActions();`。
 
-```js
-import { seedDiscoveryActions } from '../action/discoveryActions.js';
-// ...
-seedDiscoveryActions();
-```
-两条路径（agent 装配 / 生产启动）都要接线，否则 Action 表在真实运行时为空（MCP 工具缺失）。
-
-- [ ] **Step 5: Register SKILL in `src/skills/seed.js`**（**真实契约 `{slug, version, steps[]}`**，steps 项 = `{step, action, decision, params, preconditions, postconditions}`；见 `skills/registry.js:24-30` + `seed.js:7-16`）
+- [ ] **Step 5: Register SKILL in `src/skills/seed.js`**（在 `seedSkills()` 内追加；**真实契约 `{slug, version, steps[]}`**，`skills/registry.js:24-30` + `seed.js:8-17` 实证）
 
 ```js
 registerSkill({
@@ -1174,33 +1226,42 @@ registerSkill({
 });
 ```
 
-- [ ] **Step 6: Run test** → PASS（assertAgentAssembly().ok === true）
+- [ ] **Step 6: Run test** → PASS（5 例：① ② ③ ④ ⑤ 全绿；`assertAgentAssembly().ok === true`）
 
 - [ ] **Step 7: Commit**
 
 ```powershell
-git add src/action/seed-actions.js src/agent/agentSpec.js src/skills/seed.js test/action/discoveryActions.test.js
+git add src/action/discoveryActions.js src/agent/agents.js src/http/routes.js src/skills/seed.js test/action/discoveryActions.test.js
 git commit -m "feat(discovery): register discovery-* actions via 3 hard closures"
 ```
 
+> `src/agent/agentSpec.js` 若已按上述「commit 卫生」先行单独提交其既有 followup 改动，本 commit 再补一次：
+> `git add src/agent/agentSpec.js` + `git commit -m "feat(discovery): wire discovery-* into decision-agent capabilities"`。
+
 ---
 
-## Task 6: lead-fit decision_scenario + 事件矩阵行（KMD 结合）
+## Task 6: LEAD_FIT decision_scenario + 事件矩阵行（KMD 结合）
 
 **Files:**
-- Modify: `db/seed.sql` (新增 scenario 行，仿 `LEAD_FOLLOW_UP:229-233`), `src/decision/eventTrigger.js:15-26`
+- Modify: `db/seed.sql` (新增 scenario 行；仿 `:227-233` 的 `LEAD_FOLLOW_UP` 列序/写法), `src/decision/eventTrigger.js:15-26`
 - Test: `test/decision/leadFitScenario.test.js`
 
 - [ ] **Step 1: Write the failing test**
 
 ```js
+// ⚠ 无 resolveScenario 导出、亦无 src/decision/scenarioStore.js（原稿虚构）——真实场景读取只有
+//   executor.js:30-36 的私有 getScenario()（未导出）+ autonomyEngine.requireDecision()。
+//   故本 Task 走「集成（真实 PG）」直查表，与测试计划 §2 对 T6 的分层一致（crm_native_test@5433）。
 import { describe, it, expect } from 'vitest';
-import { resolveScenario } from '../../src/decision/scenarioStore.js'; // 既有 scenario 读取
-describe('lead-fit scenario', () => {
-  it('lead-fit scenario exists with tier LEAD + autonomous', async () => {
-    const s = await resolveScenario('lead-fit');
-    expect(s.tier).toBe('LEAD');
-    expect(s.autonomous_allowed).toBe(true); // 注意实际列名以 schema 为准
+import { query } from '../../src/db.js';
+
+describe('LEAD_FIT scenario', () => {
+  it('scenario row exists with default_tier LEAD + autonomous_allowed', async () => {
+    const r = await query(
+      "SELECT scenario_id, default_tier, autonomous_allowed FROM crm.decision_scenario WHERE scenario_id='LEAD_FIT' AND tenant_id='system'"
+    );
+    expect(r.rows[0]?.default_tier).toBe('LEAD');
+    expect(r.rows[0]?.autonomous_allowed).toBe(true);
   });
 });
 ```
@@ -1210,18 +1271,23 @@ describe('lead-fit scenario', () => {
 - [ ] **Step 3: Add seed row in `db/seed.sql`** (沿用 `schema.sql:118` decision_scenario 结构)
 
 ```sql
-INSERT INTO crm.decision_scenario (key, name, tier, autonomous_allowed, focus_rulers, enabled_rulers, rubric_pass_line)
-VALUES ('lead-fit', '线索 ICP 适配度评分', 'LEAD', TRUE,
-        '["industry","headcount","geo","hiring_icp_role","funding_round"]',
-        '["industry","headcount","geo","hiring_icp_role","funding_round","importance"]',
-        0.6)
-ON CONFLICT (key) DO NOTHING;
+-- 真实列（db/schema.sql crm.decision_scenario；PK=(scenario_id, tenant_id)，2026-09-05 G5 复合化）。
+-- 原稿列名（key/name/tier/focus_rulers/enabled_rulers/rubric_pass_line）在表里**全不存在**。
+-- 七维/标尺以 eval_dimensions jsonb 表达（与既有 8 场景同构）；tenant_id 走列默认 'system'。
+INSERT INTO crm.decision_scenario
+  (scenario_id, stage, description, trigger, methodology_ids, eval_dimensions, default_tier, autonomous_allowed) VALUES
+('LEAD_FIT', '一、线索', '线索 ICP 适配度评分（发现引擎：industry/headcount/geo/hiring/funding）',
+ '{"cond":{"event":"discovery-sync","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
+ ARRAY['BANT','MEDDICC','OPP_MATRIX'],
+ '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
+ 'LEAD', TRUE)
+ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 ```
 
 - [ ] **Step 4: Add event matrix row in `src/decision/eventTrigger.js`** (在 `:15-26` 矩阵数组加；可选，独立评分)
 
 ```js
-{ event: 'CRM_KNOWLEDGE', kind: 'discovery-sync', intent: 'lead-fit', agent: 'decision-agent' },
+{ event: 'CRM_KNOWLEDGE', kind: 'discovery-sync', intent: 'LEAD_FIT', agent: 'decision-agent' },
 ```
 
 - [ ] **Step 5: Run test** → PASS
@@ -2135,7 +2201,7 @@ describe('discovery ACTION 对外面', () => {
       const a = getAction(n);
       expect(a.kind).toBe('write');
       expect(a.agentTool).toBe(true);
-      expect(a.decisionScenario).toBe('LEAD_DISCOVERY');
+      expect(a.decisionScenario).toBe('LEAD_FIT');
       expect(a.namespace).toBe('discovery');
     }
   });

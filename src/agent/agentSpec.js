@@ -74,8 +74,8 @@ export const agentSpecs = {
   'decision-agent': {
     identity: { name: 'decision-agent', derivedFrom: 'taskFlow:crm-decision-wiring', autonomy: 'autonomous' },
     capabilities: {
-      actions: ['data-particle-read', 'data-particle-create', 'crm-memory-upsert', 'decision-retrospective', 'method-decision-enrich', 'method-decision-execute'],
-      skillCalls: ['method-decision-enrich', 'method-decision-execute', 'data-particle-read', 'data-particle-create'],
+      actions: ['data-particle-read', 'data-particle-create', 'crm-memory-upsert', 'decision-retrospective', 'method-decision-enrich', 'method-decision-execute', 'discovery-run', 'discovery-enrich', 'discovery-research'],
+      skillCalls: ['method-decision-enrich', 'method-decision-execute', 'data-particle-read', 'data-particle-create', 'discovery-run', 'discovery-enrich', 'discovery-research'],
       // KG 降级契约（l3DegradedGuard）：与 decision-retro 同范式——阶段 1 无 KG，运行时层只能到 L2；
       // L3/L4 意图改由 kgTarget 表达。直接写 L3 会触发 l3_stated_but_kg_degraded 闸门
       // （2026-09-03 全量回归实测：decision-agent 曾写 L1-L4，导致 agentSpec/g3-knowledge-scope/g3-guardian 三处断言失败）。
