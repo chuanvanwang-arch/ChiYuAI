@@ -48,6 +48,30 @@ async function safePrecedentEdges() {
   } catch { return 0; }
 }
 
+// 先例边 Top：按被引用的 precedent_id 聚合（与 decision.referenced_precedents JSONB 同口径）
+async function safePrecedentTop(limit = 10) {
+  try {
+    const r = await query(`
+      SELECT pe ->> 'precedent_id' AS precedent_id, COUNT(*)::int AS n
+      FROM crm.decision d,
+           jsonb_array_elements(COALESCE(d.referenced_precedents, '[]'::jsonb)) pe
+      GROUP BY 1 ORDER BY n DESC LIMIT $1
+    `, [limit]);
+    return r.rows || [];
+  } catch { return []; }
+}
+
+// 蒸馏状态（只读 dry-run 口径，与 src/portal/memoryConfig.js:41 同源：不写库）
+async function safeDistill() {
+  try {
+    const r = await query(
+      `SELECT count(*)::int AS n FROM crm.memory_log
+       WHERE archived=false AND distilled=false AND created_at < now() - '30 days'::interval`
+    );
+    return Number(r.rows?.[0]?.n ?? 0);
+  } catch { return 0; }
+}
+
 function renderTrendSvg(edges) {
   // 占位 SVG（未来按日采样接入）
   return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="近 30 日先例引用趋势">
@@ -79,6 +103,24 @@ function renderTriSection(c) {
   </section>`;
 }
 
+function renderTopTable(top) {
+  if (!top.length) return '<div class="dn-empty">暂无先例引用边</div>';
+  const thead = '<tr><th>precedent_id</th><th>被引用次数</th></tr>';
+  const body = top.map((r) => `<tr data-precedent="${esc(r.precedent_id || '')}">
+      <td>${esc(r.precedent_id || '—')}</td><td>${r.n}</td></tr>`).join('');
+  return `<table class="pg-table">${thead}${body}</table>`;
+}
+
+function renderDistill(n) {
+  const cls = n > 0 ? 'warn' : 'ok';
+  const text = n > 0 ? `<b>${n}</b> 条待蒸馏（>30 天未蒸馏）` : '无需蒸馏';
+  return `<section class="pg-section so-m-distill">
+    <h3>蒸馏状态（30 天窗口）</h3>
+    <p><span class="badge ${cls}">${text}</span></p>
+    <p class="dn-note">口径：memory_log 未归档、未蒸馏、创建于 30 天前（只读 dry-run，不写库）。</p>
+  </section>`;
+}
+
 // 简化版：resolveMe 由路由层注入 me（已有 parseAuth / resolveMe 工具）；
 //         本渲染器仅消费 me.role 做权限判断，避免重复实现认证。
 export async function renderMemory({ me } = {}) {
@@ -90,12 +132,15 @@ export async function renderMemory({ me } = {}) {
       html: renderForbidden(me),
     };
   }
-  const [counts, edges] = await Promise.all([safeCounts(), safePrecedentEdges()]);
+  const [counts, edges, top, distill] =
+    await Promise.all([safeCounts(), safePrecedentEdges(), safePrecedentTop(10), safeDistill()]);
   const html = [
     '<section class="pg-section so-m-top">', renderTopState(edges), '</section>',
     '<section class="pg-section so-m-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(edges), '</section>',
+    '<section class="pg-section so-m-pred"><h3>先例边 Top 10（被引用次数）</h3>', renderTopTable(top), '</section>',
     renderTriSection(counts),
-    '<section class="pg-section so-m-drill"><p class="dn-empty">行点击下钻弹窗（先例边 Top10）由后续迭代补。</p></section>',
+    renderDistill(distill),
+    '<section class="pg-section so-m-drill"><p class="dn-empty">行点击下钻弹窗（单先例 / 单条记忆详情）由后续迭代补。</p></section>',
   ].join('');
-  return { schema: { type: 'monitor-overview-m' }, data: { edges, ...counts }, html };
+  return { schema: { type: 'monitor-overview-m' }, data: { edges, ...counts, distill, top: top.length }, html };
 }
