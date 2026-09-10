@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 470" font-family="sans-serif" font-size="13" fill="#000">
+  <rect x="0" y="0" width="680" height="470" fill="#fff"/>
+  <text x="20" y="26" font-size="15" font-weight="bold">图 2  记忆生命周期流程图</text>
+
+  <!-- 业务事件 -->
+  <rect x="20" y="50" width="130" height="44" rx="4" fill="#fff" stroke="#000"/>
+  <text x="85" y="77" text-anchor="middle">业务事件</text>
+
+  <!-- judge 四闸门 -->
+  <rect x="200" y="46" width="170" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="285" y="70" text-anchor="middle" font-weight="bold">judge 四闸门</text>
+  <text x="285" y="88" text-anchor="middle" font-size="11">凭证/显式/噪声/视界</text>
+
+  <!-- 丢弃 -->
+  <rect x="200" y="150" width="170" height="40" rx="4" fill="#fff" stroke="#000" stroke-dasharray="4 3"/>
+  <text x="285" y="175" text-anchor="middle" font-size="11">拒绝→不入库</text>
+
+  <!-- appendMemory -->
+  <rect x="430" y="46" width="150" height="44" rx="4" fill="#fff" stroke="#000"/>
+  <text x="505" y="73" text-anchor="middle">appendMemory</text>
+
+  <!-- distill 蒸馏 -->
+  <rect x="430" y="140" width="150" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="505" y="162" text-anchor="middle" font-weight="bold">distill 蒸馏</text>
+  <text x="505" y="180" text-anchor="middle" font-size="11">30d→distilled</text>
+  <text x="505" y="194" text-anchor="middle" font-size="11">60d→archived</text>
+
+  <!-- 归档保留 -->
+  <rect x="430" y="250" width="150" height="44" rx="4" fill="#fff" stroke="#000"/>
+  <text x="505" y="277" text-anchor="middle">归档保留（不删）</text>
+
+  <!-- 检索 -->
+  <rect x="620" y="46" width="50" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="645" y="70" text-anchor="middle" font-size="10">检索</text>
+  <text x="645" y="86" text-anchor="middle" font-size="10">rrf</text>
+
+  <!-- 注入 -->
+  <rect x="620" y="250" width="50" height="50" rx="4" fill="#fff" stroke="#000"/>
+  <text x="645" y="270" text-anchor="middle" font-size="10">注入</text>
+  <text x="645" y="286" text-anchor="middle" font-size="10">L1–L4</text>
+
+  <!-- 箭头 -->
+  <line x1="150" y1="72" x2="196" y2="72" stroke="#000"/>
+  <polygon points="196,67 196,77 202,72" fill="#000"/>
+
+  <line x1="285" y1="102" x2="285" y2="146" stroke="#000"/>
+  <polygon points="280,146 290,146 285,152" fill="#000"/>
+
+  <line x1="370" y1="68" x2="426" y2="68" stroke="#000"/>
+  <polygon points="426,63 426,73 432,68" fill="#000"/>
+
+  <line x1="505" y1="90" x2="505" y2="136" stroke="#000"/>
+  <polygon points="500,136 510,136 505,142" fill="#000"/>
+
+  <line x1="505" y1="196" x2="505" y2="246" stroke="#000"/>
+  <polygon points="500,246 510,246 505,252" fill="#000"/>
+
+  <line x1="580" y1="68" x2="616" y2="68" stroke="#000" stroke-dasharray="4 3"/>
+  <polygon points="616,63 616,73 622,68" fill="#000"/>
+
+  <line x1="580" y1="272" x2="616" y2="272" stroke="#000" stroke-dasharray="4 3"/>
+  <polygon points="616,267 616,277 622,272" fill="#000"/>
+
+  <text x="20" y="340" font-size="11" fill="#444">说明：写入经四闸门判定；通过者以 append-only 入日志；蒸馏仅置标记位（distilled/archived）不物理删除，</text>
+  <text x="20" y="358" font-size="11" fill="#444">实现“遗忘=归档”而非“遗忘=丢失”；检索经 rrfSearch 混合召回后于智能体运行时注入 L1–L4 上下文。</text>
+  <text x="20" y="400" font-size="11" font-weight="bold">七维完整性校验（图3）贯穿写入/蒸馏/召回各阶段：身份/结构/语义/时间与配置/决策历史/运行状态/治理。</text>
+</svg>

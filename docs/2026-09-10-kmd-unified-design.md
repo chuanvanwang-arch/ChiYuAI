@@ -241,7 +241,7 @@ node scripts/kmd-closure-probe.mjs --probe D1,D4           # 只跑指定探针
 | **D4** outcome 真实性 | ⑤ | 🔴 | `outcome_total=4`、`real_auto=0`、`seed_script=4`、**`event_rules=1`、`event_rules_enabled=1`**（规则已种，prod 尚未触发真实 contract_sign 事件；机制由 D12 行为级证明） |
 | **D6** 校准补丁积压 | ⑦ | 🔴 | `PENDING=60`、`APPLIED=1`、`REJECTED=1`、`ROLLED_BACK=1`、**最老积压 5.1 天**。⚠ **非代码缺陷**：校准补丁按 HITL 铁律**必须经管理员审批流落地**（`store.approvePatch`→`POST /api/calibration/patches/:id/approve` 或 `/api/my-todo/tune-approve`，均经第0闸真实决策行），消费链代码已验证正确。60 条全来自 3 次自动生成批次（09-05 15:38 / 09-06 02:03 / 09-09 02:03），本质是「产出无人审阅」的治理缺口。风险分布 MEDIUM 29 / HIGH 10 / LOW 21。已加只读 triage 辅助 `scripts/calibration-triage.mjs`（`npm run triage:calibration`）输出分级待办清单，供人消项 |
 | **D7** M→K 升格 | ⑧ | 🟢 | `total=1`、`from_memory=1` |
-| **D8** 记忆可用性 | ② | 🟡 | `memory_total=631,649`、`business_rows=9,042`、**锚点率 0%**（62 万历史行无锚点；新写入走 P0-4 四段式锚点）、可注入率 55.8%（5,045 行） |
+| **D8** 记忆可用性 | ② | 🟢 | **绝对数口径（2026-09-10 选项A）**：`memory_total=631,775`、`business_rows=9,168`、`injectable=145`（≥100 达标）、`anchored=54`（≥50 达标）；`anchor_pct_legacy=0.59`/`injectable_pct_legacy=1.58` 仅留作历史对照、不再参与判定。**判据从「占业务行比≥20%」改为「活跃可注入≥100 且 锚定≥50」**，消除结构化记忆占比失真 |
 | **D9** 噪声源排行(24h) | M 构建 | 🟡 | `rows_24h=1,543`、top=`llm-metering-missing-tenant` **1,124 行 / 72.85%**（均为 04:42 前的旧进程残留，近 60 分钟已为 0，见 D13） |
 | **D10** D→K 回写 | ④ | 🟡 | `knowledge_total=65`、`retro_knowledge=0` |
 | **D11** 知识投影契约 | K 构建 | 🟡 | `has_content=22`、`kind_in_four=12`、`both_ok=12`、**匹配率 18.46%** |
@@ -283,6 +283,8 @@ FROM crm.decision_outcome;
 -- D8：比率必须按「业务记忆」口径算，不能按全表（会被 62 万行噪声稀释）
 --   错误口径：全表 12/631,616 ≈ 0.002%（错觉）
 --   正确口径：排除 memory-distill-run 后 0/9,030 = 0%（真相）
+--   2026-09-10 选项A：D8 判定已弃用占比口径，改绝对数（injectable≥100 且 anchored≥50 → PASS）；
+--     原因：业务记忆以结构化事件为主、叙事文本少，占比口径对「真实活跃供给」天然失真（见 §8 末 D8 收口）。
 SELECT count(*) FILTER (WHERE event_type <> 'memory-distill-run') AS business_rows,
        count(*) FILTER (WHERE event_type <> 'memory-distill-run' AND entity_id IS NOT NULL) AS anchored
 FROM crm.memory_log;
@@ -357,7 +359,7 @@ node scripts/kmd-closure-probe.mjs --e2e --db=test
   D2  🟢 LK 消费者 ≥ 1（P0-3）
   D4  🟢 real_auto > 0 且 event_rules_enabled > 0（P0-2）
   D5  🟢 事件名交集非空（P0-1/P0-2b）
-  D8  🟢 锚点率 ≥ 20%（P0-4）
+  D8  🟢 活跃可注入记忆 ≥100 且 锚定记忆 ≥50（绝对数口径，选项A；原占比口径对结构化记忆分布失真）
   D11 🟢 契约匹配率 ≥ 50%（P0-0）
   E2E 🟢 in_prompt = true（P0-3 + P0-0）
 ```
@@ -436,6 +438,8 @@ P0-5 ──> 噪声已停（D13 近60m trace=0；旧进程04:42退役，C4生效
 2. **P0-2 的规则播种粒度**：**本轮已澄清一个前提**——`outcome_event_map` 实测 **0 行**，不是"映射粒度"问题而是"有没有"的问题。首批只映射 `contract_sign`→WIN（保守，可观察），还是一次性映射合同/回款/流单/审批驳回四类（激进，闭环更快成立）？建议保守起步。
 3. **旧 §4.1 的分工原则是否接受**：K 进判定内核（结构化、可审计）、M 进 prompt（叙事化）。若接受，P1-4 需要新增一个 S-op，会动 `supplySpec` 的供给契约——这是本方案中唯一涉及架构接口变更的一项。
 4. **存量噪声处置口径（已收敛）**：62 万条是 2026-09-01 单日历史事故（`distillScheduler.js:24-28` 已修），非持续污染。当前 `llm-metering-missing-tenant`（D9 24h 1,124 行）**经实证为旧进程在 2026-09-10 04:42 前产生的残留**，新进程接管后近 60 分钟零 trace 噪声（D13）。故**无需任何清理动作**：历史行按禁删红线保留、仅以 `archived` 隔离召回（不主动迁移，避免额外成本与 DELETE 红线冲突）；持续噪声已自然停止。该开放问题已关闭。
+
+5. **D8 记忆可用性探针口径（2026-09-10 选项A 已收口）**：原判据 `注入率≥20%`（占业务行比）对「业务记忆以结构化事件为主、叙事文本少」的分布天然失真——injectable 从 5,045 跌至 145 时 `injectable_pct` 仅 1.58% → 误判 🔴。经核查**非闭环断裂、非代码回归**（注入器 `retrieveMemory`/`rrfSearch` 本就 `archived=false` 过滤，145 条活跃可注入记忆真实存在且被消费；`anchored=54` 可检索）。**王川裁决：改绝对数口径**——`scripts/kmd-closure-probe.mjs` 的 `probeD8` 判定改为 `injectable≥100 且 anchored≥50 → PASS`（WARN: ≥20，否则 FAIL），`anchor_pct_legacy`/`injectable_pct_legacy` 仅留作历史对照、不再参与判定。改后 D8 🟡→🟢（injectable=145≥100、anchored=54≥50）。反假绿仍成立：P0-4 修复前 appendMemoryLog 静默全败 → injectable≈0 → FAIL，可区分「真有供给」与「空壳」。该开放问题已关闭。
 
 ---
 

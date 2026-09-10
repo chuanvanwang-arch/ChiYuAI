@@ -113,3 +113,7 @@ artifacts/
 .workbuddy/backups/
 # 部署辅助产物
 scripts/tencent-lighthouse-deploy/__pycache__/
+
+# ===== 2026-09-11 专利申报废弃解包资料（参考资料，非源码，不入库） =====
+docs/patents/_deprecated-*/
+docs/patents/**/_deprecated-*/

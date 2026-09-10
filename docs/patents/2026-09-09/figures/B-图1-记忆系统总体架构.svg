@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" font-family="sans-serif" font-size="13" fill="#000">
+  <rect x="0" y="0" width="680" height="520" fill="#fff"/>
+  <text x="20" y="26" font-size="15" font-weight="bold">图 1  记忆系统总体架构图</text>
+
+  <!-- 运行时 -->
+  <rect x="20" y="40" width="220" height="42" rx="4" fill="#fff" stroke="#000"/>
+  <text x="130" y="66" text-anchor="middle">智能体运行时 / 业务写操作</text>
+
+  <!-- judge -->
+  <rect x="20" y="120" width="240" height="74" rx="4" fill="#fff" stroke="#000"/>
+  <text x="140" y="142" text-anchor="middle" font-weight="bold">judgeWorthiness 四闸门</text>
+  <text x="140" y="162" text-anchor="middle" font-size="11">凭证硬拒 / 显式优先</text>
+  <text x="140" y="180" text-anchor="middle" font-size="11">噪声拒 / 视界(&lt;30d)拒</text>
+
+  <!-- memory_log -->
+  <rect x="20" y="250" width="220" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="130" y="272" text-anchor="middle" font-weight="bold">memory_log</text>
+  <text x="130" y="290" text-anchor="middle" font-size="11">原始日志（append-only）</text>
+
+  <!-- memory_note -->
+  <rect x="300" y="250" width="220" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="410" y="272" text-anchor="middle" font-weight="bold">memory_note</text>
+  <text x="410" y="290" text-anchor="middle" font-size="11">常驻笔记（upsert 重写）</text>
+
+  <!-- distill -->
+  <rect x="20" y="370" width="220" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="130" y="392" text-anchor="middle" font-weight="bold">distill 蒸馏</text>
+  <text x="130" y="410" text-anchor="middle" font-size="11">30d→distilled / 60d→archived</text>
+
+  <!-- rrfSearch -->
+  <rect x="300" y="370" width="220" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="410" y="392" text-anchor="middle" font-weight="bold">rrfSearch 混合召回</text>
+  <text x="410" y="410" text-anchor="middle" font-size="11">hash余弦+LIKE+RRF</text>
+
+  <!-- promote -->
+  <rect x="560" y="250" width="110" height="56" rx="4" fill="#fff" stroke="#000"/>
+  <text x="615" y="272" text-anchor="middle" font-weight="bold">promote</text>
+  <text x="615" y="290" text-anchor="middle" font-size="10">tenant_precedent</text>
+  <text x="615" y="304" text-anchor="middle" font-size="10">PII 隔离</text>
+
+  <!-- assemble -->
+  <rect x="300" y="460" width="260" height="50" rx="4" fill="#fff" stroke="#000"/>
+  <text x="430" y="482" text-anchor="middle" font-weight="bold">assembleContext L1–L4</text>
+  <text x="430" y="500" text-anchor="middle" font-size="11">记忆注入决策上下文</text>
+
+  <!-- 箭头 -->
+  <line x1="130" y1="82" x2="130" y2="116" stroke="#000"/>
+  <polygon points="125,116 135,116 130,122" fill="#000"/>
+
+  <line x1="140" y1="194" x2="130" y2="246" stroke="#000"/>
+  <polygon points="125,246 135,246 130,252" fill="#000"/>
+
+  <line x1="240" y1="278" x2="296" y2="278" stroke="#000"/>
+  <polygon points="296,273 296,283 302,278" fill="#000"/>
+  <text x="268" y="270" text-anchor="middle" font-size="10">upsert</text>
+
+  <line x1="130" y1="306" x2="130" y2="366" stroke="#000"/>
+  <polygon points="125,366 135,366 130,372" fill="#000"/>
+
+  <line x1="410" y1="306" x2="410" y2="366" stroke="#000"/>
+  <polygon points="405,366 415,366 410,372" fill="#000"/>
+
+  <line x1="520" y1="278" x2="556" y2="278" stroke="#000" stroke-dasharray="4 3"/>
+  <polygon points="556,273 556,283 562,278" fill="#000"/>
+
+  <line x1="410" y1="426" x2="430" y2="456" stroke="#000" stroke-dasharray="4 3"/>
+  <polygon points="425,456 435,456 430,462" fill="#000"/>
+
+  <text x="20" y="510" font-size="11" fill="#444">注：双轨存储 + 四闸门防污染 + 蒸馏归档非删除 + 租户隔离检索 + 七维可问责性校验（图3）共同构成记忆系统。</text>
+</svg>

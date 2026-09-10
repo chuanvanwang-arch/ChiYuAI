@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 440" font-family="sans-serif" font-size="12.5" fill="#000">
+  <rect x="0" y="0" width="680" height="440" fill="#fff"/>
+  <text x="20" y="26" font-size="15" font-weight="bold">图 4  决策落库数据实体关系（ER）图</text>
+
+  <!-- decision 表 -->
+  <rect x="40" y="80" width="300" height="240" rx="4" fill="#fff" stroke="#000"/>
+  <text x="190" y="102" text-anchor="middle" font-weight="bold">决策记录表 decision</text>
+  <line x1="40" y1="112" x2="340" y2="112" stroke="#000"/>
+  <text x="52" y="132" font-size="11">PK  decision_id（每次决策生成）</text>
+  <text x="52" y="152" font-size="11">scenario_id（决策场景标识）</text>
+  <text x="52" y="172" font-size="11">effective_policy_version（★政策版本快照）</text>
+  <text x="52" y="192" font-size="11">disposition（处置结论）</text>
+  <text x="52" y="212" font-size="11">confidence / confidence_source</text>
+  <text x="52" y="232" font-size="11">concept_refs（★概念引用集合）</text>
+  <text x="52" y="252" font-size="11">conditions_evaluated</text>
+  <text x="52" y="272" font-size="11">tenant_id</text>
+  <text x="52" y="292" font-size="11">八要素: intent/assumptions/inference/</text>
+  <text x="52" y="308" font-size="11">viewpoints/implications/risk_register/</text>
+  <text x="52" y="324" font-size="11">stop_loss/concept_refs</text>
+
+  <!-- decision_relation 表 -->
+  <rect x="420" y="200" width="220" height="110" rx="4" fill="#fff" stroke="#000"/>
+  <text x="530" y="222" text-anchor="middle" font-weight="bold">决策关系表</text>
+  <line x1="420" y1="232" x2="640" y2="232" stroke="#000"/>
+  <text x="432" y="252" font-size="11">PK (decision_id, precedent_id)</text>
+  <text x="432" y="272" font-size="11">predicate（DECIDED_ON /</text>
+  <text x="432" y="288" font-size="11">DERIVED_FROM_EXCEPTION …）</text>
+
+  <!-- methodology_dimension 表 -->
+  <rect x="420" y="60" width="220" height="100" rx="4" fill="#fff" stroke="#000"/>
+  <text x="530" y="82" text-anchor="middle" font-weight="bold">概念维度表</text>
+  <line x1="420" y1="92" x2="640" y2="92" stroke="#000"/>
+  <text x="432" y="112" font-size="11">PK (methodology_id, dim_key)</text>
+  <text x="432" y="132" font-size="11">canonical 权重 / 必填 / 标签</text>
+  <text x="432" y="152" font-size="11">（concept_refs 落库前回查补全）</text>
+
+  <!-- 关系 -->
+  <line x1="340" y1="200" x2="416" y2="230" stroke="#000"/>
+  <polygon points="416,225 416,235 422,230" fill="#000"/>
+  <text x="375" y="215" font-size="10">引用先例</text>
+
+  <line x1="340" y1="190" x2="416" y2="135" stroke="#000"/>
+  <polygon points="416,130 416,140 422,135" fill="#000"/>
+  <text x="375" y="160" font-size="10">concept_refs↔维度</text>
+
+  <text x="20" y="400" font-size="11" fill="#444">★ = 与现有技术区别的核心字段：政策版本快照使事后配置变更不可改写决策依据；concept_refs 关联概念维度实现可审计溯源。</text>
+</svg>

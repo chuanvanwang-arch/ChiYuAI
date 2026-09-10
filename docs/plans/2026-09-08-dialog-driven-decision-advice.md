@@ -1314,3 +1314,44 @@ git commit -m "feat(config): 播种对话决策建议配置（场景映射表+�
 git add docs/2026-09-08-dialog-driven-decision-advice-design.md docs/plans/2026-09-08-dialog-driven-decision-advice.md
 git commit -m "docs: 对话驱动决策建议设计与实施计划（含执行修正记录）"
 ```
+
+---
+
+## 10. E2E 端到端验证（2026-09-08 补做）
+
+**单元测试全绿 ≠ 链路通。** T0-T9 交付时只跑了单元测试与全量 vitest，未做真实链路验证。补做 E2E：
+`scripts/e2e-dialog-advice.mjs` —— 起**真实 HTTP 实例**（`PORT=3100`，刻意避开开发用 3000）+ **真实 MCP stdio 通道**，
+覆盖 A 组（`/api/page/from-nl`）与 B 组（crm_login → tools/list → 三类诉求 → 写 phase1），共 15 项。
+
+### 10.1 E2E 暴露的两个真实缺陷（单元测试完全没覆盖）
+
+| # | 现象 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | 「客户要求 8 折」拿到 **A 档自治处置**，违反设计 §3 红线 | `adviseService` **从不加载** `decision_scenario`，`eval_dimensions` 恒空 → `adviceCard` 把「零条件」当成「全部齐备」 | ① 新增 `loadScenarioRow()`（租户专属优先、缺失回退 system、fail-open）；② 档位判定补三条：维度为空→C 档、`default_tier==='HIGH'`→封顶 B 档、`coverage<passLine`→C 档 |
+| 2 | MCP 写工具 phase1 拿不到 advice | utterance 被 **zod strip**（`inputSchema` 由 `a.schema` 生成，未声明字段一律剥离）→ gateway 收到空串 | `tools.js` 的 `protocolShape` 增列 `utterance`（与 api_token 同款 strip 陷阱）；gateway 取出后**立即 `delete params.utterance`**（D2：对话原文零落库，不得随写参数进 payload） |
+
+### 10.2 档位判定顺序（`adviceCard.js`，勿调换）
+
+`红线 → 维度缺失 → 置信度 → required 缺失 → 证据充分度 → HIGH 封顶 → A 档`
+
+- **红线必须最先**：否则已检出毛利红线时会因「维度缺失」降级 C 档，反而**丢掉红线提示**，比修复前更不安全。
+- 封顶判据用 `default_tier==='HIGH'` 而非 `autonomous_allowed`：后者表级默认 FALSE（`db/schema.sql:126`），以其为判据会让 A 档永不出现，与三档设计矛盾。
+
+### 10.3 已知 flaky（非缺陷，已实测确认）
+
+`crm-decision-advise` 约 **1/18** 概率返回 `MCP error -32602: Tool not found`（MCP 动作表懒加载竞态，平台既有，与本功能无关）。
+实测：连续 8 次调用全部成功（B8b），且用 B7 完全相同的 utterance+stage 重试即成功。E2E 中 B7 已改为**重试 3 次**以区分偶发与确定性失败。
+
+### 10.4 运行方式与结果
+
+```
+PORT=3100 PGDATABASE=crm_native_test node src/http/server.js &
+PGDATABASE=crm_native_test PORT=3100 node scripts/e2e-dialog-advice.mjs
+```
+
+**结果：15/15 通过。** 回归：`test/mcp` + `test/decision` + `action` 共 88 文件 535 例全绿。
+
+### 10.5 提交分组调整（相对 §9）
+
+- 第 3 组补 `src/mcp/tools.js`（protocolShape 增列）。
+- 新增第 6 组：`scripts/e2e-dialog-advice.mjs`（E2E 脚本本体）。
