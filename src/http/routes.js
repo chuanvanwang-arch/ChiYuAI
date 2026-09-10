@@ -3019,8 +3019,11 @@ export function createRoutes(app, hub) {
   // 受控渲染端点（dynamic import，懒加载；renderers 在 src/http/render/systemOverview{K|M|D}.js）
   app.get('/api/page/system-overview-k', async (req, res) => {
     try {
+      const me = resolveMe(req);
+      // admin 可通过 ?scope=all 切换全租户视图（renderKnowledge 内 effective 判定）
+      const scope = req.query?.scope || null;
       const { renderKnowledge } = await import('../http/render/systemOverviewK.js');
-      res.json(await renderKnowledge());
+      res.json(await renderKnowledge({ me: { ...me, scope } }));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
   app.get('/api/page/system-overview-m', async (req, res) => {
