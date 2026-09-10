@@ -240,3 +240,27 @@ describe('T5: 趋势 SVG 由真实采样驱动', () => {
     expect(html).toContain('暂无采样数据');
   });
 });
+
+// ── 下钻明细块隐藏契约（2026-09-11 修复的回归护栏）──
+// 背景：drillModal.js 的 injectStyle()（内含 .so-detail-hidden{display:none}）原先只在
+//   openDrill→ensureModal 时注入；bindDrill 不主动注入 → 页面加载后所有明细块**实际可见**，
+//   导致「新汇总卡 + 旧明细大表」同时铺开，用户误判为「页面没变化」。
+describe('下钻明细块隐藏契约', () => {
+  it('bindDrill 绑定时即注入样式（不再等首次点击）', () => {
+    const src = readFileSync(new URL('../../src/web/drillModal.js', import.meta.url), 'utf8');
+    const body = src.slice(src.indexOf('export function bindDrill'));
+    expect(body).toMatch(/bindDrill[\s\S]*?injectStyle\(\)[\s\S]*?addEventListener\('click'/);
+  });
+
+  it('page.css 静态声明 .so-detail-hidden{display:none}（不依赖 JS 的兜底）', () => {
+    const css = readFileSync(new URL('../../src/web/page.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/\.so-detail-hidden\s*\{\s*display\s*:\s*none\s*;?\s*\}/);
+  });
+
+  it('三个受控壳板均加载 /portal/page.css', () => {
+    for (const f of ['k', 'm', 'd']) {
+      const html = readFileSync(new URL(`../../src/web/system-overview-${f}.html`, import.meta.url), 'utf8');
+      expect(html).toContain('/portal/page.css');
+    }
+  });
+});

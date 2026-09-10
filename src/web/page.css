@@ -120,5 +120,8 @@
 /* ---- S02 三卡钻取：focus 高亮（2026-08-29）---- */
 .pg-metric-card[data-highlight="active"]{outline:2px solid var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 22%,transparent)}
 
-/* ---- S02 三卡钻取：focus 高亮（2026-08-29）---- */
-.pg-metric-card[data-highlight="active"]{outline:2px solid var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 22
+/* ---- 受控壳板下钻：明细块默认隐藏（2026-09-11）----
+   必须在静态样式表内声明：drillModal.js 的 injectStyle() 仅在 bindDrill/openDrill 时注入；
+   若只靠 JS 注入，页面加载后所有 .so-detail-hidden 明细块会实际可见
+   （汇总卡与旧明细大表同时铺开 → 看起来"页面没变化"）。 */
+.so-detail-hidden{display:none;}
