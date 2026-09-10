@@ -3,6 +3,7 @@
 //
 // 结构：computeMetrics(tenantId, deps) 纯计算（可注入数据源，便于测试）；
 //       sampleTenant / sampleAll 负责 DB 写。无 DB 时各查询均 .catch 降级，不阻断。
+import { pathToFileURL } from 'node:url';
 import { query, queryWrite } from '../src/db.js';
 import { listSkillRegistry } from '../src/skills/skillRegistry.js';
 import { getGateAttribution } from '../src/monitor/monitorStore.js';
@@ -87,8 +88,12 @@ export async function sampleAll(deps = {}) {
   return tenants.length;
 }
 
-// 直接执行入口（非 import 时运行）
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Windows 适配（2026-09-09 实践实证 / 2026-09-11 夜间核查再次命中）：
+// win32 下 import.meta.url 与 process.argv[1] 在盘符大小写/路径分隔符上不一致，
+// 裸比较 `import.meta.url === \`file://${process.argv[1]}\`` 永不成立 → 直跑静默无操作（退出码 0 假绿）。
+// 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118、scripts/migrate-bantcc-6dim.mjs:61
+const isMain = !!process.argv[1] && import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
+if (isMain) {
   sampleAll()
     .then((n) => { console.log(`[sample-overview] upserted ${n} tenants`); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });

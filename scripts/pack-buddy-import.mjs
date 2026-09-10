@@ -11,6 +11,8 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const argAppId = (process.argv.find((a) => a.startsWith('--app-id=')) || '').split('=')[1];
+const APP_ID = argAppId || process.env.BUDDY_APP_ID || '';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'dist', 'buddy-import');
 const manifest = JSON.parse(readFileSync(join(root, 'buddy-crm-manifest.json'), 'utf8'));
@@ -18,19 +20,34 @@ const manifest = JSON.parse(readFileSync(join(root, 'buddy-crm-manifest.json'), 
 mkdirSync(join(outDir, 'assets', 'modes'), { recursive: true });
 mkdirSync(join(outDir, 'assets', 'capsules'), { recursive: true });
 
-// 1) industry-config.json：首页/基础配置（导入后落到「基础配置 + 首页配置」）
+// 1) industry-config.json：已验证可通过格式校验的结构（appId + 元字段 + 图标内联 base64）
+const appId = APP_ID || manifest.app.appId;
+if (!appId || appId.startsWith('<')) {
+  console.error('缺少应用 ID：请传 --app-id=xxx 或设置 BUDDY_APP_ID');
+  process.exit(1);
+}
+const dataUri = (rel) =>
+  `data:image/svg+xml;base64,${readFileSync(join(root, rel)).toString('base64')}`;
+
 const industryConfig = {
+  appId,
+  type: 'industry-config',
+  schemaVersion: '1.0',
+  version: '1.0.0',
+  name: manifest.app.name,
+  industry: { code: 'b2b-sales', name: 'B2B 销售管理', domain: 'CRM' },
   slogan: manifest.home.slogan,
+  connectors: manifest.home.connectors,
   workModes: manifest.home.workModes.map((w) => ({
     name: w.name,
-    icon: w.icon,
+    icon: dataUri(w.icon),
     default: !!w.default,
     systemPrompt: w.systemPrompt,
     skills: w.skills,
     capsules: w.capsules.map((c) => ({
       name: c.name,
       en: c.en,
-      icon: c.icon,
+      icon: dataUri(c.icon),
       expert: c.expert,
       skills: c.skills,
       systemPrompt: c.systemPrompt,
@@ -38,7 +55,6 @@ const industryConfig = {
       inspirations: c.inspirations,
     })),
   })),
-  connectors: manifest.home.connectors,
 };
 writeFileSync(join(outDir, 'industry-config.json'), JSON.stringify(industryConfig, null, 2), 'utf8');
 
@@ -61,14 +77,18 @@ cpSync(join(root, 'assets', 'capsules'), join(outDir, 'assets', 'capsules'), {
 const avatar = join(root, 'buddy-app-store-listing', 'app-avatar.png');
 if (existsSync(avatar)) cpSync(avatar, join(outDir, 'assets', 'app-avatar.png'));
 
-// 4) 校验：JSON 引用的 icon 必须都在包内
+// 4) 校验：图标源文件存在、appId 已写入
 const missing = [];
-for (const w of industryConfig.workModes) {
-  if (!existsSync(join(outDir, w.icon))) missing.push(w.icon);
-  for (const c of w.capsules) if (!existsSync(join(outDir, c.icon))) missing.push(c.icon);
+for (const w of manifest.home.workModes) {
+  if (!existsSync(join(root, w.icon))) missing.push(w.icon);
+  for (const c of w.capsules) if (!existsSync(join(root, c.icon))) missing.push(c.icon);
 }
 if (missing.length) {
   console.error('MISSING ICONS:\n' + missing.join('\n'));
+  process.exit(1);
+}
+if (!industryConfig.appId) {
+  console.error('appId 为空');
   process.exit(1);
 }
 const capsuleCount = industryConfig.workModes.reduce((n, w) => n + w.capsules.length, 0);

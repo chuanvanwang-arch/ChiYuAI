@@ -10,6 +10,10 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// 应用 ID：优先命令行 --app-id=xxx，其次环境变量 BUDDY_APP_ID，最后取 manifest
+const argAppId = (process.argv.find((a) => a.startsWith('--app-id=')) || '').split('=')[1];
+const APP_ID = argAppId || process.env.BUDDY_APP_ID || '';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'dist', 'buddy-import', 'variants');
 mkdirSync(outDir, { recursive: true });
@@ -20,8 +24,14 @@ const dataUri = (rel) => {
   return `data:image/svg+xml;base64,${buf.toString('base64')}`;
 };
 
+const appId = APP_ID || m.app.appId;
+if (!appId || appId.startsWith('<')) {
+  console.error('缺少应用 ID：请传 --app-id=xxx 或设置 BUDDY_APP_ID');
+  process.exit(1);
+}
+
 const META = {
-  appId: m.app.appId,
+  appId,
   type: 'industry-config',
   schemaVersion: '1.0',
   version: '1.0.0',
@@ -54,7 +64,9 @@ const A = {
 };
 
 // ---- B：极简，剔除图标/专家/技能/灵感 ----
-const B = {
+// B2 = 极简 + appId（诊断：图标/专家/技能/灵感 是否必填）
+const B2 = {
+  appId,
   slogan: m.home.slogan,
   workModes: m.home.workModes.map((w) => ({
     name: w.name,
@@ -71,7 +83,7 @@ const B = {
 
 // ---- C：snake_case + 元字段 + base64 图标 ----
 const C = {
-  app_id: m.app.appId,
+  app_id: appId,
   type: 'industry-config',
   schema_version: '1.0',
   version: '1.0.0',
@@ -100,7 +112,7 @@ const C = {
 
 const files = {
   'A-industry-config.json': A,
-  'B-industry-config-minimal.json': B,
+  'B2-industry-config-minimal-with-appid.json': B2,
   'C-industry-config-snake.json': C,
 };
 for (const [f, obj] of Object.entries(files)) {

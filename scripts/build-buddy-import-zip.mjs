@@ -25,6 +25,7 @@ const arg = (k, d) => {
 
 const ICONS = arg('icons', 'empty'); // empty | path | inline
 const ALIAS = arg('alias', 'on') === 'on';
+const OTHERS = arg('others', ALIAS ? 'on' : 'off') === 'on';
 const OUT = arg('out', join(root, 'dist', 'buddy-crm-import.zip'));
 
 const manifest = JSON.parse(readFileSync(join(root, 'buddy-crm-manifest.json'), 'utf8'));
@@ -113,6 +114,50 @@ i18nZh['home.title'] = manifest.home.slogan;
 
 const homeItem = cfg.ui.nav.items.find((it) => it.id === 'home') || cfg.ui.nav.items[0];
 homeItem.config = homeItem.config || {};
+
+/* ---------- 「其他配置」尽力而为注入 ----------
+ * 事实：其他配置页的六个字段（跳过绑定/绑定文案/中英占位符/默认模型/模型池）
+ * 在平台导出样本中完全不存在 → 属应用级配置，**不在导入通道的运输范围内**。
+ * 故此处按多落点候选写入，平台若识别即生效；不识别不影响导入（已验证额外字段不破坏校验）。
+ * 这是导入通道能做到的上限，剩余情况仍需 UI 手填（值见随包 其他配置-手填值.txt）。
+ */
+if (OTHERS && manifest.others) {
+  const o = manifest.others;
+  const phZh = o.placeholder?.zh || '';
+  const phEn = o.placeholder?.en || '';
+  const blocks = {
+    skipBind: o.skipBind,
+    skipJump: o.skipBind,
+    bindText: o.bindText,
+    bindDescription: o.bindText,
+    placeholder: phZh,
+    placeholderEn: phEn,
+    inputPlaceholder: phZh,
+    defaultModel: o.models?.default,
+    modelPool: o.models?.pool,
+  };
+  // 落点1：顶层多个候选键
+  cfg.bindConfig = blocks;
+  cfg.appConfig = blocks;
+  cfg.settings = blocks;
+  // 落点2：首页 nav item 的 config（含 chat/input 子结构）
+  Object.assign(homeItem.config, {
+    placeholder: phZh,
+    placeholderEn: phEn,
+    inputPlaceholder: phZh,
+    skipBind: o.skipBind,
+    bindText: o.bindText,
+    chat: { placeholder: phZh, placeholderEn: phEn, inputPlaceholder: phZh },
+    input: { placeholder: phZh, placeholderEn: phEn },
+  });
+  // 落点3：i18n（若平台按 key 取占位符）
+  i18nZh['home.input.placeholder'] = phZh;
+  i18nZh['home.placeholder'] = phZh;
+  i18nZh['common.input.placeholder'] = phZh;
+  i18nZh['home.input.placeholderEn'] = phEn;
+  // 落点4：模型（与平台 models.custom 并存）
+  cfg.models = { ...(cfg.models || {}), default: o.models?.default, pool: o.models?.pool };
+}
 
 /**
  * ⚠ 全局唯一 id（2026-09-08 第三次导出样本确认）
@@ -230,15 +275,14 @@ if (marketUnits === 0) {
  * ⚠ 这些字段在平台导出样本中不存在（属应用级配置，不随导出/导入往返）。
  *   此处按候选字段名冗余写入，平台若识别即生效；不识别也不影响导入（已验证额外字段不破坏校验）。
  */
-const OTHERS = arg('others', ALIAS ? 'on' : 'off') === 'on';
 if (OTHERS && manifest.others) {
+  // 落点5：others / otherConfig 顶层键（此处不可叫 capabilityDescription，
+  //        那是 authConfig 的字段，值为「请登录www.chiyuai.com…」，会被覆盖）
   const o = manifest.others;
   const othersBlock = {
     skipBind: o.skipBind,
     skipJump: o.skipBind,
     bindText: o.bindText,
-    // ⚠ 不要叫 capabilityDescription：那是 authConfig 的字段（值为「请登录www.chiyuai.com…」），
-    //    若平台把 others 并入 authConfig 会把它覆盖成绑定文案。
     bindDescription: o.bindText,
     placeholder: o.placeholder?.zh,
     placeholderEn: o.placeholder?.en,
@@ -248,8 +292,6 @@ if (OTHERS && manifest.others) {
   };
   cfg.others = othersBlock;
   cfg.otherConfig = othersBlock;
-  // 模型池另一处候选落点（与平台 models.custom 并存）
-  cfg.models = { ...(cfg.models || {}), default: o.models?.default, pool: o.models?.pool };
 }
 
 /* ---------- 输出目录 ---------- */
@@ -260,6 +302,25 @@ const appDir = join(staging, APP_ID);
 mkdirSync(appDir, { recursive: true });
 writeFileSync(join(appDir, 'industry-config.json'), JSON.stringify(cfg, null, 2), 'utf8');
 writeFileSync(join(appDir, 'market.json'), JSON.stringify(mkt, null, 2), 'utf8');
+
+// 「其他配置」手填值（非 JSON 文件：避免平台扫描包内 JSON 时被误判/校验失败）
+const othersTxt = [
+  '其他配置 — 需在平台页面手动填写（导入通道不运输这些字段）',
+  '==========================================================',
+  `跳过绑定            : ${manifest.others?.skipBind === false ? '否' : '是'}`,
+  `绑定引导文案        : ${manifest.others?.bindText || ''}`,
+  `输入框占位符（中文）: ${manifest.others?.placeholder?.zh || ''}`,
+  `输入框占位符（英文）: ${manifest.others?.placeholder?.en || ''}`,
+  `默认模型            : ${manifest.others?.models?.default || ''}`,
+  `模型池              : ${(manifest.others?.models?.pool || []).join(', ')}`,
+  '',
+  '说明：这 6 项属应用级配置，导出/导入文件中均不存在（已逐字段验证），',
+  '      故 zip 导入无法写入。已在 industry-config.json 中按多落点候选写入，',
+  '      若平台后续支持即自动生效；当前仍需按上表在页面填写（约 2 分钟）。',
+  '',
+  '本包已覆盖：基础配置 ✓ / 首页配置 ✓ / 市场配置 ✓',
+].join('\n');
+writeFileSync(join(appDir, 'OTHERS-CONFIG-MANUAL-FILL.txt'), othersTxt, 'utf8');
 
 // 图标资源（无论 icon 字段是否引用都带上，便于平台按路径取或人工上传）
 let iconCount = 0;
