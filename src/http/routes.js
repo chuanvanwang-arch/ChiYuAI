@@ -309,8 +309,11 @@ export function createRoutes(app, hub) {
   app.get('/billing.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/billing.html', import.meta.url))));
   // 平台计费控制台（租户订阅计划 T5）：admin/sysadmin 管理面（页面 JS guard + API isPrivileged 双保险）
-  app.get('/admin-billing-console.html', (req, res) =>
-    res.sendFile(fileURLToPath(new URL('../web/admin-billing-console.html', import.meta.url))));
+  // no-store：禁用浏览器启发式缓存，避免 admin 改完前端后旧 HTML 仍被缓存（2026-09-10 修复）
+  app.get('/admin-billing-console.html', (req, res) => {
+    res.set('Cache-Control', 'no-store, must-revalidate');
+    res.sendFile(fileURLToPath(new URL('../web/admin-billing-console.html', import.meta.url)));
+  });
   // S13：指名客户目标指标配置页（sendFile 实时读 src/web）
   app.get('/named-account-targets.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/named-account-targets.html', import.meta.url))));
@@ -2792,6 +2795,11 @@ export function createRoutes(app, hub) {
     res.setHeader('Cache-Control', 'no-store');
     res.sendFile(fileURLToPath(new URL('../portal/configCenter.js', import.meta.url)), { headers: { 'Content-Type': 'text/javascript' } });
   });
+  //   configTabs 模块（§15 权限重分组 TAB 可见性，被 config.html 静态 import）——漏登记致 404 → config.html 整页空白
+  app.get('/portal/configTabs.js', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(fileURLToPath(new URL('../portal/configTabs.js', import.meta.url)), { headers: { 'Content-Type': 'text/javascript' } });
+  });
   app.get('/business-tier.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/business-tier.html', import.meta.url))));
   app.get('/business-tier', (req, res) => res.redirect('/business-tier.html'));
@@ -2994,6 +3002,38 @@ export function createRoutes(app, hub) {
   app.get('/system-status.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/system-status.html', import.meta.url))));
   app.get('/system-status', (req, res) => res.redirect('/system-status.html'));
+
+  // ─── 三系统概览页（监控仪表盘，只读；2026-09-10 新增，区别于配置页）───
+  app.get('/system-overview/k.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/system-overview-k.html', import.meta.url))));
+  app.get('/system-overview/k', (req, res) => res.redirect('/system-overview/k.html'));
+  app.get('/system-overview/m.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/system-overview-m.html', import.meta.url))));
+  app.get('/system-overview/m', (req, res) => res.redirect('/system-overview/m.html'));
+  app.get('/system-overview/d.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/system-overview-d.html', import.meta.url))));
+  app.get('/system-overview/d', (req, res) => res.redirect('/system-overview/d.html'));
+  // 受控渲染端点（dynamic import，懒加载；renderers 在 src/http/render/systemOverview{K|M|D}.js）
+  app.get('/api/page/system-overview-k', async (req, res) => {
+    try {
+      const { renderKnowledge } = await import('../http/render/systemOverviewK.js');
+      res.json(await renderKnowledge());
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  app.get('/api/page/system-overview-m', async (req, res) => {
+    try {
+      const me = resolveMe(req);
+      const { renderMemory } = await import('../http/render/systemOverviewM.js');
+      res.json(await renderMemory({ me }));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  app.get('/api/page/system-overview-d', async (req, res) => {
+    try {
+      const me = resolveMe(req);
+      const { renderDecision } = await import('../http/render/systemOverviewD.js');
+      res.json(await renderDecision({ me }));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
 
   // 观测看板（静态）
   // 根路径 = AI 作战室（S02 主页，index.html）；营销/注册页见 /landing.html

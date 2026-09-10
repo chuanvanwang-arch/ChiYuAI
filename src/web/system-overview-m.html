@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>记忆系统·运行概览</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  .so-m-section { margin-bottom: 18px; }
+  .so-m-err { color: var(--err); font-size: 12px; margin-bottom: 8px; }
+  .so-m-loading { padding: 24px; text-align: center; color: var(--mut); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">记忆系统·运行概览</h1></div></header>
+<div class="page-sub">决策图引用先例边（REFERENCED_PRECEDENT → 记忆→决策闭环）+ 三构件计数 + 蒸馏状态。监控仪表盘（只读）；配置入口在「记忆/先例管理」（admin 独享）。</div>
+
+<div class="so-m-err" id="so-m-err"></div>
+
+<div id="system-overview-m-root" class="so-m-loading">记忆系统运行概览加载中…</div>
+
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api } from '/portal/api.js';
+  injectLayout();
+
+  const root = document.getElementById('system-overview-m-root');
+  const err = document.getElementById('so-m-err');
+
+  async function load() {
+    err.textContent = '';
+    try {
+      const r = await api('/api/page/system-overview-m');
+      root.classList.remove('so-m-loading');
+      root.innerHTML = r.html || '<div class="so-m-loading">暂无数据</div>';
+    } catch (e) {
+      err.textContent = '记忆系统运行概览加载失败：' + (e?.message || e) + '（PG 未启动或端点未就绪）';
+    }
+  }
+  load();
+  setInterval(load, 30000);
+</script>
+</body>
+</html>

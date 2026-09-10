@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>知识系统·运行概览</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  /* 监控仪表盘骨架样式（私有类前缀 so-k-；不重声明设计系统保留类） */
+  .so-k-section { margin-bottom: 18px; }
+  .so-k-err { color: var(--err); font-size: 12px; margin-bottom: 8px; }
+  .so-k-loading { padding: 24px; text-align: center; color: var(--mut); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">知识系统·运行概览</h1></div></header>
+<div class="page-sub">方法 SKILL ↔ DB 镜像维度漂移、SKILL 启停、近 30 日装配趋势。监控仪表盘（只读）；配置入口在「方法论 SKILL 注册表」。</div>
+
+<div class="so-k-err" id="so-k-err"></div>
+
+<div id="system-overview-k-root" class="so-k-loading">知识系统运行概览加载中…</div>
+
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { api } from '/portal/api.js';
+  injectLayout();
+
+  const root = document.getElementById('system-overview-k-root');
+  const err = document.getElementById('so-k-err');
+
+  async function load() {
+    err.textContent = '';
+    try {
+      const r = await api('/api/page/system-overview-k');
+      root.classList.remove('so-k-loading');
+      root.innerHTML = r.html || '<div class="so-k-loading">暂无数据</div>';
+    } catch (e) {
+      err.textContent = '知识系统运行概览加载失败：' + (e?.message || e) + '（PG 未启动或端点未就绪）';
+    }
+  }
+  load();
+  setInterval(load, 30000);
+</script>
+</body>
+</html>
