@@ -162,3 +162,42 @@ describe('T5: D 渲染器四段式骨架', () => {
     // 不为空库误判——此处仅断言结构契约（下钻行/隐藏块成对），bug 修复由真实实例冒烟佐证。
   });
 });
+
+// 5) 趋势区由采样数据驱动（注入 fake query，验证 polyline 动态生成）
+describe('T5: 趋势 SVG 由真实采样驱动', () => {
+  const fakeQuery = async () => ({ rows: [
+    { value: 2 }, { value: 5 }, { value: 3 }, { value: 8 }, { value: 6 },
+  ] });
+
+  it('K 页趋势 polyline points 来自采样且非旧硬编码', async () => {
+    const { renderKnowledge } = await import('../../src/http/render/systemOverviewK.js');
+    const { html } = await renderKnowledge({ deps: { query: fakeQuery } });
+    expect(html).toContain('data-trend="knowledge-30d"');
+    expect(html).toContain('<polyline');
+    expect(html).toContain('200.0,');        // 末点 x=200
+    expect(html).not.toContain('0,30 10,28'); // 旧占位点串已移除
+  });
+
+  it('M 页（admin）趋势 polyline 动态', async () => {
+    const { renderMemory } = await import('../../src/http/render/systemOverviewM.js');
+    const { html } = await renderMemory({ me: { role: 'admin', tenantId: 'acme' }, deps: { query: fakeQuery } });
+    expect(html).toContain('data-trend="memory-30d"');
+    expect(html).toContain('<polyline');
+    expect(html).not.toContain('0,35 10,33');
+  });
+
+  it('D 页趋势 polyline 动态', async () => {
+    const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
+    const { html } = await renderDecision({ me: { role: 'admin', tenantId: 'acme' }, deps: { query: fakeQuery } });
+    expect(html).toContain('data-trend="decision-30d"');
+    expect(html).toContain('<polyline');
+    expect(html).not.toContain('0,32 10,30');
+  });
+
+  it('无采样时趋势区显示「暂无采样数据」而非崩溃', async () => {
+    const empty = async () => ({ rows: [] });
+    const { renderKnowledge } = await import('../../src/http/render/systemOverviewK.js');
+    const { html } = await renderKnowledge({ deps: { query: empty } });
+    expect(html).toContain('暂无采样数据');
+  });
+});
