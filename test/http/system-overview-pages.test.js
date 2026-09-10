@@ -88,6 +88,17 @@ describe('T4: M 渲染器（含权限隔离）', () => {
       expect(html).toContain('sales-decision-monitor.html');
     }
   });
+  // 设计 §1.3 契约：明细表含「先例边 Top + 三构件 + 蒸馏状态」+ 下钻占位段
+  it('M 渲染器含先例边 Top / 三构件 / 蒸馏状态 / 下钻段（admin 视角）', async () => {
+    const { renderMemory } = await import('../../src/http/render/systemOverviewM.js');
+    const r = await renderMemory({ me: { role: 'admin', tenantId: '*' } });
+    expect(r.html).toContain('so-m-pred');
+    expect(r.html).toMatch(/先例边\s*Top/);
+    expect(r.html).toContain('so-m-tri');
+    expect(r.html).toContain('so-m-distill');
+    expect(r.html).toMatch(/蒸馏状态/);
+    expect(r.html).toContain('so-m-drill');
+  });
 });
 
 // 5) D 渲染器：L1 拦截 + L2 场景通过率 + L3 待批处方
@@ -104,5 +115,13 @@ describe('T5: D 渲染器四段式骨架', () => {
     const { body } = await getJson('/api/page/system-overview-d');
     const html = body.html || '';
     expect(html).toMatch(/admin|—/);
+  });
+  // 设计 §1.3 契约：明细表必须含「L1 拦截明细（按闸门）」独立段 + 下钻占位段
+  it('D 渲染器含 L1 独立明细段 + 下钻占位段（admin 视角）', async () => {
+    const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
+    const r = await renderDecision({ me: { role: 'admin', tenantId: '*' } });
+    expect(r.html).toContain('so-d-l1');
+    expect(r.html).toMatch(/L1\s*拦截明细/);
+    expect(r.html).toContain('so-d-drill');
   });
 });
