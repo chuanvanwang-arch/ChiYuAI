@@ -291,7 +291,11 @@ ALTER TABLE crm.memory_log ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFA
 --   idx_crm_memory_log_tenant(tenant_id, entity_id) 会报 column "entity_id" does not exist
 --   （2026-09-04 腾讯云部署实测踩坑）。
 ALTER TABLE crm.memory_log ADD COLUMN IF NOT EXISTS entity_id TEXT;
+-- 2026-09-10 客户记忆写回（C1/C2）：锚点类型列（ACCOUNT/DEAL/CONTACT…），与 entity_id 成对解释语义。
+--   entity_id 单列无法区分「这是客户 id 还是商机 id」，按实体聚合与跨实体串扰排查都缺判据。
+ALTER TABLE crm.memory_log ADD COLUMN IF NOT EXISTS entity_type TEXT;
 CREATE INDEX IF NOT EXISTS idx_crm_memory_log_tenant ON crm.memory_log(tenant_id, entity_id);
+CREATE INDEX IF NOT EXISTS idx_crm_memory_log_entity ON crm.memory_log(entity_type, entity_id);
 
 -- ============ 阶段 2 上下文分层：角色上下文 profile ============
 -- 角色 = 上下文配置（七要素 + 数据范围 + 检索配置），config 驱动非硬编码
@@ -924,3 +928,15 @@ CREATE TABLE IF NOT EXISTS crm.dedup_audit (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_dedup_audit_tenant ON crm.dedup_audit(tenant_id, created_at);
+
+-- ============ 三大系统概览页 30 日趋势采样表（2026-09-10，docs/2026-09-10-system-overview-trend-design.md）============
+-- additive：新表，不改动任何既有表结构；单一事实源见 db/migration-2026-09-10-system-overview-sample.sql
+CREATE TABLE IF NOT EXISTS crm.system_overview_sample (
+  tenant_id    TEXT    NOT NULL DEFAULT 'system',
+  sample_date  DATE    NOT NULL DEFAULT CURRENT_DATE,
+  metric       TEXT    NOT NULL,
+  value        INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (tenant_id, sample_date, metric)
+);
+CREATE INDEX IF NOT EXISTS idx_crm_so_sample_lookup
+  ON crm.system_overview_sample (metric, tenant_id, sample_date);
