@@ -7,7 +7,7 @@
 // 解法：锚点不再编码进 topic 字符串，改由独立列 entity_id 承载，topic 回归业务分类语义。
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { query, queryWrite } from '../src/db.js';
-import { appendMemory, rrfSearch } from '../src/memory/memoryLog.js';
+import { appendMemory } from '../src/memory/memoryLog.js';
 
 const TOPIC_A = 'test-anchor:entity-a';
 const TOPIC_B = 'test-anchor:entity-b';
@@ -51,34 +51,3 @@ describe('A2-a appendMemory 写入客户锚点', () => {
   });
 });
 
-describe('A2-b rrfSearch 按客户锚点过滤', () => {
-  it('不同客户锚点之间不串扰（反假绿：命中必须是真命中）', async () => {
-    await appendMemory({
-      topic: TOPIC_A, kind: 'event', entityId: 'acct-1001',
-      payload: { what: 'A 客户提及安全合规是首要关切' }, explicit: true,
-    });
-    await appendMemory({
-      topic: TOPIC_B, kind: 'event', entityId: 'acct-2002',
-      payload: { what: 'B 客户提及安全合规是首要关切' }, explicit: true,
-    });
-
-    const ra = await rrfSearch('安全合规 关切', { entityId: 'acct-1001', k: 10 });
-    expect(ra.length).toBeGreaterThan(0);
-    expect(ra.every((x) => x.topic === TOPIC_A)).toBe(true);
-    expect(ra.some((x) => x.topic === TOPIC_B)).toBe(false);
-
-    const rb = await rrfSearch('安全合规 关切', { entityId: 'acct-2002', k: 10 });
-    expect(rb.length).toBeGreaterThan(0);
-    expect(rb.some((x) => x.topic === TOPIC_B)).toBe(true);
-    expect(rb.some((x) => x.topic === TOPIC_A)).toBe(false);
-  });
-
-  it('锚点不存在时返回空集，不退化成全局召回（防假绿兜底）', async () => {
-    await appendMemory({
-      topic: TOPIC_A, kind: 'event', entityId: 'acct-1001',
-      payload: { what: 'A 客户的独特信息' }, explicit: true,
-    });
-    const r = await rrfSearch('独特信息', { entityId: 'acct-nonexistent', k: 10 });
-    expect(r).toHaveLength(0);
-  });
-});

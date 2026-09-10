@@ -99,18 +99,20 @@ describe('createConfigLevelGate：按 CONFIG_ITEMS.level 统一闸门', () => {
     expect(LEVEL_ROLE_MAP.propagation.roles).toEqual(['ADMIN']);
   });
 
-  it('§15.2 分组归属：11 LLM=system / 12 用户管理=system / 35 事件复盘=system / 36 场景路由=system / 39 事件派发=system（22 本体词汇 2026-09-05 移租户级）', () => {
+  it('§15.2 分组归属：11 LLM=system / 24=system / 35 事件复盘=system / 36 场景路由=system / 39 事件派发=system（22 本体词汇 2026-09-05、12 用户管理 2026-09-06 F3 移租户级）', () => {
     const byId = Object.fromEntries(CONFIG_ITEMS.map((i) => [i.id, i]));
     expect(byId[11].level).toBe('system');
-    expect(byId[12].level).toBe('system');
+    // id12 用户管理：F3（docs/2026-09-06-rbac-role-permission-fix-design.md §3.3）由 system 改 tenant，
+    // 解除全局 createConfigLevelGate 对 sysadmin 的 403，与 userManagement router 放行口径一致。
     expect(byId[24].level).toBe('system');
     expect(byId[35].level).toBe('system');
     expect(byId[36].level).toBe('system');
     expect(byId[39].level).toBe('system');
   });
 
-  it('§15.2 分组归属：14 决策场景=tenant / 17 审批流=tenant / 22 本体词汇=tenant（2026-09-05） / 32 判定阈值=tenant / 38 先例检索=tenant', () => {
+  it('§15.2 分组归属：12 用户管理=tenant（F3 2026-09-06）/ 14 决策场景=tenant / 17 审批流=tenant / 22 本体词汇=tenant（2026-09-05） / 32 判定阈值=tenant / 38 先例检索=tenant', () => {
     const byId = Object.fromEntries(CONFIG_ITEMS.map((i) => [i.id, i]));
+    expect(byId[12].level).toBe('tenant');
     expect(byId[14].level).toBe('tenant');
     expect(byId[17].level).toBe('tenant');
     expect(byId[22].level).toBe('tenant');

@@ -7,8 +7,11 @@ describe('particleRepo 跨租户防御 (F1)', () => {
   const T1 = 'rbac-t1', T2 = 'rbac-t2';
   let p1, p2;
   beforeAll(async () => {
-    const a = await queryWrite(`INSERT INTO crm.particles (tenant_id,type,slug,title,state,payload) VALUES ($1,'CRM_DEAL','rbac-p1','p1','ACTIVE','{}') RETURNING *`, [T1]);
-    const b = await queryWrite(`INSERT INTO crm.particles (tenant_id,type,slug,title,state,payload) VALUES ($1,'CRM_DEAL','rbac-p2','p2','ACTIVE','{}') RETURNING *`, [T2]);
+    // CRM_DEAL.identity=['name'] → identityRecordFor 物化 meta_attr required=true(created_by='seed')，
+    // 裸 payload='{}' 会在 updateParticle 的 6.6 写时校验（normalizeFacts）抛 "required 属性缺失: name"。
+    // 固件补 name 贴合元模型契约（F1 用例聚焦租户防御，不经 createParticle 全链路）。
+    const a = await queryWrite(`INSERT INTO crm.particles (tenant_id,type,slug,title,state,payload) VALUES ($1,'CRM_DEAL','rbac-p1','p1','ACTIVE','{"name":"rbac-p1"}') RETURNING *`, [T1]);
+    const b = await queryWrite(`INSERT INTO crm.particles (tenant_id,type,slug,title,state,payload) VALUES ($1,'CRM_DEAL','rbac-p2','p2','ACTIVE','{"name":"rbac-p2"}') RETURNING *`, [T2]);
     p1 = a.rows[0]; p2 = b.rows[0];
   });
   afterAll(async () => {

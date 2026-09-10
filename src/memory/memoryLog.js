@@ -104,74 +104,10 @@ export async function retrieveMemory({ layer, topic, topicLike, channel = 'auto'
   return { channel: 'log', rows: r.rows };
 }
 
-// ───────────────────── G6 RRF 融合召回（dense+sparse）─────────────────────
-// 测试计划 §5.5：dense = hashVector(payload 文本) 余弦；sparse = LIKE 命中加权；
-// RRF 公式 score = Σ 1/(rank+60)，两路排名融合后按总分降序返回 topk。
-// 设计输入：dev-plan §2（G6 依赖 ontology/embedding.js:hashVector）。
-import { hashVector } from '../ontology/embedding.js';
-
-// 余弦相似度（两向量同维，规范化输入）
-function cosine(a, b) {
-  let dot = 0, na = 0, nb = 0;
-  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
-  const den = Math.sqrt(na) * Math.sqrt(nb) || 1;
-  return dot / den;
-}
-
-// payload 文本指纹：topic + kind + payload 序列化（含实体锚定，避免跨实体串扰）
-function rowText(row) {
-  return `${row.topic} ${row.kind} ${JSON.stringify(row.payload || {})}`;
-}
-
-export async function rrfSearch(queryText, { entityId = null, k = 5, denseWeight = 0.5, tenantId = 'system' } = {}) {
-  const q = String(queryText || '').trim();
-  // A2（2026-09-02）：锚点改走 entity_id 列（原 topic='entity:<id>' 与实际数据形态不符，恒空）
-  // 2026-09-03：加 tenant_id 过滤（客户记忆按租户隔离，设计 §15）
-  const params = [];
-  let where = `archived=false AND tenant_id=$${params.length + 1}`;
-  params.push(tenantId);
-  if (entityId) { params.push(entityId); where += ` AND entity_id=$${params.length}`; }
-  const rows = (await query(
-    `SELECT id, topic, kind, payload, created_at, tenant_id FROM crm.memory_log WHERE ${where} ORDER BY created_at DESC LIMIT 200`,
-    params
-  )).rows;
-
-  // sparse 路：LIKE 命中（词级 AND 简化——关键词在文本中出现即计 1 分）
-  const sparseScore = (row) => {
-    const t = rowText(row);
-    const words = q.split(/\s+/).filter(Boolean);
-    if (!words.length) return 0;
-    return words.filter((w) => t.toLowerCase().includes(w.toLowerCase())).length / words.length;
-  };
-  const sparseRanked = rows.map((r) => ({ row: r, s: sparseScore(r) }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s);
-
-  // dense 路：查询向量与行文本向量余弦
-  const qv = hashVector(q);
-  const denseRanked = rows.map((r) => ({ row: r, s: cosine(qv, hashVector(rowText(r))) }))
-    .sort((a, b) => b.s - a.s);
-
-  // RRF 融合：rank 从 1 起；score = Σ 1/(rank+60)；dense 全量参与，sparse 仅命中者参与
-  const K = 60;
-  const acc = new Map();
-  for (let i = 0; i < denseRanked.length; i++) {
-    const r = denseRanked[i].row;
-    acc.set(r.id, (acc.get(r.id) || 0) + denseWeight * (1 / (i + 1 + K)));
-  }
-  for (let i = 0; i < sparseRanked.length; i++) {
-    const r = sparseRanked[i].row;
-    acc.set(r.id, (acc.get(r.id) || 0) + (1 - denseWeight) * (1 / (i + 1 + K)));
-  }
-
-  return [...acc.entries()]
-    .map(([id, score]) => {
-      const row = rows.find((r) => r.id === id);
-      return { id, topic: row.topic, kind: row.kind, payload: row.payload, created_at: row.created_at, score, tenant_id: row.tenant_id };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, k);
-}
+// ── G6 RRF 融合召回已于 2026-09-10 废弃移除 ────────────────────────────────
+// 该能力在 src/ 生产路径零调用，且仅用 hashVector（非语义向量）做 dense 路，
+// 收益低、每查询多 N×向量开销；召回统一走 retrieveMemory（LIKE + tenant_id 过滤）。
+// 相关测试 test/memory/rrf.test.js 已删除；E2E 改走 retrieveMemory。
 
 // ── C7 决策记忆投影（2026-09-10）────────────────────────────────────────────
 // 根因：旧投影只落 5 个控制字段（scenario_id/disposition/decider_type/business_tier/rationale），
