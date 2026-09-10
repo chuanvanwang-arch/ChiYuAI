@@ -11,6 +11,18 @@ import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
 
+// 决策八阶段（与 safeL2 的 SCS 常量严格对应）
+const STAGE_LABELS = {
+  LEAD_FOLLOW_UP: '线索跟进',
+  OPP_QUALIFY: '商机确认',
+  SOLUTION_VALUE: '方案价值',
+  QUOTE_PRICING: '报价定价',
+  SIGN_RISK: '签约风险',
+  POST_CONTRACT: '合同执行',
+  LOSS_REVIEW: '丢单复盘',
+  DEAL_REOPEN: '重启商机',
+};
+
 async function safeL1(me) {
   // getGateAttribution 直接返回数组（数组元素含 scenario_id/total/accuracy/...）
   try {
@@ -159,8 +171,9 @@ function renderPatchDetail(p) {
 }
 
 function renderL3(l3) {
-  if (l3.count == null) return '<p><span class="badge warn">—（需管理员/admin）</span></p>';
-  if (!l3.patches.length) return '<p><b>0</b> 条待批。</p>';
+  // 返回 {html, details}：html 为列表/占位，details 为处方隐藏明细块（供汇总卡下钻复用）
+  if (l3.count == null) return { html: '<p><span class="badge warn">—（需管理员/admin）</span></p>', details: '' };
+  if (!l3.patches.length) return { html: '<p><b>0</b> 条待批。</p>', details: '' };
   const items = l3.patches.map((p) => {
     const key = p.patch_id || '';
     return `<div class="so-l3-item" data-dk="${esc(key)}" data-drill-title="处方 ${esc(key)}">
@@ -169,7 +182,50 @@ function renderL3(l3) {
     </div>`;
   }).join('');
   const details = l3.patches.map((p) => `<div class="so-detail-hidden" data-dk="${esc(p.patch_id || '')}">${renderPatchDetail(p)}</div>`).join('');
-  return `<p><b>${l3.count}</b> 条待批（点击查看处方详情）：</p><div class="so-l3-list">${items}</div>${details}`;
+  return { html: `<p><b>${l3.count}</b> 条待批（点击查看处方详情）：</p><div class="so-l3-list">${items}</div>`, details };
+}
+
+function renderStages(l2) {
+  if (!l2.length) return '<div class="dn-empty">暂无 8 阶段场景数据</div>';
+  const cards = l2.map((r) => {
+    const raw = r.raw || {};
+    const n = raw.total ?? 0;
+    const rate = Number(raw.business_success_rate ?? 0).toFixed(1);
+    const cls = Number(raw.business_success_rate ?? 0) > 0 ? 'ok' : 'warn';
+    const label = STAGE_LABELS[r.scenario_id] || r.scenario_id;
+    return `<div class="so-stage" data-dk="${esc(r.scenario_id)}" data-drill-title="阶段 ${esc(label)}" style="cursor:pointer">
+      <div class="so-stage-name">${esc(label)}</div>
+      <div class="so-stage-id">${esc(r.scenario_id)}</div>
+      <div class="so-stage-meta">样本 ${n}</div>
+      <div class="so-stage-rate"><span class="badge ${cls}">${rate}%</span> 业务成功率</div>
+    </div>`;
+  }).join('');
+  return `<div class="so-stages">${cards}</div>`;
+}
+
+function renderSummaryCards(l1, l2, l3, details) {
+  // 下半区汇总卡：L1/L2/L3 各一张卡（合计），点卡下钻展开原明细（隐藏块）
+  const l2Scn = l2.length;
+  const l2Sample = l2.reduce((s, r) => s + (r.raw?.total ?? 0), 0);
+  const l3Str = l3.count == null ? '—' : l3.count;
+  const l3Sub = l3.count == null ? '需 admin' : '待批处方';
+  const cards = [
+    {
+      dk: 'l1-summary', title: 'L1 拦截闸门', value: String(l1.total ?? 0), sub: `${l1.gates.length} 个闸门`,
+    },
+    {
+      dk: 'l2-summary', title: 'L2 场景通过率', value: `${l2.filter((r) => Number(r.raw?.business_success_rate ?? 0) > 0).length}/${l2Scn}`,
+      sub: `样本 ${l2Sample}`,
+    },
+    {
+      dk: 'l3-summary', title: 'L3 校准待批', value: String(l3Str), sub: l3Sub,
+    },
+  ].map((c) => `<div class="so-summary-card" data-dk="${esc(c.dk)}" data-drill-title="${esc(c.title)}" style="cursor:pointer">
+    <div class="so-summary-name">${esc(c.title)}</div>
+    <div class="so-summary-value">${esc(c.value)}</div>
+    <div class="so-summary-sub">${esc(c.sub)}</div>
+  </div>`).join('');
+  return `<div class="so-summary">${cards}</div>${details}`;
 }
 
 export async function renderDecision({ me, deps } = {}) {
@@ -180,13 +236,35 @@ export async function renderDecision({ me, deps } = {}) {
   const l2Ok = l2.filter((r) => Number(r.raw?.business_success_rate ?? 0) > 0).length;
   const { html: l1Html, details: l1Details } = renderL1Table(l1);
   const { html: l2Html, details: l2Details } = renderL2Table(l2);
+  const l3R = renderL3(l3);
+  // 下半区汇总下钻：三张汇总卡 + 原明细隐藏块（默认收起，点卡展开）
+  const summaryDetails = [
+    `<div class="so-detail-hidden" data-dk="l1-summary"><h4 class="so-d-sub">L1 拦截明细（按闸门）</h4>${l1Html}${l1Details}</div>`,
+    `<div class="so-detail-hidden" data-dk="l2-summary"><h4 class="so-d-sub">L2 场景通过率分布</h4>${l2Html}${l2Details}</div>`,
+    `<div class="so-detail-hidden" data-dk="l3-summary"><h4 class="so-d-sub">L3 校准待批处方</h4>${l3R.html}${l3R.details}</div>`,
+  ].join('');
+  const style = `<style>
+.so-stages{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px;}
+.so-stage{border:1px solid var(--line,#e6e8ec);border-radius:10px;padding:12px;background:var(--bg,#fff);cursor:pointer;transition:background .15s;}
+.so-stage:hover{background:var(--hover,#f5f7fa);}
+.so-stage-name{font-weight:600;font-size:14px;}
+.so-stage-id{font-size:10px;color:var(--mut,#999);font-family:monospace;margin:2px 0 6px;word-break:break-all;}
+.so-stage-meta{font-size:12px;color:var(--mut,#888);}
+.so-stage-rate{margin-top:4px;font-size:12px;}
+.so-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px;}
+.so-summary-card{border:1px solid var(--line,#e6e8ec);border-radius:10px;padding:14px;background:var(--bg,#fff);cursor:pointer;transition:background .15s;}
+.so-summary-card:hover{background:var(--hover,#f5f7fa);}
+.so-summary-name{font-size:13px;color:var(--mut,#666);}
+.so-summary-value{font-size:26px;font-weight:700;margin:6px 0 2px;}
+.so-summary-sub{font-size:12px;color:var(--mut,#888);}
+</style>`;
   const html = [
+    style,
     '<section class="pg-section so-d-top">', renderTopState(l1.total, l2Ok, l2.length, l3.count), '</section>',
     '<section class="pg-section so-d-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(dVals), '</section>',
-    '<section class="pg-section so-d-l1"><h3>L1 拦截明细（按闸门）</h3>', l1Html, l1Details, '</section>',
-    '<section class="pg-section so-d-l2"><h3>L2 场景通过率分布</h3>', l2Html, l2Details, '</section>',
-    '<section class="pg-section so-d-l3"><h3>L3 校准待批处方</h3>', renderL3(l3), '</section>',
-    '<section class="pg-section so-d-drill"><p class="dn-note">点击 L1 闸门行 / L2 场景行 / L3 处方查看明细下钻。</p></section>',
+    '<section class="pg-section so-d-summary"><h3>决策数据汇总（点击卡片下钻明细）</h3>', renderSummaryCards(l1, l2, l3, summaryDetails), '</section>',
+    '<section class="pg-section so-d-stages"><h3>决策八阶段汇总（点击阶段下钻明细）</h3>', renderStages(l2), '</section>',
+    '<section class="pg-section so-d-drill"><p class="dn-note">点击 L1/L2/L3 汇总卡或八阶段卡片查看明细下钻。</p></section>',
   ].join('');
   return {
     schema: { type: 'monitor-overview-d' },

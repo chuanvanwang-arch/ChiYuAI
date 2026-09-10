@@ -1,30 +1,28 @@
 // src/http/render/systemOverviewM.js — 记忆系统监控仪表盘（只读，含权限隔离）
 //
-// 权限：GET /api/memory 是 sysadmin-only；非 admin 进入时只显「权限不足」+ 监控台 fallback，
-//        避免 hard-block（设计 §1.4）。
-//
-// 四段式骨架：①顶部状态（先例边数）②近 30 日趋势 ③先例边 Top + 三构件计数 + 蒸馏状态 ④行下钻
-// 数据源：listPrecedents() / listLogs() / listNotes() / listSnapshots() 等同 createMemoryConfigRouter 内部 deps
-//   （直接走等价 COUNT(*) SQL，避免 mount 自路由）。先例边数：直接查 crm.decision_precedent_rel。
+// 权限：非 admin → 仅显「权限不足」+ 登录提示（设计 §1.4，不降级为可读）。
+// 看板范式：①顶部状态 ②近30日趋势 ③图模型（先例节点 ↔ 决策节点，REFERENCED_PRECEDENT 边）
+//          ④三构件计数 + 蒸馏状态 ⑤点节点下钻明细
+// 图渲染：原生 SVG（无第三方库），取色用 CSS 变量（禁硬编码 hex），复用 decision-graph.html 范式。
 import { query } from '../../db.js';
 import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
+const trunc = (s, n = 22) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
 
 function renderForbidden(me) {
   return `<section class="pg-section so-m-forbidden">
     <h3>记忆系统·权限说明</h3>
     <p>本页为记忆治理只读视图，<b>仅管理员（sysadmin / admin）可访问</b>（当前账号 ${esc(me?.role || 'guest')} 无该权限）。</p>
     <p>记忆仍由业务事件自动捕获并在系统中流转；其闭环进度可在
-      <a href="/sales-decision-monitor.html">销售决策监控台 · 三闭环条 · 记忆系统</a> 查看，
-      或前往 <a href="/decision-graph.html">决策链追溯</a> 查看先例引用边。
+      <a href="/sales-decision-monitor.html">销售决策监控台 · 三闭环条 · 记忆系统</a> 查看。
     </p>
+    <p class="dn-note">请以 admin 身份登录后查看「图模型」视图（先例 ↔ 决策引用关系）。</p>
   </section>`;
 }
 
 async function safeCounts() {
-  // 三构件计数（与 src/portal/memoryConfig.js:23-31 同源 SELECT）
   try {
     const r = await query(`
       SELECT
@@ -37,8 +35,6 @@ async function safeCounts() {
 }
 
 async function safePrecedentEdges() {
-  // 决策图引用先例边计数（与 src/web/sales-decision-monitor.html:1080-1088 loadLoops memory 段同口径：
-  //   对每条 decision 的 referenced_precedents JSONB 数组累加）
   try {
     const r = await query(`
       SELECT COUNT(*)::int AS n
@@ -50,7 +46,6 @@ async function safePrecedentEdges() {
   } catch { return 0; }
 }
 
-// 先例边 Top：按被引用的 precedent_id 聚合（与 decision.referenced_precedents JSONB 同口径）
 async function safePrecedentTop(limit = 10) {
   try {
     const r = await query(`
@@ -63,7 +58,6 @@ async function safePrecedentTop(limit = 10) {
   } catch { return []; }
 }
 
-// 先例 → 引用它的决策清单（用于下钻：点先例行看哪些决策引用了它）
 async function safePrecedentRefMap() {
   try {
     const r = await query(`
@@ -72,17 +66,16 @@ async function safePrecedentRefMap() {
       FROM crm.decision d
       WHERE d.referenced_precedents IS NOT NULL
     `);
-    const map = {};
+    const map = {}; const inv = {};
     for (const row of r.rows || []) {
-      const pid = row.pid;
-      if (!pid) continue;
+      const pid = row.pid; if (!pid) continue;
       (map[pid] = map[pid] || []).push(row.decision_id);
+      (inv[row.decision_id] = inv[row.decision_id] || []).push(pid);
     }
-    return map;
-  } catch { return {}; }
+    return { map, inv };
+  } catch { return { map: {}, inv: {} }; }
 }
 
-// 蒸馏状态（只读 dry-run 口径，与 src/portal/memoryConfig.js:41 同源：不写库）
 async function safeDistill() {
   try {
     const r = await query(
@@ -140,19 +133,66 @@ function renderPrecedentDetail(pid, n, refs) {
   ${refList}`;
 }
 
-function renderTopTable(top, refMap) {
-  if (!top.length) return { html: '<div class="dn-empty">暂无先例引用边</div>', details: '' };
-  const thead = '<tr><th>precedent_id</th><th>被引用次数</th></tr>';
-  const body = [];
-  const details = [];
-  for (const r of top) {
-    const pid = r.precedent_id || '';
-    const refs = refMap[pid] || [];
-    body.push(`<tr data-dk="${esc(pid)}" data-drill-title="先例 ${esc(pid)}">
-      <td>${esc(pid || '—')}</td><td>${r.n}</td></tr>`);
-    details.push(`<div class="so-detail-hidden" data-dk="${esc(pid)}">${renderPrecedentDetail(pid, r.n, refs)}</div>`);
-  }
-  return { html: `<table class="pg-table">${thead}${body.join('')}</table>`, details: details.join('') };
+function renderDecisionDetail(did, pids) {
+  const list = pids.length
+    ? `<ul class="so-ref-list">${pids.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`
+    : '<p class="dn-note">未引用任何先例。</p>';
+  return `<dl class="so-dl">
+    ${kv('decision_id', esc(did || '—'))}
+    ${kv('引用先例数', String(pids.length))}
+  </dl>
+  <h4 class="so-d-sub">该决策引用的先例</h4>
+  ${list}`;
+}
+
+function renderGraph(top, refMap, invMap) {
+  const precedents = (top || []).slice(0, 10);
+  if (!precedents.length) return '<div class="dn-empty">暂无先例引用边，图模型为空。</div>';
+  const pids = precedents.map((p) => p.precedent_id);
+  const decSet = new Set();
+  for (const pid of pids) for (const d of (refMap[pid] || [])) decSet.add(d);
+  const decisions = [...decSet].slice(0, 28);
+  const decIdx = new Map(decisions.map((d, i) => [d, i]));
+
+  const W = 660, rowH = 44, pad = 26;
+  const rows = Math.max(precedents.length, decisions.length);
+  const H = pad * 2 + rows * rowH;
+  const px = 140, dx = 520;
+  const yOf = (i) => pad + i * rowH + rowH / 2;
+
+  let edgesSvg = '';
+  precedents.forEach((p, i) => {
+    const py = yOf(i);
+    for (const d of (refMap[p.precedent_id] || [])) {
+      const j = decIdx.get(d); if (j == null) continue;
+      const dy = yOf(j);
+      edgesSvg += `<line x1="${px}" y1="${py}" x2="${dx}" y2="${dy}" stroke="var(--ok)" stroke-width="1.4" opacity="0.5"/>`;
+    }
+  });
+
+  let pNodes = '';
+  precedents.forEach((p, i) => {
+    const y = yOf(i);
+    pNodes += `<g class="so-m-graph-node" data-dk="${esc(p.precedent_id)}" data-drill-title="先例 ${esc(p.precedent_id)}" style="cursor:pointer">
+      <circle cx="${px}" cy="${y}" r="9" fill="var(--ok)"></circle>
+      <text x="${px - 16}" y="${y + 3}" text-anchor="end" font-size="10" font-weight="600" fill="var(--ink)" stroke="var(--panel)" stroke-width="3" paint-order="stroke">${esc(trunc(p.precedent_id))}</text>
+    </g>`;
+  });
+  let dNodes = '';
+  decisions.forEach((d, j) => {
+    const y = yOf(j);
+    dNodes += `<g class="so-m-graph-node" data-dk="${esc(d)}" data-drill-title="决策 ${esc(d)}" style="cursor:pointer">
+      <circle cx="${dx}" cy="${y}" r="9" fill="var(--ac)"></circle>
+      <text x="${dx + 16}" y="${y + 3}" text-anchor="start" font-size="10" font-weight="600" fill="var(--ink)" stroke="var(--panel)" stroke-width="3" paint-order="stroke">${esc(trunc(d))}</text>
+    </g>`;
+  });
+
+  return `<div class="so-m-graph-wrap">
+    <div class="so-graph-legend"><span class="dot ok"></span>先例节点 <span class="dot ac"></span>决策节点 <span class="line"></span>REFERENCED_PRECEDENT</div>
+    <svg class="so-m-graph" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="记忆系统图模型：先例与决策引用关系">
+      ${edgesSvg}${pNodes}${dNodes}
+    </svg>
+  </div>`;
 }
 
 function renderDistill(n) {
@@ -165,8 +205,6 @@ function renderDistill(n) {
   </section>`;
 }
 
-// 简化版：resolveMe 由路由层注入 me（已有 parseAuth / resolveMe 工具）；
-//         本渲染器仅消费 me.role 做权限判断，避免重复实现认证。
 export async function renderMemory({ me, deps } = {}) {
   const isAdmin = ['admin', 'sysadmin'].includes(me?.role);
   if (!isAdmin) {
@@ -176,18 +214,45 @@ export async function renderMemory({ me, deps } = {}) {
       html: renderForbidden(me),
     };
   }
-  const [counts, edges, top, distill, refMap, mVals] = await Promise.all([
+  const [counts, edges, top, distill, refData, mVals] = await Promise.all([
     safeCounts(), safePrecedentEdges(), safePrecedentTop(10), safeDistill(), safePrecedentRefMap(),
     getTrendSamples('m_precedent_edge', { tenantId: me.tenantId || 'system', deps }),
   ]);
-  const { html: topHtml, details } = renderTopTable(top, refMap);
+  const refMap = refData.map || {}; const invMap = refData.inv || {};
+  const graphHtml = renderGraph(top, refMap, invMap);
+
+  const detailBlocks = [];
+  const refSet = new Set();
+  for (const p of top) {
+    const pid = p.precedent_id; const refs = refMap[pid] || [];
+    detailBlocks.push(`<div class="so-detail-hidden" data-dk="${esc(pid)}">${renderPrecedentDetail(pid, p.n, refs)}</div>`);
+    for (const d of refs) refSet.add(d);
+  }
+  for (const d of refSet) {
+    detailBlocks.push(`<div class="so-detail-hidden" data-dk="${esc(d)}">${renderDecisionDetail(d, invMap[d] || [])}</div>`);
+  }
+
+  const style = `<style>
+.so-m-graph-wrap{border:1px solid var(--line,#e6e8ec);border-radius:10px;padding:10px;background:var(--bg,#fff);}
+.so-graph-legend{font-size:12px;color:var(--mut,#666);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.so-graph-legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;}
+.so-graph-legend .dot.ok{background:var(--ok,#2a9d4a);}
+.so-graph-legend .dot.ac{background:var(--ac,#3b6fd4);}
+.so-graph-legend .line{display:inline-block;width:22px;height:2px;background:var(--ok,#2a9d4a);}
+.so-m-graph{width:100%;height:auto;display:block;}
+.so-m-graph-node text{font-family:monospace;}
+</style>`;
+
   const html = [
+    style,
     '<section class="pg-section so-m-top">', renderTopState(edges), '</section>',
     '<section class="pg-section so-m-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(mVals), '</section>',
-    '<section class="pg-section so-m-pred"><h3>先例边 Top 10（被引用次数）</h3>', topHtml, details, '</section>',
+    '<section class="pg-section so-m-graph-sec"><h3>记忆系统图模型（先例 ↔ 决策引用关系）</h3>', graphHtml,
+      '<p class="dn-note">点击任一节点查看明细：先例节点→引用它的决策；决策节点→它引用的先例。</p></section>',
     renderTriSection(counts),
     renderDistill(distill),
-    '<section class="pg-section so-m-drill"><p class="dn-note">点击任一先例行查看引用它的决策清单。</p></section>',
+    '<section class="pg-section so-m-drill"><p class="dn-note">图节点与三构件计数均为只读监控。</p></section>',
+    detailBlocks.join(''),
   ].join('');
   return { schema: { type: 'monitor-overview-m' }, data: { edges, ...counts, distill, top: top.length }, html };
 }
