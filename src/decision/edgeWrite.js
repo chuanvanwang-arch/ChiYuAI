@@ -30,12 +30,15 @@ function traceDegradation(rec) {
   try { recordFailure('decision-edge-mirror-degraded'); } catch { /* 计数失败不影响主链路 */ }
   try {
     // explicit=true 绕过价值闸门：降级留痕是审计证据，不因"内容不够有价值"被拒收
+    // 显式 tenantId:'system'：这是平台基础设施事件的审计留痕，不归属任何业务租户的客户记忆，
+    //   显式声明可避免 resolveTenantId 对"缺租户"误 emit memory-tenant-missing 噪声。
     void appendMemory({
       topic: `decision:edge-degraded`,
       kind: 'degradation',
       payload: { ...rec, text: `[边写降级] ${rec.rel_type} → ${rec.reason}` },
       layer: 'L-Workspace',
       actor: rec.actor || 'system',
+      tenantId: 'system',
       eventType: 'decision-edge-mirror-degraded',
       explicit: true,
     }).catch(() => {});

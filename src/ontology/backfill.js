@@ -138,8 +138,8 @@ export async function backfillAttribute({
 async function logBackfill({ topic, attrKey, c, result, newValue = null, reason = null, actor = 'system', dryRun = false }) {
   if (dryRun) return;
   await queryWrite(
-    `INSERT INTO crm.memory_log (topic, kind, payload, layer, actor, entity_id)
-     VALUES ($1,$2,$3::jsonb,$4,$5,$6)`,
+    `INSERT INTO crm.memory_log (topic, kind, payload, layer, actor, entity_id, tenant_id)
+     VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7)`,
     [
       topic,
       'backfill',
@@ -156,6 +156,7 @@ async function logBackfill({ topic, attrKey, c, result, newValue = null, reason 
       'L-Workspace',
       actor,
       c?.entityId ?? null,
+      'system', // 本体回填是平台级数据操作，无业务租户上下文；显式声明避免被误判为多租户泄漏
     ]
   ).catch(() => {}); // 留痕失败不阻断回填主流程，但回填结果本身已计入 stats
 }

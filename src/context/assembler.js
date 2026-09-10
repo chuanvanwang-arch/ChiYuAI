@@ -98,7 +98,10 @@ async function retrieveL1(actor, q, profile = null) {
   }));
 }
 
-async function retrieveL2(actor, intent) {
+// U1（2026-09-10）：新增第三参 tenantId。原实现 retrieveMemory 不传租户 → 恒读 system，
+//   业务租户写的记忆（C1 修复后落本租户）在装配层一条都读不到 —— 写侧修完读侧仍空。
+//   缺省 'system' 保持既有调用方（含 2 参 stub）行为不变。
+async function retrieveL2(actor, intent, tenantId = 'system') {
   const scenario = intent?.scenario || null;
   // BG-08：决策时间基准统一为 COALESCE(decided_at, created_at)，与叙事时间线同源，杜绝排序漂移
   const r = await query(
@@ -106,7 +109,7 @@ async function retrieveL2(actor, intent) {
      WHERE ($1::text IS NULL OR scenario_id=$1) ORDER BY ${DECISION_TIME_BASIS} DESC LIMIT 5`,
     [scenario]
   );
-  const m = await retrieveMemory({ topicLike: 'decision:%', limit: 5 }).catch(() => ({ rows: [] }));
+  const m = await retrieveMemory({ topicLike: 'decision:%', limit: 5, tenantId }).catch(() => ({ rows: [] }));
   return { decisions: r.rows, memories: m.rows };
 }
 
@@ -249,7 +252,7 @@ export async function assembleContext({ actor, intent, query: q, tenantId = 'sys
   const missing = {};
   const layers = {};
   try { layers.L1 = await withTimeout(callL1(actor, q), L1_TIMEOUT); } catch { missing.L1 = true; }
-  try { layers.L2 = await L2(actor, intent); } catch { missing.L2 = true; }
+  try { layers.L2 = await L2(actor, intent, actorTenant); } catch { missing.L2 = true; }
   try { layers.L3 = await L3(actor); } catch { missing.L3 = true; }
   try { layers.L4 = await L4(actor, actorTenant); } catch { missing.L4 = true; }
   try { layers.LK = await callLK(actor, intent); } catch { missing.LK = true; }

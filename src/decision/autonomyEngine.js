@@ -211,7 +211,10 @@ export async function requireDecision(scenario_id, trigger_context = {}, involve
     conditions_evaluated: conditions,
     business_tier: tier,
     disposition: null,
-  }, { k: opts.k || 5 });
+    // C8（2026-09-10）：C5 的强制伴随项。C5 把决策归到真实租户后，若此处不传 tenantId，
+    //   先例池仍按 system 过滤 → 租户自己的历史决策全被排除，「修了归属反而断了先例」。
+    //   与 searchPrecedents 内 `tenant_id=$3 OR tenant_id='system'` 回退范式协同：本租户优先 + 基线兜底。
+  }, { k: opts.k || 5, tenantId: tenant });
   const avgSimilarity = precedents.length
     ? precedents.reduce((s, p) => s + p.similarity, 0) / precedents.length : 0;
   const coverage = Math.min(precedents.length / (opts.k || 5), 1);

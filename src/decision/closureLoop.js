@@ -32,14 +32,25 @@ async function readHindsightCfg() {
 }
 
 // 取决策主实体 id（用于 memory_log.entity_id 锚定，便于按客户/实体查询记忆影响）
-async function decisionEntityId(decisionId) {
-  const r = await query(`SELECT involved_entities FROM crm.decision WHERE decision_id=$1`, [decisionId]);
-  const ents = r.rows[0]?.involved_entities;
+// 决策锚点解析：客户/商机锚点 + 租户（C5 修复后 crm.decision 已带 tenant_id，必填）。
+//   一次性取三项避免对同决策多次查询；tenant 缺省 'system'（决策表有 NOT NULL 默认，正常路径必取到真实租户）。
+//   修正前此文件三处直插 memory_log 省略 tenant_id → 静默落 system（DEFAULT），构成多租户泄漏；
+//   现统一经 appendMemory 写入，显式带租户 + 锚点。
+const normEntType = (t) => (typeof t === 'string' && t.startsWith('CRM_')) ? t.slice(4) : t;
+async function decisionAnchor(decisionId) {
+  const r = await query(
+    `SELECT tenant_id, involved_entities FROM crm.decision WHERE decision_id=$1`,
+    [decisionId]
+  );
+  const row = r.rows[0];
+  const ents = row?.involved_entities;
+  let entityId = null, entityType = null;
   if (Array.isArray(ents) && ents.length) {
     const first = ents[0];
-    return first && (first.id || first.entity_id || null);
+    entityId = first?.id || first?.entity_id || null;
+    entityType = normEntType(first?.type || null);
   }
-  return null;
+  return { entityId, entityType, tenantId: row?.tenant_id || 'system' };
 }
 
 // ───────────────────── §9.2 三通道分流（纯函数，可单测） ─────────────────────
@@ -144,14 +155,14 @@ export async function submitRetro(decisionId, payload = {}, { created_by = null 
   }
 
   // C3′：记忆影响 → memory_log append-only（原记忆 payload 不动）
-  const entityId = await decisionEntityId(decisionId);
+  const { entityId, entityType, tenantId } = await decisionAnchor(decisionId);
   let memoryImpactCount = 0;
   for (const m of routed.memory_impacts) {
-    await queryWrite(
-      `INSERT INTO crm.memory_log (topic, kind, payload, entity_id)
-       VALUES ($1,'RETRO_MEMORY_IMPACT',$2::jsonb,$3)`,
-      [`decision:${decisionId}`, JSON.stringify(m), entityId]
-    );
+    await appendMemory({
+      topic: `decision:${decisionId}`, kind: 'RETRO_MEMORY_IMPACT',
+      payload: m, entityId, entityType, tenantId,
+      layer: 'L-Workspace', actor: 'decision-agent', explicit: true,
+    }).catch(() => {});
     memoryImpactCount += 1;
   }
 
@@ -213,24 +224,26 @@ export async function submitRetro(decisionId, payload = {}, { created_by = null 
 // ───────────────────── C2 后见之明（§9.3，append-only） ─────────────────────
 export async function reinforceMemory(decisionId, { memory_ref = null, note = null } = {}) {
   if (!decisionId) throw new Error('reinforceMemory 需要 decision_id');
-  const entityId = await decisionEntityId(decisionId);
-  const r = await queryWrite(
-    `INSERT INTO crm.memory_log (topic, kind, payload, entity_id)
-     VALUES ($1,'HINDSIGHT_REINFORCE',$2::jsonb,$3) RETURNING id`,
-    [`decision:${decisionId}`, JSON.stringify({ original_ref: memory_ref, note, tag: 'verified' }), entityId]
-  );
-  return { ok: true, memory_id: r.rows[0]?.id };
+  const { entityId, entityType, tenantId } = await decisionAnchor(decisionId);
+  const res = await appendMemory({
+    topic: `decision:${decisionId}`, kind: 'HINDSIGHT_REINFORCE',
+    payload: { original_ref: memory_ref, note, tag: 'verified' },
+    entityId, entityType, tenantId,
+    layer: 'L-Workspace', actor: 'decision-agent', explicit: true,
+  });
+  return { ok: true, memory_id: res.row?.id };
 }
 
 export async function rewriteMemory(decisionId, { memory_ref = null, reinterpretation = null, reason = null } = {}) {
   if (!decisionId) throw new Error('rewriteMemory 需要 decision_id');
-  const entityId = await decisionEntityId(decisionId);
-  const r = await queryWrite(
-    `INSERT INTO crm.memory_log (topic, kind, payload, entity_id)
-     VALUES ($1,'HINDSIGHT_REWRITE',$2::jsonb,$3) RETURNING id`,
-    [`decision:${decisionId}`, JSON.stringify({ original_ref: memory_ref, reinterpretation, reason, tag: 'rewritten:hindsight' }), entityId]
-  );
-  return { ok: true, memory_id: r.rows[0]?.id };
+  const { entityId, entityType, tenantId } = await decisionAnchor(decisionId);
+  const res = await appendMemory({
+    topic: `decision:${decisionId}`, kind: 'HINDSIGHT_REWRITE',
+    payload: { original_ref: memory_ref, reinterpretation, reason, tag: 'rewritten:hindsight' },
+    entityId, entityType, tenantId,
+    layer: 'L-Workspace', actor: 'decision-agent', explicit: true,
+  });
+  return { ok: true, memory_id: res.row?.id };
 }
 
 // ───────────────────── C3 证实性偏差校验（§9.4） ─────────────────────

@@ -30,6 +30,7 @@ export const POLICY_KEYS = [
   'autonomy-conf', 'sales-thresholds', 'hindsight-deviation',
   'context-guard', 'context-routing', 'event-retro', 'agent-event-trigger',
   'price-authority', // 2026-09-09 新增：折扣授权矩阵是决策依据须可追溯；增键后所有后续决策解析出新版本（policyVersion.js:27 明示的预期行为，已获用户批准）
+  'discovery-rules', // 2026-09-10 新增：lead-fit 判定依据（信号权重/ICP/provider 序）；增键→后续决策解析新版本（policyVersion.js:27 明示预期行为）
 ];
 
 const POLICY_FAMILY = 'sales-decision-policy';
