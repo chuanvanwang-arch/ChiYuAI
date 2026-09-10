@@ -71,6 +71,10 @@ export function createApp() {
   try { registerRetroTrigger(); } catch (e) { console.log(`[retro-trigger] register fail: ${e.message}`); }
   // T21 J3 自动建议注册：监听 decision 域（新决策/结果回写/反馈回写）→ 偏差触达时经 SSE 推浮卡
   try { registerAutoSuggest({ scenarios: GATE_SCENARIOS }); } catch (e) { console.log(`[auto-suggest] register fail: ${e.message}`); }
+  // P0-2（2026-09-10）：业务结果自动回写订阅器注册。
+  //   此前该函数全仓仅定义、无任何调用（探针 D4 实测真自动 outcome = 0），⑤ 边从未通电。
+  //   注意：仅注册不足以生效，还须在 crm.outcome_event_map 播种规则（见 db/seed-outcome-event-map.sql）。
+  try { registerOutcomeIngester(); } catch (e) { console.log(`[outcome-ingester] register fail: ${e.message}`); }
   seedSkillRegistry()
     .then((r) => console.log(`[skill-registry] seed inserted=${r.inserted}/${r.total}`))
     .catch((e) => console.log(`[skill-registry] seed fail: ${e.message}`))

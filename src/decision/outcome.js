@@ -30,6 +30,24 @@ export async function writeOutcome(decisionId, { outcome_type, source, payload =
   );
   // 回写 decision.outcome_verified（单一事实源）
   await write(`UPDATE crm.decision SET outcome_verified=$2 WHERE decision_id=$1`, [decisionId, outcome_type]);
+  // P0-1（2026-09-10）：outcome 落库后发 'outcome-set' 事件，打通 ⑥ 实时校准链。
+  //   背景：`autoSuggest.js:104` 订阅 decision-created / outcome-set / feedback-set，但全仓
+  //   从未 emit 过这三个名字（探针 D5 实测：订阅 3 个 vs 实际 emit 17 个，交集为空）→
+  //   实时校准永不触发，只能等夜间 retro 批量。补齐此处即通电。
+  //   必须带 scenario_id：autoSuggest 的 trigger 依此定位场景，缺失会直接 return。
+  //   事件发送失败绝不能影响结果回写（写路径优先），故整体 try/catch 隔离。
+  try {
+    const { emit } = await import('../events/bus.js');
+    const d = await query(`SELECT scenario_id FROM crm.decision WHERE decision_id=$1 LIMIT 1`, [decisionId]);
+    emit('decision', 'outcome-set', {
+      decision_id: decisionId,
+      scenario_id: d.rows[0]?.scenario_id || null,
+      outcome_type,
+      source,
+    });
+  } catch (e) {
+    console.error('[writeOutcome] emit outcome-set failed:', e?.message);
+  }
   return r.rows[0];
 }
 
