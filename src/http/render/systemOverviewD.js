@@ -10,13 +10,13 @@ import { listPatches } from '../../calibration/store.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function safeL1(me) {
+  // 返回闸门明细数组（设计 §1.3：L1 需「拦截明细（按闸门）」独立表，非仅总数）
   try {
     const tenantId = (me && me.tenantId) || '*';
     const r = await getGateAttribution(tenantId);
-    // 累计所有闸门 total（与 src/web/sales-decision-monitor.html:1102 同口径）
     const gates = r?.gates || [];
-    return gates.reduce((s, g) => s + (g.total || 0), 0);
-  } catch { return 0; }
+    return { total: gates.reduce((s, g) => s + (g.total || 0), 0), gates };
+  } catch { return { total: 0, gates: [] }; }
 }
 async function safeL2() {
   try {
@@ -60,6 +60,20 @@ function renderTopState(l1, l2Ok, scn, l3) {
     <div class="loop-desc">L1 拦截样本 <b>${l1}</b> · L2 有业务结果的场景 <b>${l2Ok}/${scn}</b> · L3 校准待批 <b>${l3Str}</b>。</div>`;
 }
 
+function renderL1Table(l1) {
+  if (!l1.gates.length) return '<div class="dn-empty">暂无 L1 拦截样本</div>';
+  const thead = '<tr><th>闸门</th><th>拦截样本</th><th>占比</th></tr>';
+  const body = l1.gates.map((g) => {
+    const pct = l1.total > 0 ? ((Number(g.total || 0) / l1.total) * 100).toFixed(1) : '0.0';
+    return `<tr data-gate="${esc(g.gate || g.gate_id || g.key || '')}">
+      <td>${esc(g.gate || g.gate_id || g.key || '—')}</td>
+      <td>${g.total ?? 0}</td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join('');
+  return `<table class="pg-table">${thead}${body}</table>`;
+}
+
 function renderL2Table(l2) {
   if (!l2.length) return '<div class="dn-empty">近 30 日无 L2 场景数据</div>';
   const thead = '<tr><th>scenario_id</th><th>样本</th><th>业务成功率</th></tr>';
@@ -79,16 +93,18 @@ export async function renderDecision({ me } = {}) {
   const [l1, l2, l3] = await Promise.all([safeL1(me), safeL2(), safeL3(me)]);
   const l2Ok = l2.filter((r) => Number(r.success) > 0).length;
   const html = [
-    '<section class="pg-section so-d-top">', renderTopState(l1, l2Ok, l2.length, l3), '</section>',
-    '<section class="pg-section so-d-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(l1), '</section>',
+    '<section class="pg-section so-d-top">', renderTopState(l1.total, l2Ok, l2.length, l3), '</section>',
+    '<section class="pg-section so-d-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(l1.total), '</section>',
+    '<section class="pg-section so-d-l1"><h3>L1 拦截明细（按闸门）</h3>', renderL1Table(l1), '</section>',
     '<section class="pg-section so-d-l2"><h3>L2 场景通过率分布</h3>', renderL2Table(l2), '</section>',
     '<section class="pg-section so-d-l3"><h3>L3 校准待批处方</h3>',
     `<p>${l3 == null ? '<span class="badge warn">—（需管理员/admin）</span>' : `<b>${l3}</b> 条待批`}</p>`,
     '</section>',
+    '<section class="pg-section so-d-drill"><p class="dn-empty">行点击下钻弹窗（单条决策三卡：拦截/结果/校准）由后续迭代补。</p></section>',
   ].join('');
   return {
     schema: { type: 'monitor-overview-d' },
-    data: { l1, l2Ok, totalScn: l2.length, l3 },
+    data: { l1: l1.total, gates: l1.gates.length, l2Ok, totalScn: l2.length, l3 },
     html,
   };
 }
