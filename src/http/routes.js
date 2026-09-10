@@ -13,7 +13,7 @@ import { actionExecutor } from '../action/executor.js';
 import { seedActions } from '../action/seed-actions.js';
 import { getAction } from '../action/registry.js';
 import { distillMemory } from '../memory/memoryLog.js';
-import { registerCaptureSubscriber } from '../memory/capture.js';
+import { registerCaptureSubscriber, loadCaptureDomains } from '../memory/capture.js';
 import { ensureTimers } from '../scheduler/timers.js';
 import { seedConnectorActions } from '../connectors/connectorActions.js';
 // 非结构化证据挂接（2026-08-31）：上传/下载路由（staging，免 confirm）
@@ -469,6 +469,9 @@ export function createRoutes(app, hub) {
   seedConnectorActions();
   // 记忆治理底座：事件总线单汇点捕获（residue 零摩擦），建应用时注册一次
   registerCaptureSubscriber();
+  // C4（2026-09-10）：捕获域白名单可由 config_store['memory-capture-domains'] 覆盖；
+  //   无配置/读取失败 → 保持代码内缺省白名单（绝不因配置异常放开全量订阅）。
+  loadCaptureDomains().catch(() => {});
   // 销售决策监控：monitor_event 表 + decision 事件域订阅（异常隔离不阻断写），建应用时注册一次
   ensureMonitorSchema().then(() => registerMonitorSubscriber()).catch((e) => console.error('[routes] monitor schema:', e?.message));
   // ③ 定时规则驱动：nightly 蒸馏 24h + crm-risk 扫描 30min（幂等单例，防双实例）
@@ -3066,6 +3069,8 @@ export function createRoutes(app, hub) {
   // UI 架构级封死（2026-08-29）：Web Component 单一来源 + 格式化工具（计划批1 补充路由注册）
   app.get('/portal/components.js', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/components.js', import.meta.url)), { headers: { 'Content-Type': 'text/javascript' } }));
+  app.get('/portal/drillModal.js', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/drillModal.js', import.meta.url)), { headers: { 'Content-Type': 'text/javascript' } }));
   app.get('/portal/util.js', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/util.js', import.meta.url)), { headers: { 'Content-Type': 'text/javascript' } }));
   app.get('/portal/layoutMenu.js', (req, res) =>
