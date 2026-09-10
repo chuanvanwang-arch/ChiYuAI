@@ -21,6 +21,43 @@ export async function seedConsult2SalesUser(tenantId,
   return r.rowCount; // 1=新建, 0=已存在（幂等）
 }
 
+export const CONSULT2_ZHANGQIANG_USERNAME = 'zhangqiang';
+export const CONSULT2_ZHANGQIANG_PASSWORD = 'Zhangqiang@2026!'; // 初始密码，交付后须改密
+export const CONSULT2_LILI_USERNAME = 'lili';
+export const CONSULT2_LILI_PASSWORD = 'Lili@2026!'; // 初始密码，交付后须改密
+
+// 通用租户用户播种（幂等）：按指定 role 落 crm.crm_users
+export async function seedConsult2User(tenantId,
+  { username, password, role, displayName } = {}) {
+  if (!tenantId) throw new Error('tenantId is required');
+  if (!username || !password || !role) throw new Error('username/password/role are required');
+  const r = await queryWrite(
+    `INSERT INTO crm.crm_users (username, password_hash, role, display_name, org_id, tenant_id, enabled, activated)
+     SELECT $1, crypt($2, gen_salt('bf')), $3, $4, $5, $6, true, true
+     WHERE NOT EXISTS (SELECT 1 FROM crm.crm_users WHERE username=$1)`,
+    [username, password, role, displayName, tenantId, tenantId]
+  );
+  return r.rowCount; // 1=新建, 0=已存在（幂等）
+}
+
+export async function seedConsult2Zhangqiang(tenantId) {
+  return seedConsult2User(tenantId, {
+    username: CONSULT2_ZHANGQIANG_USERNAME,
+    password: CONSULT2_ZHANGQIANG_PASSWORD,
+    role: 'sales',
+    displayName: '张强（企业管理咨询2·销售）',
+  });
+}
+
+export async function seedConsult2Lili(tenantId) {
+  return seedConsult2User(tenantId, {
+    username: CONSULT2_LILI_USERNAME,
+    password: CONSULT2_LILI_PASSWORD,
+    role: 'finance',
+    displayName: '李莉（企业管理咨询2·财务）',
+  });
+}
+
 // Windows 适配（2026-09-09 实践实证）：win32 下 import.meta.url 与 process.argv[1]
 // 在盘符大小写/路径分隔符上不一致，裸比较永不成立 → 直跑静默无操作。
 // 归一化守卫范式：scripts/seed-tenant-master-data.mjs:116-118
