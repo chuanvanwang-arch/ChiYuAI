@@ -44,9 +44,17 @@ export async function embedText(text, opts = {}) {
       } catch { /* 降级路径不二次失败 */ }
       return { vector: hashVector(text), provider: 'hash', degraded: true, reason: 'siliconflow 未配置，降级 hash' };
     }
-    // 已配置：此处为接入点（实际 API 调用超出本 Task 范围，留作明确边界，仍走 hash 并标 degraded=false 由调用方替换）
-    // 注：真实 siliconflow 调用需在 provider 注册处实现；本 Task 仅搭好可插拔骨架 + 默认回退。
-    return { vector: hashVector(text), provider: 'siliconflow', degraded: false };
+    // ⚠ 反假绿修正（2026-09-10）：此处**尚未实现真实 API 调用**，返回的仍是 hashVector，
+    //   但原实现标 `provider:'siliconflow', degraded:false`，会让监控判定健康（探针 D1 实测
+    //   知识向量 65/65 全为 hash 伪向量，真向量占比 0%）——属于典型的"假绿标志位"。
+    //   改为显式降级：provider 如实标 'hash'、degraded:true、附 reason，使降级可见可告警。
+    //   TODO(真模型接入)：实现 siliconflow 真实调用后，仅在确实拿到语义向量时才标 provider:'siliconflow', degraded:false。
+    return {
+      vector: hashVector(text),
+      provider: 'hash',
+      degraded: true,
+      reason: 'siliconflow 真实调用未实现，当前返回 hash 伪向量（非语义向量）',
+    };
   }
   throw new Error(`未知 embedding provider: ${provider}`);
 }
