@@ -105,8 +105,8 @@ test('GET /api/memory 返回四段', async () => {
   expect(body.precedents).toBeDefined();
 });
 
-test('GET 非 sysadmin → 403', async () => {
-  const router = createMemoryConfigRouter(makeDeps({ resolveMe: async () => ({ ok: true, role: 'sales' }) }));
+test('GET 非 viewer 角色（guest）→ 403', async () => {
+  const router = createMemoryConfigRouter(makeDeps({ resolveMe: async () => ({ ok: true, role: 'guest' }) }));
   let code = 0, body = null;
   const res = { status: (c) => { code = c; return { json: (p) => { body = p; } }; }, json: (p) => { body = p; } };
   await router.handlers.get({}, res);
@@ -141,4 +141,39 @@ test('POST /api/memory/distill 执行 → 写决策事件', async () => {
 test('无 DELETE 路由', () => {
   const router = createMemoryConfigRouter(makeDeps());
   expect(router.handlers.delete).toBeUndefined();
+});
+
+// —— U4（2026-09-10 收口）：记忆页放开业务租户视图 ——
+test('U4: sales 角色仅看本租户记忆（跨租户不可见）', async () => {
+  const router = createMemoryConfigRouter(makeDeps({
+    resolveMe: async () => ({ ok: true, role: 'sales', tenantId: 'acme-demo' }),
+    listLogs: async (tenantId) => (tenantId === 'acme-demo' ? [{ id: 1 }] : []),
+  }));
+  let code = 0, body = null;
+  const res = { status: (c) => { code = c; return { json: (p) => { body = p; } }; }, json: (p) => { body = p; } };
+  await router.handlers.get({}, res);
+  expect(code).toBe(200);
+  expect(body.logs).toHaveLength(1);            // 仅本租户
+});
+
+test('U4: 非 viewer 角色（guest）被拒 403', async () => {
+  const router = createMemoryConfigRouter(makeDeps({
+    resolveMe: async () => ({ ok: true, role: 'guest' }),
+  }));
+  let code = 0, body = null;
+  const res = { status: (c) => { code = c; return { json: (p) => { body = p; } }; }, json: (p) => { body = p; } };
+  await router.handlers.get({}, res);
+  expect(code).toBe(403);
+});
+
+test('U4: admin 传 ?tenant=acme-demo 收窄到该租户', async () => {
+  const router = createMemoryConfigRouter(makeDeps({
+    resolveMe: async () => ({ ok: true, role: 'admin', tenantId: 'system' }),
+    listLogs: async (tenantId) => (tenantId === 'acme-demo' ? [{ id: 9 }] : []),
+  }));
+  let code = 0, body = null;
+  const res = { status: (c) => { code = c; return { json: (p) => { body = p; } }; }, json: (p) => { body = p; } };
+  await router.handlers.get({ query: { tenant: 'acme-demo' } }, res);
+  expect(code).toBe(200);
+  expect(body.logs).toHaveLength(1);
 });

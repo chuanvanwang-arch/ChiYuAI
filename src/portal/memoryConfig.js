@@ -20,17 +20,26 @@ export {
 };
 
 const defaultDeps = {
-  listLogs: async (limit = 50) =>
-    (await query(
+  // U4（2026-09-10）：tenantId 非空时按租户隔离；admin/sysadmin 传 null = 跨租户全局可见（by-design）
+  listLogs: async (tenantId = null, limit = 50) => {
+    const where = tenantId ? 'archived=false AND tenant_id=$2' : 'archived=false';
+    const params = tenantId ? [limit, tenantId] : [limit];
+    return (await query(
       `SELECT id, layer, topic, kind, actor, event_type, distilled, archived, ttl_days, created_at, payload
-       FROM crm.memory_log WHERE archived=false ORDER BY created_at DESC LIMIT $1`, [limit]
-    )).rows,
-  listNotes: async () =>
-    (await query(`SELECT layer, topic, content, updated_at, archived FROM crm.memory_note ORDER BY updated_at DESC LIMIT 50`)).rows,
-  listSnapshots: async () =>
-    (await query(`SELECT id, topic, ref_id, snapshot, created_at FROM crm.memory_snapshot ORDER BY created_at DESC LIMIT 20`)).rows,
-  // 先例网络 TopN：被引用最多的先例（相似度默认取该边最大）
-  listPrecedents: async () =>
+       FROM crm.memory_log WHERE ${where} ORDER BY created_at DESC LIMIT $1`, params
+    )).rows;
+  },
+  listNotes: async (tenantId = null) => {
+    const where = tenantId ? 'archived=false AND tenant_id=$1' : 'archived=false';
+    return (await query(`SELECT layer, topic, content, updated_at, archived FROM crm.memory_note WHERE ${where} ORDER BY updated_at DESC LIMIT 50`, tenantId ? [tenantId] : [])).rows;
+  },
+  listSnapshots: async (tenantId = null) => {
+    const where = tenantId ? 'tenant_id=$1' : 'true';
+    return (await query(`SELECT id, topic, ref_id, snapshot, created_at FROM crm.memory_snapshot WHERE ${where} ORDER BY created_at DESC LIMIT 20`, tenantId ? [tenantId] : [])).rows;
+  },
+  // 先例网络 TopN：decision_precedent_rel 无 tenant_id 列（跨租户模式复用），
+  // 租户管理员与 sysadmin 看到同一张引用图（仅决策 ID + 引用计数，无敏感业务内容）。
+  listPrecedents: async (/* tenantId = null */) =>
     (await query(
       `SELECT r.precedent_id, max(r.similarity)::real AS similarity, count(*)::int AS referenced_times
        FROM crm.decision_precedent_rel r GROUP BY r.precedent_id
@@ -51,24 +60,35 @@ const defaultDeps = {
   resolveMe,
 };
 
+// 记忆页可见角色：admin/sysadmin 跨租户全局（可经 ?tenant= 收窄）；
+// ten_admin/tan_admin 按本租户隔离；业务用户(sales/manager/presales/exec) 仅可见本租户记忆（U4 收口，2026-09-10）
+const MEMORY_VIEWER_ROLES = ['admin', 'sysadmin', 'ten_admin', 'tan_admin', 'sales', 'manager', 'presales', 'exec'];
+const isMemoryViewer = (role) => MEMORY_VIEWER_ROLES.includes(role);
+
 export function createMemoryConfigRouter(deps = {}) {
   const D = { ...defaultDeps, ...deps };
   const router = Router();
-  const forbid = (res) => res.status(403).json({ error: '需要 sysadmin 权限' });
+  const forbid = (res) => res.status(403).json({ error: '需要有效登录身份（业务用户仅可见本租户记忆）' });
 
   const handlers = {
     // GET /api/memory — 记忆四段聚合（只读）
     get: async (req, res) => {
       try {
         const me = await D.resolveMe(req);
-        if (!me?.ok || me.role !== 'admin') return forbid(res);
+        if (!me?.ok || !isMemoryViewer(me.role)) return forbid(res);
+        // U4 收口（2026-09-10）：业务用户/租户管理员按自身租户隔离；
+        //   admin/sysadmin 可经 ?tenant= 收窄，传 null=全局；绝不回退全量 system 污染。
+        const scopedTenant = (me.role === 'admin' || me.role === 'sysadmin')
+          ? (req.query?.tenant || null)
+          : (me.tenantId || 'system');
         const [logs, notes, snapshots, precedents] = await Promise.all([
-          D.listLogs(), D.listNotes(), D.listSnapshots(), D.listPrecedents(),
+          D.listLogs(scopedTenant), D.listNotes(scopedTenant), D.listSnapshots(scopedTenant), D.listPrecedents(scopedTenant),
         ]);
         res.status(200).json({ logs, notes, snapshots, precedents });
       } catch (e) { res.status(500).json({ error: e.message }); }
     },
     // POST /api/memory/distill — dryRun 预检（不写）| 执行（标 distilled，写决策事件）
+    // 蒸馏=全局维护操作（distillMemory 无租户参数），仅 admin 可触发
     post: async (req, res) => {
       try {
         const me = await D.resolveMe(req);
