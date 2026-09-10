@@ -18,6 +18,14 @@ import zipfile
 # 清理白名单：仅允许在这些前缀下执行清空操作
 CLEAN_SAFE_PREFIXES = ("/opt/", "/srv/", "/var/www/")
 
+# 跨 release 必须存活的运行态文件（相对目标根；不入部署包，但绝不能被 clean_dir 抹掉）
+# 背景（2026-09-11 实锤 P0 假发布）：release 的 --clean 会清空 /opt/crm-ai-native，把生产 .env
+# 一起删掉；deploy.sh 随后从 .env.example 生成模板 .env（PGPASSWORD 占位、SMTP_PASS 为空、
+# 缺 CRM_LLM_SECRET / EMBEDDING_PROVIDER）并中止 rebuild。表现为「release 7 秒结束、表数量
+# 不变、容器未重建」，同时留下定时炸弹：服务暂靠旧容器内存态运行，下次 rebuild 即读占位 .env
+# → DB 连接失败 + 库内 api_key 密文永久不可解密。
+KEEP_RELATIVE_PATHS = ("scripts/tencent-lighthouse-deploy/.env",)
+
 
 def _force_remove(func, path, exc_info):
     """rmtree 的 onerror：权限不足时提权后重试（zip 可能携带异常权限位）。"""
@@ -37,12 +45,21 @@ def _force_remove(func, path, exc_info):
 
 
 def clean_dir(dest):
-    """清空目标目录内容（不删除目录本身）。带路径白名单护栏。"""
+    """清空目标目录内容（不删除目录本身）。带路径白名单护栏 + 运行态文件跨清理保留。"""
     dest_abs = os.path.abspath(dest)
     if not any(dest_abs.startswith(p) for p in CLEAN_SAFE_PREFIXES) or len(dest_abs) <= 4:
         raise SystemExit(f"拒绝清空非白名单路径: {dest_abs}（仅允许 {CLEAN_SAFE_PREFIXES}）")
     if not os.path.isdir(dest_abs):
         return
+
+    # 1) 清空前暂存必须存活的运行态文件（生产 .env 等）
+    stash = {}
+    for rel in KEEP_RELATIVE_PATHS:
+        p = os.path.join(dest_abs, rel)
+        if os.path.isfile(p):
+            with open(p, "rb") as fh:
+                stash[rel] = (fh.read(), os.stat(p).st_mode)
+
     removed = 0
     for entry in os.listdir(dest_abs):
         p = os.path.join(dest_abs, entry)
@@ -54,7 +71,21 @@ def clean_dir(dest):
             except OSError:
                 _force_remove(os.remove, p, None)
         removed += 1
+
+    # 2) 还原暂存的运行态文件（防止 release 把生产凭据抹成模板 → 假发布 + 下次 rebuild 事故）
+    for rel, (data, mode) in stash.items():
+        p = os.path.join(dest_abs, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as fh:
+            fh.write(data)
+        try:
+            os.chmod(p, mode)
+        except OSError:
+            pass
+
     print(f"· 已清空 {dest_abs}（{removed} 个条目）")
+    if stash:
+        print(f"· 已跨清理保留运行态文件: {', '.join(sorted(stash))}")
 
 
 def normalize_perms(dest):
