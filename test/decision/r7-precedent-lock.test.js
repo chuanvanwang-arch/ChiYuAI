@@ -61,4 +61,17 @@ describe('R7 先例自锁', () => {
     )).rows[0].n;
     expect(rel).toBe(0);
   });
+
+  it('T1/B-C: DECIDED 决策被先例池召回（已决终态入池）', async () => {
+    const d = await createDecision({
+      scenario_id: SID, trigger_context: CTX, conditions_evaluated: COND,
+      disposition: 'APPROVE', business_tier: 'LEAD', state: 'DECIDED',
+    });
+    const precs = await searchPrecedents(SID, {
+      trigger_context: CTX, conditions_evaluated: COND, business_tier: 'LEAD', disposition: null,
+    }, { k: 5 });
+    const hit = precs.find((p) => p.decision_id === d.decision_id);
+    expect(hit).toBeTruthy();
+    expect(hit.similarity).toBeGreaterThan(0.45); // 与既有 CONFIRMED 用例同口径
+  });
 });

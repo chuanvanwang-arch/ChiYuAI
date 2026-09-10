@@ -13,7 +13,7 @@ import { applyHumanDisposition, applyOutcome } from '../monitor/attribution.js';
 import { deriveDisplayName } from './decisionName.js'; // 【C 方案 2026-09-03】决策可读名称（单一事实源，供 createDecision + 回填脚本复用）
 import { stableStringify, embedText, EMBED_PROVIDER, parsePgVector } from '../ontology/embedding.js';
 import { emit } from '../events/bus.js';
-import { appendMemory } from '../memory/memoryLog.js';
+import { appendMemory, projectDecisionMemory, resolveEntityAnchor } from '../memory/memoryLog.js';
 import { addDecision, addParticleVertex, isAvailable } from './ageGraph.js'; // 写时同步 AGE 图（决策网络 / 因果边）
 import { mirrorEdge } from './edgeWrite.js'; // T2(BG-06) 边写降级留痕：替代裸 addEdge().catch(()=>{})
 // G3 R1/R1b 可观测化：先例关系/记忆沉淀失败静默 → emit trace + monitor.recordFailure
@@ -26,6 +26,11 @@ import { computeConfidence } from './confidence.js'; // T8 置信度反算（G5�
 import { checkContextGuard } from './contextGuard.js'; // T-D5 写时上下文守卫（配置化：warn/block）
 // C4 先例相似度四分量评分（2026-09-03 T7/T8）：jaccard/category/graphDepth/vector 加权 + 归一强校验 + 向量降级
 import { jaccardConditions, categoryMatch, graphDepthOf, normalizeWeights, similarityOf, loadPrecedentConf, cosine } from './precedentScoring.js';
+
+// R7 B/C（2026-09-10）：先例池闸门——已决终态集。
+// 原仅收 CONFIRMED/AUTONOMOUS，漏收重构前遗留的 DECIDED/PROCESSED（占生产 50%），导致先例自锁（池仅 8.6%）。
+// HUMAN/REQUIRED 仍排除（待人工确认/待触发，无终态结论，入池会污染先例+误导置信度）。
+export const DECISION_DECIDED_STATES = ['CONFIRMED', 'AUTONOMOUS', 'DECIDED', 'PROCESSED'];
 
 // B4 2026-09-02：读场景行聚焦配置（required_dims/focus_rulers/rubric_pass_line/enabled_rulers）供评分线使用。
 // 返回 null = 场景行不存在或读取失败 → 调用方保持 null 口径（设计 §6.3「无证据计 0 不假填充」的配置侧同构）。
@@ -453,9 +458,12 @@ export async function createDecision(input = {}) {
   }
 
   // 记忆沉淀（append-only，topic=decision:<id>，L-Workspace 层，供跨会话引用）
+  // C1/C7（2026-09-10）：补 tenantId（此前恒落 system，业务租户读不到自己的决策记忆）
+  //   + 补 trigger_context / involved_entities / conditions_evaluated（C7 投影原料）。
   await appendMemoryLog(decision.decision_id, {
     scenario_id, disposition, rationale, business_tier, decider_type,
-  }).catch((err) => {
+    trigger_context, involved_entities, conditions_evaluated,
+  }, { tenantId }).catch((err) => {
     // G3 R1b 可观测化：决策记忆沉淀失败不再静默（跨会话记忆丢失需有痕迹）
     emit('trace', 'decision-memory-failed', { decision_id: decision.decision_id, error: String(err?.message || err) });
     recordFailure('decision-memory-failed', err);
@@ -468,13 +476,31 @@ export async function createDecision(input = {}) {
   return decision;
 }
 
-export async function appendMemoryLog(decisionId, payload) {
+// C7（2026-09-10）：投影四段式（summary/entities/evidence/gaps）。
+//   旧实现只落 5 个控制字段 + 引擎模板 rationale ≈ 210 B 无业务语义，且不含
+//   injector.memoryText 认的任何文本键（text|summary|note|content）→ 读到也吐空串。
+//   只加字段不删字段，既有按 scenario_id/disposition 消费的调用方零回归。
+export async function appendMemoryLog(decisionId, payload = {}, opts = {}) {
+  const anchor = resolveEntityAnchor({
+    entityId: opts.entityId ?? null,
+    entityType: opts.entityType ?? null,
+    payload: { ...(payload?.trigger_context || {}), ...(payload || {}) },
+  });
+  const projected = projectDecisionMemory({
+    ...payload,
+    decision_id: decisionId,
+    entity_id: anchor.entity_id,
+    entity_type: anchor.entity_type,
+  });
   const res = await appendMemory({
     topic: `decision:${decisionId}`,
     kind: 'decision',
-    payload,
+    payload: projected,
     layer: 'L-Workspace',
     eventType: 'decision-made',
+    tenantId: opts.tenantId || payload?.tenant_id || null,
+    entityId: anchor.entity_id,
+    entityType: anchor.entity_type,
   });
   return res.ok ? res.row : null;
 }
@@ -520,7 +546,7 @@ export async function searchPrecedents(scenario_id, q = {}, opts = {}) {
     `SELECT decision_id, scenario_id, disposition, business_tier, rationale,
             conditions_evaluated, referenced_precedents, trigger_context, embedding, created_at
      FROM crm.decision
-     WHERE scenario_id=$1 AND state IN ('CONFIRMED','AUTONOMOUS')
+     WHERE scenario_id=$1 AND state IN (${DECISION_DECIDED_STATES.map((s) => `'${s}'`).join(',')})
        AND (tenant_id=$3 OR tenant_id='system')
      ORDER BY created_at DESC LIMIT $2`,
     [scenario_id, pool, tenantId]
