@@ -32,8 +32,8 @@ export const agentSpecs = {
       // crm-asset-attach：非结构化证据挂接（2026-08-31 上传/挂接两步管道的第二步，业务写过闸）
       // method-funnel-classification（客户分类→拜访频度）+ method-behavior-standard（21 条拜访质检）
       //   归跟进 agent —— 与 followup_timeliness 职责同源（二者产出均为拜访节奏与质量）
-      actions: ['data-particle-read', 'data-particle-create', 'data-particle-edge-create', 'crm-deal-advance', 'crm-deal-reopen', 'crm-account-360', 'crm-asset-attach', 'method-followup-engine', 'method-funnel-classification', 'method-behavior-standard'],
-      skillCalls: ['data-particle-read', 'data-particle-create', 'crm-asset-attach', 'method-followup-engine', 'method-funnel-classification', 'method-behavior-standard'],
+      actions: ['data-particle-read', 'data-particle-create', 'data-particle-edge-create', 'crm-deal-advance', 'crm-deal-reopen', 'crm-account-360', 'crm-asset-attach', 'method-followup-engine', 'method-funnel-classification', 'method-behavior-standard', 'crm-followup-requirement-collect'],
+      skillCalls: ['data-particle-read', 'data-particle-create', 'crm-asset-attach', 'method-followup-engine', 'method-funnel-classification', 'method-behavior-standard', 'crm-followup-requirement-collect'],
       knowledgeScope: { layers: ['L1', 'L2'], maxHops: 3 },
     },
     context: { knowledgeLevel: 3, coverage: '>=80%', coldStart: 'adaptive' },

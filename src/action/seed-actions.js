@@ -11,6 +11,7 @@ import { listMetaAttr, setMetaAttr } from '../metaAttr/metaAttrRepo.js';
 import { readConfig } from '../config/configStore.js';
 import { recordFailure } from '../monitor/monitorStore.js';
 import { advise } from '../decision/adviseService.js';
+import { collectFollowupRequirement } from '../decision/requirementConditions.js';
 import {
   S_STAGES, S_LABEL, S_TRANSITIONS, S_GATE_DEFS, S_ATTACHMENT_GATES, toStageCode,
   STAGE_DEFAULT_SCENARIO as STAGE_SCENARIO, // 2026-09-08：上移至 stageTaxonomy.js 为单一事实源（注释随之上移）
@@ -182,7 +183,7 @@ export function seedActions() {
     version: '1.0.0', owner: 'crm-native',
     schema: {
       topic: 'string', kind: 'string', payload: 'object',
-      layer: 'string', entityId: 'string', ttlDays: 'number',
+      layer: 'string', entityId: 'string', entityType: 'string', ttlDays: 'number',
     },
     parameters: {
       required: ['topic', 'payload'],
@@ -190,11 +191,12 @@ export function seedActions() {
         topic: { type: 'string' },
         kind: { type: 'string', default: 'event' },
         layer: { type: 'string', default: 'L-Workspace' },
-        entityId: { type: 'string' },
+        entityId: { type: 'string', description: '客户/商机锚点 id；不传则按 payload.account_id → deal_id 自动解析' },
+        entityType: { type: 'string', description: '锚点类型：ACCOUNT/DEAL/CONTACT/LEAD；不传按 payload.type 推导' },
         ttlDays: { type: 'number', default: 30 },
       },
     },
-    handler: async ({ topic, kind = 'event', payload, layer = 'L-Workspace', entityId = null, ttlDays = 30 }, ctx) => {
+    handler: async ({ topic, kind = 'event', payload, layer = 'L-Workspace', entityId = null, entityType = null, ttlDays = 30 }, ctx) => {
       // 决策写回通道：topic/payload 缺省时从 ctx 推导（agent 经 decision_id 自然锚定，
       // 避免 SKILL 步骤硬编码 topic；SKILL 的 crm-memory-upsert 步骤 params 为空时仍能写回）。
       const decisionId = ctx?.decision_id || null;
@@ -203,13 +205,21 @@ export function seedActions() {
       const derPayload = payload === undefined ? { decision_id: decisionId, intent: ctx?.taskPayload?.intent || null } : payload;
       if (derPayload == null) return { ok: false, error: 'payload 缺失且无法推导（需 topic/payload 或 ctx.decision_id）' };
       const { appendMemory } = await import('../memory/memoryLog.js');
+      // C1/C2（2026-09-10）：租户与锚点贯通。此前不传 tenantId → 记忆恒落 system，
+      //   agent 写了但业务租户永远读不到（「记忆真空」根因之一）。
       const res = await appendMemory({
-        topic: derTopic, kind, payload: derPayload, layer, entityId,
+        topic: derTopic, kind, payload: derPayload, layer, entityId, entityType,
         ttlDays: Number(ttlDays) || 30,
         actor: ctx?.actor || 'decision-agent',
+        tenantId: ctx?.tenantId || null,
+        type: derPayload?.type || null,
+        id: derPayload?.id || null,
       }).catch((e) => { recordFailure('crm-memory-upsert-failed', e); return null; });
       if (!res || res.ok === false) return { ok: false, error: res?.reason || 'memory 落库失败' };
-      return { ok: true, memoryId: res.row?.id, topic: derTopic, layer };
+      return {
+        ok: true, memoryId: res.row?.id, topic: derTopic, layer,
+        tenant_id: res.tenant_id, entity_id: res.entity_id, entity_type: res.entity_type,
+      };
     },
   });
 
@@ -364,6 +374,37 @@ export function seedActions() {
                  action: overdue ? 'escalate_to_human' : 'auto_followup', nextAt: new Date(last + cadenceDays * 864e5).toISOString().slice(0, 10) };
       });
       return { ok: true, cadenceDays, schedule, overdueCount: schedule.filter((s) => s.overdue).length };
+    },
+  });
+
+  // crm-followup-requirement-collect：跟进采集 SHOULD/NICE 需求维度证据（T9，REQUIREMENT 方法论）
+  // 写经 autoDecision 第0闸；将 followup 判定（预算/时间表/试用 等非 MUST 维度）沉淀为可回溯证据，供复盘。
+  // 铁律：auto 来源须带 evidence_ref（methodologyEvidence.js:88）→ 未提供时以 followup://<deal_id> 派生源标记
+  //   （采集动作本身即出处），避免无出处断言被拒；来源仍记为 'auto'，人工断言优先级更高（铁律②）。
+  registerAction({
+    name: 'crm-followup-requirement-collect', kind: 'write', permission: 'auth', requiresEntitlement: ['event_automation'],
+    confirm: 'normal', autoDecision: true, decisionScenario: 'REQUIREMENT_COLLECT',
+    namespace: 'crm', agentTool: true, needsApproval: false,
+    version: '1.0.0', owner: 'crm-native',
+    schema: { deal_id: 'string', dims: 'array' },
+    parameters: { required: ['deal_id', 'dims'], properties: { deal_id: { type: 'string', candidateSource: 'CRM_DEAL' } } },
+    handler: async ({ deal_id, dims }, ctx) => {
+      const tid = ctx.tenantId || 'system';
+      // dims 未显式传 → 从 requirement-dimensions 配置自动取 SHOULD/NICE 维度，默认 met=false（已评估未满足，供复盘）
+      let effective = dims;
+      if (!Array.isArray(effective) || !effective.length) {
+        const cfg = (await readConfig('requirement-dimensions', { tenantId: tid }).catch(() => null))?.value || {};
+        effective = (cfg.dimensions || [])
+          .filter((d) => d.level && d.level !== 'MUST')
+          .map((d) => ({ dim_key: d.dim_key, met: false, value: null }));
+      }
+      if (!effective.length) throw new Error('无可采集的需求维度（dims 为空且配置无 SHOULD/NICE 维度）');
+      const out = await collectFollowupRequirement(
+        deal_id,
+        effective.map((d) => ({ ...d, evidence_ref: d.evidence_ref || `followup://${deal_id}` })),
+        { tenantId: tid, assertedBy: ctx.actor || 'followup-agent', decisionId: ctx.decision_id }
+      );
+      return { ok: true, collected: out.length, results: out };
     },
   });
 
@@ -1047,14 +1088,23 @@ export function seedActions() {
     name: 'crm-review-gate-approve', kind: 'write', permission: 'auth', requiresEntitlement: ['approval_flow'], confirm: 'normal', autoDecision: true, decisionScenario: 'REVIEW_GATE',
     namespace: 'crm', agentTool: true, force: false, needsApproval: false,
     version: '1.0.0', owner: 'crm-native',
-    schema: { deal_id: 'string', findings: 'object' },
+    schema: { deal_id: 'string', findings: 'object', redline_basis: 'array' },
     parameters: {
       required: ['deal_id'],
       properties: { deal_id: { type: 'string', candidateSource: 'CRM_DEAL' } },
     },
-    handler: async ({ deal_id, findings }, ctx) => {
+    handler: async ({ deal_id, findings, redline_basis }, ctx) => {
       const deal = await getParticle(deal_id);
       if (!deal) throw new Error(`DEAL 不存在: ${deal_id}`);
+      // T8 红线溯源：若本次终审携带红线依据（来自 crm-decision-advise 的 approval_prefill），
+      // 必须非空且与审批商机一致，否则拒绝终审——确保「红线决策的审批结论可溯源」。
+      if (redline_basis != null) {
+        if (!Array.isArray(redline_basis) || redline_basis.length === 0) {
+          throw new Error('红线终审须携带非空红线依据摘要（红线决策的审批结论须可溯源）');
+        }
+        const mismatch = redline_basis.find((r) => r && r.deal_id && r.deal_id !== deal_id);
+        if (mismatch) throw new Error(`红线依据与审批商机不一致（依据 deal_id=${mismatch.deal_id} ≠ 审批 ${deal_id}）`);
+      }
       const updated = await updateParticle(deal_id, {
         patch: { review_gate_decision: 'approved', review_gate_findings: findings || null },
         event: { type: 'review_gate', disposition: 'approved', findings: findings || null },

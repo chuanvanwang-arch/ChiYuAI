@@ -168,7 +168,9 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
         def.decisionScenario,
         { action: actionName, ...params, actor: ctx.actor },
         inferMcpEntities(params),
-        { actor_id: ctx.actor },
+        // C5（2026-09-10）：补 tenantId。此前只传 actor_id → autonomyEngine.js 的
+        //   `opts.tenantId || 'system'` 恒为 system，MCP 通道 mint 的决策 100% 落 system 租户。
+        { actor_id: ctx.actor, tenantId: ctx.tenantId || null },
       );
       const did = d?.decision?.decision_id;
       if (did) {

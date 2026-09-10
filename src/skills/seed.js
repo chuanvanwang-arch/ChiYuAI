@@ -91,6 +91,9 @@ export function seedSkills() {
         { step: 3, action: null, decision: 'j_judge',
           prompt: '基于跟进计划 {{steps[1].result}} 标记超时商机并给出催办/转人工建议',
           preconditions: ['steps[1].done'], postconditions: ['decision.finalized'] },
+        { step: 4, action: 'crm-followup-requirement-collect', decision: 'rule',
+          params: { deal_id: '{{steps[0].result.id}}' },
+          preconditions: ['steps[2].finalized'], postconditions: ['result.ok'] },
       ],
     },
     {

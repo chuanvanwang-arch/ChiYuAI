@@ -64,7 +64,8 @@ export const actionExecutor = {
     if (def.autoDecision && !decisionId && def.decisionScenario) {
       const sc = await getScenario(def.decisionScenario, ctx.tenantId);
       if (sc) {
-        const d = await requireDecision(def.decisionScenario, { action: actionName, ...params, actor: ctx.actor }, inferEntities(actionName, params), { actor_id: ctx.actor });
+        // C5（2026-09-10）：补 tenantId（与 gateway.js:167 同源修复）。缺租户 → 决策恒落 system。
+        const d = await requireDecision(def.decisionScenario, { action: actionName, ...params, actor: ctx.actor }, inferEntities(actionName, params), { actor_id: ctx.actor, tenantId: ctx.tenantId || null });
         ctx.decision_id = d.decision.decision_id;
         emit('decision', `${actionName}-auto`, { decision_id: d.decision.decision_id, scenario: def.decisionScenario });
       } else {
