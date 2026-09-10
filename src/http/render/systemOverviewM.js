@@ -3,12 +3,13 @@
 // 权限：GET /api/memory 是 sysadmin-only；非 admin 进入时只显「权限不足」+ 监控台 fallback，
 //        避免 hard-block（设计 §1.4）。
 //
-// 四段式骨架：①顶部状态（先例边数）②近 30 日趋势 ③先例边 Top + 三构件计数 ④行下钻
+// 四段式骨架：①顶部状态（先例边数）②近 30 日趋势 ③先例边 Top + 三构件计数 + 蒸馏状态 ④行下钻
 // 数据源：listPrecedents() / listLogs() / listNotes() / listSnapshots() 等同 createMemoryConfigRouter 内部 deps
 //   （直接走等价 COUNT(*) SQL，避免 mount 自路由）。先例边数：直接查 crm.decision_precedent_rel。
 import { query } from '../../db.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
 
 function renderForbidden(me) {
   return `<section class="pg-section so-m-forbidden">
@@ -61,6 +62,25 @@ async function safePrecedentTop(limit = 10) {
   } catch { return []; }
 }
 
+// 先例 → 引用它的决策清单（用于下钻：点先例行看哪些决策引用了它）
+async function safePrecedentRefMap() {
+  try {
+    const r = await query(`
+      SELECT d.decision_id,
+             jsonb_array_elements(COALESCE(d.referenced_precedents, '[]'::jsonb)) ->> 'precedent_id' AS pid
+      FROM crm.decision d
+      WHERE d.referenced_precedents IS NOT NULL
+    `);
+    const map = {};
+    for (const row of r.rows || []) {
+      const pid = row.pid;
+      if (!pid) continue;
+      (map[pid] = map[pid] || []).push(row.decision_id);
+    }
+    return map;
+  } catch { return {}; }
+}
+
 // 蒸馏状态（只读 dry-run 口径，与 src/portal/memoryConfig.js:41 同源：不写库）
 async function safeDistill() {
   try {
@@ -72,7 +92,7 @@ async function safeDistill() {
   } catch { return 0; }
 }
 
-function renderTrendSvg(edges) {
+function renderTrendSvg() {
   // 占位 SVG（未来按日采样接入）
   return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="近 30 日先例引用趋势">
     <polyline points="0,35 10,33 20,30 30,28 40,25 50,23 60,21 70,20 80,18 90,17 100,16 110,15 120,14 130,13 140,12 150,12 160,11 170,10 180,10 190,9 200,8"
@@ -103,12 +123,32 @@ function renderTriSection(c) {
   </section>`;
 }
 
-function renderTopTable(top) {
-  if (!top.length) return '<div class="dn-empty">暂无先例引用边</div>';
+function renderPrecedentDetail(pid, n, refs) {
+  const refList = refs.length
+    ? `<ul class="so-ref-list">${refs.map((d) => `<li><a href="/decision-graph.html?decision=${encodeURIComponent(d)}" target="_blank">${esc(d)}</a></li>`).join('')}</ul>`
+    : '<p class="dn-note">无关联决策记录。</p>';
+  return `<dl class="so-dl">
+    ${kv('precedent_id', esc(pid || '—'))}
+    ${kv('被引用次数', String(n))}
+    ${kv('关联决策数', String(refs.length))}
+  </dl>
+  <h4 class="so-d-sub">引用该先例的决策</h4>
+  ${refList}`;
+}
+
+function renderTopTable(top, refMap) {
+  if (!top.length) return { html: '<div class="dn-empty">暂无先例引用边</div>', details: '' };
   const thead = '<tr><th>precedent_id</th><th>被引用次数</th></tr>';
-  const body = top.map((r) => `<tr data-precedent="${esc(r.precedent_id || '')}">
-      <td>${esc(r.precedent_id || '—')}</td><td>${r.n}</td></tr>`).join('');
-  return `<table class="pg-table">${thead}${body}</table>`;
+  const body = [];
+  const details = [];
+  for (const r of top) {
+    const pid = r.precedent_id || '';
+    const refs = refMap[pid] || [];
+    body.push(`<tr data-dk="${esc(pid)}" data-drill-title="先例 ${esc(pid)}">
+      <td>${esc(pid || '—')}</td><td>${r.n}</td></tr>`);
+    details.push(`<div class="so-detail-hidden" data-dk="${esc(pid)}">${renderPrecedentDetail(pid, r.n, refs)}</div>`);
+  }
+  return { html: `<table class="pg-table">${thead}${body.join('')}</table>`, details: details.join('') };
 }
 
 function renderDistill(n) {
@@ -132,15 +172,16 @@ export async function renderMemory({ me } = {}) {
       html: renderForbidden(me),
     };
   }
-  const [counts, edges, top, distill] =
-    await Promise.all([safeCounts(), safePrecedentEdges(), safePrecedentTop(10), safeDistill()]);
+  const [counts, edges, top, distill, refMap] =
+    await Promise.all([safeCounts(), safePrecedentEdges(), safePrecedentTop(10), safeDistill(), safePrecedentRefMap()]);
+  const { html: topHtml, details } = renderTopTable(top, refMap);
   const html = [
     '<section class="pg-section so-m-top">', renderTopState(edges), '</section>',
-    '<section class="pg-section so-m-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(edges), '</section>',
-    '<section class="pg-section so-m-pred"><h3>先例边 Top 10（被引用次数）</h3>', renderTopTable(top), '</section>',
+    '<section class="pg-section so-m-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(), '</section>',
+    '<section class="pg-section so-m-pred"><h3>先例边 Top 10（被引用次数）</h3>', topHtml, details, '</section>',
     renderTriSection(counts),
     renderDistill(distill),
-    '<section class="pg-section so-m-drill"><p class="dn-empty">行点击下钻弹窗（单先例 / 单条记忆详情）由后续迭代补。</p></section>',
+    '<section class="pg-section so-m-drill"><p class="dn-note">点击任一先例行查看引用它的决策清单。</p></section>',
   ].join('');
   return { schema: { type: 'monitor-overview-m' }, data: { edges, ...counts, distill, top: top.length }, html };
 }
