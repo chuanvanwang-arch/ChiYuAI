@@ -151,6 +151,19 @@ export async function createParticle(type, payload, { tenantId = 'system', actor
     );
     particle.payload = aiP.rows[0].payload;
   }
+  // C3（2026-09-10 收口）：建档即沉淀（新建实体=事实，必记；去重窗豁免）。
+  //   与 updateParticle 的写时沉淀共用 precipitateFromParticleWrite，before=null 触发 created 分支。
+  //   fail-open：沉淀失败只留痕，绝不阻断业务写（建档成功必须返回）。
+  try {
+    const { precipitateFromParticleWrite } = await import('../memory/precipitate.js');
+    await precipitateFromParticleWrite(particle, null, {
+      tenantId: tenantId || particle.tenant_id || null,
+      actor: actor || 'system',
+      decisionId: decisionId || null,
+    });
+  } catch (e) {
+    emit('trace', 'memory-precipitate-create-failed', { id: particle.id, error: String(e?.message || e) });
+  }
   emit('particle', 'created', { id: particle.id, type });
   return particle;
 }
@@ -251,6 +264,20 @@ export async function updateParticle(id, { state, patch = {}, event, requireDeci
       [JSON.stringify({ ai: aiRes.ai }), id]
     );
     p.payload = aiP.rows[0].payload;
+  }
+  // C3（2026-09-10 P2）记忆自动沉淀：事实变更（阶段/金额/负责人…）自动写入客户记忆，
+  //   不再依赖调用方记得手动 crm-memory-upsert（R3/R4 根因）。
+  //   三重防雪崩：价值闸 + 字段闸（同值不写）+ 24h 去重窗。fail-open：失败只留痕，不阻断业务写。
+  //   注意在 AI 属性重评估之后调用，使 after 快照含公式/AI 派生后的最终 payload。
+  try {
+    const { precipitateFromParticleWrite } = await import('../memory/precipitate.js');
+    await precipitateFromParticleWrite(p, cur, {
+      tenantId: tenantId || p.tenant_id || cur.tenant_id || null,
+      actor: 'system',
+      decisionId: decisionId || null,
+    });
+  } catch (e) {
+    emit('trace', 'memory-precipitate-hook-failed', { id: p.id, error: String(e?.message || e) });
   }
   emit('particle', 'updated', { id: p.id, type: p.type });
   return p;
