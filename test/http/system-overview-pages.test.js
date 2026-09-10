@@ -55,6 +55,11 @@ describe('T2: 三个受控壳页', () => {
       expect(typeof body.html).toBe('string');
     });
   }
+  it('GET /portal/drillModal.js 返回 200（下钻模态框工具）', async () => {
+    const { status, text } = await getText('/portal/drillModal.js');
+    expect(status).toBe(200);
+    expect(text).toContain('bindDrill');
+  });
 });
 
 // 3) K 渲染器：四段式骨架（顶部 + 趋势 + 明细 + 下钻）+ 既有数据源字段
@@ -67,6 +72,16 @@ describe('T3: K 渲染器四段式骨架', () => {
     expect(html).toContain('skill_id');
     expect(html).toMatch(/维度漂移|dim.?skew|missing_in_db|missing_in_skill/);
     expect(html).toMatch(/<svg|data-trend|data-svg/);
+  });
+  // 设计 §1.3 契约：明细表每行可下钻（data-dk 行 + 同 key 隐藏详情块）
+  it('K 渲染器含 data-dk 下钻行 + 对应 so-detail-hidden 隐藏块', async () => {
+    const { renderKnowledge } = await import('../../src/http/render/systemOverviewK.js');
+    const r = await renderKnowledge();
+    const html = r.html || '';
+    const dkRows = (html.match(/<tr[^>]*data-dk=/g) || []).length;
+    const hidden = (html.match(/so-detail-hidden[^>]*data-dk=/g) || []).length;
+    expect(dkRows).toBeGreaterThan(0);
+    expect(hidden).toBe(dkRows); // 每行的隐藏详情块数量与可下钻行数一致
   });
 });
 
@@ -99,6 +114,16 @@ describe('T4: M 渲染器（含权限隔离）', () => {
     expect(r.html).toMatch(/蒸馏状态/);
     expect(r.html).toContain('so-m-drill');
   });
+  // 设计 §1.3 契约：先例 Top10 每行可下钻（data-dk 行 + 隐藏块）
+  it('M 渲染器含先例下钻 data-dk 行 + 隐藏详情块（admin 视角）', async () => {
+    const { renderMemory } = await import('../../src/http/render/systemOverviewM.js');
+    const r = await renderMemory({ me: { role: 'admin', tenantId: '*' } });
+    const html = r.html || '';
+    const dkRows = (html.match(/<tr[^>]*data-dk=/g) || []).length;
+    const hidden = (html.match(/so-detail-hidden[^>]*data-dk=/g) || []).length;
+    if (dkRows > 0) expect(hidden).toBe(dkRows);
+    else expect(html).toContain('so-m-pred'); // 无数据时至少 Top 段存在
+  });
 });
 
 // 5) D 渲染器：L1 拦截 + L2 场景通过率 + L3 待批处方
@@ -123,5 +148,17 @@ describe('T5: D 渲染器四段式骨架', () => {
     expect(r.html).toContain('so-d-l1');
     expect(r.html).toMatch(/L1\s*拦截明细/);
     expect(r.html).toContain('so-d-drill');
+  });
+  // 设计 §1.3 契约：L1/L2/L3 每行可下钻（data-dk 行 + 隐藏块）
+  it('D 渲染器 L1/L2/L3 含 data-dk 下钻行 + 隐藏块', async () => {
+    const { renderDecision } = await import('../../src/http/render/systemOverviewD.js');
+    const r = await renderDecision({ me: { role: 'admin', tenantId: '*' } });
+    const html = r.html || '';
+    const dkRows = (html.match(/<tr[^>]*data-dk=/g) || []).length + (html.match(/so-l3-item[^>]*data-dk=/g) || []).length;
+    const hidden = (html.match(/so-detail-hidden[^>]*data-dk=/g) || []).length;
+    expect(dkRows).toBeGreaterThan(0);
+    expect(hidden).toBe(dkRows);
+    // safeL1 bug 修复：getGateAttribution 返回数组（非 {gates:[]}），safeL1 须识别为闸门数组。
+    // 不为空库误判——此处仅断言结构契约（下钻行/隐藏块成对），bug 修复由真实实例冒烟佐证。
   });
 });
