@@ -12,7 +12,7 @@
 
 | # | 动作 | 结果 | 证据 |
 |---|---|---|---|
-| 1 | 本地 git 提交 | 🟢 **13 个 commit** | `HEAD=3a9745b`，工作树 **0 未跟踪/未提交** |
+| 1 | 本地 git 提交 | 🟢 **16 个 commit** | `HEAD=7653107`，工作树 **0 未跟踪/未提交** |
 | 2 | GitHub 推送 | 🔴 **未完成（沙箱无凭据）** | `fatal: could not read Username for 'https://github.com'` |
 | 3 | 生产发布 | 🟢 **成功** | 三容器 healthy、表 **59→61**、`crm.system_overview_sample` 已建出 |
 | 4 | P0 事故处置 | 🟢 **已恢复** | 生产 `.env` 被 release 抹成模板 → 已按容器真相源还原；HTTPS 已恢复 |
@@ -22,7 +22,7 @@
 
 ---
 
-## ② 本地提交明细（13 个 commit，显式路径 add，禁 `git add -A`）
+## ② 本地提交明细（16 个 commit，显式路径 add，禁 `git add -A`）
 
 | # | commit | 功能线 | 主要文件 |
 |---|---|---|---|
