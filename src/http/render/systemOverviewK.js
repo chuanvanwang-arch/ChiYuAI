@@ -8,6 +8,7 @@
 // 错误降级：任一调用失败 → 该段「暂无数据」+ 不阻断其它段（与销售监控台 loadLoops 同范式）。
 import { listMethodologySkew } from '../../skills/methodologySync.js';
 import { listSkillRegistry } from '../../skills/skillRegistry.js';
+import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
@@ -19,11 +20,14 @@ async function safeSkillRegistry() {
   try { return await listSkillRegistry(); } catch { return []; }
 }
 
-function renderTrendSvg() {
-  // 近 30 日趋势：占位 SVG（无历史时序表时静态 sparkline）；未来接入按日采样后改为动态
-  return `<svg data-trend="knowledge-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="近 30 日方法 SKILL 装配趋势">
-    <polyline points="0,30 10,28 20,25 30,22 40,20 50,18 60,15 70,14 80,12 90,11 100,10 110,9 120,9 130,8 140,8 150,7 160,7 170,6 180,6 190,5 200,5"
-      fill="none" stroke="var(--ac)" stroke-width="1.5"></polyline>
+function renderTrendSvg(values) {
+  const points = buildTrendPolyline(values);
+  const label = '近 30 日方法 SKILL 装配趋势';
+  if (!points) {
+    return `<svg data-trend="knowledge-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}"><text x="4" y="24" class="so-trend-empty">暂无采样数据</text></svg>`;
+  }
+  return `<svg data-trend="knowledge-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}">
+    <polyline points="${points}" fill="none" stroke="var(--ac)" stroke-width="1.5"></polyline>
   </svg>`;
 }
 
@@ -100,12 +104,16 @@ function renderTable(skew, skills) {
   return { html, details: details.join('') };
 }
 
-export async function renderKnowledge() {
-  const [skew, skills] = await Promise.all([safeSkew(), safeSkillRegistry()]);
+export async function renderKnowledge({ deps } = {}) {
+  const [skew, skills, kVals] = await Promise.all([
+    safeSkew(),
+    safeSkillRegistry(),
+    getTrendSamples('k_method_skill', { tenantId: 'system', deps }),
+  ]);
   const { html: tableHtml, details } = renderTable(skew, skills);
   const html = [
     '<section class="pg-section so-k-top">', renderTopState(skew), '</section>',
-    '<section class="pg-section so-k-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(), '</section>',
+    '<section class="pg-section so-k-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(kVals), '</section>',
     '<section class="pg-section so-k-table"><h3>方法 SKILL 清单 + 维度漂移</h3>', tableHtml, details, '</section>',
     '<section class="pg-section so-k-drill"><p class="dn-note">点击任意一行查看该 SKILL 的完整字段与维度漂移明细。</p></section>',
   ].join('');

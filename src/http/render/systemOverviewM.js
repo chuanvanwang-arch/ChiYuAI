@@ -7,6 +7,7 @@
 // 数据源：listPrecedents() / listLogs() / listNotes() / listSnapshots() 等同 createMemoryConfigRouter 内部 deps
 //   （直接走等价 COUNT(*) SQL，避免 mount 自路由）。先例边数：直接查 crm.decision_precedent_rel。
 import { query } from '../../db.js';
+import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
@@ -92,11 +93,14 @@ async function safeDistill() {
   } catch { return 0; }
 }
 
-function renderTrendSvg() {
-  // 占位 SVG（未来按日采样接入）
-  return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="近 30 日先例引用趋势">
-    <polyline points="0,35 10,33 20,30 30,28 40,25 50,23 60,21 70,20 80,18 90,17 100,16 110,15 120,14 130,13 140,12 150,12 160,11 170,10 180,10 190,9 200,8"
-      fill="none" stroke="var(--ok)" stroke-width="1.5"></polyline>
+function renderTrendSvg(values) {
+  const points = buildTrendPolyline(values);
+  const label = '近 30 日先例引用趋势';
+  if (!points) {
+    return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}"><text x="4" y="24" class="so-trend-empty">暂无采样数据</text></svg>`;
+  }
+  return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}">
+    <polyline points="${points}" fill="none" stroke="var(--ok)" stroke-width="1.5"></polyline>
   </svg>`;
 }
 
@@ -163,7 +167,7 @@ function renderDistill(n) {
 
 // 简化版：resolveMe 由路由层注入 me（已有 parseAuth / resolveMe 工具）；
 //         本渲染器仅消费 me.role 做权限判断，避免重复实现认证。
-export async function renderMemory({ me } = {}) {
+export async function renderMemory({ me, deps } = {}) {
   const isAdmin = ['admin', 'sysadmin'].includes(me?.role);
   if (!isAdmin) {
     return {
@@ -172,12 +176,14 @@ export async function renderMemory({ me } = {}) {
       html: renderForbidden(me),
     };
   }
-  const [counts, edges, top, distill, refMap] =
-    await Promise.all([safeCounts(), safePrecedentEdges(), safePrecedentTop(10), safeDistill(), safePrecedentRefMap()]);
+  const [counts, edges, top, distill, refMap, mVals] = await Promise.all([
+    safeCounts(), safePrecedentEdges(), safePrecedentTop(10), safeDistill(), safePrecedentRefMap(),
+    getTrendSamples('m_precedent_edge', { tenantId: me.tenantId || 'system', deps }),
+  ]);
   const { html: topHtml, details } = renderTopTable(top, refMap);
   const html = [
     '<section class="pg-section so-m-top">', renderTopState(edges), '</section>',
-    '<section class="pg-section so-m-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(), '</section>',
+    '<section class="pg-section so-m-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(mVals), '</section>',
     '<section class="pg-section so-m-pred"><h3>先例边 Top 10（被引用次数）</h3>', topHtml, details, '</section>',
     renderTriSection(counts),
     renderDistill(distill),

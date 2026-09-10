@@ -6,6 +6,7 @@
 // 下钻：L1 行→单闸门归因明细；L2 行→单场景通过率+隐性错误簇；L3→单处方字段。
 import { getGateAttribution, getGateOutcome } from '../../monitor/monitorStore.js';
 import { listPatches } from '../../calibration/store.js';
+import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
@@ -43,10 +44,14 @@ async function safeL3(me) {
   } catch { return { count: 0, patches: [] }; }
 }
 
-function renderTrendSvg(l1) {
-  return `<svg data-trend="decision-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="近 30 日 L1 拦截趋势">
-    <polyline points="0,32 10,30 20,28 30,25 40,23 50,22 60,20 70,19 80,18 90,17 100,16 110,15 120,15 130,14 140,14 150,13 160,12 170,12 180,11 190,11 200,10"
-      fill="none" stroke="var(--warn)" stroke-width="1.5"></polyline>
+function renderTrendSvg(values) {
+  const points = buildTrendPolyline(values);
+  const label = '近 30 日 L1 拦截趋势';
+  if (!points) {
+    return `<svg data-trend="decision-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}"><text x="4" y="24" class="so-trend-empty">暂无采样数据</text></svg>`;
+  }
+  return `<svg data-trend="decision-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}">
+    <polyline points="${points}" fill="none" stroke="var(--warn)" stroke-width="1.5"></polyline>
   </svg>`;
 }
 
@@ -167,14 +172,17 @@ function renderL3(l3) {
   return `<p><b>${l3.count}</b> 条待批（点击查看处方详情）：</p><div class="so-l3-list">${items}</div>${details}`;
 }
 
-export async function renderDecision({ me } = {}) {
-  const [l1, l2, l3] = await Promise.all([safeL1(me), safeL2(), safeL3(me)]);
+export async function renderDecision({ me, deps } = {}) {
+  const [l1, l2, l3, dVals] = await Promise.all([
+    safeL1(me), safeL2(), safeL3(me),
+    getTrendSamples('d_l1_intercept', { tenantId: me?.tenantId || 'system', deps }),
+  ]);
   const l2Ok = l2.filter((r) => Number(r.raw?.business_success_rate ?? 0) > 0).length;
   const { html: l1Html, details: l1Details } = renderL1Table(l1);
   const { html: l2Html, details: l2Details } = renderL2Table(l2);
   const html = [
     '<section class="pg-section so-d-top">', renderTopState(l1.total, l2Ok, l2.length, l3.count), '</section>',
-    '<section class="pg-section so-d-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(l1.total), '</section>',
+    '<section class="pg-section so-d-trend"><h3>近 30 日趋势</h3>', renderTrendSvg(dVals), '</section>',
     '<section class="pg-section so-d-l1"><h3>L1 拦截明细（按闸门）</h3>', l1Html, l1Details, '</section>',
     '<section class="pg-section so-d-l2"><h3>L2 场景通过率分布</h3>', l2Html, l2Details, '</section>',
     '<section class="pg-section so-d-l3"><h3>L3 校准待批处方</h3>', renderL3(l3), '</section>',
