@@ -19,19 +19,75 @@ export function resolveChannel({ channel = 'auto', layer } = {}) {
   return 'log';
 }
 
+// ── C1 租户寻址（2026-09-10）────────────────────────────────────────────────
+// 根因：读侧 retrieveMemory/rrfSearch 早已按 tenant_id 过滤，写侧却从未写入 tenant_id
+//   （列 DEFAULT 'system'）→ 业务租户写的记忆 100% 沉到 system，自己永远读不到。
+// 兜底链：显式入参 > payload.tenant_id（存量告警记忆 payload 里自带，可零成本救回）
+//        > 'system'（兼容 60+ 存量调用点，零破坏）。
+// 不静默：回退 system 时 emit trace，缺失可巡检（严格模式 MEMORY_STRICT_TENANT=1 可转拒写）。
+export function resolveTenantId({ tenantId = null, payload = null } = {}) {
+  if (tenantId && tenantId !== '*') return { tenant_id: String(tenantId), source: 'explicit' };
+  const p = payload && typeof payload === 'object' ? payload : null;
+  if (p && p.tenant_id && p.tenant_id !== '*') return { tenant_id: String(p.tenant_id), source: 'payload' };
+  if (tenantId === '*') return { tenant_id: 'system', source: 'fallback' };
+  return { tenant_id: 'system', source: 'fallback' };
+}
+
+// ── C2 客户锚点解析（2026-09-10）────────────────────────────────────────────
+// 设计取舍：**客户优先于商机**。跨商机累积的才是长期客户记忆；锚商机则该客户换个
+// 商机就断链。CRM_DEAL / CRM_CONTACT 一律上溯 payload.account_id。
+export function mapEntityType(type = null) {
+  const t = String(type || '').toUpperCase();
+  if (t.includes('ACCOUNT') || t.includes('CUSTOMER')) return 'ACCOUNT';
+  if (t.includes('DEAL') || t.includes('OPPORTUNITY')) return 'DEAL';
+  if (t.includes('CONTACT')) return 'CONTACT';
+  if (t.includes('LEAD')) return 'LEAD';
+  return t || null;
+}
+
+export function resolveEntityAnchor({ entityId = null, entityType = null, payload = null, type = null, id = null } = {}) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  // ① 显式锚点最高优先级（调用方已知归属，不猜）
+  if (entityId) {
+    return { entity_id: String(entityId), entity_type: entityType || mapEntityType(type), source: 'explicit' };
+  }
+  // ② 客户上溯（跨商机累积价值的唯一口径）
+  if (p.account_id) return { entity_id: String(p.account_id), entity_type: 'ACCOUNT', source: 'payload.account_id' };
+  // ③ 商机锚点（无客户归属时退而求其次，仍强于无锚点）
+  if (p.deal_id) return { entity_id: String(p.deal_id), entity_type: 'DEAL', source: 'payload.deal_id' };
+  if (id && mapEntityType(type) === 'DEAL') return { entity_id: String(id), entity_type: 'DEAL', source: 'type-id' };
+  // ④ 无归属信息：诚实留 NULL（禁止臆造锚点——错锚比无锚更危险，会污染客户画像）
+  if (id) return { entity_id: String(id), entity_type: entityType || mapEntityType(type), source: 'id' };
+  return { entity_id: null, entity_type: null, source: 'none' };
+}
+
 // A2（2026-09-02）：entityId = 客户锚点。锚点不再编码进 topic 字符串——
 //   原两处约定互相矛盾（rrfSearch 用 'entity:<id>'、timelineSource 用 'account:<id>'）
 //   且都与生产数据（topic 全为 'event:*' / 'decision:*'）不匹配，导致按客户聚合恒空。
 //   改由独立列 entity_id 承载，topic 回归业务分类语义。存量调用方不传 entityId 则恒为 NULL，零破坏。
-export async function appendMemory({ topic, kind = 'event', payload, layer = 'L-Workspace', actor, eventType, ttlDays = 30, explicit = false, valueHorizonDays = 30, entityId = null }) {
+// 2026-09-10（C1/C2）：补 tenantId / entityType 入参，落 tenant_id + entity_type 列。
+export async function appendMemory({ topic, kind = 'event', payload, layer = 'L-Workspace', actor, eventType, ttlDays = 30, explicit = false, valueHorizonDays = 30, entityId = null, entityType = null, tenantId = null, type = null, id = null }) {
   const verdict = judgeWorthiness(payload, { explicit, valueHorizonDays });
   if (!verdict.ok) return { ok: false, gate: 'worthiness', code: verdict.code, reason: verdict.reason };
+
+  const strict = process.env.MEMORY_STRICT_TENANT === '1';
+  const { tenant_id, source: tsrc } = resolveTenantId({ tenantId, payload });
+  if (tsrc === 'fallback') {
+    if (strict) return { ok: false, gate: 'tenant', code: 'tenant-missing', reason: 'appendMemory 缺 tenantId（严格模式拒写）' };
+    // 动态 import 防循环依赖（capture.js 订阅总线，总线不反向依赖本模块）
+    try {
+      const { emit } = await import('../events/bus.js');
+      emit('trace', 'memory-tenant-missing', { topic, kind });
+    } catch { /* 总线不可用不阻断写入 */ }
+  }
+  const anchor = resolveEntityAnchor({ entityId, entityType, payload, type, id });
+
   const r = await queryWrite(
-    `INSERT INTO crm.memory_log (topic, kind, payload, layer, actor, event_type, ttl_days, entity_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [topic, kind, payload, layer, actor, eventType, ttlDays, entityId]
+    `INSERT INTO crm.memory_log (topic, kind, payload, layer, actor, event_type, ttl_days, entity_id, entity_type, tenant_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [topic, kind, payload, layer, actor, eventType, ttlDays, anchor.entity_id, anchor.entity_type, tenant_id]
   );
-  return { ok: true, row: r.rows[0] };
+  return { ok: true, row: r.rows[0], tenant_id, entity_id: anchor.entity_id, entity_type: anchor.entity_type };
 }
 
 export async function retrieveMemory({ layer, topic, topicLike, channel = 'auto', limit = 50, tenantId = 'system' } = {}) {
@@ -115,6 +171,103 @@ export async function rrfSearch(queryText, { entityId = null, k = 5, denseWeight
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, k);
+}
+
+// ── C7 决策记忆投影（2026-09-10）────────────────────────────────────────────
+// 根因：旧投影只落 5 个控制字段（scenario_id/disposition/decider_type/business_tier/rationale），
+//   合计约 210 B，且 rationale 是引擎模板句（"升级人工：置信度…参考先例 0 条"）→ 零业务语义。
+//   更致命的是 injector.js#memoryText 只认 payload.text|summary|note|content 四个键，
+//   旧投影一个都不含 → **即使读到了记忆也被过滤成空串**（写到读双向落空）。
+// 形态照抄全库唯一那条 09-04 customer_memory 样板，不另发明：summary / entities / evidence / gaps。
+// 硬约束：① 只加字段不删字段（既有消费方零回归）；② 4 KB 上限 + truncated 标记；
+//        ③ 凭证类键过滤；④ 锚点复用 C2（客户优先）。
+const CREDENTIAL_KEY = /(password|passwd|secret|token|api[_-]?key|authorization|cookie|smtp[_-]?pass|private[_-]?key)/i;
+const PROJECT_MAX_BYTES = 4096;
+
+// 递归剥离凭证类键（深度限 4，防超大 trigger_context 拖慢写路径）
+export function stripCredentials(obj, depth = 0) {
+  if (depth > 4 || obj == null) return obj;
+  if (Array.isArray(obj)) return obj.slice(0, 20).map((x) => stripCredentials(x, depth + 1));
+  if (typeof obj !== 'object') return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj).slice(0, 50)) {
+    if (CREDENTIAL_KEY.test(k)) { out[k] = '[redacted]'; continue; }
+    out[k] = stripCredentials(v, depth + 1);
+  }
+  return out;
+}
+
+function pickText(o, keys) {
+  for (const k of keys) {
+    const v = o?.[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number') return String(v);
+  }
+  return '';
+}
+
+function clipText(s, n) {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? `${t.slice(0, n)}…` : t;
+}
+
+/**
+ * 纯函数：把决策要素投影为四段式记忆 payload（可单测，无 DB / 无 LLM）。
+ * summary 走规则裁剪而非 LLM —— 决策写路径上不引入额外成本与延迟。
+ */
+export function projectDecisionMemory(input = {}) {
+  const {
+    decision_id = null, scenario_id = null, disposition = null, business_tier = null,
+    decider_type = null, rationale = '', trigger_context = null, involved_entities = null,
+    conditions_evaluated = null, entity_id = null, entity_type = null,
+  } = input;
+
+  const tc = trigger_context && typeof trigger_context === 'object' ? stripCredentials(trigger_context) : {};
+  const conds = Array.isArray(conditions_evaluated) ? conditions_evaluated : [];
+  const isMet = (c) => c && (c.met === true || c.satisfied === true || c.passed === true);
+  const nameOf = (c) => String(c?.key || c?.name || c?.id || c?.label || '');
+  const met = conds.filter(isMet).map(nameOf).filter(Boolean);
+  const unmet = conds.filter((c) => !isMet(c)).map(nameOf).filter(Boolean);
+
+  const entities = (Array.isArray(involved_entities) ? involved_entities : []).slice(0, 10).map((e) => {
+    if (typeof e === 'string') return { type: null, id: e, name: null };
+    return { type: mapEntityType(e?.type || e?.label), id: e?.id ?? null, name: e?.name ?? e?.title ?? null };
+  });
+
+  // summary：业务主语优先（触发上下文里销售真正在问的事），全无再退回引擎 rationale
+  const subject = pickText(tc, ['query', 'summary', 'subject', 'title', 'utterance', 'intent', 'action'])
+    || clipText(rationale, 120)
+    || '（无业务摘要）';
+  const summary = clipText(`决策 ${scenario_id || '—'} → ${disposition || '—'}（${decider_type || '—'}）：${subject}`, 300);
+
+  const evidence = [];
+  if (met.length) evidence.push(`达标条件 ${met.length}/${conds.length}：${met.slice(0, 6).join('、')}`);
+  for (const k of ['amount', 'discount', 'stage', 'to_stage', 'quantity', 'budget']) {
+    if (tc[k] != null) evidence.push(`${k}=${clipText(tc[k], 40)}`);
+  }
+  if (!evidence.length) evidence.push('无结构化证据');
+
+  const gaps = [];
+  if (unmet.length) gaps.push(`未达标条件：${unmet.slice(0, 6).join('、')}`);
+  for (const k of ['budget', 'authority', 'need', 'timeline']) {
+    if (tc[k] == null && !conds.length) gaps.push(`缺 ${k}`);
+  }
+  if (!entity_id) gaps.push('缺客户锚点');
+
+  let payload = {
+    // ── 新增四段式（消费端 injector.memoryText 认 summary 键）──
+    summary, entities, evidence, gaps,
+    // ── 保留原 5 字段，既有消费方零回归（只加不删）──
+    scenario_id, disposition, rationale, business_tier, decider_type,
+    decision_id,
+  };
+  let truncated = false;
+  const size = () => Buffer.byteLength(JSON.stringify(payload), 'utf8');
+  if (size() > PROJECT_MAX_BYTES) {
+    truncated = true;
+    payload = { ...payload, gaps: gaps.slice(0, 3), evidence: evidence.slice(0, 3), entities: entities.slice(0, 3), summary: clipText(summary, 160) };
+  }
+  return { ...payload, truncated, entity_id, entity_type };
 }
 
 export async function distillMemory({ ttlDays = 30 } = {}) {
