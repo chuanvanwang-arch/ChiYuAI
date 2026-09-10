@@ -99,6 +99,12 @@ INSERT INTO crm.decision_scenario
  '{"action":["data-particle-update"]}'::jsonb,
  ARRAY[]::TEXT[],
  '[{"cond":"data_origin","label":"数据来源与字段合法","weight":0.34},{"cond":"identity_dedup","label":"目标唯一（id 精确定位）","weight":0.33},{"cond":"ownership","label":"归属完整（同租户）","weight":0.33},{"cond":"governance_approval","label":"人工确认","weight":0.15}]'::jsonb,
+ 'NORMAL', TRUE),
+-- REQUIREMENT_COLLECT（2026-09-09，与 db/seed.sql 同构）：followup-agent 采集 SHOULD/NICE 证据第 0 闸 mint 载体
+('REQUIREMENT_COLLECT', 'meta', '跟进采集 SHOULD/NICE 需求维度证据（REQUIREMENT 方法论，auto 来源）',
+ '{"action":["crm-followup-requirement-collect"]}'::jsonb,
+ ARRAY['REQUIREMENT'],
+ '[{"cond":"requirement_evidence_ref","label":"证据出处（auto 来源须带 evidence_ref）","weight":0.5},{"cond":"requirement_met","label":"维度满足判据","weight":0.5}]'::jsonb,
  'NORMAL', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 

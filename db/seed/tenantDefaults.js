@@ -19,6 +19,7 @@ export const DEFAULT_TENANT_SEED_KEYS = [
   'sales-thresholds', 'named-account-targets', 'approval-config',
   'behavior-standard', 'finance-receivables', 'decision-retro',
   'agent-event-trigger', 'context-routing',
+  'discovery-rules',
 ];
 
 // 键 → opts 旗标映射（all=true 播全量；单键仍可显式开启）
@@ -31,6 +32,7 @@ const KEY_FLAG_MAP = {
   'decision-retro': 'decisionRetro',
   'agent-event-trigger': 'agentEventTrigger',
   'context-routing': 'contextRouting',
+  'discovery-rules': 'discoveryRules',
 };
 
 // 播种：① 注册表登记（幂等，若尚未注册则补）→ ② 差异化键写入（all=true 播全量；否则仅 opts 显式开启的键）→ ③ 返回统计

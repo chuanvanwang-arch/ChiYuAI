@@ -326,6 +326,15 @@ INSERT INTO crm.decision_scenario
  '{"action":["data-particle-update"]}'::jsonb,
  ARRAY[]::TEXT[],
  '[{"cond":"data_origin","label":"数据来源与字段合法","weight":0.34},{"cond":"identity_dedup","label":"目标唯一（id 精确定位）","weight":0.33},{"cond":"ownership","label":"归属完整（同租户）","weight":0.33},{"cond":"governance_approval","label":"人工确认","weight":0.15}]'::jsonb,
+ 'NORMAL', TRUE),
+-- REQUIREMENT_COLLECT（2026-09-09）：followup-agent 跟进时采集 SHOULD/NICE 需求维度证据（REQUIREMENT 方法论，auto 来源）
+--   第 0 闸锚定载体——collectFollowupRequirement 写 CRM_METHODOLOGY_EVIDENCE 经 autoDecision mint；
+--   无此场景则 mint 抛「未知决策场景」，证据采集退回 DECISION_NEEDED。tier=NORMAL + autonomous_allowed=TRUE：
+--   硬人工闸门由 approval 流程承担，自治与否交 autonomyEngine 按配置判定（与 PARTICLE_UPDATE 同构）。
+('REQUIREMENT_COLLECT', 'meta', '跟进采集 SHOULD/NICE 需求维度证据（REQUIREMENT 方法论，auto 来源）',
+ '{"action":["crm-followup-requirement-collect"]}'::jsonb,
+ ARRAY['REQUIREMENT'],
+ '[{"cond":"requirement_evidence_ref","label":"证据出处（auto 来源须带 evidence_ref）","weight":0.5},{"cond":"requirement_met","label":"维度满足判据","weight":0.5}]'::jsonb,
  'NORMAL', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 
