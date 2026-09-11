@@ -20,12 +20,30 @@ INCLUDE_FILES = ["package.json", "package-lock.json"]
 EXCLUDE_DIR_PARTS = {"node_modules", ".git", ".workbuddy", "__pycache__", ".venv"}
 EXCLUDE_SUFFIX = {".png", ".jpg", ".jpeg", ".gif", ".zip", ".log", ".bak", ".tmp"}
 
+# 敏感环境文件白名单例外：deploy.sh 依赖 .env.example 作为模板生成 .env，必须保留
+ENV_TEMPLATE_NAME = ".env.example"
+
+
+def is_sensitive_env(name):
+    """判定是否为含凭据的环境文件。
+
+    本打包器**直接遍历文件系统、不读 git**，因此 .gitignore 对发布包无效：
+    本机残留的 `.env` / `.env.server` / `.env.remote-backup-*` 会被原样打进 zip
+    上传到服务器（凭据扩散），若服务器侧解压策略不当还会覆盖生产 .env。
+    故在打包层显式排除（保留 .env.example 模板）。
+    """
+    if name == ENV_TEMPLATE_NAME:
+        return False
+    return name == ".env" or name.startswith(".env.")
+
 
 def should_skip(rel_parts):
     for p in rel_parts[:-1]:
         if p in EXCLUDE_DIR_PARTS:
             return True
     name = rel_parts[-1]
+    if is_sensitive_env(name):
+        return True
     if os.path.splitext(name)[1].lower() in EXCLUDE_SUFFIX:
         return True
     return False
