@@ -1,0 +1,104 @@
+// src/agent/discoveryOrchestrator.js — 线索自主发现主编排（设计 v8.1 §2 发现循环 ①-④）
+// 契约校正（2026-09-11）：ctx 上**没有** createParticle/updateParticle/findParticle/createEdge
+//   （executor.js:208 只传 (params, ctx)；ctx = {tenantId, actor, decision_id, bootstrap, channel, ...}）。
+//   故一律**直调 particleRepo 并透传 ctx.tenantId**（设计 §9.1 原话；范式同 connectorActions.js:38,41），
+//   同时开放 deps 注入供单测替换（生产默认=真实现，不留假绿缝隙）。
+// 铁律：
+//   ① 写必带第 0 闸 decision_id（requireDecisionId 透传 repo；缺值由 Task 5 的 requireMintedDecision 先拦）
+//   ② 租户隔离 = 每次写透传 tenantId（对照 id18/17/21/15 伪隔离坑：本路径走「载体自带 tenant_id + 透传」）
+//   ③ 禁 DELETE：查重为预防式（命中即复用赢家），不删任何记录
+//   ④ 配置驱动：ICP / 数据源三档 / 查重条件 / 覆盖字段全部来自 mergedDiscoveryRules，禁硬编码
+//   ⑤ 本体优先：写粒子即由 ontology hooks 自动入图补全，外部适配器只补缺口
+import { createParticle, updateParticle, createEdge } from '../particles/particleRepo.js';
+import { query } from '../db.js';
+import { mergedDiscoveryRules } from '../config/discoveryRules.js';
+import { resolveAdapters } from '../connectors/discovery/providerRegistry.js';
+import { runWaterfall } from '../connectors/discovery/waterfall.js';
+import { resolveExistingOrCreate } from '../connectors/discovery/dedupResolver.js';
+import { buildEnrichmentPayload, buildDiscoveryPayload } from './discoverySchema.js';
+import { registerBuiltinAdapters } from '../connectors/discovery/builtinAdapters.js'; // 幂等：确保内置适配器已注册
+
+// 生产写助手的 opts（抽为纯函数 → 单测可断言「租户 / decision_id 真的透传」，无需连库）
+export function repoWriteOpts(ctx = {}) {
+  return { tenantId: ctx.tenantId || 'system', actor: ctx.actor || null, requireDecisionId: ctx.decision_id || null };
+}
+
+// 默认查找器：按 payload 字段值查同类型同租户粒子。
+// key 走 $3 参数化（不是字符串拼接）→ 无注入面；tenant_id 显式收窄 → 真隔离。
+async function defaultFind(type, key, value, tenantId) {
+  const r = await query(
+    `SELECT id, type, payload FROM crm.particles WHERE type=$1 AND tenant_id=$2 AND payload->>$3 = $4 LIMIT 1`,
+    [type, tenantId, key, String(value)]
+  );
+  return r.rows[0] || null;
+}
+
+export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
+  const tenantId = ctx.tenantId || input.tenantId || 'system';
+  const decisionId = ctx.decision_id || null;
+  const seed = input.seed || {};
+  // fail-closed：ACCOUNT/DEAL 的 identity 均为 name（particleModel.js:10,18），缺 name 必抛 missing required field
+  if (!seed.name) throw new Error('discovery-run: seed.name 必填（CRM_ACCOUNT / CRM_DEAL 的 identity 均为 name）');
+
+  // ① 内置适配器注册（幂等）：必须**显式调用**，否则 REGISTRY 恒空 → 富集静默零产出
+  registerBuiltinAdapters();
+
+  // ② 规则：租户感知（config_store['discovery-rules'] ⊕ 出厂默认）；deps.rules 可整体注入
+  const rules = deps.rules || await mergedDiscoveryRules({ tenantId }, deps.ruleDeps || {});
+
+  // ③ 数据源：enabled 过滤 + costTier 升序（付费源出厂 false，需显式授权）；deps.adapters 可注入（单测零 IO）
+  const adapters = deps.adapters || resolveAdapters(rules, { allowIds: input.allowIds });
+
+  // ④ 写助手：生产默认真实现（直调 repo + 透传 tenantId / decision_id），单测可注入替身
+  const opts = repoWriteOpts(ctx);
+  const find = deps.find || ((type, key, value) => defaultFind(type, key, value, opts.tenantId));
+  const create = deps.create || ((type, attrs) => createParticle(type, attrs, opts));
+  const update = deps.update || ((id, attrs) =>
+    updateParticle(id, { patch: attrs, tenantId: opts.tenantId, requireDecisionId: opts.requireDecisionId }));
+  const addEdge = deps.createEdge || ((...a) => createEdge(...a));
+
+  // ⑤ 本体优先 + 查重：先查后建（duplicate_criteria 配置驱动 → 命中即复用赢家，零 DELETE）
+  const criteria = (rules.duplicate_criteria || {})['CRM_ACCOUNT'] || undefined;
+  const account = await resolveExistingOrCreate(
+    'CRM_ACCOUNT',
+    { state: 'potential', name: seed.name, domain: seed.domain, source: seed.source || 'discovery' },
+    { find, create, update, criteria }
+  );
+
+  // ⑥ 缺口瀑布：字段默认取「已启用适配器的 coverageFields 并集」（配置驱动；禁硬编码字段清单）
+  const fields = Array.isArray(input.fields) && input.fields.length
+    ? input.fields
+    : [...new Set(adapters.flatMap((a) => a.coverageFields || []))];
+  const { values, cost, calls } = await runWaterfall(adapters, { ...seed, id: account.id }, fields, ctx);
+  const enrichment = buildEnrichmentPayload(values);
+
+  // ⑦ 评分入 payload：初值占位，真实评分由 lead-fit 场景（Task 6）经 decision 回写（glass-box 见 Task 15）
+  //    decisionId 取**真实**第 0 闸 mint 值（不是 'pending'）→ why_narrative 可溯源到具体决策
+  const signals = Object.entries(values).map(([field, v]) => ({ type: field, provider: v?.provider, ts: v?.ts }));
+  const discovery = buildDiscoveryPayload(0.5, 0.5, signals, decisionId || 'pending');
+
+  // ⑧ 写回客户（只增改，不删除）
+  await update(account.id, { enrichment, discovery });
+
+  // ⑨ 产出线索商机（identity=name 必填；stage 经 normalizeStage 归一 → S1）
+  const deal = await create('CRM_DEAL', {
+    name: seed.deal_name || `${seed.name} · 线索`,
+    stage: 'lead', source: 'discovery', account_id: account.id,
+  });
+
+  // ⑩ 溯源弱边：仅在确实拿到知识粒子 id 时落边（沿用 connectorActions.js:41 范式）；无则不落，绝不伪造
+  const kid = values?.source_knowledge_id?.value;
+  if (kid) {
+    await addEdge('CRM_ACCOUNT', account.id, 'sourcedFrom', 'CRM_KNOWLEDGE', kid, {
+      edge_source: 'auto_weak',
+      relation_confidence: values.source_knowledge_id.confidence ?? 0.5,
+      provenance: 'discovery-run', decision_id: decisionId,
+    }, opts.tenantId).catch(() => {});
+  }
+
+  return {
+    accountId: account.id, dealId: deal.id, tenantId,
+    enriched: Object.keys(values), cost, calls,
+    payload: { enrichment, discovery },
+  };
+}

@@ -17,6 +17,7 @@ import { registerCaptureSubscriber, loadCaptureDomains } from '../memory/capture
 import { ensureTimers } from '../scheduler/timers.js';
 import { seedConnectorActions } from '../connectors/connectorActions.js';
 import { seedDiscoveryActions } from '../action/discoveryActions.js';
+import { registerBuiltinAdapters } from '../connectors/discovery/builtinAdapters.js';
 // 非结构化证据挂接（2026-08-31）：上传/下载路由（staging，免 confirm）
 import { createAssetRoutes } from '../assets/upload.js';
 import { registerMonitorSubscriber, ensureMonitorSchema } from '../monitor/monitorSubscriber.js';
@@ -486,6 +487,9 @@ export function createRoutes(app, hub) {
   seedConnectorActions();
   // 线索自主发现 Action 族（Task 5 硬闭包 1/3）：与 agents.js 同源，两条注册入口都须接线
   seedDiscoveryActions();
+  // 线索发现内置适配器（Task 7 死接线修复）：适配器自注册但注册表刻意不 import 适配器，
+  // 缺此显式汇聚 → REGISTRY 恒空 → enrich 静默零产出。启动点 import 一次即可（ESM 单例幂等）。
+  registerBuiltinAdapters();
   // 记忆治理底座：事件总线单汇点捕获（residue 零摩擦），建应用时注册一次
   registerCaptureSubscriber();
   // C4（2026-09-10）：捕获域白名单可由 config_store['memory-capture-domains'] 覆盖；
