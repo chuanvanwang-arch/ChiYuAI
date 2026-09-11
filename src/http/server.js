@@ -20,6 +20,11 @@ import { registerRetroTrigger } from '../decision/retroTrigger.js';
 // 启动即注册（订阅 decision 域 decision-created/outcome-set/feedback-set，样本足且偏差命中才出建议）
 import { registerAutoSuggest } from '../calibration/autoSuggest.js';
 import { GATE_SCENARIOS } from '../monitor/monitorStore.js';
+// ⑤ 边 outcome 回流（C4 / 探针 D4）：订阅 decision 域 → 业务事件自动回填 decision_outcome。
+//   ⚠ 2026-09-11 修复：该函数此前在 server.js 仅被调用、未 import → 被 try/catch fail-open 吞掉
+//   （静默打印 "registerOutcomeIngester is not defined"），致使 ⑤ 边从未通电、D4 真自动回流恒为 0。
+//   接线三要素：① 本 import；② 启动调用（下方）；③ crm.outcome_event_map 播种规则（db/seed-outcome-event-map.sql）。
+import { registerOutcomeIngester } from '../decision/outcomeIngester.js';
 // C1 事件触发式智能体派发（首批）：订阅 ontology 域 → 矩阵派发只读判定任务
 // 设计 docs/2026-09-03-agent-event-trigger-design.md；落库钩子(ontology/hooks.js:120)已 emit ontology-sync，
 //   挂载订阅器后业务粒子直写自动带出 agent 运行（根治「粒子写无 agent 订阅」设计缺口）。幂等。

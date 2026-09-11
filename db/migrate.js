@@ -183,6 +183,22 @@ async function main() {
     const rb = await runRiskScan({ llm: null });
     console.log(`[migrate] 种子 AI 属性回填 scanned=${rb.scanned} changed=${rb.changed}`);
   }
+  // ─── ⑤ 边 outcome 回流：业务事件 → 决策结果 映射规则（2026-09-11 修复漏接线）───
+  // 背景：探针 D4「真自动回流」实测恒为 0。根因链有二，缺一不通：
+  //   ① src/http/server.js 调用 registerOutcomeIngester() 却漏 import，被 try/catch fail-open 静默吞掉（已修）；
+  //   ② 规则表 crm.outcome_event_map 无任何自动播种路径——seed.sql 段仅在 --seed 时执行，
+  //      而容器启动只跑 `node db/migrate.js`（无 --seed，见 docker-compose.yml:61）→ 规则空集
+  //      使 handleBusinessEvent 直接 return，⑤ 边依旧不通。
+  // 语义=初始化（文件内 WHERE NOT EXISTS 幂等）。仅在缺失时播种「合同签署 → 赢单(won)」一条保守规则；
+  //   扩到回款/流单/审批驳回须走人工评审（策略见 db/seed-outcome-event-map.sql 头注）。
+  try {
+    const outcomeRulesSql = readFileSync(new URL('./seed-outcome-event-map.sql', import.meta.url), 'utf8');
+    const orRes = await pool.query(outcomeRulesSql);
+    console.log(`[migrate] outcome 事件映射规则已确保（幂等，本次新增 ${orRes.rowCount ?? 0} 条）`);
+  } catch (e) {
+    console.error('[migrate] outcome_event_map 播种失败:', e.message);
+    throw e;
+  }
   // ─── 套餐基线（2026-09-06）：**仅在缺失时**初始化播种，绝不覆盖运营配置 ───
   // 背景：此前 migrate/seed 链路完全不含 billing-plans，全新环境（生产重建 / 新库）config_store 无该键
   //   → getPlan() 回退 pricing.DEFAULT_PLAN（included_tokens=0、entitlements=[]）
