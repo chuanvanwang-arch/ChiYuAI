@@ -188,6 +188,7 @@ HIGH 样本：f45d379d… | source_refresh | context-dimension-source
 ```powershell
 # ① 推送 13 个提交（沙箱无 GitHub 凭据，push 已被拒）
 cd D:\system\CRM-ai-native
+# 推送全部本地 commit（截至本轮：origin=4aa5336，本地领先 2 个 —— 5475e83 / 9e3b830）
 git push origin feat-multi-industry-meta-model
 
 # ② 核验生产（可选，发布已完成）
@@ -200,7 +201,46 @@ $DIR = "D:\system\CRM-ai-native\scripts\tencent-lighthouse-deploy"
 
 ---
 
-## ⑧ 合规声明
+## ⑨ 追加修复（follow-up）：⑤ 边 outcome 回流通电（探针 D4 根治）
+
+**背景**：后台部署监控任务回报 `EOFError`，复核时顺带定位到探针 D4「真自动回流」恒为 0 的**双根因**（此前仅记录现象，未下探到接线层）。
+
+> 附：监控任务 `EOFError` 非发布失败，系监控包装器自身缺陷 —— `while pgrep -f 'deploy.sh'` 会匹配到**它自己**（远程 shell argv 含 `deploy.sh` 字样）→ 循环永不退出，直至 SSH 通道超时被关闭（挂满 1h10m）。发布本体早已完成。
+
+### 根因链（两处，缺一不通）
+
+| # | 缺陷 | 证据 | 影响 |
+|---|---|---|---|
+| R1 | `src/http/server.js:77` **调用 `registerOutcomeIngester()` 却全文件无该 import**，被 `try/catch` fail-open 静默吞掉 | 其余 4 个 `register*` 均有 import，唯此缺失；启动打印 `register fail: registerOutcomeIngester is not defined` | ⑤ 边订阅器从未注册 |
+| R2 | `crm.outcome_event_map` **无任何自动播种路径**：`seed.sql` 段仅在 `--seed` 时执行，容器启动只跑 `node db/migrate.js`（`docker-compose.yml:61`）；`db/seed-outcome-event-map.sql` 注释声称的 `scripts/seed-db.mjs` **根本不存在** | grep 该脚本无结果 | 规则空集 → `handleBusinessEvent` 直接 return |
+
+### 修复
+
+| 文件 | 改动 |
+|---|---|
+| `src/http/server.js` | 补 `import { registerOutcomeIngester } from '../decision/outcomeIngester.js'` + 三要素注释 |
+| `db/migrate.js` | 新增**无条件幂等**播种块（仿「套餐基线」先例），容器每次启动确保规则存在 |
+
+提交：`5475e83`（本地；沙箱无凭据，**待推送**）。
+
+### 分层验证
+
+| 层级 | 方法 | 结果 |
+|---|---|---|
+| 语法 | `node --check db/migrate.js` | 🟢 OK |
+| 幂等 | 测试库连跑两次播种 SQL | 🟢 首次 +1 / 二次 0 / 总数 1 |
+| 本地启动 | `PORT=3199 node src/http/server.js` | 🟢 **`register fail` 计数归零** |
+| 生产通电 | `hotfix` 下发 2 文件（免 rebuild、不跑 `deploy.sh` → 不抹 `.env`/HTTPS） | 🟢 两容器 healthy |
+| 生产规则 | `select count(*) from crm.outcome_event_map` | 🟢 **1**（`decision.contract_sign → won`） |
+| 生产日志 | `docker logs -t crm-app \| grep 'register fail'` | 🟢 唯一命中 `2026-09-10T23:09:02Z` **早于**容器启动 `2026-09-11T00:26:30Z`（历史行）；重启后零新增 |
+
+**通道选择说明**：走 `hotfix` 而非 `release` —— `release` 会打**整树**（含并发会话未提交的 6 个 `systemOverview*` WIP）且运行 `deploy.sh` 会抹掉 nginx HTTPS；`hotfix` 仅 `docker cp` 白名单内文件 + 重启，**零外溢**。
+
+**残留说明**：D4 只读探针仍显示 0 —— 「真自动回流」须**真实业务事件**（合同签署）触发才计行；接线已通电，行为级证明需 `npm run probe:kmd:e2e`（写测试库；本轮因并发会话占用测试库未执行）。
+
+---
+
+## ⑩ 合规声明
 
 - 全程**未执行任何 DELETE**（唯一撤销动作为 `git reset --mixed`，内容全部保留在工作树）。
 - 所有提交使用**显式路径 `git add`**，**未使用 `git add -A`**，按功能线分组，每逻辑任务一个 commit。
