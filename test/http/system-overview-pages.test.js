@@ -263,4 +263,19 @@ describe('下钻明细块隐藏契约', () => {
       expect(html).toContain('/portal/page.css');
     }
   });
+
+  // ── 明细行网格对齐契约（2026-09-11 修复）──
+  // 背景：kv() 产出 <div class="so-dl-row"><dt/><dd/></div>，而 .so-dl 是 150px+1fr 网格；
+  //   包裹 div 未设 display:contents 时 dt/dd 不是网格直接子项 → 相邻两行被塞进同一行两列、
+  //   标签与值上下堆叠，明细页错乱不可读（K/M/D 三页共性）。
+  it('drillModal 明细行包裹 div 用 display:contents（否则 dt/dd 落入网格错位）', () => {
+    const src = readFileSync(new URL('../../src/web/drillModal.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/\.so-dl-row\s*\{\s*display\s*:\s*contents\s*;?\s*\}/);
+  });
+
+  it('弹窗内可继续下钻（点击监听挂弹窗节点 + 记录 root）', () => {
+    const src = readFileSync(new URL('../../src/web/drillModal.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/m\._root\s*=\s*root/);
+    expect(src).toMatch(/openDrill\(\{\s*title,\s*key,\s*root:\s*m\._root/);
+  });
 });
