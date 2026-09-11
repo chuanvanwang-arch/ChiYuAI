@@ -13,7 +13,7 @@ import { enumHintFields } from '../../ontology/vocabulary.js';
 import { queryParticles } from '../../particles/particleRepo.js';
 import { readConfig } from '../../config/configStore.js';
 import { query } from '../../db.js';
-import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
+import { getTrendSamples, renderTrendChart } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
@@ -59,27 +59,38 @@ async function countEdgesToKnowledge(tenantId = 'system') {
   } catch { return 0; }
 }
 
-// ③ L-Knowledge 注入覆盖：knowledge-injection-map 配置 + 各 scenario 命中知识条目数
+// ③ L-Knowledge 注入覆盖：knowledge-injection-map（出厂默认 SCENARIO_KNOWLEDGE_MAP ∪ config_store 租户覆盖）
+//    语义：按 scenario 列出「该场景注入哪些 kind」× 「这些 kind 在当前作用域内各有几条知识」
+//    → 覆盖状态（有知识可注入 / 无知识可注入）。默认租户显示 0 不是坏，而是该作用域缺这几类知识，
+//      面板显式列出 kind 与状态即可自解释（旧版只给一个合计 0，看着像坏了）。
 async function injectionCoverage(tenantId = 'system') {
   try {
-    // 注入映射 = 出厂默认（SCENARIO_KNOWLEDGE_MAP）∪ config_store 租户覆盖
     const cfg = await readConfig('knowledge-injection-map', { tenantId: tenantId === '*' ? 'system' : tenantId })
       .catch(() => null);
     const map = { ...SCENARIO_KNOWLEDGE_MAP, ...(cfg?.value || {}) };
-    const kinds = new Set(Object.values(map).flat());
     const parts = await queryParticles({
       type: 'CRM_KNOWLEDGE',
       tenantId,
       limit: 5000,
       excludeStates: ['deprecated'],
     });
-    let injected = 0;
+    const byKind = {};
     for (const p of parts || []) {
-      const kind = p.payload?.kind;
-      if (kind && kinds.has(kind)) injected++;
+      const k = p.payload?.kind;
+      if (k) byKind[k] = (byKind[k] || 0) + 1;
     }
-    return { scenarios: Object.keys(map).length, injected };
-  } catch { return { scenarios: 0, injected: 0 }; }
+    const rows = Object.entries(map).map(([scenario, kindsRaw]) => {
+      const kinds = (Array.isArray(kindsRaw) ? kindsRaw : [kindsRaw]).filter(Boolean);
+      const kindCounts = kinds.map((k) => ({ kind: k, count: byKind[k] || 0 }));
+      const hits = kindCounts.reduce((s, x) => s + x.count, 0);
+      return { scenario, kinds, kindCounts, hits, covered: hits > 0 };
+    });
+    const covered = rows.filter((r) => r.covered).length;
+    const injected = rows.reduce((s, r) => s + r.hits, 0);
+    return { scenarios: rows.length, covered, injected, rows, kindsInScope: Object.keys(byKind).length };
+  } catch {
+    return { scenarios: 0, covered: 0, injected: 0, rows: [], kindsInScope: 0 };
+  }
 }
 
 // ④ 历史先例：decision_precedent_rel 按 precedent_id 引用数 Top-N（REFERENCED_PRECEDENT 语义）
@@ -98,14 +109,7 @@ async function precedentTop(tenantId = 'system', limit = 8) {
 }
 
 function renderTrendSvg(values) {
-  const points = buildTrendPolyline(values);
-  const label = '近 30 日知识粒子趋势';
-  if (!points) {
-    return `<svg data-trend="knowledge-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}"><text x="4" y="24" class="so-trend-empty">暂无采样数据</text></svg>`;
-  }
-  return `<svg data-trend="knowledge-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}">
-    <polyline points="${points}" fill="none" stroke="var(--ac)" stroke-width="1.5"></polyline>
-  </svg>`;
+  return renderTrendChart(values, { label: '近 30 日知识粒子趋势', trendId: 'knowledge-30d', stroke: 'var(--ac)' });
 }
 
 function renderTopState({ buckets, edges, inject, precedents }) {
@@ -116,7 +120,7 @@ function renderTopState({ buckets, edges, inject, precedents }) {
       <span class="loop-dot knowledge"></span><span class="loop-name">知识系统·原料库存</span>
       <span class="loop-state ${cls}">${text}</span>
     </div>
-    <div class="loop-desc">知识粒子 <b>${buckets.total}</b> · 来源边 <b>${edges}</b> · L-Knowledge 注入命中 <b>${inject.injected}</b>（${inject.scenarios} 场景）· 被引用先例 <b>${precedents.length}</b> 条</div>`;
+    <div class="loop-desc">知识粒子 <b>${buckets.total}</b> · 来源边 <b>${edges}</b> · L-Knowledge 注入命中 <b>${inject.injected}</b> 条（覆盖 <b>${inject.covered}/${inject.scenarios}</b> 场景）· 被引用先例 <b>${precedents.length}</b> 条</div>`;
 }
 
 // 四源面板（知识原料库主视图）：每面板 data-dk 下钻
@@ -124,10 +128,25 @@ function renderFourPanels(buckets, edges, inject, precedents) {
   const bucketChips = Object.entries(buckets.buckets)
     .map(([k, n]) => `<span class="so-chip">${esc(k)} ${n}</span>`).join('') || '<span class="dn-note">暂无</span>';
   const preList = precedents.slice(0, 8).map((p) => `<div class="so-prec-row"><span class="so-prec-id">${esc(p.precedent_id)}</span><span class="so-prec-refs">被引用 ${p.refs} 次</span></div>`).join('') || '<p class="dn-note">暂无被引用先例</p>';
+  // 注入覆盖明细：按 scenario 列出「注入 kind / 各 kind 命中数 / 覆盖状态」，让 0 自解释
+  const injRows = (inject.rows || []).map((r) => {
+    const kindDetail = r.kindCounts.map((k) => `${esc(k.kind)} ${k.count}`).join(' · ');
+    return `<tr>
+      <td>${esc(r.scenario)}</td>
+      <td>${esc(r.kinds.join(', '))}</td>
+      <td>${kindDetail || '—'}</td>
+      <td>${r.hits}</td>
+      <td>${r.covered ? '<span class="badge ok">已覆盖</span>' : '<span class="badge warn">无知识可注入</span>'}</td>
+    </tr>`;
+  }).join('');
+  const injTable = (inject.rows || []).length
+    ? `<table class="pg-table"><tr><th>scenario</th><th>注入 kind</th><th>各 kind 命中</th><th>合计</th><th>状态</th></tr>${injRows}</table>
+       <p class="dn-note">「无知识可注入」= 该场景映射的 kind 在当前作用域尚无知识粒子（补知识即可覆盖），非配置错误。当前作用域知识粒子共 ${inject.kindsInScope} 类 kind。</p>`
+    : '<p class="dn-note">无注入映射（knowledge-injection-map 为空）。</p>';
   const panels = [
     { dk: 'knowledge-particles', title: '① 知识粒子库', value: buckets.total, sub: `按 kind 分桶 ${Object.keys(buckets.buckets).length} 类` },
     { dk: 'source-edges', title: '② 来源边溯源', value: edges, sub: '实体 → 知识 sourcedFrom 边' },
-    { dk: 'injection-coverage', title: '③ L-Knowledge 注入覆盖', value: inject.injected, sub: `${inject.scenarios} 个注入场景命中` },
+    { dk: 'injection-coverage', title: '③ L-Knowledge 注入覆盖', value: `${inject.covered}/${inject.scenarios}`, sub: `命中 ${inject.injected} 条知识 · 按 scenario 的 kind 匹配` },
     { dk: 'precedent-graph', title: '④ 历史先例图', value: precedents.length, sub: '被引用 Top-N 先例' },
   ].map((c) => `<div class="so-panel" data-dk="${esc(c.dk)}" data-drill-title="${esc(c.title)}" style="cursor:pointer">
     <div class="so-panel-h">${esc(c.title)}</div>
@@ -137,7 +156,7 @@ function renderFourPanels(buckets, edges, inject, precedents) {
   const details = [
     `<div class="so-detail-hidden" data-dk="knowledge-particles"><h4 class="so-d-sub">知识粒子 kind 分桶</h4><div class="so-k-buckets">${bucketChips}</div></div>`,
     `<div class="so-detail-hidden" data-dk="source-edges"><h4 class="so-d-sub">来源边</h4><p class="dn-note">edges → CRM_KNOWLEDGE（sourcedFrom 溯源）计数 ${edges}。明细见决策溯源链。</p></div>`,
-    `<div class="so-detail-hidden" data-dk="injection-coverage"><h4 class="so-d-sub">L-Knowledge 注入命中</h4><p class="dn-note">knowledge-injection-map ${inject.scenarios} 场景，命中 ${inject.injected} 条知识（按 kind 匹配）。</p></div>`,
+    `<div class="so-detail-hidden" data-dk="injection-coverage"><h4 class="so-d-sub">L-Knowledge 注入覆盖（按 scenario）</h4>${injTable}</div>`,
     `<div class="so-detail-hidden" data-dk="precedent-graph"><h4 class="so-d-sub">被引用先例 Top-N</h4>${preList}</div>`,
   ].join('');
   return { html: `<div class="so-k-panels">${panels}</div>`, details };

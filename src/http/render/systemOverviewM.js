@@ -5,7 +5,7 @@
 //          ④三构件计数 + 蒸馏状态 ⑤点节点下钻明细
 // 图渲染：原生 SVG（无第三方库），取色用 CSS 变量（禁硬编码 hex），复用 decision-graph.html 范式。
 import { query } from '../../db.js';
-import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
+import { getTrendSamples, renderTrendChart } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
@@ -87,14 +87,7 @@ async function safeDistill() {
 }
 
 function renderTrendSvg(values) {
-  const points = buildTrendPolyline(values);
-  const label = '近 30 日先例引用趋势';
-  if (!points) {
-    return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}"><text x="4" y="24" class="so-trend-empty">暂无采样数据</text></svg>`;
-  }
-  return `<svg data-trend="memory-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}">
-    <polyline points="${points}" fill="none" stroke="var(--ok)" stroke-width="1.5"></polyline>
-  </svg>`;
+  return renderTrendChart(values, { label: '近 30 日先例引用趋势', trendId: 'memory-30d', stroke: 'var(--ok)' });
 }
 
 function renderTopState(edges) {

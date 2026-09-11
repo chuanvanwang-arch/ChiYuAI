@@ -279,3 +279,18 @@ describe('下钻明细块隐藏契约', () => {
     expect(src).toMatch(/openDrill\(\{\s*title,\s*key,\s*root:\s*m\._root/);
   });
 });
+
+// ── 注入覆盖面板自解释契约（2026-09-11）──
+// 背景：旧版面板只给一个合计（默认 system 租户恒为 0），看着像坏了；
+//   改为按 scenario 列出「注入 kind × 各 kind 命中 × 覆盖状态」，并显式解释「无知识可注入」= 该作用域缺这类知识。
+describe('K 注入覆盖面板（按 scenario 自解释）', () => {
+  it('面板值=覆盖场景数/总场景数；明细表含 scenario 行 + 覆盖状态 + 解释', async () => {
+    const { renderKnowledge } = await import('../../src/http/render/systemOverviewK.js');
+    const { html } = await renderKnowledge({ me: { role: 'admin', tenantId: 'system' } });
+    expect(html).toContain('data-dk="injection-coverage"');
+    expect(html).toMatch(/按 scenario 的 kind 匹配|覆盖场景/);
+    expect(html).toContain('注入 kind');           // 明细表列头
+    expect(html).toContain('QUOTE_PRICING');       // 出厂默认映射的 scenario 必现（不依赖库内数据）
+    expect(html).toMatch(/已覆盖|无知识可注入/);
+  });
+});

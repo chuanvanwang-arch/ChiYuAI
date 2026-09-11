@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTrendPolyline, getTrendSamples } from '../../src/http/render/systemOverviewShared.js';
+import { buildTrendPolyline, buildTrendParts, renderTrendChart, getTrendSamples } from '../../src/http/render/systemOverviewShared.js';
 
 describe('buildTrendPolyline', () => {
   it('空数组返回空串', () => {
@@ -34,5 +34,41 @@ describe('getTrendSamples (注入 query)', () => {
     const fakeQuery = async () => { throw new Error('no table'); };
     const vals = await getTrendSamples('k_method_skill', { tenantId: 'system', deps: { query: fakeQuery } });
     expect(vals).toEqual([]);
+  });
+});
+
+// 2026-09-11：采样表只有 1 天数据时单点 polyline 画不出任何东西 → 趋势区「看着空白像坏了」。
+// 另：.so-trend-empty 这个 class 全仓无样式定义，仅靠 class 会回落黑色填充，深色主题下不可见。
+describe('buildTrendParts / renderTrendChart（单点可见 + 空态不依赖外部样式表）', () => {
+  it('空数组 → mode=empty', () => {
+    expect(buildTrendParts([]).mode).toBe('empty');
+  });
+  it('单点 → mode=accumulating，圆点贴右端并回显末值', () => {
+    const p = buildTrendParts([43]);
+    expect(p.mode).toBe('accumulating');
+    expect(p.dots).toEqual([{ x: 194, y: 20 }]);
+    expect(p.last).toBe(43);
+  });
+  it('多点 → mode=line，数据点数与采样天数一致', () => {
+    const p = buildTrendParts([1, 2, 3]);
+    expect(p.mode).toBe('line');
+    expect(p.dots.length).toBe(3);
+  });
+  it('单点渲染出可见圆点 + 末值（不再空白）', () => {
+    const svg = renderTrendChart([43], { trendId: 'knowledge-30d' });
+    expect(svg).toContain('<circle');
+    expect(svg).toContain('今日 43');
+    expect(svg).toContain('采样积累中');
+    expect(svg).not.toContain('<polyline');
+  });
+  it('空态文本带内联 fill（class 无样式时不会回落黑色而"看着空白"）', () => {
+    const svg = renderTrendChart([], { trendId: 'k' });
+    expect(svg).toContain('暂无采样数据');
+    expect(svg).toMatch(/<text[^>]*fill="var\(--mut/);
+  });
+  it('多点渲染折线 + 逐点圆点', () => {
+    const svg = renderTrendChart([1, 5, 3], { trendId: 'k' });
+    expect(svg).toContain('<polyline');
+    expect((svg.match(/<circle/g) || []).length).toBe(3);
   });
 });

@@ -6,7 +6,7 @@
 // 下钻：L1 行→单闸门归因明细；L2 行→单场景通过率+隐性错误簇；L3→单处方字段。
 import { getGateAttribution, getGateOutcome } from '../../monitor/monitorStore.js';
 import { listPatches } from '../../calibration/store.js';
-import { getTrendSamples, buildTrendPolyline } from './systemOverviewShared.js';
+import { getTrendSamples, renderTrendChart } from './systemOverviewShared.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kv = (label, val, cls = '') => `<div class="so-dl-row"><dt>${esc(label)}</dt><dd class="${cls}">${val}</dd></div>`;
@@ -57,14 +57,7 @@ async function safeL3(me) {
 }
 
 function renderTrendSvg(values) {
-  const points = buildTrendPolyline(values);
-  const label = '近 30 日 L1 拦截趋势';
-  if (!points) {
-    return `<svg data-trend="decision-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}"><text x="4" y="24" class="so-trend-empty">暂无采样数据</text></svg>`;
-  }
-  return `<svg data-trend="decision-30d" viewBox="0 0 200 40" width="200" height="40" aria-label="${label}">
-    <polyline points="${points}" fill="none" stroke="var(--warn)" stroke-width="1.5"></polyline>
-  </svg>`;
+  return renderTrendChart(values, { label: '近 30 日 L1 拦截趋势', trendId: 'decision-30d', stroke: 'var(--warn)' });
 }
 
 function renderTopState(l1, l2Ok, scn, l3) {
