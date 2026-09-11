@@ -12,13 +12,13 @@
 
 | # | 动作 | 结果 | 证据 |
 |---|---|---|---|
-| 1 | 本地 git 提交 | 🟢 **16 个 commit** | `HEAD=7653107`，工作树 **0 未跟踪/未提交** |
-| 2 | GitHub 推送 | 🔴 **未完成（沙箱无凭据）** | `fatal: could not read Username for 'https://github.com'` |
-| 3 | 生产发布 | 🟢 **成功** | 三容器 healthy、表 **59→61**、`crm.system_overview_sample` 已建出 |
-| 4 | P0 事故处置 | 🟢 **已恢复** | 生产 `.env` 被 release 抹成模板 → 已按容器真相源还原；HTTPS 已恢复 |
-| 5 | 缺陷修复 | 🟢 **4 项** | unpack.py 根治 + 插件包重建 + 2 个 SKILL 更新 |
-| 6 | KMD 探针 | 🟡 `🟢6 🔴3 🟡3 ⚪2` | 红点 D1/D4/D6（与昨夜同源，属配置/业务/治理项） |
-| 7 | 系统概览采样 | 🟢 **成功** | `upserted 10 tenants`，4 类指标入库 |
+| 1 | 本地 git 提交 | 🟢 **工作树 0 未提交** | `HEAD=265318a`；本地领先 origin **5 个**（明细见 ② 与 ⑪ 节） |
+| 2 | GitHub 推送 | 🔴 **未完成（沙箱无凭据）** | `fatal: could not read Username for 'https://github.com'`；本地领先 origin **5 个** |
+| 3 | 生产发布 | 🟢 **成功（release 固化）** | 三容器 healthy、表 **59→61**、`system_overview_sample` 21 行、`buildTrendParts` 已进镜像 |
+| 4 | P0 事故处置 | 🟢 **已根治并实测防复发** | 昨夜 `.env` 被抹 → 修 `unpack.py`；本轮 release **`.env` 15 键完整保留**（实测通过） |
+| 5 | 缺陷修复 | 🟢 **7 项** | unpack.py / pack-local.py / server.js / migrate.js / 趋势图渲染 / 插件包重建 / gitignore |
+| 6 | KMD 探针 | 🟡 `🟢6 🔴3 🟡3 ⚪2` | 红点 D1/D4/D6（D4 接线已修，属业务事件未发生） |
+| 7 | 系统概览采样 | 🟢 **本地 + 生产双侧成功** | 本地 `upserted 10 tenants`；生产容器内 `upserted 6 tenants` → K/D 页趋势真实渲染 |
 
 ---
 
@@ -186,9 +186,9 @@ HIGH 样本：f45d379d… | source_refresh | context-dimension-source
 ## ⑦ 需用户本地执行
 
 ```powershell
-# ① 推送 13 个提交（沙箱无 GitHub 凭据，push 已被拒）
+# ① 推送 5 个提交（沙箱无 GitHub 凭据，push 已被拒）
 cd D:\system\CRM-ai-native
-# 推送全部本地 commit（截至本轮：origin=4aa5336，本地领先 2 个 —— 5475e83 / 9e3b830）
+# 本地领先 origin 5 个：5475e83 / 9e3b830 / c306cdc / 44bc560 / 265318a
 git push origin feat-multi-industry-meta-model
 
 # ② 核验生产（可选，发布已完成）
@@ -197,7 +197,7 @@ $DIR = "D:\system\CRM-ai-native\scripts\tencent-lighthouse-deploy"
 & $PY "$DIR\deploy-remote.py" status --password-file "$env:TEMP\crm_ssh.pwd"
 ```
 
-**下次 release 务必注意**：`unpack.py` 根治修复需随下一次 release 上传才生效；在此之前每次 release 后请核验 `.env` 键值长度（`PGPASSWORD≈32 / SMTP_PASS≈30 / CRM_LLM_SECRET≈43`）并恢复 nginx HTTPS。
+**已消解（本轮）**：`unpack.py`（解包侧 .env 保护）与 `pack-local.py`（打包侧敏感文件排除）**两项修复均已随本轮 release 上传并在生产实测生效** —— 见第 ⑪ 节的 P0 复发验证（`.env` 15 键完整保留）。此后 release 不再有 `.env` 被抹风险，但 **nginx HTTPS 仍会被 `deploy.sh` 重写**，每次 release 后按 SKILL §125 恢复。
 
 ---
 
@@ -237,6 +237,49 @@ $DIR = "D:\system\CRM-ai-native\scripts\tencent-lighthouse-deploy"
 **通道选择说明**：走 `hotfix` 而非 `release` —— `release` 会打**整树**（含并发会话未提交的 6 个 `systemOverview*` WIP）且运行 `deploy.sh` 会抹掉 nginx HTTPS；`hotfix` 仅 `docker cp` 白名单内文件 + 重启，**零外溢**。
 
 **残留说明**：D4 只读探针仍显示 0 —— 「真自动回流」须**真实业务事件**（合同签署）触发才计行；接线已通电，行为级证明需 `npm run probe:kmd:e2e`（写测试库；本轮因并发会话占用测试库未执行）。
+
+---
+
+## ⑪ 收尾轮：release 固化 + 部署链双修复（2026-09-11 08:26–08:45）
+
+### 背景
+上一轮走 `hotfix` 是权宜（容器可写层，rebuild 即失），且当时工作树有并发会话 WIP 不能打整树。本轮观测到**工作树已完全干净（0 项）**——这是唯一无「误发 WIP」风险的发布窗口，故补跑 `release` 让镜像与仓库对齐。
+
+### 本轮新增 2 个 commit（HEAD=`265318a`，本地领先 origin **5**）
+
+| # | hash | 摘要 | 文件 |
+|---|---|---|---|
+| 1 | `44bc560` | 概览页趋势图渲染统一 — `buildTrendParts`/`renderTrendChart`（单点采样显式回显末值；取色**内联**避免 class 无定义致深色主题下回落黑色不可见） | `src/http/render/systemOverview{Shared,K,M,D}.js` + 2 测试 |
+| 2 | `265318a` | `pack-local.py` 排除敏感 `.env` 家族（**凭据扩散防护**） | `scripts/tencent-lighthouse-deploy/pack-local.py` |
+
+### ⚠️ 新发现：部署链一处对称缺陷（打包侧）
+`pack-local.py` 与 `unpack.py` 是**同一类缺陷的两面**——**二者都直读文件系统、都不读 git**，故 `.gitignore` 对发布包完全无效：
+
+| 侧 | 缺陷 | 后果 |
+|---|---|---|
+| 解包侧 `unpack.py`（昨夜已修） | `--clean` 清空 `/opt/crm-ai-native` 时连生产 `.env` 一起删 | 凭据被抹成模板 → **假发布** |
+| **打包侧 `pack-local.py`（本轮新发现并修）** | 不排除 `.env*`，本机 `.env.server`(339B) / `.env.remote-backup-*`(364B，**含凭据**) 被打进 zip | **凭据扩散**到服务器 |
+
+修复：新增 `is_sensitive_env()`，排除 `.env` 与 `.env.*`、**保留 `.env.example`**（`deploy.sh` 依赖该模板）。隔离验证：打包 1622 文件，包内 `.env*` 仅剩两处 `.env.example`，敏感文件 0 命中，关键源码 7 项全 HAS。
+
+### release 结果与「P0 是否复发」的实测验证
+
+| 核验项 | 结果 |
+|---|---|
+| `.env` 跨 release 保留（**P0 复发验证**） | 🟢 **15 键完整**：`PGPASSWORD`=32 / `SMTP_PASS`=30 / `CRM_LLM_SECRET`=43（昨夜为 6 字符占位 + 空值）→ 保护逻辑在生产**实际生效** |
+| 敏感文件未误上传 | 🟢 远程仅 `.env` + `.env.example`；本机 `.env.server`/`.env.remote-backup-*` **未出现** |
+| 镜像内含本轮修复 | 🟢 `buildTrendParts`=2、`registerOutcomeIngester`=3 → 不再依赖可写层 |
+| 数据库状态 | 🟢 61 表；`outcome_event_map`=1 条；`system_overview_sample`=**21 行**（未被重建清空） |
+| 三容器 / HTTPS / MCP | 🟢 3 healthy · `443=1` · https **200** · `http→https` **301** · `/mcp` **401** |
+| 应用日志 | 🟢 `[error]/unhandled/ECONNREFUSED` 计数 **0**；`register fail` **0** |
+
+### 新闭环：生产概览页趋势真实渲染
+发现「已发布的 `system_overview_sample` 表在生产**从未写入**」——采样脚本此前只连本地库，生产 K/D 页恒显「暂无采样数据」（发布的功能等于空壳）。处置：在 app 容器内执行 `docker exec -w /app crm-app node scripts/sample-system-overview.mjs` → `upserted 6 tenants` / **21 行**（`d_l1_intercept`=5 `k_knowledge_count`=6 `k_method_skill`=5 `m_precedent_edge`=5）。复验 K/D 页由「暂无采样数据」变为 **`采样积累中` + 可见 `<circle>`** —— 恰好实证新下发的单点渲染逻辑在生产可达。
+
+> 附注：M 页对未认证访客返回 `scope:forbidden`（权限设计，非缺陷），故其趋势块对 guest 不可见。
+
+### 探针（release 后复跑）
+`🟢6 🔴3 🟡3 ⛔0 ⚪2`，与昨夜一致。D4 仍 🔴 属**语义正确**：`event_rules=1 / enabled=1`（接线已通电），但本地库无真实合同签署事件 → `real_auto=0`（总计 4 条全为种子）。行为级证明需 `npm run probe:kmd:e2e`。
 
 ---
 
