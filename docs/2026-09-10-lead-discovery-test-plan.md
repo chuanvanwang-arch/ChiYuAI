@@ -88,7 +88,7 @@ T1 (discovery-rules 配置)  ──┬─ T2 (Adapter 框架 + waterfall)
 T2 ─┬─ T3 (4 起步适配器)
     └─ T7 (编排 + dedupResolver，依赖 T3/T4)
 T4 (2D payload) ── T7
-T6 (lead-fit scenario + 事件矩阵) ──┬─ T7（评分入 payload）
+T6 (LEAD_FIT 场景字典·三处幂等) ──┬─ T7（评分入 payload）
                                     ├─ T11 (ICP 自进化回测)
                                     └─ T16 (C3 重评分)
 T7 ─┬─ T8 (Claygent 研究)
@@ -116,7 +116,7 @@ T20 (端到端验收) ── 最后
 | **T3** | `test/connectors/discovery/adapters.test.js` | 4 适配器同契约 **`{ id, kind, costTier, coverageFields, enrich(entity, fields, ctx) }`（对齐设计 v8.1 §3 统一接口；**非 `fetch`**）**；**模块加载即自注册**（`listProviderIds()` 含 4 个 id）；无命中一律返 `{}`（**非 `null`**，让 waterfall 判 miss）；`email-verify` 仅本地语法+一次性域名判定（`confidence < 0.9`，**不得伪称「已验证」**）；`web-research` 委托注入的 `ctx.research`（无通道 → `{}`，**绝不伪造字段**）；`tender` 委托既有 `filterTenders(sub, tenders)`（**真实**关键词+区域过滤；注意真实签名是 `matchTender(sub, tender)`，**不是** `matchTender(entity)`）；`gaode` 走 `vi.stubGlobal('fetch')` 桩 HTTP（**无 key 不发起请求** / HTTP 失败 fail-open / 第二字段 `cost=0` 不重复计费） | 4/4 同契约 + 自注册 |
 | **T4** | `test/agent/discoverySchema.test.js` | ① `enrichment.<field>` 含 `{value, provider, confidence, ts, layer, source}` 六元；② `judge` 含 `{axis, rule_ref, j_score}`（2D：能力轴 × 来源轴）；③ `why_narrative` 非空且含 `rule_ref`（+`decision_id`）；④ `layer ∈ {L1,L2,L3,L4}`，非法 layer **抛错**（非静默降级） | 2D + why_narrative 齐 |
 | **T5** | `test/action/discoveryActions.test.js` | 先 `seedDiscoveryActions()`；① `getAction('discovery-run')` 非空；② **`(await assertAgentAssembly()).ok===true`（async，必须 await）**；③ `skillCalls ⊆ capabilities.actions`；④ `kind/permission/namespace/agentTool/handler` 平铺字段齐（**非 JSON Schema**） | 三处硬闭包全绿 |
-| **T6** | `test/decision/leadFitScenario.test.js` | seed 后 `decision_scenario` 存在 `lead-fit`；九标尺可对该 scenario 评分；`eventTrigger` 矩阵含 `CRM_KNOWLEDGE/discovery-sync → lead-fit` 行 | scenario + 矩阵行就位 |
+| **T6** | `test/decision/leadFitScenario.test.js` | ① **双源静态一致**：`db/seed.sql` 与 `db/test-setup.sql` 的 `decision_scenario` INSERT 段均含 `('LEAD_FIT'` 行，`default_tier='LEAD'` + `autonomous_allowed=TRUE` + 5 个 ICP cond（industry/headcount/geo/hiring_icp_role/funding_round）+ 权重和 = 1；② **真实 PG**：执行 seed 语句（幂等）后 `crm.decision_scenario WHERE scenario_id='LEAD_FIT' AND tenant_id='system'` 恰 1 行且属性正确。**事件矩阵行移 T16**（`matchTrigger` 只读白名单闸 + 无 `discovery-sync` emitter ⇒ 现在加即死配置） | 场景字典三处（seed.sql / test-setup.sql / seed-test-config.mjs）就位 |
 | **T7** | `test/connectors/discovery/dedupResolver.test.js`、`orchestrator.test.js` | ① `resolveExistingOrCreate` 依 `duplicate_criteria` 多级回退（account: `external_id→domain→linkedin_url→name`；contact: `email`）——**domain 命中既有记录时不调 `create`**；② 短串（`len<MIN_STR_LEN`）不参与判重；③ `23505` 唯一约束冲突 → catch 后重查赢家转 `update`（**并发不重复创建**）；④ 编排：本体优先富集 → 仅缺口走 waterfall → `lead-fit` 评分入 payload；⑤ **零 DELETE** | 防重 + 并发兜底 + 零 DELETE |
 | **T8** | `test/connectors/discovery/research.test.js` | ① `discovery-research` 产 `{report, why_narrative, signals[]}`；② LLM 注入固定 JSON（不调真实）；③ 无命中不写库（fail-open 返空） | 研究报告 + 信号 |
 | **T9** | `test/memory/discoveryCapture.test.js` | ① `DEFAULT_CAPTURE_DOMAINS` 含 `discovery`；② **`src/context/routing.js` 零改动**（`git diff --stat` 断言）；③ 发现结论经既有 **L2 通道**注入（断言未新增路由分支）；④ 注入体积 ≤ 64KB 闸 | 捕获域 + id36 红线守 |
@@ -151,7 +151,7 @@ T20 (端到端验收) ── 最后
 - **PG 不稳**：T6/T7/T10/T16/T21 依赖真实 `crm_native_test@5433`。按铁律「**单次红不得直判回归**」——连接超时导致的红，须先 `SELECT 1` 探活重试，再判定。
 - **跨会话共享测试库**：`crm_native_test` 被多 vitest 会话共享，并发 `TRUNCATE` 会互踩→伪失败。**集成测试单独跑、不与单元并发**；新增测试须完整清理外键子表。
 - **`DEFAULT_CAPTURE_DOMAINS` 副作用**：T9 改捕获域可能影响既有记忆测试，须跑 `test/memory/` 全量确认不回归。
-- **事件矩阵膨胀**：T6/T16 各加矩阵行，须断言既有矩阵行**未被替换**（append，非 overwrite）。
+- **事件矩阵膨胀**：T6 **不再**动事件矩阵（行归 T16）；T16 加行时须断言既有 3 行矩阵**未被替换**（append，非 overwrite），且行形状为真实 `{domain,type,entity_type,intent,agent,skill_slug,dedup_field}`、`skill_slug ∈ READ_ONLY_SKILLS`（否则 `matchTrigger` 静默丢弃 = 死配置）。
 - **LLM 依赖**：T8/T15 一律注入 `llmFactory`；`degraded` 路径（无 LLM）须 fail-open 返回空而非抛错。
 - **打包版本链漂移**：T19/T21 涉及 4 处版本号（`plugin.json` / `connector-meta.json` / `plugin-platform-admin` / `verify-plugin-zips.py` `expect_version`），须**一次改齐**，否则 `verify-plugin-zips.py` 必红（历史漂移根因）。
 - **`test/` 单数**：测试目录真实名为 `test/`（**非 `tests/`**），556 个测试文件；新增测试落此。

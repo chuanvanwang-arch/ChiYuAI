@@ -365,7 +365,8 @@ enrich(entity, fields, ctx) ->
 - **KMD 脊柱**：K 知识 / M 记忆 / D 决策（`edgeDimensionSpec.js:2`）；决策表 `crm.decision`（`schema.sql:164-186`）；9 标尺在 `rubricScorer.js:17-27` 静态 `RUBRICS` 恒被遍历（`:204-213`），第 8 标尺 `importance` 依赖 `concept_refs`（`rubricScorer.js:25`，`scoreImportance` 读 `ctx.concept_refs` `:124-136`）；自主引擎 = `autonomyEngine.js`。
 - **评分 = 新 `decision_scenario` 行（lead-fit），免费复用九标尺**：`icp_fit_score`/`intent_score` 当前**无列**（grep 无）；应作为新 `decision_scenario` 行（`schema.sql:118`，含 `focus_rulers`/`enabled_rulers`/`rubric_pass_line` `:130-132`），设为 `tier='LEAD'` + `autonomous_allowed=TRUE`（仿 `LEAD_FOLLOW_UP` `seed.sql:229-233`），输出评分进 `CRM_ACCOUNT.payload.discovery`。**无需改 `rubricScorer` 代码**——9 标尺与 `concept_refs` 路径自动复用。
   > **吸收 Clay #1/#3**：`focus_rulers`/`enabled_rulers` 即 C1 编排的"判定条件"段载体；monitorAccount（C3）重评分复用同一 scenario 行（只换输入数据），**零新增标尺**。
-- **触发 = 事件矩阵自动派发**：`eventTrigger.js:15-26` 矩阵把 `CRM_KNOWLEDGE` 的 `ontology-sync` → 意图 `decision-enrich` → `decision-agent`（`:22-24`）。即：发现富集经 `ontologySync` 产出知识粒子 → **自动触发 `decision-enrich`** → `requireDecision`（`autonomyEngine.js:115`，读 scenario `:119`）→ fire-and-forget 派发 `decision-enrich` `:280` → `routeThroughIntake`（`scheduler.js:48-62`，命中 intent 路由 `decision-agent` + `method-decision-enrich`）→ `runWithSkill` 执行 `method-decision-enrich`（`skills/seed.js:112`）。**自然衔接点，无需新写触发逻辑**（可选：在矩阵加 1 行把"发现知识"→ `lead-fit` intent 以独立评分）。**C3 monitorAccount 复用同一矩阵**：信号事件 → 重评分 intent → `lead-fit` 重跑。
+- **触发 = 事件矩阵自动派发**：`src/agent/eventTrigger.js:15-26` 矩阵把 `CRM_KNOWLEDGE` 的 `ontology-sync` → 意图 `decision-enrich` → `decision-agent`（`src/agent/eventTrigger.js:22-24`）。即：发现富集经 `ontologySync` 产出知识粒子 → **自动触发 `decision-enrich`** → `requireDecision`（`autonomyEngine.js:115`，读 scenario `:119`）→ fire-and-forget 派发 `decision-enrich` `:280` → `routeThroughIntake`（`scheduler.js:48-62`，命中 intent 路由 `decision-agent` + `method-decision-enrich`）→ `runWithSkill` 执行 `method-decision-enrich`（`skills/seed.js:112`）。**自然衔接点，无需新写触发逻辑**（可选：在矩阵加 1 行把"发现知识"→ `lead-fit` intent 以独立评分）。
+  > ⚠ 2026-09-11 复查：该行**归 Task 16 落地**——`matchTrigger` 的只读白名单闸（`src/agent/eventTrigger.js:30-32` + `:65-76`）会**静默丢弃**写 SKILL，且全仓当前无 `discovery-sync` emitter ⇒ 现在硬编码该行即死配置（运行时永不命中且无报错）。**C3 monitorAccount 复用同一矩阵**：信号事件 → 重评分 intent → `lead-fit` 重跑。
 - **HITL 仅卡写闸，评分可自主**：`autonomyEngine.js:274` `escalated = forceException || tier==='HIGH' || conf<effectiveThreshold`；非升级即自主拍板（`:282`）。写操作经"决策第 0 闸"（如 `PARTICLE_UPDATE` `seed.sql:325-329`，`autonomous_allowed=TRUE` 但 gateway `confirm_token` 承担硬人工闸）→ **评分自主、写出受 HITL 约束**，与 §0 反转一致。
 - **无既有 discovery 场景可复用**：`seed.sql:227-338` 共 19 行 scenario（含 `LEAD_FOLLOW_UP`/`OPP_QUALIFY`/`PARTICLE_UPDATE`/`REQUIREMENT_COLLECT` 等），**无发现/lead-fit 类**；`decision-enrich` 是 **intent 而非 scenario** → 必须新增 1 个 scenario 行（不复用、不重造引擎）。
 - **⚠️ P0 #3（ICP 自进化 = 草稿→回测→HITL→validated）**：`decision_scenario` 权重/rubric 重校准**绝不自动生效**——先落草稿行（`validated=FALSE`），经回测（threshold/count/noop）与人工审批后才置 `validated=TRUE`。详见 §0.1 step6。
@@ -403,7 +404,7 @@ enrich(entity, fields, ctx) ->
 | 数据层 | CRM_ACCOUNT(potential)/CONTACT/DEAL(lead) + edges(sourcedFrom) + duplicateCriteria 去重 | 无 | schema.sql:11-55 |
 | 知识层 | CRM_KNOWLEDGE + ontologySync 自动边 | 无 | hooks.js:48-113 |
 | 记忆层 | memory_log/note + capture 事件订阅 | 加 `discovery` 捕获域 + **C3 账户持久记忆流** | capture.js:16-19 |
-| 决策层 | decision-enrich 事件链 + 九标尺 + method-decision-enrich + decision-agent | 新 decision_scenario(lead-fit) + 事件矩阵新行（含 C3 重评分） | eventTrigger.js:15-26; autonomyEngine.js:115; schema.sql:118 |
+| 决策层 | decision-enrich 事件链 + 九标尺 + method-decision-enrich + decision-agent | 新 decision_scenario(lead-fit) + 事件矩阵新行（含 C3 重评分） | src/agent/eventTrigger.js:15-26; autonomyEngine.js:115; schema.sql:118 |
 | MCP | 工具由 Registry 派生 | 3 个 discovery-* 动作 | tools.js:41-130 |
 | S1 | intake-router + BANT 闸 + advanceStage | 无（C3 外联消费 method-*） | tenderConnector.js:51; agentSpec.js:4-15 |
 | 界面 | CAPS 胶囊 + configCenter | discovery-rules 配置项 + **C1 编排后台页** | buddy-crm-manifest.json; configCenter.js:11-72 |
@@ -421,8 +422,8 @@ enrich(entity, fields, ctx) ->
 - **推荐落地（选项 B，最轻且代码支持）**：新增 `lead-discovery` SKILL + `discovery-*` Action（`discovery-run`/`enrich`/`research`），由**既有 Agent**（`intake-router` 或 `decision-agent`）经事件矩阵 / intake 路由调用。机制：
   1. 在某既有 Agent 的 `capabilities.actions` + `skillCalls` 加新 action（满足闭包①、②）；
   2. `src/skills/seed.js` 登记 SKILL 步骤（第三闭包）；
-  3. 可选：`eventTrigger.js:15-26` 矩阵加 1 行把"发现知识"→ `lead-fit` intent（C3 重评分同此路径）。
-- **衔接点**：`scheduler.js:66-70` 允许事件矩阵预置 `payload.targetAgent` 直接指定派发目标；`eventTrigger.js:22-24` 矩阵已把 `CRM_KNOWLEDGE ontology-sync → decision-enrich → decision-agent`。即「发现」由既有 Agent 在既有调度/KMD 织物上跑，无需新 Agent 身份。
+  3. 可选：`src/agent/eventTrigger.js:15-26` 矩阵加 1 行把"发现知识"→ `lead-fit` intent（C3 重评分同此路径）。**⚠ 2026-09-11 复查：本项归 Task 16 落地**（只读白名单闸 + 无 emitter，理由同 §368 注）。
+- **衔接点**：`scheduler.js:66-70` 允许事件矩阵预置 `payload.targetAgent` 直接指定派发目标；`src/agent/eventTrigger.js:22-24` 矩阵已把 `CRM_KNOWLEDGE ontology-sync → decision-enrich → decision-agent`。即「发现」由既有 Agent 在既有调度/KMD 织物上跑，无需新 Agent 身份。
 - **再次印证 §0 反转**：把平台认知原语当自身器官——决策判断力 = KMD、记忆 = 本体/记忆层、手脚 = 既有 Agent 调度、conscience = 第 0 闸——而非另造一个 Agent。**C1/C2/C3 均为既有原语的组合与常驻化，不引入新 Agent 身份。**
 
 ### 9.11 反馈闭环（feedback-loop · P0 #4 已补）

@@ -36,7 +36,7 @@
 | T3 | 起步适配器 ×4（email-verify/web-research/标讯/高德） | `connectors/discovery/adapters.test.js` | T2 |
 | T4 | 溯源 2D + why_narrative + layer（P0#1） | `agent/discoverySchema.test.js` | T2 |
 | T5 | discovery-* Action 三处硬闭包 | `action/discoveryActions.test.js` | T1 |
-| T6 | lead-fit decision_scenario + 事件矩阵 | `decision/leadFitScenario.test.js` | T1 |
+| T6 | LEAD_FIT decision_scenario 场景字典（seed.sql + test-setup.sql + pretest 三处幂等） | `test/decision/leadFitScenario.test.js` | T1 |
 | T7 | 发现编排 + dedupResolver | `connectors/discovery/dedupResolver.test.js`、`orchestrator.test.js` | T3/T4/T6 |
 | T8 | Claygent 研究 Action | `connectors/discovery/research.test.js` | T7 |
 | T9 | 记忆捕获域 + L2 注入红线（P0#2） | `memory/discoveryCapture.test.js` | T4 |
@@ -88,7 +88,7 @@
 - `src/agent/agentSpec.js:74-89` — `decision-agent` 的 `capabilities.actions`/`skillCalls` 加 `discovery-*`
 - `src/skills/seed.js` — `lead-discovery` SKILL 注册（steps 加 `discovery-run` 等）
 - `src/agent/agents.js:66` 与 `src/http/routes.js:467-469` — 调用 `seedDiscoveryActions()`（与 `seedActions()`/`seedConnectorActions()` 同处）
-- `src/decision/eventTrigger.js` — 矩阵加 1 行（发现知识→lead-fit intent）+ C3 信号→重评分行
+- `src/agent/eventTrigger.js` — 事件矩阵加行（**T16 落地**：C3 信号→重评分；**T6 不加**——`matchTrigger` 只读白名单闸会静默丢弃写 SKILL）
 - `src/memory/capture.js` — `DEFAULT_CAPTURE_DOMAINS` 加 `discovery`
 - `src/portal/configCenter.js:11-72` — `CONFIG_ITEMS` 加 id46 `discovery-rules`（**真实路径 `src/portal/`**）
 - `src/http/configRouter.js:51-161` — 无需改本体；在 `src/http/routes.js:224` 附近挂 `createConfigRouter({key:'discovery-rules',...})`（**工厂 + deps 注入范式**）
@@ -1240,63 +1240,154 @@ git commit -m "feat(discovery): register discovery-* actions via 3 hard closures
 
 ---
 
-## Task 6: LEAD_FIT decision_scenario + 事件矩阵行（KMD 结合）
+## Task 6: LEAD_FIT decision_scenario 行（KMD 结合 · 场景字典）
 
 **Files:**
-- Modify: `db/seed.sql` (新增 scenario 行；仿 `:227-233` 的 `LEAD_FOLLOW_UP` 列序/写法), `src/decision/eventTrigger.js:15-26`
+- Modify: `db/seed.sql` —— 在 `crm.decision_scenario` 的 INSERT VALUES 段**末尾**、`ON CONFLICT` **之前**追加 1 行（仿 `REQUIREMENT_COLLECT` 行写法）
+- Modify: `db/test-setup.sql` —— **同一行双源同步**（测试库 `crm_native_test` 的场景字典来自本文件；只改 seed.sql 会让 T6 集成断言假红）
+- Modify: `scripts/seed-test-config.mjs` —— 新增幂等前置步骤 `ensureDiscoveryScenario()`（与 `ensureCalibrationPatch`（`:228`）同构）
 - Test: `test/decision/leadFitScenario.test.js`
+
+**契约校正声明（2026-09-11 派发前源码级复查，7 处）**：
+
+1. 🔴 **`src/decision/eventTrigger.js` 不存在**。真实事件矩阵在 **`src/agent/eventTrigger.js:12-26`** 的 `AGENT_EVENT_TRIGGER_DEFAULT.matrix`（设计文档引用的行号 `:15-26`/`:22-24` 是对的，**目录写错**）。
+2. 🔴 **矩阵行形状错**。真实行 = `{domain,type,entity_type,intent,agent,skill_slug,dedup_field}`；原稿 `{event,kind,intent,agent}` 是把既有第 3 行的 `entity_type:'CRM_KNOWLEDGE'` 误当 `event`、并臆造了 `kind`。
+3. 🔴 **`matchTrigger` 只读白名单闸 → 本 Task 不加矩阵行**。`src/agent/eventTrigger.js:30-32` 硬编码 `READ_ONLY_SKILLS`（3 个 `method-*`），`:65-76` 对白名单外 SKILL **静默 `return null`**；且 `grep 'discovery-sync' src/ scripts/` **0 命中**（无 emitter）。故硬编码该行 = **死配置**（运行时永不命中、且无任何报错）= 假绿。设计 §368/§424 本就把该行标为「**可选**」→ **改由 Task 16（C3 monitorAccount，信号事件与重评分同源）落地**；Task 16 Step 5 已加「派发前必须复查」标记。
+4. 🔴 **测试库场景字典来源是 `db/test-setup.sql`，不是 `db/seed.sql`**；且 `pretest` 只跑 `scripts/seed-test-config.mjs`（**不**整体应用 test-setup.sql）→ 必须**三处同步**：`db/seed.sql` + `db/test-setup.sql` + `scripts/seed-test-config.mjs` 幂等步骤。（历史教训：2026-08-26 场景字典 TRUNCATE 未重建 → FK 假失败；2026-08-29 场景种子「入双库」。）
+5. ⚠ **禁止用 `npm run seed` 落测试库**：`src/db.js:17` 默认库是**生产库 `crm_native`**（`:75-78` 有告警），`npm run seed` = 直写生产（红线，需 HITL 显式授权）。测试库走 `node scripts/seed-test-config.mjs`（`:20-27` 显式拒绝生产库名）。
+6. **场景 `trigger.cond.event` 取值错**：原稿 `"event":"discovery-sync"` 非既有域事件（既有全为 `created`/`qualify`/`quote_submit`/`reopen` 等；`discovery-sync` 全仓 0 命中，且 `trigger` 仅作元数据透传，`decisionRepo.js:281`）→ 改为 `"event":"created"`（与 `LEAD_FOLLOW_UP` 同域事件，靠 `"entity":"ACCOUNT"` 区分）。
+7. **断言加严**：原稿只断言 `default_tier`/`autonomous_allowed`。补 ①**双源静态一致**（两文件都含该行 + 5 条 ICP 权重和 = 1，防权重静默漂移）；②真实 PG 执行 seed 语句（幂等）后断言行属性 + `eval_dimensions` 5 个 cond 序。
+   - 列契约已核（`db/migrate.js:266-272` + `db/migrate-config.sql:85`）：`stage_code/focus_elements/focus_rulers/rubric_pass_line/enabled_rulers` 可空、`retro_required` NOT NULL DEFAULT false、`required_dims` NOT NULL DEFAULT '[]' → 原稿列清单可安全 INSERT。
+   - 无 `required_dims` → **不触发七维拦截**（`decisionRepo.js:180-182` 仅对 `required_dims` 命中维判定；`test/decision/_helpers.js:11` 即以空 `required_dims` 绕过拦截）。与决策引擎分工自洽：ICP 评分在发现引擎内完成，七维闸由业务场景承担。
+   - ⚠ `query()` 走**只读池** `poolRead`（`src/db.js:91`）→ 测试里写库**必须**用 `queryWrite`。
 
 - [ ] **Step 1: Write the failing test**
 
 ```js
+// test/decision/leadFitScenario.test.js
+// T6（测试计划 §4）：LEAD_FIT 场景字典 —— 集成（真实 PG crm_native_test@5433）
 // ⚠ 无 resolveScenario 导出、亦无 src/decision/scenarioStore.js（原稿虚构）——真实场景读取只有
-//   executor.js:30-36 的私有 getScenario()（未导出）+ autonomyEngine.requireDecision()。
-//   故本 Task 走「集成（真实 PG）」直查表，与测试计划 §2 对 T6 的分层一致（crm_native_test@5433）。
+//   executor.js:25-27 的私有 getScenario()（未导出）+ autonomyEngine.requireDecision()（:115-122）。
+//   故本 Task 走「① 双源静态一致 + ② 真执行 db/seed.sql 场景段（幂等）后断言行属性」。
 import { describe, it, expect } from 'vitest';
-import { query } from '../../src/db.js';
+import fs from 'node:fs';
+import { query, queryWrite } from '../../src/db.js';
 
-describe('LEAD_FIT scenario', () => {
-  it('scenario row exists with default_tier LEAD + autonomous_allowed', async () => {
+const SEED_FILES = ['db/seed.sql', 'db/test-setup.sql'];
+const TAIL = 'ON CONFLICT (scenario_id, tenant_id) DO NOTHING;';
+const seedUrl = (rel) => new URL(`../../${rel}`, import.meta.url);
+
+// 抽取 crm.decision_scenario 的完整 INSERT 语句（VALUES 全行 + 收尾 ON CONFLICT）
+function extractScenarioInsert(rel) {
+  const sql = fs.readFileSync(seedUrl(rel), 'utf8');
+  const i = sql.indexOf('INSERT INTO crm.decision_scenario');
+  expect(i, `${rel} 应含 crm.decision_scenario 段`).toBeGreaterThanOrEqual(0);
+  const j = sql.indexOf(TAIL, i);
+  expect(j, `${rel} 场景段应以 ON CONFLICT (scenario_id, tenant_id) DO NOTHING; 收尾`).toBeGreaterThanOrEqual(0);
+  return sql.slice(i, j + TAIL.length);
+}
+
+// 抽取 LEAD_FIT 那一行。约定：追加在 VALUES 段「末尾、ON CONFLICT 之前」→ 直接切到语句尾即该行
+function leadFitRow(stmt) {
+  const i = stmt.indexOf("('LEAD_FIT'");
+  expect(i, 'LEAD_FIT 行应存在').toBeGreaterThanOrEqual(0);
+  return stmt.slice(i);
+}
+
+describe('LEAD_FIT decision_scenario', () => {
+  it('双源（db/seed.sql + db/test-setup.sql）均含 LEAD_FIT 行：tier=LEAD / autonomous=TRUE / 5 个 ICP cond / 权重和=1', () => {
+    for (const f of SEED_FILES) {
+      const stmt = extractScenarioInsert(f);
+      expect(stmt, `${f} 含 LEAD_FIT`).toContain("'LEAD_FIT'");
+      const row = leadFitRow(stmt);
+      expect(row, `${f} default_tier=LEAD + autonomous_allowed=TRUE`).toContain("'LEAD', TRUE");
+      for (const cond of ['industry', 'headcount', 'geo', 'hiring_icp_role', 'funding_round']) {
+        expect(row, `${f} 含 cond=${cond}`).toContain(`"cond":"${cond}"`);
+      }
+      const w = [...row.matchAll(/"weight":([0-9.]+)/g)].map((m) => Number(m[1]));
+      expect(w, `${f} 5 条 ICP 权重`).toHaveLength(5);
+      expect(w.reduce((a, b) => a + b, 0), `${f} 权重和=1`).toBeCloseTo(1, 6);
+    }
+  });
+
+  it('真实 PG：执行 db/seed.sql 场景段（幂等）后 LEAD_FIT 行落库且属性正确', async () => {
+    await queryWrite(extractScenarioInsert('db/seed.sql'));
     const r = await query(
-      "SELECT scenario_id, default_tier, autonomous_allowed FROM crm.decision_scenario WHERE scenario_id='LEAD_FIT' AND tenant_id='system'"
+      `SELECT scenario_id, stage, default_tier, autonomous_allowed, methodology_ids, eval_dimensions
+         FROM crm.decision_scenario WHERE scenario_id='LEAD_FIT' AND tenant_id='system'`
     );
-    expect(r.rows[0]?.default_tier).toBe('LEAD');
-    expect(r.rows[0]?.autonomous_allowed).toBe(true);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].stage).toBe('一、线索');
+    expect(r.rows[0].default_tier).toBe('LEAD');
+    expect(r.rows[0].autonomous_allowed).toBe(true);
+    expect(r.rows[0].methodology_ids).toEqual(['BANT', 'MEDDICC', 'OPP_MATRIX']);
+    expect(r.rows[0].eval_dimensions.map((d) => d.cond))
+      .toEqual(['industry', 'headcount', 'geo', 'hiring_icp_role', 'funding_round']);
   });
 });
 ```
 
-- [ ] **Step 2: Run test** → FAIL
+- [ ] **Step 2: Run test** → FAIL（双源均无 LEAD_FIT 行）
 
-- [ ] **Step 3: Add seed row in `db/seed.sql`** (沿用 `schema.sql:118` decision_scenario 结构)
+```
+npx vitest run test/decision/leadFitScenario.test.js
+```
+
+- [ ] **Step 3a: Add the row in `db/seed.sql`**（VALUES 段末尾、`ON CONFLICT` 前；锚点唯一：`'NORMAL', TRUE)\nON CONFLICT (scenario_id, tenant_id) DO NOTHING;`）
 
 ```sql
--- 真实列（db/schema.sql crm.decision_scenario；PK=(scenario_id, tenant_id)，2026-09-05 G5 复合化）。
--- 原稿列名（key/name/tier/focus_rulers/enabled_rulers/rubric_pass_line）在表里**全不存在**。
--- 七维/标尺以 eval_dimensions jsonb 表达（与既有 8 场景同构）；tenant_id 走列默认 'system'。
-INSERT INTO crm.decision_scenario
-  (scenario_id, stage, description, trigger, methodology_ids, eval_dimensions, default_tier, autonomous_allowed) VALUES
+-- LEAD_FIT（2026-09-10 线索自主发现引擎 T6）：线索 ICP 适配度评分——发现引擎富集后对 CRM_ACCOUNT 评分。
+-- 与 LEAD_FOLLOW_UP 同 stage 分组（'一、线索'），配置页 ORDER BY stage, scenario_id 自然归位。
+-- tier=LEAD + autonomous_allowed=TRUE：与 LEAD_FOLLOW_UP/LOSS_REVIEW 同档（低风险线索评分可自治）；
+--   对外写仍由 discovery-* Action 的 needsApproval + 第 0 闸两阶段 confirm_token 承担硬人工闸。
+-- 无 required_dims → 不触发七维拦截（ICP 评分在发现引擎内完成，七维闸由业务场景承担）。
 ('LEAD_FIT', '一、线索', '线索 ICP 适配度评分（发现引擎：industry/headcount/geo/hiring/funding）',
- '{"cond":{"event":"discovery-sync","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
+ '{"cond":{"event":"created","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
  ARRAY['BANT','MEDDICC','OPP_MATRIX'],
  '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
  'LEAD', TRUE)
-ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 ```
 
-- [ ] **Step 4: Add event matrix row in `src/decision/eventTrigger.js`** (在 `:15-26` 矩阵数组加；可选，独立评分)
+- [ ] **Step 3b: 同一行同步进 `db/test-setup.sql`**（同锚点、同位置；**双源必须逐字一致**）
+
+- [ ] **Step 4: Add idempotent pretest step in `scripts/seed-test-config.mjs`**
 
 ```js
-{ event: 'CRM_KNOWLEDGE', kind: 'discovery-sync', intent: 'LEAD_FIT', agent: 'decision-agent' },
+// ⑫ 线索发现场景（T6）：LEAD_FIT 场景行幂等补齐。
+//   测试库场景字典来自 db/test-setup.sql（TRUNCATE 后重建）；本步骤让 `npx vitest run`（不经 pretest）
+//   也能自足——与 ensureCalibrationPatch 同构（ON CONFLICT DO NOTHING；禁 DELETE、禁 UPDATE 覆盖）。
+async function ensureDiscoveryScenario() {
+  return run(`
+    INSERT INTO crm.decision_scenario
+      (scenario_id, stage, description, trigger, methodology_ids, eval_dimensions, default_tier, autonomous_allowed)
+    VALUES ('LEAD_FIT','一、线索','线索 ICP 适配度评分（发现引擎：industry/headcount/geo/hiring/funding）',
+      '{"cond":{"event":"created","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
+      ARRAY['BANT','MEDDICC','OPP_MATRIX'],
+      '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
+      'LEAD', TRUE)
+    ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
+  `);
+}
+```
+
+并在 `main()` 的 `steps` 数组末尾（`['套餐基线…', ensureBillingPlans]` 之后）追加：
+
+```js
+    ['线索发现场景（LEAD_FIT）', ensureDiscoveryScenario],
 ```
 
 - [ ] **Step 5: Run test** → PASS
 
+```
+node scripts/seed-test-config.mjs
+npx vitest run test/decision/leadFitScenario.test.js
+```
+
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add db/seed.sql src/decision/eventTrigger.js test/decision/leadFitScenario.test.js
-git commit -m "feat(discovery): add lead-fit decision_scenario + event matrix row (reuse nine rulers)"
+git add db/seed.sql db/test-setup.sql scripts/seed-test-config.mjs test/decision/leadFitScenario.test.js
+git commit -m "feat(discovery): seed LEAD_FIT decision_scenario in seed.sql/test-setup/pretest (T6)"
 ```
 
 ---
@@ -1986,7 +2077,7 @@ git commit -m "feat(discovery): C2 glass-box explainable reasoning chain (rule_r
 
 **Files:**
 - Create: `src/connectors/discovery/monitorAccount.js`, `src/memory/accountMemory.js`
-- Modify: `src/decision/eventTrigger.js`（加重评分矩阵行）, `src/memory/capture.js`（账户记忆流）
+- Modify: `src/agent/eventTrigger.js`（加重评分矩阵行）, `src/memory/capture.js`（账户记忆流）
 - Test: `test/connectors/discovery/monitorAccount.test.js`, `test/memory/accountMemory.test.js`
 
 - [ ] **Step 1: Write the failing tests**
@@ -2089,7 +2180,11 @@ export async function distillAccountMemory(store, particleType, particleId, now 
 }
 ```
 
-- [ ] **Step 5: Add re-score event matrix row in `src/decision/eventTrigger.js`**
+- [ ] **Step 5: Add re-score event matrix row in `src/agent/eventTrigger.js`**
+  - ⚠ **本 Step 派发前必须复查**（2026-09-11 T6 复查遗留）：矩阵行真实形状 = `{domain,type,entity_type,intent,agent,skill_slug,dedup_field}`；
+    且 `matchTrigger`（`src/agent/eventTrigger.js:65-76`）对 `READ_ONLY_SKILLS`（`:30-32`）**白名单外 SKILL 静默 `return null`** ——
+    写 SKILL / 未注册 intent 的行是**死配置**（运行时永不命中且无报错）。落地前须确定：重评分走只读 SKILL，或另行放宽闸门（后者须走 brainstorming 批准）。
+    并须断言**既有 3 行矩阵未被替换**（append 而非 overwrite，见测试计划 §5）。
 
 在矩阵数组（`:15-26`）加一行（信号到达 → 重评分）：
 
@@ -2117,7 +2212,7 @@ Expected: PASS
 - [ ] **Step 8: Commit**
 
 ```powershell
-git add src/connectors/discovery/monitorAccount.js src/memory/accountMemory.js src/decision/eventTrigger.js src/memory/capture.js test/connectors/discovery/monitorAccount.test.js test/memory/accountMemory.test.js
+git add src/connectors/discovery/monitorAccount.js src/memory/accountMemory.js src/agent/eventTrigger.js src/memory/capture.js test/connectors/discovery/monitorAccount.test.js test/memory/accountMemory.test.js
 git commit -m "feat(discovery): C3 monitorAccount loop (rescore + append-only account memory, no DELETE)"
 ```
 

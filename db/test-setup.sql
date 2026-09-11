@@ -105,7 +105,17 @@ INSERT INTO crm.decision_scenario
  '{"action":["crm-followup-requirement-collect"]}'::jsonb,
  ARRAY['REQUIREMENT'],
  '[{"cond":"requirement_evidence_ref","label":"证据出处（auto 来源须带 evidence_ref）","weight":0.5},{"cond":"requirement_met","label":"维度满足判据","weight":0.5}]'::jsonb,
- 'NORMAL', TRUE)
+ 'NORMAL', TRUE),
+-- LEAD_FIT（2026-09-10 线索自主发现引擎 T6）：线索 ICP 适配度评分——发现引擎富集后对 CRM_ACCOUNT 评分。
+-- 与 LEAD_FOLLOW_UP 同 stage 分组（'一、线索'），配置页 ORDER BY stage, scenario_id 自然归位。
+-- tier=LEAD + autonomous_allowed=TRUE：与 LEAD_FOLLOW_UP/LOSS_REVIEW 同档（低风险线索评分可自治）；
+--   对外写仍由 discovery-* Action 的 needsApproval + 第 0 闸两阶段 confirm_token 承担硬人工闸。
+-- 无 required_dims → 不触发七维拦截（ICP 评分在发现引擎内完成，七维闸由业务场景承担）。
+('LEAD_FIT', '一、线索', '线索 ICP 适配度评分（发现引擎：industry/headcount/geo/hiring/funding）',
+ '{"cond":{"event":"created","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
+ ARRAY['BANT','MEDDICC','OPP_MATRIX'],
+ '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
+ 'LEAD', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 
 -- 审批流配置种子（item 17，G21 四审批域；与引擎粒子模型脱节属已知限制）

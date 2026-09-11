@@ -249,6 +249,22 @@ async function ensureCalibrationPatch() {
   `);
 }
 
+// ⑫ 线索发现场景（T6）：LEAD_FIT 场景行幂等补齐。
+//   测试库场景字典来自 db/test-setup.sql（TRUNCATE 后重建）；本步骤让 `npx vitest run`（不经 pretest）
+//   也能自足——与 ensureCalibrationPatch 同构（ON CONFLICT DO NOTHING；禁 DELETE、禁 UPDATE 覆盖）。
+async function ensureDiscoveryScenario() {
+  return run(`
+    INSERT INTO crm.decision_scenario
+      (scenario_id, stage, description, trigger, methodology_ids, eval_dimensions, default_tier, autonomous_allowed)
+    VALUES ('LEAD_FIT','一、线索','线索 ICP 适配度评分（发现引擎：industry/headcount/geo/hiring/funding）',
+      '{"cond":{"event":"created","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
+      ARRAY['BANT','MEDDICC','OPP_MATRIX'],
+      '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
+      'LEAD', TRUE)
+    ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
+  `);
+}
+
 // ⑪ 决策边/结果表（T-D2/T-D3）：schema.sql:490-520 已定义，但测试库若为旧版建库则缺表
 //    → 幂等补建，杜绝 "relation crm.decision_relation does not exist" 假性转红
 async function ensureDecisionRelationTables() {
@@ -363,6 +379,7 @@ async function main() {
     ['决策上下文守卫配置默认值', ensureContextGuardConfig],
     ['元模型基线复位（清测试裸插入的强制必填行）', ensureMetaAttrBaseline],
     ['套餐基线（billing-plans 5 档 + billing-settings）', ensureBillingPlans],
+    ['线索发现场景（LEAD_FIT）', ensureDiscoveryScenario],
   ];
   let fail = 0;
   for (const [name, fn] of steps) {
