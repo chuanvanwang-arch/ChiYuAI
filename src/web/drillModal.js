@@ -26,8 +26,14 @@ function injectStyle() {
 .pg-table tbody tr[data-dk]{cursor:pointer;}
 .pg-table tbody tr[data-dk]:hover{background:var(--hover,#f5f7fa);}
 .so-dl{display:grid;grid-template-columns:150px 1fr;gap:7px 12px;margin:0;}
+/* 明细行包裹 div 必须 display:contents —— 否则 dt/dd 不是 .so-dl 网格的直接子项，
+   会被网格当成两个独立项左右错位排布、标签与值上下堆叠（2026-09-11 修复）。 */
+.so-dl-row{display:contents;}
 .so-dl dt{color:var(--mut,#666);font-size:13px;}
-.so-dl dd{margin:0;font-size:13px;word-break:break-word;}
+.so-dl dd{margin:0;font-size:13px;word-break:break-word;font-weight:600;}
+.so-dl dd.ok{color:var(--ok,#2a9d4a);}
+.so-dl dd.warn{color:var(--warn,#c97a1a);}
+.so-dl dd.err{color:var(--err,#d64545);}
 .so-d-sub{margin:14px 0 6px;font-size:13px;color:var(--mut,#666);}
 .so-ref-list{margin:0;padding-left:18px;font-size:13px;}
 .so-ref-list li{margin:3px 0;}
@@ -60,7 +66,16 @@ function ensureModal() {
       <div class="so-drill-body" id="${MODAL_ID}-body"></div>
     </div>`;
   document.body.appendChild(m);
-  m.addEventListener('click', (e) => { if (e.target.dataset.close) closeDrill(); });
+  // 弹窗内支持继续下钻（汇总卡 → 明细表行 → 单条明细）：与页面共用同一 root 解析隐藏块。
+  // 不加这段时，弹窗内明细表行带 cursor:pointer 却点不动（死区）。
+  m.addEventListener('click', (e) => {
+    if (e.target.dataset.close) { closeDrill(); return; }
+    const row = e.target.closest('[data-dk]');
+    if (!row) return;
+    const key = row.getAttribute('data-dk');
+    const title = row.getAttribute('data-drill-title') || (row.textContent || '').trim().slice(0, 48);
+    openDrill({ title, key, root: m._root || document });
+  });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrill(); });
   return m;
 }
@@ -73,6 +88,7 @@ export function closeDrill() {
 export function openDrill({ title, key, root }) {
   ensureModal();
   const m = document.getElementById(MODAL_ID);
+  m._root = root; // 记录 root，供弹窗内二次下钻复用
   const body = document.getElementById(MODAL_ID + '-body');
   const t = document.getElementById(MODAL_ID + '-title');
   // 精确命中隐藏详情块（同一 data-dk 在表格行与隐藏块各出现一次，须排除行）
