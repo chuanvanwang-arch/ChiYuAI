@@ -435,7 +435,7 @@ enrich(entity, fields, ctx) ->
   - 例 `enrichment_coverage`：`formula=已补字段/应补字段`；`target≥0.8`（呼应 ontology-vector-build 覆盖率≥80%）。
   - **【C3 接入】** `monitorAccount_refresh_rate`：`formula=已监控账户重评分次数/应监控账户数`；`target≥0.9`；反映持续监控闭环活跃度。
 - **evaluator 加权 + 三档阈值**：`method-decision-enrich` 复用九标尺评分作 evaluator；`pass_rule` + 三档（绿/黄/红）阈值驱动质量闸门——红档**回滚** scenario 草稿而非仅熔断。
-- **Token-业务因果对账**：provider API 调用成本（Token + credit）须对账到赢单业务结果——`discovery_cost_ledger` 记录每笔 `account_id` 的 provider 花费，关联最终 `closed-won` 的 ROI；超阈值无产出则告警（呼应 §3 成本护栏）。
+- **Token-业务因果对账**：provider API 调用成本（Token + credit）须对账到赢单业务结果。**⚠ 2026-09-11 复查纠错：原写 `discovery_cost_ledger` 表为虚构表名（`grep` 全仓 src/db/scripts **零命中**）。真实设施 = 既有 `src/alerts/tokenAccounting.js`：`recordTokens()`（append-only 明细 → `crm.token_accounting`，含 `tenant_id`/`decision_id`，**无 `account_id` 列**）+ `reconcileTokenToBusiness()`（烧 token vs 业务产出二元组）。故 `ledgerCost()` 复用 `recordTokens` 落库、`account_id` 维度由返回的对账记录对象承载并经 `decision_id` 关联实体决策行 —— **零新表、零 schema 改动**。**关联最终 `closed-won` 的 ROI；超阈值无产出则告警（呼应 §3 成本护栏）。
 - **人机分工四判据**：评分/研究 Agent 自主；写出 HITL（第 0 闸）；**不可逆**（ICP 规则变更、scenario 权重重写）须人确认；**C3 跨外联绝不自动发信**。
 
 ---

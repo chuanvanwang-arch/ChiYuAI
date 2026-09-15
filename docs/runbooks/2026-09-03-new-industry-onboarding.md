@@ -117,6 +117,68 @@ await actionExecutor.dispatch('crm-import-batch', {
 
 ---
 
+## 4.5 Step 4C — 启用本租户 discovery 数据源 + 播种行业 ICP/信号/编排
+
+新行业上线即具备**本租户自有**的线索发现能力（设计：`docs/2026-09-10-lead-discovery-design.md` §12）。
+
+> 本节与 `plugin-platform-admin/skills/industry-onboarding/SKILL.md` 的 `## 5.5 Step 4C` **同源**；
+> 本地运行时技能 `.workbuddy/skills/new-industry-onboarding/SKILL.md` 亦含同款指引（该路径被 `.gitignore:134` 忽略 ⇒ 生效但不入库）。
+
+**D1 落地通道**：把 `discovery-rules` 从 `system` 模板**懒克隆**到本租户（`src/config/configStore.js` autoSeed），再按本行业清单启用。
+
+### 4.5.1 启用规则（D1 三档，`scope` 即档位）
+
+| 档 | `scope` | provider | 克隆后默认 | 本 Step 是否启用 |
+|---|---|---|---|---|
+| 系统级默认 | `system` | `email-verify` / `web-research` / `tender` / `gaode` | `enabled: true` | 无需干预（开箱即用） |
+| 系统候选 | `system-candidate` | `attio` / `zhizao` | `enabled: false` | **按本行业清单置 `true`** |
+| 付费源 | `paid` | 两个商用源（**模板不得声明其名**） | `enabled: false` | **严禁启用**（须管理员显式授权 + 填 key） |
+
+### 4.5.2 落地方式（二选一，均须过决策第 0 闸）
+
+**方式 A — 配置中心 PUT（推荐，自带第 0 闸）**
+
+```
+PUT /api/config/discovery-rules
+Body: { "tenantId": "<真实租户ID>", "value": {
+  "providers": [ { "id": "attio", "enabled": true } ],
+  "icp": { "industries": ["chemical"], "min_headcount": 200, "geo": ["CN"] },
+  "signals": { "tender_match": { "weight": 0.95 } },
+  "playbooks": [ { "name": "default", "match": "", "data": ["web-research"], "ai": [], "action": [] } ]
+} }
+```
+
+**方式 B — 种子脚本 bootstrap 旁路（仅系统引导 / 种子态）**
+
+```js
+import { writeConfig } from '../../src/config/configStore.js';
+// ⚠ 形状铁律（写错会被 mergeDiscoveryRules 静默丢弃 = 假绿，无异常无日志）：
+//   providers 必须是**数组** [{id,enabled}]（写 { attio:true } 对象会被 Array.isArray 挡掉）
+//   icp 键名 = industries / min_headcount(number) / geo(array) / min_confidence
+//   signals 每项必须是 { weight: number }（直接写数字会覆盖掉对象 → 消费方 .weight === undefined）
+//   playbooks 必须是对象数组且每项有 name（compilePlaybook 无名直接 throw）
+await writeConfig('discovery-rules', {
+  providers: [{ id: 'attio', enabled: true }, { id: 'zhizao', enabled: true }],
+  icp: { industries: ['chemical'], min_headcount: 200, geo: ['CN'] },
+  signals: { tender_match: { weight: 0.95 } },
+  playbooks: [{ name: 'default', match: '', data: ['web-research'], ai: [], action: [] }],
+}, { tenantId });
+```
+
+> 已有 7 份行业模板可直接复用：`db/seed/discovery-rules-templates.js` 的 `DISCOVERY_RULES_BY_INDUSTRY.<industry>`
+> （形状已过单测有效性校验）；各 `db/seed/tenant-profile-*.js` 导出 `seed<X>Discovery(tenantId)` 幂等落键。
+
+### 4.5.3 验收
+
+- `mergedDiscoveryRules({ tenantId }).providers` 命中本行业手册清单，**且 `signals[*].weight` 仍为 number**、`playbooks[*].name` 均存在；
+- 本租户发现候选池可产出 ≥1 条；其它租户不可见（隔离）；
+- **付费源 `enabled === false`**（断言）；
+- `profileMerger` 三消费点 byte-equal 零回归（`discovery` 段**不进 `tenant-profile`**）。
+
+> 回归锁：`test/config/industryTemplateDiscovery.test.js`（5）+ `test/connectors/discovery/industryDiscovery.test.js`（4）。
+
+---
+
 ## 5. 关系与受控谓词
 
 行业自有关系（如培训机构 `supplies` 培训项目）零代码声明于 `prototypes[*].edgeTypes`：
@@ -167,6 +229,7 @@ $env:PGDATABASE="crm_native_test"
 node node_modules/vitest/vitest.mjs run test/meta-model test/calc test/agent test/integration
 # 基线：meta-model/calc/agent 76/76 + account-insight/guard/360 集成 36/36；
 # + 化工样例 integration 12/12（chemical-tenant-runbook-validation 8 + chemical-sales-user 4）
+# + 线索发现（Step 4C）：test/config/industryTemplateDiscovery + test/connectors/discovery
 ```
 全绿即证明：隔离维度生效、双源解析正确、公式引擎安全、AI Fill 草稿化、零污染 CRM、初始销售员可登录且租户隔离。
 
@@ -180,6 +243,8 @@ node node_modules/vitest/vitest.mjs run test/meta-model test/calc test/agent tes
 - [ ] 经 `crm-import-batch`（MCP）建粒子成功，on_write 公式自动回写
 - [ ] `isControlledPredicateConfig` 本租户认得行业谓词、其它租户不认得
 - [ ] `listMetaAttr(applyPermission)` 合并 system 基线
+- [ ] **`discovery-rules` 已从 `system` 克隆到本租户**，本行业 `system-candidate` 源已启用、**付费源 `enabled === false`**（§4.5）
+- [ ] `mergedDiscoveryRules({tenantId})` 形状有效（`signals[*].weight` 是 number、`playbooks[*].name` 存在），候选池可产出 ≥1 条
 - [ ] 回归套件全绿，无 CRM 行为回退
 - [ ] 未触碰 `PARTICLE_TYPES` / `stageTaxonomy` / `seed-actions` 任何行业字面量（禁污染铁律）
 - [ ] **初始销售员账号已建**（`tenant_id=本租户`、`role=sales`），凭据已交付（见 §10）

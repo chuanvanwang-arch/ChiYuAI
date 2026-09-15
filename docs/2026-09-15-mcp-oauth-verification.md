@@ -271,3 +271,126 @@ FAIL  .release-wt/test/mcp/confirm-params-merge.test.js > … 同上
 | `scripts/pack-crm-plugin.py` 产物 | 重打包 `plugin/crm-native-plugin.zip`（20 skills / 133 文件） |
 | **`scripts/mcp-oauth-e2e.mjs`** | 新增：20 用例端到端验证脚本 |
 | 测试新增 11 个文件 | `test/mcp-oauth-{schema,crypto,store,register,page,authorize,token,refresh,gate,issue-identity,wiring}.test.js` |
+
+---
+
+# 附录 B：生产发布实录（2026-09-15 21:23–22:15，含 P0 事故复盘）
+
+## B.1 结果
+
+| 项 | 结果 |
+|---|---|
+| 生产地址 | `http://81.70.184.198`（`/mcp`、`/.well-known/oauth-*`、`/oauth/*`） |
+| 容器 | `crm-app` / `crm-mcp` / `crm-pg` 三者 healthy |
+| 表数量 | 62 → **66**（`oauth_client` / `oauth_code` / `oauth_refresh` 三表 + 1，由 `db/migrate.js` 幂等建表） |
+| 扩展 | `age 1.6.0` / `vector 0.8.6` / `pgcrypto 1.3` 均在位 |
+| `.env` | 跨清理保留成功（`unpack.py: KEEP_RELATIVE_PATHS` 生效，16 键完整） |
+| 外网发现链 | `/.well-known/oauth-protected-resource` → 200，且 `resource` 正确推导为 `http://81.70.184.198/mcp` |
+| 外网 401 质询 | `WWW-Authenticate: Bearer realm="crm-mcp", resource_metadata="http://81.70.184.198/.well-known/oauth-protected-resource"` |
+| 生产 e2e | **12 passed / 2 failed**（详见 B.4） |
+| HTTPS | 已恢复（443 监听、`https://www.chiyuai.com/landing.html` 200、裸 IP 保持 http） |
+
+## B.2 ⛔ P0 事故：3 次 release 把生产打成 502 崩溃循环
+
+**背景**：工作树有 **273 项未提交 WIP**。按既定做法改用干净 worktree（`git worktree add --detach ddb6a2e`）作发布源以隔离 WIP。**但 HEAD 处于「半提交」状态** —— 已提交代码引用了未提交内容。
+
+| 次序 | 容器报错 | 真因 |
+|---|---|---|
+| 第 1 次 | `ENOENT: no such file or directory, open '/app/db/migration-calibration-sla.sql'` | `db/migrate.js`（已提交）的 `INCREMENTAL_SQL` 已引用该文件，而文件本身 `??` **未提交** |
+| 第 2 次 | `ERR_MODULE_NOT_FOUND: file:///app/src/http/discoveryRoutes.js` | `src/http/routes.js`（已提交）已 import，新文件未提交 |
+| 第 3 次 | `SyntaxError: The requested module './configRouter.js' does not provide an export named 'createIntegrationProviderRouter'` | **已跟踪文件** `src/http/configRouter.js` 的**配套改动**未与 `routes.js` 一起提交 |
+
+**为什么会连崩三次**：Node 的 ESM 解析是「第一个错即停」，每次发布只能暴露一个缺陷。**判据沉淀**：`git status` 干净 ≠ 树自洽；只要「已提交代码的 import 图」指向未提交内容，或 commit 漏带了修改型文件的配套改动，HEAD 就不可运行，且**无法靠试跑一次性发现**。
+
+**最终处置**：改用**主工作树**作发布源（`--local-root` 缺省 = 仓库根）。依据：工作树是开发者真实可运行状态（本地服务在跑 = 自洽证据）。代价：本次发布**带上了全部 273 项未提交 WIP**（lead discovery / prospecting / qixin 适配器 / 线索池迁移等），须确认生产行为符合预期。
+
+**清点**：三次事故期间数据库侧**无损** —— `.env` 保留、AGE 未丢、表结构仅增不减、无 DELETE。
+
+## B.3 新增防护：`scripts/verify-release-source.mjs`
+
+发布前静态穷尽两类不自洽，并按**启动链路分级**（只有 `src/**` 与 `db/migrate*.js` 的不自洽会让容器崩溃循环）：
+
+- ① **依赖缺失**：相对 `import`/`require` 的目标文件不存在
+- ② **导出错配**：具名 `import` 的符号在目标模块中不存在（含 `export *` 递归）
+
+`src/**` + `db/migrate*.js` 缺陷 → **exit 1（阻断）**；`scripts/**`、`db/seed/**` → 告警（既有技术债，不阻断）。已内置「扫描 0 文件即 exit 3」以防 MSYS 路径（`/d/...`）导致 `readdirSync` 静默失败被误判为「自洽」的假绿。
+
+**正反向验证**：
+
+```
+HEAD 快照 ddb6a2e  → ❌ ② 导出错配 6 处【阻断·启动链路】(routes.js ← configRouter.js / pool.js / stageTaxonomy.js)  exit 1
+主工作树            → ✅ 启动链路自洽，可发布（另有 1 处非启动链路告警）                                          exit 0
+```
+
+## B.4 生产 e2e：12 passed / 2 failed
+
+```
+[负向] N1 /mcp 无 token → 401                                    PASS
+       N2 401 带 WWW-Authenticate: Bearer resource_metadata       PASS
+       N2b initialize 无 token → 200（allowlist，CLI 入口不死锁）  PASS
+       N2c crm_login 无 token 可达（闸未误伤登录入口）              PASS
+       N3 register 远端 https → 400 invalid_redirect_uri          PASS
+       N4 register 合法回调 → 201 且返回 client_id                 PASS
+       N5 未知 code → 400 invalid_grant                           PASS
+       N6 authorize 未知 client → 400 且无 Location                PASS
+       N7 未知 refresh → 400 invalid_grant                        PASS
+[正向] P1 protected-resource metadata 200 且 resource 指向本 BASE  PASS
+       P2 authorization-server metadata 200 且含 token_endpoint    PASS
+       P3 authorize 账密正确 → 302 带 code 与 state                FAIL  status=401
+       P4 token 交换 → 200 且返回 access + refresh                 FAIL  invalid_request
+       P4b 同一 code 二次交换 → 400 invalid_grant（一次性消费）     PASS
+```
+
+**失败归因（已验证为凭证问题，非链路缺陷）**：`src/mcp/oauth.js:186-189` —— 账密校验失败即返回 `401` + 登录页。在生产库内用 pgcrypto 直接比对（`password_hash = crypt('...', password_hash)`）确认：
+
+```
+admin / alice / watchm / sales / Lin   →  secret123=false   admin123=false
+```
+
+即 e2e 默认凭据在生产不存在。**剩余验证需真实生产账号密码**：
+
+```powershell
+$env:MCP_OAUTH_USER="<生产账号>"; $env:MCP_OAUTH_PASS="<密码>"
+& "C:\Users\wangchuan08\.workbuddy\binaries\node\versions\22.22.2-22\node.exe" scripts\mcp-oauth-e2e.mjs --base http://81.70.184.198
+```
+
+## B.5 nginx 三个关键点（本次实锤）
+
+1. **OAuth 上线必须同时改两个文件**：`sites-available/crm`（`deploy.sh` 每次重写，模板 `nginx-crm.conf` 已含改动）+ **`conf.d/ip-default.conf`（无人维护，必须手工改）**。后者 `location /` 反代 **app:3000**，而 OAuth 端点只在 **mcp:3001** → 不加前缀 location 则 `/.well-known/*` 命中 app 得 Express 404，客户端取不到 `resource_metadata`（表象即「授权中…」卡死）。
+2. **`reload` 不足以生效，必须 `restart`**。实测：新配置已无 `auth_basic` 指令、`nginx -t` 通过、`reload` 返回 OK，但 `curl /mcp` 仍返回 `WWW-Authenticate: Basic realm="CRM MCP Gateway"`。伴随症状 `conflicting server name "_" on 0.0.0.0:80, ignored`（两个 `server_name _;` 监听 80，冲突使 reload 不重建该 listen 组）。`systemctl restart nginx` 后全部正常。
+3. **`server_name _;` 不是通配符**，只是普通名字，不匹配任何真实 Host → 裸 IP 请求落到带 `default_server` 标记的 server（即 `ip-default.conf`）。
+
+点检命令（须带 `Accept` 头，否则 MCP SDK 返 **406** 而非 401，易误判）：
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1/.well-known/oauth-protected-resource   # 200
+curl -s http://127.0.0.1/.well-known/oauth-protected-resource                                     # resource == 实际 origin
+curl -s -D - -o /dev/null -X POST http://127.0.0.1/mcp -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' -d '{}' | grep -i www-authenticate              # Bearer … resource_metadata="…"
+```
+
+## B.6 待办（按优先级）
+
+| 优先级 | 事项 | 依据 |
+|---|---|---|
+| **P0** | **补提交**使 HEAD 自洽，否则下次干净发布必再崩 | B.2 三次事故 |
+| **P0** | 用真实生产账号重跑 e2e 补齐 P3/P4 | B.4 |
+| **P1** | 确认本次带上生产的 273 项 WIP 行为符合预期（lead discovery / prospecting / qixin 适配器） | B.2 |
+| **P1** | 客户端删旧连接器 → 重装 **v1.8.0**（`auth_mode: oauth`）→ 应弹浏览器授权 | T13 交付物 |
+| **P2** | 既有技术债：`scripts/seed-tenant-demo-data.mjs:10` import `DEMO_TENANT`，但 `db/seed/tenant-profile-demo.js` 只导出 `seedDemoDiscovery`/`seedDemoProfile` → 该脚本运行即崩（非启动链路，不阻断发布） | B.3 校验器告警 |
+| **P2** | `docker-compose` 告警 `PGCRYPTO_SYM_KEY` 未设置（`.env` 无此键，属既有状态） | release 日志 |
+
+### P0 补提交清单（使 HEAD 自洽）
+
+```
+db/migration-calibration-sla.sql          # migrate.js INCREMENTAL_SQL 引用，未提交
+db/migration-lead-pool-config.sql         # 同上
+db/migration-lead-pool-pooled-at.sql      # 同上
+src/http/discoveryRoutes.js               # routes.js import，未提交
+src/agent/glassBox.js                     # claygent.js import，未提交
+src/action/prospectingSession.js          # prospectingActions.js import，未提交
+src/connectors/discovery/claygent.js      # discoveryActions.js import，未提交
+src/connectors/discovery/credentialVault.js  # prospectingActions.js / lookupRouter.js import，未提交
+```
+
+另需为 `src/http/routes.js` 的新增 import 一并提交其配套改动（`src/http/configRouter.js` 的 `createIntegrationSecretRouter` / `createIntegrationProviderRouter`、`src/sales/pool.js` 的 `readPoolConfig` / `writePoolConfig`、`src/sales/stageTaxonomy.js` 的 `isPoolStage` / `normalizeDealStage`），否则 HEAD 仍不自洽（即 B.2 第 3 类缺陷）。
