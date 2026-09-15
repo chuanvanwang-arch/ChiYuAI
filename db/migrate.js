@@ -398,6 +398,37 @@ async function main() {
        ('system', 'project',  'C',         'LEAD')
      ON CONFLICT (tenant_id, dimension, dimension_value) DO NOTHING`
   ).catch((e) => { console.error('[migrate] business_tier_config 出厂种子失败:', e.message); throw e; });
+  // A3 镜像回填（2026-09-16，用户批准方案 i）：把每个租户的分级表内容镜像为
+  //   config_store['business-tier-config']，使其进入 policyVersion 的冻结通道
+  //   （此前分级依据不在 POLICY_KEYS 半径内 → 改分级不产生新版本 → 历史决策依据不可复现，设计 §2.4 D3）。
+  //   幂等：每次 migrate 全量重算镜像（与表内容一致即写同值，无害）。
+  //   回填后**读回校验**条数（不是"写完就算"——写完即绿是典型假绿）。
+  await (async () => {
+    const tenants = await pool.query(`SELECT DISTINCT tenant_id FROM crm.business_tier_config ORDER BY tenant_id`);
+    for (const row of tenants.rows) {
+      const tid = row.tenant_id;
+      const r = await pool.query(
+        `SELECT dimension, dimension_value, tier FROM crm.business_tier_config
+         WHERE tenant_id=$1 ORDER BY dimension, dimension_value`, [tid]
+      );
+      const rules = r.rows.map((x) => ({ dimension: x.dimension, dimension_value: x.dimension_value, tier: x.tier }));
+      await pool.query(
+        `INSERT INTO crm.config_store (tenant_id, key, value, decision_id, updated_by, updated_at)
+         VALUES ($1, 'business-tier-config', $2::jsonb, NULL, 'migrate-mirror', now())
+         ON CONFLICT (tenant_id, key) DO UPDATE
+           SET value=$2::jsonb, updated_by='migrate-mirror', updated_at=now()`,
+        [tid, JSON.stringify({ rules, mirror_count: rules.length })]
+      );
+      const chk = await pool.query(
+        `SELECT jsonb_array_length(value->'rules') AS n FROM crm.config_store
+         WHERE tenant_id=$1 AND key='business-tier-config'`, [tid]
+      );
+      if (chk.rows[0]?.n !== rules.length) {
+        throw new Error(`[migrate] business-tier-config 镜像漂移 tenant=${tid}: table=${rules.length} mirror=${chk.rows[0]?.n}`);
+      }
+      console.log(`[migrate] business-tier-config 镜像回填 tenant=${tid} rules=${rules.length}（读回校验一致）`);
+    }
+  })().catch((e) => { console.error('[migrate] business-tier-config 镜像回填失败:', e.message); throw e; });
   // P2 闭环回流（§9.5 复合效应测量）：decision_skill_quality 时间序列表（每 Skill 每场景采样一次）。
   await pool.query(
     `CREATE TABLE IF NOT EXISTS crm.decision_skill_quality (

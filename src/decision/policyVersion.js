@@ -31,6 +31,15 @@ export const POLICY_KEYS = [
   'context-guard', 'context-routing', 'event-retro', 'agent-event-trigger',
   'price-authority', // 2026-09-09 新增：折扣授权矩阵是决策依据须可追溯；增键后所有后续决策解析出新版本（policyVersion.js:27 明示的预期行为，已获用户批准）
   'discovery-rules', // 2026-09-10 新增：lead-fit 判定依据（信号权重/ICP/provider 序）；增键→后续决策解析新版本（policyVersion.js:27 明示预期行为）
+  // 2026-09-16 新增（用户批准方案 i，设计 §11.1 A3）：业务分级配置（A 轴）。
+  //   为什么必须加：分级（customer × project → LEAD/NORMAL/HIGH）直接驱动自主放行边界
+  //   （autonomyEngine.js:145 取值 → :274 判定），属**决策依据**。但它存在独立表
+  //   crm.business_tier_config，而 loadSnapshot（:46-53）只读 config_store → 此前**不在冻结范围**，
+  //   改一次分级会静默改写历史决策的判定依据，使本文件 :4-6 的承诺「事后改配置不得洗掉历史判定依据」
+  //   对分级不成立（审计断链，设计 §2.4 D3）。
+  //   接入方式：businessTier.js 在写分级后**同步镜像**该表到 config_store['business-tier-config']，
+  //   经本键进入冻结通道。镜像漂移由 verifyMirrorConsistency 探针守护（禁假绿）。
+  'business-tier-config',
 ];
 
 const POLICY_FAMILY = 'sales-decision-policy';
