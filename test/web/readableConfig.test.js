@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
 import { LLM_FIELDS, validateLlmPatch, renderLlmForm } from '../../src/portal/llmConfigRender.js';
 import { SEVEN_KEYS, validateRequiredDimsPatch, renderSevenDimMatrix } from '../../src/portal/sevenDimRender.js';
-import { POOL_KEYS, validatePoolPatch, renderPoolForm } from '../../src/portal/poolConfigRender.js';
+import { POOL_KEYS, validatePoolPatch, renderPoolTabs } from '../../src/portal/poolConfigRender.js';
 
 // —— LLM ——
 test('LLM_FIELDS 白名单', () => {
@@ -41,17 +41,20 @@ test('renderSevenDimMatrix 含维度列 + 场景行', () => {
 });
 
 // —— 池 ——
-test('POOL_KEYS 白名单', () => {
-  expect(POOL_KEYS).toEqual(expect.arrayContaining(['pickRule', 'recycleAfterDays']));
+// 2026-09-11 T5 契约迁移：原断言锁定 pickRule/recycleAfterDays，与引擎实际消费键
+//   （pool.js checkPickRule/checkRecycleRule）不对齐——页面改的键引擎不认。按设计改为对齐键集。
+test('POOL_KEYS 白名单（与引擎消费键对齐）', () => {
+  expect(POOL_KEYS).toEqual(expect.arrayContaining(['daily_limit', 'pick_interval_hours', 'prev_owner_only', 'new_data_only', 'recycle_days']));
 });
 test('validatePoolPatch 合法/非法', () => {
-  expect(validatePoolPatch({ pickRule: 'oldest', recycleAfterDays: 30 }).ok).toBe(true);
+  expect(validatePoolPatch({ daily_limit: 10, recycle_days: 30 }).ok).toBe(true);
   expect(validatePoolPatch({ unknown: 1 }).ok).toBe(false);
-  expect(validatePoolPatch({ recycleAfterDays: -1 }).ok).toBe(false);
+  expect(validatePoolPatch({ recycle_days: -1 }).ok).toBe(false);
+  expect(validatePoolPatch({ daily_limit: 0 }).ok).toBe(false);
 });
-test('renderPoolForm 含 pickRule select + recycle 数字', () => {
-  const html = renderPoolForm({ pickRule: 'oldest', recycleAfterDays: 30 });
-  expect(html).toContain('pickRule');
-  expect(html).toContain('oldest');
-  expect(html).toContain('recycleAfterDays');
+test('renderPoolTabs 含三池 TAB + 引擎键输入', () => {
+  const html = renderPoolTabs({ pools: [{ id: 'pool-new', type: 'new', label: '新线索公海', pick_rule: { daily_limit: 10 }, recycle_rule: { recycle_days: 30 } }] });
+  expect(html).toContain('data-pool="pool-new"');
+  expect(html).toContain('daily_limit');
+  expect(html).toContain('recycle_days');
 });

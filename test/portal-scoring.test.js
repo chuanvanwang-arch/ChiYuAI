@@ -57,7 +57,7 @@ describe('l2cCounts（商机流六段，与管道页同源）', () => {
     ] } };
     const r = pipelineCounts(board);
     expect(r.map(x => x.count)).toEqual([2, 1, 1, 1, 1, 1]);
-    expect(r.map(x => x.stage)).toEqual(['线索发掘', '需求确认', '方案匹配', '报价谈判', '合同确认', '赢单移交']);
+    expect(r.map(x => x.stage)).toEqual(['正式线索', '需求确认', '方案匹配', '报价谈判', '合同确认', '赢单移交']);
   });
   it('兼容归一：旧英文键仍可计数（lead→S1，lost→S7 不计入六段）', () => {
     const board = { grouped: { CRM_DEAL: [

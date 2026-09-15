@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { menuFor, ADMIN_MENU } from '../../src/portal/layoutMenu.js';
+import { menuFor, ADMIN_MENU, FULL_MENU } from '../../src/portal/layoutMenu.js';
 
 describe('menuFor 角色可见性', () => {
+  it('公海池入口存在且销售可见（紧邻线索·商机，core_crm 门禁）', () => {
+    const idx = FULL_MENU.findIndex((x) => x.label === '公海池');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(FULL_MENU[idx].href).toBe('/lead-pool.html');
+    expect(FULL_MENU[idx - 1]?.label).toBe('线索·商机');
+    // 无权益入参（null）→ 向后兼容，按角色展示
+    expect(menuFor('sales').some((x) => x.label === '公海池' && x.href === '/lead-pool.html')).toBe(true);
+    // 持 core_crm → 展示
+    expect(menuFor('sales', new Set(['core_crm'])).some((x) => x.href === '/lead-pool.html')).toBe(true);
+    // 无 core_crm → 隐藏（与 crm-lead-pick 动作权益一致）
+    expect(menuFor('sales', new Set()).some((x) => x.href === '/lead-pool.html')).toBe(false);
+  });
   it('sysadmin 可见配置中心；套餐入口已收敛进配置中心（不占侧边栏）', () => {
     const m = menuFor('sysadmin');
     expect(m.some(x => x.label === '配置中心')).toBe(true);

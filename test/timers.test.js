@@ -15,13 +15,14 @@ afterEach(() => { clearTimers(); slaMock.mockClear(); });
 // 基线数量（timers.js 启动时实注册，逐项对应 timers.set 调用）：
 //   nightly-distill / crm-risk-scan / lead-pool-recycle / decision-retro-boot
 //   / sales-daily-scan / named-visit-scan / auditability-sla-snapshot / ready-queue-pump
-//   / provenance-patrol（C2 审计链巡检，2026-09-03）
+//   / provenance-patrol（C2 审计链巡检，2026-09-03）/ integration-poll（外部数据接入, 2026-09-14）
+//   / calibration-sla-scan（D6 校准 SLA 超时升级扫描，2026-09-14）
 // 注：decision-retro 与 decision-retro-boot 互斥——boot 是次日志对齐的 setTimeout，
-//     触发后才注册 decision-retro 常驻 interval，故启动瞬间为 9 而非 10。
-const EXPECTED_TIMERS = 9;
+//     触发后才注册 decision-retro 常驻 interval，故启动瞬间为 11 而非 12。
+const EXPECTED_TIMERS = 11;
 
 describe('定时器（③ 规则驱动）', () => {
-  it('ensureTimers 返回注册数量（9 个：含 agent 编排层 ready-queue-pump 与 C2 审计链巡检）', async () => {
+  it('ensureTimers 返回注册数量（11 个：含 ready-queue-pump、C2 审计链巡检、integration-poll、calibration-sla-scan）', async () => {
     const n = await ensureTimers({ now: '2026-08-25T00:00:00Z' });
     expect(n).toBe(EXPECTED_TIMERS);
   });

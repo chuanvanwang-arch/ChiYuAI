@@ -2,10 +2,10 @@ import { test, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { renderConfigCenter, configSummary, CONFIG_ITEMS } from '../../src/portal/configCenter.js';
 
-test('CONFIG_ITEMS 含 34 项配置（数组按组连续排列：G1[11,12,13,27,28,40,41,42]→G2[14,15,16,31,32,33,35,43,36,37,38,44]→G3[17,18,20,22,29,30,34]→G4[21,23,39]→系统日志[19,24,26,45]，不含已删 25；id22 拆为可编辑词汇(租户) + #45 本体只读(系统)）', () => {
-  expect(CONFIG_ITEMS.length).toBe(34);
+test('CONFIG_ITEMS 含 37 项配置（数组按组连续排列：G1[11,12,13,27,28,40,41,42]→G2[14,15,16,31,32,33,35,43,36,37,38,44]→G3[17,18,20,22,29,30,34]→G4[21,23,39]→系统日志[19,24,26,45]，不含已删 25；id22 拆为可编辑词汇(租户) + #45 本体只读(系统)；2026-09-10 增 #46 线索发现规则、2026-09-14 增 #47/48 外部数据接入）', () => {
+  expect(CONFIG_ITEMS.length).toBe(37);
   const ids = CONFIG_ITEMS.map((i) => i.id);
-  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45]);
+  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48]);
 });
 
 test('id42 全局复用与经验蔓延：propagation 一级分组、深链复用 propagation-hub.html（对齐 id40/41 深链范式）', () => {
@@ -72,14 +72,17 @@ test('用户按 S 编号查找的 5 项均含 sRef 交叉引用（S16/S21/S25/S2
   expect(html).toContain('href="/memory.html"');
 });
 
-test('config.html 6 组全量覆盖 34 项（G1–G4 + 系统日志 + 传播 TAB，不含已删除的 25）', () => {
+test('config.html 导航白名单 6 组覆盖全部 CONFIG_ITEMS id（G1–G4 + 系统日志 + 传播 TAB，不含已删除的 25）', () => {
   const html = readFileSync(new URL('../../src/web/config.html', import.meta.url), 'utf8');
-  // GROUPS 数组字面量（静态文本可断言）：6 组、id 并集 = 11–45 全量（不含 25）
-  const groups = [...html.matchAll(/items: \[([\d,\s]+)\]/g)].map((m) => m[1].split(',').map((s) => Number(s.trim())));
+  // LEVEL_GROUPS_MARKUP 数组字面量（静态文本可断言）：6 组、id 并集 = CONFIG_ITEMS 全量
+  const groups = [...html.matchAll(/items:\s*\[([^\]]*)\]/g)].map((m) => m[1].split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n)));
   expect(groups.length).toBe(6);                   // 4 组 + 系统日志 + 传播 TAB 专属子组
-  const flat = groups.flat();
-  expect([...new Set(flat)].sort((a, b) => a - b)).toEqual([11,12,13,14,15,16,17,18,19,20,21,22,23,24,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45]);
-  // 2026-08-29 页眉统一规范：页眉仅保留标题，不再含副标题，因此不再断言 .page-sub 文本
+  const all = CONFIG_ITEMS.map((i) => i.id);
+  const flat = [...new Set(groups.flat())].sort((a, b) => a - b);
+  const ids = [...all].sort((a, b) => a - b);
+  // 白名单并集应恰等于 CONFIG_ITEMS id 集合（无遗漏、无幽灵）——三处同步铁律（同 test/config/configCenterNavSync.test.js）
+  expect(flat).toEqual(ids);
+  expect(flat).toContain(46); expect(flat).toContain(47); expect(flat).toContain(48);
   expect(html).toContain('平台与访问');             // G1 组名
   expect(html).toContain('销售方法论与决策治理');   // G2 组名
   expect(html).toContain('业务对象与流程建模');     // G3 组名
@@ -89,13 +92,17 @@ test('config.html 6 组全量覆盖 34 项（G1–G4 + 系统日志 + 传播 TAB
   expect(html).toContain('it.sRef');
 });
 
-test('config.html 增第三 TAB「全局复用与经验蔓延」（仅 ADMIN 可见，深链 /propagation-hub.html）', () => {
+test('config.html 传播 TAB「全局复用与经验蔓延」以导航白名单承载（items: [42]，对齐 configTabs.js 的 propagation 一级分组）', () => {
   const html = readFileSync(new URL('../../src/web/config.html', import.meta.url), 'utf8');
-  expect(html).toContain("level: 'propagation'");
+  // 真实机制：config.html 的 LEVEL_GROUPS_MARKUP 含「全局复用与经验蔓延」组且 items=[42]（data-group 承载）；
+  // 一级分组（系统级/租户级/propagation）由 configTabs.js buildLevelTabs 运行时派生，静态文件不含 level 字段。
   expect(html).toContain('全局复用与经验蔓延');
-  expect(html).toContain("visible: me.level === 'ADMIN'");
+  expect(html).toContain('items: [42]');   // 传播 TAB 的专属子组（导航白名单）
   expect(html).toContain('/propagation-hub.html');
-  expect(html).toContain('items: [42]');   // 传播 TAB 的专属子组
+  // 与 configCenter.js 的 id42 定义一致（level=propagation 声明在数据层）
+  const item = CONFIG_ITEMS.find((i) => i.id === 42);
+  expect(item.level).toBe('propagation');
+  expect(item.page).toBe('/propagation-hub.html');
 });
 
 test('CONFIG_ITEMS 的 6 个 schema 页带 sRef 交叉引用（S16/S19/S21/S25/S28/S31）', () => {

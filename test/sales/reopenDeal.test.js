@@ -1,4 +1,5 @@
-// 回归测试：reopenDeal 反向重开（S7/S8→S2，保留粒子身份，DEAL_REOPEN 锚定）
+// 回归测试：reopenDeal 反向重开（S7/S8 或 S0+lost → S0P，保留粒子身份，DEAL_REOPEN 锚定）
+// 2026-09-11 T7：重开目标由 S2 改为 S0P（重开须重走 BANT 校验，不得免校验直落 S2）
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { reopenDeal } from '../../src/sales/reopenDeal.js';
@@ -22,10 +23,10 @@ describe('reopenDeal', () => {
         .rejects.toThrow(/仅退出态/);
     });
   });
-  it('S7 重开 → stage=S2 且 reopen_count=1 且 last_reopen_decision_id 落库', async () => {
+  it('S7 重开 → stage=S0P 且 reopen_count=1 且 last_reopen_decision_id 落库', async () => {
     await withDeal('S7', async (id) => {
       const u = await reopenDeal(id, { reason: '客户回流', owner: 'u', decision_id: 'dec-abc' });
-      expect(u.payload.stage).toBe('S2');
+      expect(u.payload.stage).toBe('S0P');
       expect(u.payload.reopen_count).toBe(1);
       expect(u.payload.last_reopen_decision_id).toBe('dec-abc');
       const c = await pool.connect();

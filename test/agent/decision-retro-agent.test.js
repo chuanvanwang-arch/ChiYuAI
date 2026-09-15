@@ -16,9 +16,9 @@ describe('decision-retro（第 5 体）装配契约', () => {
   // 2026-09-02 方案C（决策接入 agent 编排层）：名册 5 体 → 6 体，新增 decision-agent
   // （决策前后双 Agent 的承载体）。本用例锁的是「decision-retro 仍在册」，故改为断言包含关系，
   // 名册整体顺序/数量由 test/agent-spec-4.test.js 独占校验，避免同一事实在多处重复锁死。
-  it('decision-retro 在册（名册现 6 体，含方案C 新增的 decision-agent）', () => {
+  it('decision-retro 在册（名册现 7 体，含方案C 新增的 decision-agent 与 T1 新增的 prospecting）', () => {
     expect(Object.keys(agentSpecs)).toEqual([
-      'intake-router', 'quote-engine', 'followup-agent', 'review-gate', 'decision-retro', 'decision-agent',
+      'intake-router', 'quote-engine', 'followup-agent', 'review-gate', 'decision-retro', 'decision-agent', 'prospecting',
     ]);
   });
 

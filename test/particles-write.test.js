@@ -101,10 +101,15 @@ describe('POST /api/particles 写通道（第0闸 + stage 白名单）', () => {
   });
 });
 
-describe('normalizeStage 纯函数（S1–S8 白名单 + 未分类兜底）', () => {
-  it('白名单 = S1–S8（八段，含 S7 输单 / S8 丢单退出边）', () => {
+describe('normalizeStage 纯函数（S_ALL_STAGES 白名单 + 未分类兜底）', () => {
+  it('白名单 = S0/S0P + S1–S8（十段，含 S7 输单 / S8 丢单退出边）', () => {
     // 2026-09-01：六段 lead→paid 已废止（旧英文值仅作兼容读别名，不进逻辑）
-    expect(DEAL_STAGES).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']);
+    // 2026-09-11：前插 S0 公海 / S0P 私海待校验（DEAL_STAGES = S_ALL_STAGES，见 stageTaxonomy.js）
+    expect(DEAL_STAGES).toEqual(['S0', 'S0P', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']);
+  });
+  it('写 S0 公海 / S0P 私海待校验 → 不被判非法 stage', () => {
+    expect(normalizeStage('CRM_DEAL', { name: 'x', stage: 'S0' }).stage).toBe('S0');
+    expect(normalizeStage('CRM_DEAL', { name: 'x', stage: 'S0P' }).stage).toBe('S0P');
   });
   it('缺省 stage → 兜底 S1（未分类）', () => {
     expect(normalizeStage('CRM_DEAL', { name: 'x' }).stage).toBe('S1');

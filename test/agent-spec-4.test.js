@@ -2,13 +2,14 @@
 // 2026-08-31 用户拍板：第 5 个 agent（decision-retro 决策复盘）保留，名册由 4 体 → 5 体。
 // 2026-09-02 方案C（决策接入 agent 编排层）：新增第 6 体 decision-agent（决策前后双 Agent 的承载体，
 //   由 requireDecision fire-forget 派发 method-decision-enrich / method-decision-execute），名册 5 体 → 6 体。
+// 2026-09-14 拓客模块（T1）：新增第 7 体 prospecting（MCP 对话驱动主动拓客），名册 6 体 → 7 体。
 import { describe, it, expect } from 'vitest';
 import { agentSpecs } from '../src/agent/agentSpec.js';
 
-describe('6 agent 名册重建', () => {
-  it('注册 6 个业务角色 agent', () => {
+describe('6 agent 名册重建（现 7 体）', () => {
+  it('注册 7 个业务角色 agent', () => {
     expect(Object.keys(agentSpecs)).toEqual([
-      'intake-router', 'quote-engine', 'followup-agent', 'review-gate', 'decision-retro', 'decision-agent',
+      'intake-router', 'quote-engine', 'followup-agent', 'review-gate', 'decision-retro', 'decision-agent', 'prospecting',
     ]);
   });
   it('每个 agent 六段式字段齐备', () => {
@@ -28,8 +29,8 @@ describe('6 agent 名册重建', () => {
       }
     }
   });
-  it('memory.read 仅引用现 6 体（无悬空旧 agent）', () => {
-    const VALID = new Set(['intake-router', 'quote-engine', 'followup-agent', 'review-gate', 'decision-retro', 'decision-agent']);
+  it('memory.read 仅引用现 7 体（无悬空旧 agent）', () => {
+    const VALID = new Set(['intake-router', 'quote-engine', 'followup-agent', 'review-gate', 'decision-retro', 'decision-agent', 'prospecting']);
     const DANGLING = ['lead-miner', 'deal-coach', 'crm-copilot'];
     for (const [id, spec] of Object.entries(agentSpecs)) {
       for (const m of spec.memory.read) {

@@ -45,9 +45,10 @@ describe('T1 · schema.js 协议常量 + 粒子值域 + Action 白名单', () =>
     // 写白名单 = 对话式自主写入基础 3 个 + stage3 门户可绑定写 Action（schema.js:31）
     // 基础 3：crm-deal-advance / data-particle-create / data-particle-update
     // + 审批签批 2 个（crm-approval-approve/reject，供待我审批 rowActions 行内按钮）
+    // + 线索池退回 1 个（crm-lead-return，T6 场景②：手动退回公海，跳过超期校验）
     expect(ACTION_WHITELIST.write).toEqual([
       'crm-deal-advance', 'data-particle-create', 'data-particle-update',
-      'crm-lead-pick', 'crm-lead-recycle', 'crm-lead-move',
+      'crm-lead-pick', 'crm-lead-recycle', 'crm-lead-return', 'crm-lead-move',
       'crm-payment-plan-create', 'crm-payment-record-create',
       'crm-invoice-reconcile', 'crm-order-advance',
       'crm-approval-approve', 'crm-approval-reject',

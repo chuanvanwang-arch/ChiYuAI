@@ -7,7 +7,7 @@ test('S_STAGES 含 S1-S8 且顺序正确', () => {
   assert.deepStrictEqual(S_STAGES, ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']);
 });
 test('S_LABEL 提供中文名', () => {
-  assert.strictEqual(S_LABEL.S1, '线索发掘');
+  assert.strictEqual(S_LABEL.S1, '正式线索');
   assert.strictEqual(S_LABEL.S6, '赢单移交');
 });
 test('toStageCode 映射英文旧值', () => {

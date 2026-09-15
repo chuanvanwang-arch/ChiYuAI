@@ -58,6 +58,23 @@ describe('executor C6 商机三要素闸（判据纯函数 salesDealPrereq）', 
     const r = salesDealPrereq({ stage: '线索' });
     expect(r.ok).toBe(true);
   });
+  // ── 2026-09-11 S0/S0P 公海三档（D2）：公海/私海待校验同属线索侧，一并豁免；
+  //    升级资格由 S0P→S1 阶段闸（STAGE_GATES，Task 2）负责，不在此处重复判 —─
+  it('S0 公海 -> 豁免（未成单线索，不该被 B/A/T 拦）', () => {
+    const r = salesDealPrereq({ stage: 'S0' });
+    expect(r.ok).toBe(true);
+    expect(r.missing).toEqual([]);
+  });
+  it('S0P 私海待校验 -> 豁免（即便 bantcc 全空也不拦）', () => {
+    const r = salesDealPrereq({ stage: 'S0P', bantcc: {} });
+    expect(r.ok).toBe(true);
+    expect(r.missing).toEqual([]);
+  });
+  it('S2 仍进要素闸（豁免面未外溢到正式管道）', () => {
+    const r = salesDealPrereq({ stage: 'S2', bantcc: {} });
+    expect(r.ok).toBe(false);
+    expect(r.missing).toEqual(['预算', '责任人', '时间表']);
+  });
 });
 
 describe('executor C6 dispatch 接线（mock DB 依赖，验证闸位置与放行路径）', () => {
@@ -123,5 +140,17 @@ describe('executor C6 dispatch 接线（mock DB 依赖，验证闸位置与放�
       type: 'CRM_DEAL', payload: { name: '测试线索', stage: 'lead' },
     }, { tenantId: 'system', actor: 'alice', decision_id: 'x' });
     expect(r.ok).toBe(true);
+  });
+  it('data-particle-create CRM_DEAL S0 公海 -> 放行（D2 接线验证：公海建粒子不被要素闸拦）', async () => {
+    const { actionExecutor } = await import('../../src/action/executor.js');
+    const { seedActions } = await import('../../src/action/seed-actions.js');
+    const { resetRegistry } = await import('../../src/action/registry.js');
+    resetRegistry();
+    seedActions();
+    const r = await actionExecutor.dispatch('data-particle-create', {
+      type: 'CRM_DEAL', payload: { name: '公海线索', stage: 'S0' },
+    }, { tenantId: 'system', actor: 'alice', decision_id: 'x' });
+    expect(r.ok).toBe(true);
+    expect(r.data.id).toMatch(/^pt-/);
   });
 });

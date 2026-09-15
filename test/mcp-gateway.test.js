@@ -36,13 +36,17 @@ describe('MCP 网关 · 决策第 0 闸（写两阶段 phase1）', { timeout: 20
     expect(r.gate).toBe('decision_required');
   });
 
-  it('crm-deal-advance 无决策 → 业务提问按 to_stage 动态生成（S2→S3 等可复用）', async () => {
-    // 2026-09-02 设计裁定：推进商机是通用 autoDecision Action，S2→S3 / S3→S4 / S4→S5 / S5→S6 均复用；
-    // 第0闸文案不可写死「P1→P2」（P1-P6 仅方法论显示别名），须随 params.to_stage 真实跃迁。
+  it('crm-deal-advance 无决策 → deferDecisionMint 旁路签发 confirm_token，业务提问仍按 to_stage 动态生成', async () => {
+    // 2026-09-11 方案 H（用户拍板）：crm-deal-advance 声明 deferDecisionMint → phase1 既不要求
+    //   decision_id 也不代 mint（防双 mint），决策由 handler 在 phase2 执行前自行 mint。
+    //   （旧断言 DECISION_NEEDED 是「测试断言了缺陷本身」，随修复迁移。）
+    // 2026-09-02 设计裁定保留：推进商机是通用 autoDecision Action，S2→S3 / S3→S4 / S4→S5 / S5→S6 均复用；
+    //   第0闸文案不可写死「P1→P2」（P1-P6 仅方法论显示别名），须随 params.to_stage 真实跃迁。
     const r = await mcpWritePhase1('crm-deal-advance', { deal_id: 'D-TEST', to_stage: 'S3', transitionedBecause: '方案匹配完成' }, {});
-    expect(r.ok).toBe(false);
-    expect(r.gate).toBe('decision_required');
-    expect(r.code).toBe('DECISION_NEEDED');
+    expect(r.ok).toBe(true);
+    expect(r.confirm_token).toMatch(/^ct_/);
+    expect(r.form.code).toBe('CONFIRM_REQUIRED');
+    expect(r.form.decision_id).toBeNull();   // phase1 未 mint —— 真值由 phase2 handler 产生
     expect(r.question).toContain('S3');
     expect(r.question).toContain('方案匹配');
     expect(r.question).not.toContain('P2');
@@ -50,8 +54,8 @@ describe('MCP 网关 · 决策第 0 闸（写两阶段 phase1）', { timeout: 20
 
   it('crm-deal-advance 无决策且 to_stage 非法 → 回退通用推进文案（不误报具体阶段）', async () => {
     const r = await mcpWritePhase1('crm-deal-advance', { deal_id: 'D-TEST', to_stage: 'XXX' }, {});
-    expect(r.ok).toBe(false);
-    expect(r.code).toBe('DECISION_NEEDED');
+    expect(r.ok).toBe(true);                 // deferDecisionMint 旁路（同上）
+    expect(r.confirm_token).toMatch(/^ct_/);
     expect(r.question).toContain('推进商机为自动决策');
     expect(r.question).not.toContain('XXX');
   });
@@ -67,6 +71,38 @@ describe('MCP 网关 · 决策第 0 闸（写两阶段 phase1）', { timeout: 20
     const r = await mcpWritePhase1('mcp-not-exist', { decision_id: 'DEC-TEST-002' }, {});
     expect(r.ok).toBe(false);
     expect(r.error).toContain('未知写 Action');
+  });
+});
+
+describe('MCP 网关 · handler 内自 mint 写 Action 的 deferDecisionMint 旁路（2026-09-11 方案 H）', { timeout: 20000 }, () => {
+  beforeAll(() => { seedActions(); registerTestWriteAction(); });
+
+  // 判据：MCP 暴露 ∩ write ∩ autoDecision ∩ 无 decisionScenario ⇒ 必须声明 deferDecisionMint。
+  //   否则 phase1 被第 0 闸永久拦死（工具面 63 个里无任何「生成决策」工具 → 客户端无路径补 decision_id）。
+  const DEFERRED = ['crm-deal-advance', 'crm-deal-reopen', 'crm-lead-return', 'crm-deal-archive-to-pool', 'crm-lead-reclaim-bulk'];
+
+  for (const n of DEFERRED) {
+    it(`${n} 声明 deferDecisionMint（漏声明即在 MCP 通道死胡同）`, () => {
+      const def = getAction(n);
+      expect(def, `${n} 未注册`).toBeTruthy();
+      expect(def.autoDecision).toBe(true);            // executor 第0闸豁免 + handler 自 mint
+      expect(def.decisionScenario).toBeUndefined();   // 不代 mint（防双 mint）
+      expect(def.deferDecisionMint).toBe(true);       // gateway phase1 旁路声明
+    });
+  }
+
+  it('未声明 deferDecisionMint 的普通写 Action 行为不变（仍 DECISION_NEEDED，第0闸不放松）', async () => {
+    const r = await mcpWritePhase1('mcp-test-write', { echo: 'still-blocked' }, {});
+    expect(r.ok).toBe(false);
+    expect(r.gate).toBe('decision_required');
+    expect(r.code).toBe('DECISION_NEEDED');
+    expect(r.confirm_token).toBeUndefined();
+  });
+
+  it('显式携带 decision_id → 仍走原路径（deferDecisionMint 不干扰）', async () => {
+    const r = await mcpWritePhase1('crm-deal-reopen', { deal_id: 'D-TEST', reason: 'x', decision_id: 'DEC-EXPLICIT' }, {});
+    expect(r.ok).toBe(true);
+    expect(r.form.decision_id).toBe('DEC-EXPLICIT');
   });
 });
 
