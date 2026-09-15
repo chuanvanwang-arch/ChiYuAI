@@ -42,18 +42,29 @@ function relatedLinks(particle, edges, related) {
   return all.length ? `<div class="edge">关联：${all.join(' · ')}</div>` : '';
 }
 
+// L2C 阶段进度（2026-09-11 T9：公海 S0 / 私海待校验 S0P / 正式线索 S1 三档显式分列）
+// 浏览器 ESM 无法 import 后端模块 → 内联别名映射（等价 stageTaxonomy.toStageCode 语义）
+const S_ALIAS = {
+  lead: 'S1', opportunity: 'S2', quoted: 'S3', contracted: 'S4', ordered: 'S5', paid: 'S6',
+  lost: 'S7', disqualified: 'S8', S0: 'S0', S0P: 'S0P',
+};
+const normStage = (v) => {
+  if (!v) return 'S0';
+  if (typeof v === 'string' && v.startsWith('S')) return v;
+  return S_ALIAS[v] || v;
+};
 const L2C = [
-  ['lead', '线索'], ['opportunity', '商机'], ['quoted', '报价'],
-  ['contracted', '合同'], ['ordered', '订单'], ['paid', '回款'],
+  ['S0', '公海'], ['S0P', '私海线索'], ['S1', '正式线索'], ['S2', '商机'], ['S3', '报价'],
+  ['S4', '合同'], ['S5', '订单'], ['S6', '回款'],
 ];
 function dealSection(p) {
-  const stage = p.payload.stage || 'lead';
+  const stage = normStage(p.payload.stage);
   const idx = L2C.findIndex(([s]) => s === stage);
   const steps = L2C.map(([s, label], i) => {
     const cls = i < idx ? 'done' : i === idx ? 'cur' : 'todo';
     return `<span class="l2c-step ${cls}">${label}</span>`;
   }).join('<span class="l2c-sep">›</span>');
-  const term = (stage === 'lost' || stage === 'disqualified')
+  const term = (stage === 'S7' || stage === 'S8')
     ? `<span class="badge b-rule">已终止（${esc(stage)}）</span>` : '';
   const facts = [
     ['金额', money(p.payload.amount)],

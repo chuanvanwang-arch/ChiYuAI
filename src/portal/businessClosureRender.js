@@ -55,7 +55,8 @@ function renderStageCard(stage) {
   </div>`;
 }
 
-// 主渲染：data = { stages, leadPool, total }
+// 主渲染：data = { stages, publicPool, privateLeads, total }
+// 2026-09-11 T9：原 leadPool 单列拆为 公海(S0) + 私海线索(S0P/S1) 两列。
 export function renderBusinessClosure(data) {
   const d = data || {};
   const stages = Array.isArray(d.stages) ? d.stages : [];
@@ -63,12 +64,14 @@ export function renderBusinessClosure(data) {
     return `<div class="pg-page"><div class="pg-empty">暂无业务数据</div></div>`;
   }
   const cards = stages.map(renderStageCard).join('');
-  const leadPool = d.leadPool || { count: 0, note: '' };
+  const publicPool = d.publicPool || { count: 0, note: '' };
+  // 向后兼容：老响应只有 leadPool 时降级读它，避免灰度期渲染空白
+  const privateLeads = d.privateLeads != null ? d.privateLeads : (d.leadPool?.count || 0);
   const total = d.total || { dealAmount: 0, contractAmount: 0, receivedAmount: 0 };
   return `<div class="pg-page">
     <div class="portal-head">
       <h2>🎯 L2C 业务闭环</h2>
-      <div class="pg-leadpool">🎣 线索池 ${leadPool.count || 0} 条 · ${esc(leadPool.note || '')}</div>
+      <div class="pg-leadpool">🎣 公海 ${publicPool.count || 0} 条 · 🧭 私海线索 ${privateLeads} 条 · ${esc(publicPool.note || '')}</div>
     </div>
     <div class="pg-grid">${cards}</div>
     <div class="pg-total">

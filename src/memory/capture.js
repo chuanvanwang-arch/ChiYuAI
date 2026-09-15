@@ -16,6 +16,7 @@ const BLOCKED_DOMAINS = new Set(['decision', 'trace', 'metering', 'system', 'mem
 const DEFAULT_CAPTURE_DOMAINS = [
   'crm', 'approval', 'task', 'particle', 'payment', 'alert', 'calibration', 'connector', 'crm-risk-alert',
   'customer', 'deal', 'quote', 'contact', 'lead', 'contract',
+  'discovery',
 ];
 
 let activeDomains = new Set(DEFAULT_CAPTURE_DOMAINS);

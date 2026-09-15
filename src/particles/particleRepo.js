@@ -2,7 +2,7 @@
 // 资源走 substrate（R2/R5）：不开独立 CRUD，9 粒子共用统一接口
 import { query, queryWrite } from '../db.js';
 import { PARTICLE_TYPES, CONTROLLED_PREDICATES, isControlledPredicateConfig, resolvePrototype } from './particleModel.js';
-import { S_STAGES, toStageCode } from '../sales/stageTaxonomy.js';
+import { S_ALL_STAGES, toStageCode } from '../sales/stageTaxonomy.js';
 import { ensureAll } from '../ontology/hooks.js';
 import { evaluateAiAttributesFor } from '../aiAttributes/evaluator.js';
 import { emit } from '../events/bus.js';
@@ -15,7 +15,7 @@ import { recordAudit } from '../action/auditHook.js';   // 10-能力审计单点
 // 2026-08-31 统一术语：改用 S1-S8 单一事实源（src/sales/stageTaxonomy.js），
 //   兼容旧英文值（toStageCode 归一为 S 码），杜绝第二套阶段命名。
 // 设计输入：总体设计 §7 L2C（销售管道六段）；对齐 seed.sql:6（state=生命周期 / payload.stage=业务阶段）
-export const DEAL_STAGES = S_STAGES;
+export const DEAL_STAGES = S_ALL_STAGES;
 
 export function normalizeStage(type, payload) {
   if (type !== 'CRM_DEAL') return payload; // 非 DEAL 粒子无业务阶段语义，透传
@@ -200,7 +200,7 @@ export async function queryParticles({ type, tenantId = 'system', limit = 100, e
   return r.rows;
 }
 
-export async function updateParticle(id, { state, patch = {}, event, requireDecisionId = null, systemBypass = false, tenantId = null } = {}) {
+export async function updateParticle(id, { state, patch = {}, event, requireDecisionId = null, systemBypass = false, tenantId = null, casExpectStage = null, casExpectOwnerEmpty = false } = {}) {
   const cur = await getParticle(id);
   if (!cur) throw new Error(`粒子不存在: ${id}`);
   // F1 防御层（defense-in-depth）：当调用方显式传入真实租户且与该粒子归属租户不符 → 拒绝跨租户写。
@@ -229,11 +229,17 @@ export async function updateParticle(id, { state, patch = {}, event, requireDeci
   if (enforce && !decisionId && !isSystem) {
     throw new Error(`updateParticle(${cur.type}) 缺 decision_id（业务写须经第0闸 mint 后透传 requireDecisionId）`);
   }
+  // T3（2026-09-14）：CAS 原子认领——消除原 read-modify-write 竞态窗口。
+  // 命中 casExpectStage 时在 WHERE 追加阶段/owner 校验；$1 须显式 ::jsonb（PG 无法从 JSON 字符串参数推断 jsonb）。
+  const casCond = casExpectStage !== null ? ` AND payload->>'stage'=$5 AND coalesce(payload->>'owner_id','')=$6` : '';
+  const casParams = casExpectStage !== null
+    ? [JSON.stringify(newPayload), state || cur.state, decisionId, id, casExpectStage, casExpectOwnerEmpty ? '' : (cur.payload.owner_id || '')]
+    : [JSON.stringify(newPayload), state || cur.state, decisionId, id];
   const r = await queryWrite(
-    `UPDATE particles SET payload=$1, state=$2, decision_id=$3, updated_at=now() WHERE id=$4 RETURNING *`,
-    // decision_id 持久化：优先 requireDecisionId/patch 携带（首次锚定），否则保留既有（不覆盖为空）
-    [JSON.stringify(newPayload), state || cur.state, decisionId, id]
+    `UPDATE particles SET payload=$1::jsonb, state=$2, decision_id=$3, updated_at=now() WHERE id=$4${casCond} RETURNING *`,
+    casParams
   );
+  if (casExpectStage !== null && r.rowCount === 0) throw new Error('已被他人领取或已不在公海，请刷新后重试');
   const p = r.rows[0];
   // 写时自适应：patch 新键自动登记元模型（在 AI 求值前）
   await ensureAdaptiveRegistration(p.type, patch, cur.tenant_id || 'system', 'system').catch((e) => {

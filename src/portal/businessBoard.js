@@ -1,11 +1,13 @@
 // src/portal/businessBoard.js — L2C 业务闭环看板聚合端点（服务端 Router 工厂）
 // 设计输入：docs/2026-08-28-business-closure-design.md §3
 // 复用范式：与 agentConfig.js 一致，createXxxRouter(deps) 注入式依赖 + router.handlers 可测。
-// 富化 /api/business/board：在原 grouped 基础上扩展结构化 stages + leadPool + total（向后兼容保留 grouped）。
+// 富化 /api/business/board：在原 grouped 基础上扩展结构化 stages + publicPool/privateLeads + total（向后兼容保留 grouped）。
+// 2026-09-11 T9：原 leadPool（stage='lead'）已弃用，拆为 publicPool(S0) + privateLeads(S0P/S1)。
 
 import { Router } from 'express';
 import { resolveMe } from '../http/auth.js';
 import { scopeTenant } from '../http/tenantScope.js';
+import { toStageCode, isPoolStage } from '../sales/stageTaxonomy.js'; // 2026-09-11 T9：公海/私海口径拆分
 
 // L2C 阶段定义（顺序即看板卡顺序）
 const STAGES = [
@@ -83,17 +85,21 @@ export function buildBoard(items) {
   });
 
   const deals = grouped['CRM_DEAL'] || [];
-  const leadPool = {
-    count: deals.filter((p) => (p.payload && p.payload.stage) === 'lead').length,
-    note: '线索=CRM_DEAL 中 stage=lead',
+  // 2026-09-11 T9：原「线索」单列口径（stage='lead'）已随 S0/S0P 拆分失效 → 拆为公海 + 私海线索两列。
+  //   公海 = stage S0（无人认领，可从公海池领取）；私海线索 = S0P（已认领待 BANT 校验）+ S1（正式线索）。
+  const publicPool = {
+    count: deals.filter((p) => isPoolStage(p.payload?.stage)).length,
+    note: '公海=CRM_DEAL 中 stage=S0',
   };
+  const privateLeads = deals.filter((p) => ['S0P', 'S1'].includes(toStageCode(p.payload?.stage))).length;
   const dealAmount = deals.reduce((a, p) => a + num(p.payload?.amount), 0);
   const contractAmount = (grouped['CRM_CONTRACT'] || []).reduce((a, p) => a + num(p.payload?.amount), 0);
   const receivedAmount = (grouped['CRM_PAYMENT_RECORD'] || []).reduce((a, p) => a + num(p.payload?.paid_amount), 0);
 
   return {
     stages,
-    leadPool,
+    publicPool,        // 公海（S0）
+    privateLeads,      // 私海线索（S0P + S1）
     total: { dealAmount, contractAmount, receivedAmount },
     grouped, // 向后兼容：/api/page/home 仍可用
   };

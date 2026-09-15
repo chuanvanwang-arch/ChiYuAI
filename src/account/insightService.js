@@ -5,6 +5,7 @@ import { query } from '../db.js';
 import { loadProfile } from '../context/roleProfiles.js';
 // T8(BG-01b/BG-08)：叙事时间线纯函数与四源检索收敛至 context 单一事实源，此处 re-export 保持既有调用方零改动
 import { buildTimelineRows, retrieveTimeline, DECISION_TIME_BASIS } from '../context/timelineSource.js';
+import { toStageCode } from '../sales/stageTaxonomy.js'; // 2026-09-11 T9：线索口径 S0/S0P/S1
 export { buildTimelineRows };
 
 // —— 字段级权限矩阵（设计 §4.2）：vis ∈ {hidden, readonly, visible} ——
@@ -154,9 +155,9 @@ export function buildMetrics(related, timelineSources = [], tasks = [], decision
     ? Math.round((paidAmt / contractAmt) * 1000) / 10
     : null;
 
-  // §5.2 L2C 六段管道（线索口径：CRM_DEAL 中 stage='lead'）
+  // §5.2 L2C 六段管道（线索口径 2026-09-11 T9：首段含公海 S0 + 私海待校验 S0P + 正式线索 S1）
   const pipeDefs = [
-    { key: 'lead', name: '线索', items: (related.deals || []).filter(d => (d?.payload?.stage || 'lead') === 'lead') },
+    { key: 'lead', name: '线索', items: (related.deals || []).filter(d => ['S0', 'S0P', 'S1'].includes(toStageCode(d?.payload?.stage))) },
     { key: 'quote', name: '报价', items: related.quotations || [] },
     { key: 'contract', name: '合同', items: contracts },
     { key: 'order', name: '订单', items: related.orders || [] },

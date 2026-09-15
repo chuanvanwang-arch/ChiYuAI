@@ -6,6 +6,7 @@ import { evaluateBehaviorChecklist } from './behaviorChecklist.js';
 import { pickNote } from './visitNote.js';
 import { readThreshold, DEFAULT_THRESHOLDS } from './salesThresholds.js';
 import { namedOwnerOf, namedStateOf, namedVisitStatus } from './namedAccountAssign.js';
+import { toStageCode, isPoolStage } from './stageTaxonomy.js'; // 2026-09-11 T9：线索/公海口径拆分
 
 // 单客户四维 + 达标 + 21 条行为合格线
 // thresholds：判定阈值（config_store['sales-thresholds']），缺省回退默认，保证向后兼容
@@ -17,8 +18,11 @@ export function accountRow(account, deals, contracts, targetsCfg = {}, contacts 
   // named_state=inactive 为软停用（禁删铁律）；无主户（named_owner/owner_id/owner 回退链全空）不算指名
   const isNamed = namedStateOf(p) === 'active' && Boolean(namedOwnerOf(p));
   const dealList = deals.filter(d => (d.payload?.account_id || '') === account.id);
-  const leads = dealList.filter(d => (d.payload?.stage || d.state) === 'lead').length;
-  const opps = dealList.length - leads;
+  // 2026-09-11 T9：线索 = 私海线索（S0P 待校验 + S1 正式线索）；公海（S0）单列，不计入线索/商机。
+  //   toStageCode 保留旧英文别名归一（'lead'→S1），故历史数据口径不变。
+  const leads = dealList.filter(d => ['S0P', 'S1'].includes(toStageCode(d.payload?.stage))).length;
+  const publicLeads = dealList.filter(d => isPoolStage(d.payload?.stage)).length;
+  const opps = dealList.length - leads - publicLeads;
   const contractList = contracts.filter(c => (c.payload?.account_id || '') === account.id);
   const tv = visitTargetFor(pp, targetsCfg);
   // 拜访明细（供详情 TAB 渲染；JSONB 数组必须 Array.isArray 判定——铁律）
@@ -42,6 +46,7 @@ export function accountRow(account, deals, contracts, targetsCfg = {}, contacts 
     overdueDays: alertStatus.overdueDays, // 逾期天数（应访日已过）
     visitDue: alertStatus.dueAt, // 应访日 ISO（管理页应访日列）
     leads,
+    publicLeads, // 公海（S0）：无归属待认领，不计入线索/商机
     opps,
     contracts: contractList.length,
     gaps: gapHint(p, tv, leads, opps, contractList.length, dealList, thresholds),

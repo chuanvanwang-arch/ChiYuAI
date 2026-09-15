@@ -1,24 +1,53 @@
 // src/ontology/hooks.js — 写库即构建：三钩子（embedding / tsvector / 本体同步）
 // 写时（write-time）物化：粒子落库后回填 embedding/fts/content_hash，自动建受控边 + 词汇登记。
 import { query, queryWrite } from '../db.js';
-import { hashVector, contentHash } from './embedding.js';
+import { hashVector, contentHash, embedText, EMBED_PROVIDER } from './embedding.js';
 import { registerVocabulary } from './vocabulary.js';
 import { emit } from '../events/bus.js';
 import { recordEvent } from '../events/recordEvent.js';
 import { ensureAgeSync } from './ageSync.js';
 
-// 钩子1：embedding（哈希判变幂等）——内容未变不重算（省额度、稳一致）
+// 钩子1：embedding（哈希判变幂等）——D1（2026-09-14）接真模型路径
 export async function ensureEmbedding({ id, payload }) {
   const text = JSON.stringify(payload || {});
   const hash = contentHash(payload || {});
-  const r = await query(`SELECT content_hash FROM particles WHERE id=$1`, [id]);
+  const r = await query(`SELECT content_hash FROM particles WHERE id=$1::uuid`, [id]);
   const curHash = r.rows[0]?.content_hash || null;
   if (curHash === hash) return; // 幂等：内容没变不重算
-  const vec = hashVector(text);
-  await queryWrite(
-    `UPDATE particles SET embedding=$1, content_hash=$2, updated_at=now() WHERE id=$3`,
-    [JSON.stringify(vec), hash, id]
-  );
+  // 仅当 EMBEDDING_PROVIDER=model 时算真向量（1024 维，与列对齐）；
+  // 否则写 NULL（hash 384 维无法存入 vector(1024) 列，fail-open 不阻断写）。
+  if (process.env.EMBEDDING_PROVIDER !== 'model') {
+    await queryWrite(
+      `UPDATE particles SET embedding=NULL, content_hash=$1, updated_at=now() WHERE id=$2`,
+      [hash, id]
+    );
+    return;
+  }
+  try {
+    const ev = await embedText(text, {
+      metering: { tenantId: 'system', actor: 'ontology', action: 'particle-embed' },
+    });
+    if (ev.provider === EMBED_PROVIDER.MODEL && Array.isArray(ev.vector) && ev.vector.length === 1024) {
+      const vec = JSON.stringify(ev.vector.map(Number));
+      await queryWrite(
+        `UPDATE particles SET embedding=$1, content_hash=$2, updated_at=now() WHERE id=$3`,
+        [vec, hash, id]
+      );
+      return;
+    }
+    await queryWrite(
+      `UPDATE particles SET embedding=NULL, content_hash=$1, updated_at=now() WHERE id=$2`,
+      [hash, id]
+    );
+  } catch (e) {
+    // 维度错 / 模型不可用 → fail-open 写 NULL（粒子不丢，仅向量缺失，留痕待回填）
+    await queryWrite(
+      `UPDATE particles SET embedding=NULL, content_hash=$1, updated_at=now() WHERE id=$2`,
+      [hash, id]
+    ).catch(() => {});
+    const { recordFailure } = await import('../monitor/monitorStore.js');
+    recordFailure('particle-embedding-failed', e);
+  }
 }
 
 // 钩子2：tsvector 双写（FTS 索引与向量同时维护）

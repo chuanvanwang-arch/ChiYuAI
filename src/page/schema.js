@@ -54,7 +54,7 @@ export const PARTICLE_TYPES_ENUM = [
 // stage3 T3-12 扩展：门户组件（subtable/select 等）可绑定的阶段3 写 Action（移池/回款/发票/订单推进）
 export const ACTION_WHITELIST = {
   read: ['data-particle-read', 'crm-account-360'],
-  write: ['crm-deal-advance', 'data-particle-create', 'data-particle-update', 'crm-lead-pick', 'crm-lead-recycle', 'crm-lead-move', 'crm-payment-plan-create', 'crm-payment-record-create', 'crm-invoice-reconcile', 'crm-order-advance', 'crm-approval-approve', 'crm-approval-reject',
+  write: ['crm-deal-advance', 'data-particle-create', 'data-particle-update', 'crm-lead-pick', 'crm-lead-recycle', 'crm-lead-return', 'crm-lead-move', 'crm-payment-plan-create', 'crm-payment-record-create', 'crm-invoice-reconcile', 'crm-order-advance', 'crm-approval-approve', 'crm-approval-reject',
     // 参数调优签批（P1 2026-09-05 设计 §2.4）：my-todo「参数调优」视角行内按钮 →
     //   /api/my-todo/tune-approve|tune-reject（内部复用 approvePatch/rejectPatch，第0闸透传）
     'crm-tune-approve', 'crm-tune-reject'],

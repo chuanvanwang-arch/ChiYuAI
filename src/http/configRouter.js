@@ -160,4 +160,155 @@ export function createConfigRouter(
   return router;
 }
 
+// 外部数据接入：加密凭据写端点（2026-09-14，T13）
+// 仅 ADMIN/sysadmin 可写；明文不落库（persistSecret 加密后经 config_store 落库）。
+// 读取不暴露 GET（凭据永不回传前端），由 resolveCredentials 内联解密后注入 ctx.credentials。
+import { persistSecret as vaultPersistSecret } from '../connectors/discovery/credentialVault.js';
+
+export function createIntegrationSecretRouter(deps = {}) {
+  const D = { ...defaultDeps, ...deps };
+  const persist = deps.persistSecret || vaultPersistSecret;
+  const router = Router();
+
+  // 角色闸：仅 ADMIN / sysadmin（§15.1 平台级，sales 403）
+  async function ensureAdmin(req, res) {
+    const me = await D.resolveMe(req).catch(() => ({ ok: false }));
+    if (!me?.ok) {
+      res.status(403).json({ error: '需要登录' });
+      return null;
+    }
+    if (!(me.role === 'admin' || me.role === 'sysadmin' || me.roles?.includes('ADMIN'))) {
+      res.status(403).json({ error: '接入凭据仅 ADMIN/sysadmin 可写入（§15.1）' });
+      return null;
+    }
+    return me;
+  }
+
+  const handlers = {
+    post: async (req, res) => {
+      try {
+        const me = await ensureAdmin(req, res);
+        if (!me) return;
+        const { tenantId = 'system', providerId, raw } = req.body || {};
+        if (!providerId || raw == null || raw === '') {
+          return res.status(400).json({ error: 'providerId 与 raw 必填' });
+        }
+        // 写经决策第0闸：任何凭据写都产证（无决策不写）
+        const decision = await D.produceDecision('config-change', { key: 'integration-secrets', providerId, tenantId });
+        await persist({ tenantId, providerId, raw, deps: D });
+        res.json({ ok: true, updated: true, decision: decision?.decisionId || null });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  };
+
+  router.post('/api/integration/secret', handlers.post);
+  // 测试契约：handlers 直接暴露，注入式测试无需起服务器
+  router.handlers = handlers;
+  return router;
+}
+
+// 外部数据接入：租户自有实例声明 CRUD（2026-09-14 补充）
+// 仅 ADMIN/sysadmin；数组形态存 config_store['integration-providers']（per-tenant，默认 'system'）。
+// 禁物理删除铁律 → 只在「启停」上做软开关（enabled:false=不参与扫描），不对实例做 DELETE。
+export function createIntegrationProviderRouter(deps = {}) {
+  const D = { ...defaultDeps, ...deps };
+  const read = deps.readConfig || (async (key, opt) => storeRead(key, opt));
+  const write = deps.writeConfig || (async (key, value, decisionId, opt) => storeWrite(key, value, opt));
+  const router = Router();
+  const VALID_KINDS = ['generic-rest', 'generic-mcp', 'generic-cli'];
+
+  async function ensureAdmin(req, res) {
+    const me = await D.resolveMe(req).catch(() => ({ ok: false }));
+    if (!me?.ok) {
+      res.status(403).json({ error: '需要登录' });
+      return null;
+    }
+    if (!(me.role === 'admin' || me.role === 'sysadmin' || me.roles?.includes('ADMIN'))) {
+      res.status(403).json({ error: '接入数据源仅 ADMIN/sysadmin 可管理（§15.1）' });
+      return null;
+    }
+    return me;
+  }
+
+  async function loadList(tenantId) {
+    const row = await read('integration-providers', { tenantId }).catch(() => null);
+    const v = row && row.value;
+    return Array.isArray(v) ? v : [];
+  }
+
+  // 平台级声明：写按 'system' 默认；支持显式 tenantId（预留多租户按需扩展）
+  const handlers = {
+    get: async (req, res) => {
+      try {
+        const me = await ensureAdmin(req, res);
+        if (!me) return;
+        const tenantId = req.query.tenantId || 'system';
+        const list = await loadList(tenantId);
+        res.json({ ok: true, instances: list });
+      } catch (e) {
+        res.status(500).json({ error: e.message });
+      }
+    },
+    post: async (req, res) => {
+      try {
+        const me = await ensureAdmin(req, res);
+        if (!me) return;
+        const { tenantId = 'system', instance } = req.body || {};
+        if (!instance || typeof instance !== 'object') return res.status(400).json({ error: 'instance 必填对象' });
+        const { id, kind, enabled = true, endpoint, field_map, command } = instance;
+        if (!id || !kind) return res.status(400).json({ error: 'id 与 kind 必填' });
+        if (!VALID_KINDS.includes(kind)) return res.status(400).json({ error: `kind 须为 ${VALID_KINDS.join('/')}` });
+        // generic-rest/mcp 必须有 field_map；generic-cli 必须有 command
+        if (kind !== 'generic-cli' && !field_map) return res.status(400).json({ error: 'generic-rest/mcp 须提供 field_map' });
+        if (kind === 'generic-cli' && !command) return res.status(400).json({ error: 'generic-cli 须提供 command' });
+        const list = await loadList(tenantId);
+        if (list.some((x) => x.id === id)) return res.status(409).json({ error: `实例 ${id} 已存在（禁重名；可编辑）` });
+        const next = [...list, { id, kind, enabled, endpoint, field_map, command }];
+        const decision = await D.produceDecision('config-change', { key: 'integration-providers', action: 'add', id });
+        await write('integration-providers', next, decision?.decisionId || null, { tenantId });
+        res.json({ ok: true, updated: true, instances: next, decision: decision?.decisionId || null });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+    put: async (req, res) => {
+      try {
+        const me = await ensureAdmin(req, res);
+        if (!me) return;
+        const { tenantId = 'system' } = req.body || {};
+        const id = req.params.id;
+        const patch = req.body?.patch || req.body;
+        if (!id) return res.status(400).json({ error: 'id 必填' });
+        const list = await loadList(tenantId);
+        const idx = list.findIndex((x) => x.id === id);
+        if (idx < 0) return res.status(404).json({ error: `实例 ${id} 不存在` });
+        const cur = list[idx];
+        const next = { ...cur, ...patch, id };
+        if (patch.kind && !VALID_KINDS.includes(patch.kind)) return res.status(400).json({ error: `kind 须为 ${VALID_KINDS.join('/')}` });
+        // enabled 为显式布尔才改（防 patch.enabled 缺省把 true 覆盖成 undefined）
+        if (patch.enabled !== undefined) next.enabled = !!patch.enabled;
+        list[idx] = next;
+        const decision = await D.produceDecision('config-change', { key: 'integration-providers', action: 'update', id });
+        await write('integration-providers', list, decision?.decisionId || null, { tenantId });
+        res.json({ ok: true, updated: true, instances: list, decision: decision?.decisionId || null });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+    del: async (req, res) => {
+      // 禁删铁律（§零容忍 DELETE）：实例物理删除不做，改为 enabled:false 软停用
+      res.status(405).json({ error: '实例不支持物理删除（禁删铁律）——请用 PUT enabled:false 软停用' });
+    },
+  };
+
+  router.get('/api/integration/providers', handlers.get);
+  router.post('/api/integration/providers', handlers.post);
+  router.put('/api/integration/providers/:id', handlers.put);
+  router.delete('/api/integration/providers/:id', handlers.del);
+  router.handlers = handlers;
+  return router;
+}
+
 export { defaultDeps };

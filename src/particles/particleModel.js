@@ -2,7 +2,7 @@
 // 设计输入：01 粒子系统设计 §1 收敛清单、§2.2 属性类型、§4 受控谓词
 
 // 9 真粒子（C0-C4 判定收敛）
-import { S_STAGES } from '../sales/stageTaxonomy.js';
+import { S_ALL_STAGES } from '../sales/stageTaxonomy.js';
 import { readConfig } from '../config/configStore.js';
 export const PARTICLE_TYPES = {
   CRM_DEAL: {
@@ -10,7 +10,7 @@ export const PARTICLE_TYPES = {
     identity: ['name'],
     // Task 3（2026-08-27）：state=粒子生命周期（默认 ACTIVE，对齐 db/schema.sql:6）；业务阶段仅存 payload.stage
     // flow=业务六段状态机（lifecycle.js:9 advanceStage 只进不退校验依赖此 flow；state 列与业务阶段解耦）
-    states: { current: 'ACTIVE', flow: S_STAGES },
+    states: { current: 'ACTIVE', flow: S_ALL_STAGES },
     why: 'stage_change_reason',  // why 层载体（Oleg Product Memory 门槛）
   },
   CRM_ACCOUNT: {

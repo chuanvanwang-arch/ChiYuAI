@@ -71,6 +71,9 @@ export const CONFIG_ITEMS = [
   { id: 45, name: '粒子本体总览（只读）', group: '系统日志', level: 'system', status: 'ready', page: '/ontology.html', endpoint: null, scope: 'platform', resolve: 'system-only', note: '粒子实体/关系本体只读快照（代码常量事实源，与 #22 业务词汇分离）；纯显示，系统级' },
   // 线索发现规则（2026-09-10）：ICP / 数据源三档 / 信号权重 / 查重条件 / 编排 playbooks；租户级
   { id: 46, name: '线索发现规则', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/discovery-rules.html', endpoint: '/api/config/discovery-rules', scope: 'tenant', resolve: 'tenant-first', note: 'ICP（行业/规模/地域/置信下限）、数据源三档（system/system-candidate/paid，付费源出厂 enabled:false 需显式授权）、信号权重、查重条件 duplicate_criteria（配置驱动，对齐 Twenty flatObjectMetadata.duplicateCriteria）、编排 playbooks（data→condition→ai→action）；config_store 承载，写经决策第0闸' },
+  // 外部数据接入（2026-09-14）：租户自有系统实例声明 + 加密凭据库（platform/system 级闸，sales 访问 403）
+  { id: 47, name: '接入数据源（租户实例）', group: '智能体与运行', level: 'system', status: 'ready', page: '/discovery-rules.html#integration-sources', endpoint: '/api/config/integration-providers', scope: 'platform', resolve: 'system-only', note: '租户声明的自有系统实例（generic-rest/mcp/cli + field_map）；平台级声明，写经决策第0闸' },
+  { id: 48, name: '接入凭据库（加密）', group: '智能体与运行', level: 'system', status: 'ready', page: '/discovery-rules.html#integration-sources', endpoint: '/api/integration/secret', scope: 'platform', resolve: 'system-only', note: 'per-tenant pgcrypto 加密凭据；写经专用加密端点（禁明文落库），读返回脱敏；平台级仅 ADMIN' },
 ];
 
 const GROUP_ORDER = ['平台与访问', '销售方法论与决策治理', '业务对象与流程建模', '智能体与运行', '系统日志'];

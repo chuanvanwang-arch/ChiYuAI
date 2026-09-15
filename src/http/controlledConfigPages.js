@@ -16,7 +16,7 @@ import { buildReasoningSteps } from '../page/reasoningSteps.js';
 import { query } from '../db.js';
 import { agentSpecs } from '../agent/agentSpec.js';
 import { listPages } from '../page/pageStore.js';
-import { getPoolConfig } from '../sales/pool.js';
+import { readPoolConfig } from '../sales/pool.js';
 import { readConfig } from '../config/configStore.js';
 
 import { schema as S16_SCHEMA } from '../pages/S16.schema.js';
@@ -189,18 +189,38 @@ export const CONTROLLED_PAGES = {
     //       故注入 attr-field（slug→{value}）而非 table（S21 契约同形）
     schema: S25_SCHEMA,
     inject: 'attr-field',
-    fetch: async () => {
+    // 2026-09-11 T4：租户上下文接线（P0）。原 def.fetch() 无 req → 恒读 org-hq(system) 旧配置，
+    //   多租户下所有租户看到同一份池配置。改为 def.fetch(req) + resolveMe/scopeTenant，
+    //   数据源切至 config_store['lead-pool-config']（readPoolConfig 三级降级：config_store → 旧粒子 → 默认三池）。
+    fetch: async (req) => {
       try {
-        const c = await getPoolConfig('org-hq');
-        return c && Object.keys(c).length ? [c] : [];
+        const { resolveMe } = await import('./auth.js');
+        const { scopeTenant } = await import('./tenantScope.js');
+        const me = resolveMe(req);
+        const tenantId = scopeTenant(me && me.ok ? me : null);
+        const c = await readPoolConfig({ tenantId });
+        return c ? [{ ...c, tenantId }] : [];
       } catch {
         return [];
       }
     },
-    map: (r) => ({
-      pick_rule: { value: r.pick_rule ?? '' },
-      recycle_rule: { value: r.recycle_after_days ?? '' },
-    }),
+    // S25 是表单型页（attr-field pick_rule/recycle_rule），新配置为 pools[] 多池结构。
+    // 此处取 default_pool 的规则做**摘要桥接**（保证页面非空）；完整多池 TAB 渲染见 poolConfigRender.js（T5）。
+    map: (r) => {
+      const pools = r.pools || [];
+      const def = pools.find((p) => p.id === r.default_pool) || pools[0] || {};
+      const pick = def.pick_rule || {};
+      const rec = def.recycle_rule || {};
+      const pickParts = [];
+      if (pick.daily_limit != null) pickParts.push(`日限 ${pick.daily_limit}`);
+      if (pick.prev_owner_only) pickParts.push('限前归属人');
+      if (pick.pick_interval_hours != null) pickParts.push(`间隔 ${pick.pick_interval_hours}h`);
+      if (pick.new_data_only) pickParts.push('限新数据');
+      return {
+        pick_rule: { value: pickParts.join(' / ') || '默认' },
+        recycle_rule: { value: rec.condition || (rec.recycle_days != null ? `${rec.recycle_days} 天未跟进回收` : '默认') },
+      };
+    },
   },
   vocabulary: {
     // S27：本体/词汇（词汇同源 CRM_KNOWLEDGE 粒子）
@@ -318,7 +338,9 @@ export function createControlledPagesRouter(deps = {}) {
         } else {
           let raw = [];
           if (typeof def.fetch === 'function') {
-            raw = (await def.fetch()) || [];
+            // 2026-09-11 T4：传 req 以便 fetch 型数据面做租户解析（resolveMe/scopeTenant）。
+            //   向后兼容：既有 fetch 声明为无参函数，多传实参不影响。
+            raw = (await def.fetch(req)) || [];
           } else {
             const r = await D.query(def.sql).catch(() => ({ rows: [] }));
             raw = r.rows || [];

@@ -4,6 +4,7 @@
 
 import { listActions } from '../action/registry.js';
 import { seedActions } from '../action/seed-actions.js';
+import { seedDiscoveryActions } from '../action/discoveryActions.js';
 import { z } from 'zod';
 
 // JSON Schema → Zod shape（MCP SDK 1.x 需要 zod raw shape；仅取 MCP 入参需要的字段）
@@ -39,7 +40,14 @@ export function jsonSchemaToZod(schema = {}) {
 //   调用方统一 jsonSchemaToZod({type:'object', properties: a.schema})，循环体（L14）对扁平
 //   map 值做 typeof==='string' 类型推断；标准 {type,properties} 对象仍走 p.type 分支（2026-09-03 修正）。
 export function buildMcpTools({ seed = true } = {}) {
-  if (seed) seedActions();
+  // 2026-09-11 修复（T19 派发前复查发现）：`seedActions()` **不含** discovery 族注册
+  //   （discovery-* 由独立的 `seedDiscoveryActions()` 注册；应用进程经 `agents.js:70` /
+  //   `routes.js:495` 注册，但 **`src/mcp/server.js` 只 import buildMcpTools → 二者都不会执行**）。
+  //   后果：独立 MCP 进程（`npm run mcp:http|stdio`）里 discovery-run/enrich/research **从未注册**
+  //   → 工具面看不到（真实暴露 57 而非 60）、buddy 胶囊 `skill:'discovery-run'` 派发失败；
+  //   而 T18 单测因在 beforeAll 显式 seed 了 discovery 族 → 断言仍绿 = 典型「假绿」。
+  //   buildMcpTools 是 MCP 暴露面的唯一咽喉 → 在此一并注册，一处修复覆盖 server.js / 校验脚本 / 探针。
+  if (seed) { seedActions(); seedDiscoveryActions(); }
   // 2026-09-03 方案 A（用户拍板）：MCP 暴露面按 lifecycle 收敛——隐藏 `reserved` 死表面，
   // 仅暴露 active(默认) + engine。注册表全量保留（遵守禁 DELETE 铁律，只收暴露层、不删 action）。
   const all = listActions().filter((a) => a.lifecycle !== 'reserved');

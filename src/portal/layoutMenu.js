@@ -3,6 +3,9 @@
 // 客户深度洞察 + 指名客户监测合并为客户跟踪（S13 合并入口，画像/洞察 TAB 并入 named-accounts.html）
 export const FULL_MENU = [
   { group: '销售', label: '线索·商机', href: '/pipeline.html' },
+  // 公海池（2026-09-14）：公海 S0 待领取线索明细 + 认领闭环；紧邻线索·商机，销售角色可见。
+  // 权益门禁 core_crm：与 crm-lead-pick 动作权益一致（无 core_crm 仅能看不能领，故整体隐藏入口避免误导）。
+  { group: '销售', label: '公海池', href: '/lead-pool.html', requiresEntitlement: ['core_crm'] },
   // 客户跟踪：客户 360 洞察入口 → 受 customer_360 权益门禁（配置驱动，免费档不展示）
   { group: '销售', label: '客户跟踪', href: '/named-accounts.html', requiresEntitlement: ['customer_360'] },
   { group: '销售', label: '销售行为看板', href: '/sales-behavior-board.html' },
