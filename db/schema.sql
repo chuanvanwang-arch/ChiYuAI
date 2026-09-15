@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS crm.particles (
   title TEXT NOT NULL,
   state TEXT NOT NULL DEFAULT 'ACTIVE',
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-  embedding vector(384),                    -- L0 整实体向量（写时构建）
+  embedding vector(1024),                   -- L0 整实体向量（真模型 1024 维；hash 路径 fail-open NULL，2026-09-14 D1）
   content_hash TEXT,                        -- 幂等判变（内容没变不重算）
   stable_key TEXT,                          -- 6.7 确定性标识：sha256(tenant|type|slug)，幂等定址（见 src/particles/mintId.js）
   fts TSVECTOR,                             -- FTS 通道（ensureTsVector 双写）
@@ -940,3 +940,19 @@ CREATE TABLE IF NOT EXISTS crm.system_overview_sample (
 );
 CREATE INDEX IF NOT EXISTS idx_crm_so_sample_lookup
   ON crm.system_overview_sample (metric, tenant_id, sample_date);
+
+-- ============ 外部数据源融合：草稿暂存表（2026-09-15，docs/specs/2026-09-15-external-provider-fusion-design.md T4）============
+-- staging 表：仅承载 provider 返回的待确认数据；confirm（prospecting-confirm draft_id 分支）后才落 CRM_DEAL/CRM_ACCOUNT。
+-- 软清理（status 翻转 pending→consumed/expired），绝对禁物理 DELETE。新表走 CREATE TABLE IF NOT EXISTS，旧库/新库一致生效。
+CREATE TABLE IF NOT EXISTS crm.discovery_draft (
+  draft_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   TEXT NOT NULL DEFAULT 'system',
+  provider    TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  items       JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'consumed', 'expired')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '24 hours'),
+  consumed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ix_crm_discovery_draft_tenant ON crm.discovery_draft(tenant_id, status, expires_at);
