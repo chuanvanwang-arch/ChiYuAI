@@ -12,6 +12,8 @@ import { MCP_CONFIG } from './config.js';
 // 外部数据源适配器自注册（registerProvider）；MCP 通道此前漏调 → REGISTRY 恒空 →
 // 拓客/富集静默零产出（无报错、测试仍绿，最隐蔽死接线）。此处显式注册（幂等，覆盖 stdio+http 两入口）。
 import { registerBuiltinAdapters } from '../connectors/discovery/builtinAdapters.js';
+import { createOAuthRouter, buildOAuthDeps } from './oauth.js';
+import { createMcpAuthGate } from './httpAuth.js';
 
 // 建 MCP Server：注册全部读工具（直连）+ 2 个写阶段工具（两阶段协议）
 export function createMcpServer() {
@@ -32,7 +34,14 @@ export function createMcpServer() {
       description: t.description,
       inputSchema: t.inputSchema,
     }, async (params, extra) => {
-      const headers = extra?.headers || {};
+      // ⚠ 2026-09-15 修复（OAuth 端到端实测暴露）：MCP SDK 把原始 HTTP 头放在
+      //   `extra.requestInfo.headers`（构造于 server/webStandardStreamableHttp.js:479），
+      //   **不是** `extra.headers`。此前读 `extra.headers` 恒为 `{}` →
+      //   extractToken 拿不到 `Authorization: Bearer` → gateway 判 degraded → 恒返
+      //   `gate:'auth_required'`。CLI 因走 `params.api_token` 未受影响，故该缺陷长期潜伏；
+      //   OAuth 的 access_token **只**存在于 HTTP 头 → 修复前 OAuth 全链路打通也依然不可用。
+      //   残留 `extra?.headers` 兜底仅为兼容旧 SDK/测试替身，不改变正常路径。
+      const headers = extra?.requestInfo?.headers || extra?.headers || {};
       const r = await mcpReadDirect(t.name, params || {}, headers);
       return { content: [{ type: 'text', text: JSON.stringify(r) }] };
     });
@@ -46,7 +55,8 @@ export function createMcpServer() {
       description: t.description,
       inputSchema: t.inputSchema,
     }, async (params, extra) => {
-      const headers = extra?.headers || {};
+      // 头来源同上：extra.requestInfo.headers（勿退回 extra.headers，见读工具处注释）
+      const headers = extra?.requestInfo?.headers || extra?.headers || {};
       // MCP 工具调用默认视为 phase1（取表单）；携带 confirm_token 则视为 phase2（确认执行）
       if (params?.confirm_token) {
         const r = await mcpConfirmPhase2(params.confirm_token, '1', null, params, headers);
@@ -65,7 +75,8 @@ export function createMcpServer() {
       description: t.description,
       inputSchema: t.inputSchema,
     }, async (params, extra) => {
-      const headers = extra?.headers || {};
+      // 头来源同上：extra.requestInfo.headers（勿退回 extra.headers，见读工具处注释）
+      const headers = extra?.requestInfo?.headers || extra?.headers || {};
       if (params?.confirm_token) {
         const r = await mcpConfirmPhase2(params.confirm_token, '1', null, params, headers);
         return { content: [{ type: 'text', text: JSON.stringify(r) }] };
@@ -102,11 +113,31 @@ export async function startMcpStdio() {
 // 注意：McpServer 与 transport 为 1:1 绑定（SDK 限制一次 connect 一个 transport），
 // 故每个会话必须新建独立 McpServer 实例（createMcpServer 无副作用可重复调用），不能函数级单例复用——否则第二个会话 connect 抛
 // "Already connected to a transport"（实测崩溃根因，见 2026-08-26 14:26 修复）。
-export async function startMcpHttp(port = MCP_CONFIG.transport.streamableHttp.port) {
+export async function startMcpHttp(port = Number(process.env.MCP_PORT) || MCP_CONFIG.transport.streamableHttp.port) {
   const app = express();
   app.use(express.json());
+  // OAuth 端点按 RFC 6749 §4.1.3 / §4.2.2 一律用 application/x-www-form-urlencoded 提交
+  // （/oauth/token 与 /oauth/authorize 的 POST）。缺此中间件时生产上 req.body 为空 →
+  // 每个真实客户端都会拿到 invalid_request，而单测因显式挂了 urlencoded 而全绿（典型假绿）。
+  app.use(express.urlencoded({ extended: false }));
 
   const transports = new Map(); // sessionId → { transport, server }（StreamableHTTP 会话级，1:1）
+
+  // ① MCP OAuth 授权服务器（发现链 + DCR + authorize + token）
+  //    挂载在 /mcp 路由之前：两者路径不重叠（/.well-known/*、/oauth/* vs /mcp），
+  //    但顺序固定可避免将来把 OAuth 端点挪到 /mcp 前缀下时被闸拦截。
+  //    设计：docs/2026-09-15-mcp-oauth-design.md §2 / §7.2
+  if (MCP_CONFIG.oauth?.enabled !== false) {
+    app.use(createOAuthRouter(buildOAuthDeps()));
+  }
+
+  // ② /mcp HTTP 层鉴权闸：无有效凭据 → 401 + WWW-Authenticate: Bearer resource_metadata=…
+  //    这是触发客户端 OAuth 发现链的唯一开关（gateway 的 requireAuth 在 tool-call 层，
+  //    只返回 HTTP 200 + {gate:'auth_required'}，客户端不会据此重新授权）。
+  //    oauth.enabled=false 时不挂闸 → 回滚到旧行为（工具层 requireAuth 仍在，安全性不塌）。
+  if (MCP_CONFIG.oauth?.enabled !== false) {
+    app.use(MCP_CONFIG.transport.streamableHttp.path, createMcpAuthGate());
+  }
 
   app.post(MCP_CONFIG.transport.streamableHttp.path, async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
@@ -147,6 +178,9 @@ export async function startMcpHttp(port = MCP_CONFIG.transport.streamableHttp.po
 
   const httpServer = app.listen(port, () => {
     console.log(`[mcp] StreamableHTTP 就绪: http://127.0.0.1:${port}${MCP_CONFIG.transport.streamableHttp.path}`);
+    if (MCP_CONFIG.oauth?.enabled !== false) {
+      console.log(`[mcp] OAuth 授权服务器就绪: /.well-known/oauth-*, /oauth/register|authorize|token`);
+    }
   });
   return { httpServer, transports };
 }
