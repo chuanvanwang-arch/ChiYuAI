@@ -160,8 +160,13 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
   //   设计取舍：mint 放在 gateway（仅 MCP 通道）而非 executor——executor 第 0 闸维持
   //   「无 decision_id 且非 bootstrap → 拒绝」原语义不变（test/action.test.js:125、
   //   decision-gate.test.js:11 锚定），避免通用 substrate 写入口被放宽后波及 REST/UI/seed 全链路。
-  //   未声明 decisionScenario 的写 Action（如 crm-deal-advance / crm-asset-attach）行为完全不变。
+  //   未声明 decisionScenario 的写 Action（如 crm-asset-attach）行为不变；**例外**见下方 deferDecisionMint。
   const def = getAction(actionName);
+  // 业务提问（2026-09-02 用户指示）：第 0 闸阻断路径与 deferDecisionMint 旁路路径共用——
+  //   客户端在确认前向用户复述本次操作意图（推进类按 to_stage 动态生成，不写死阶段别名）。
+  const actionQuestion = actionName === 'crm-deal-advance'
+    ? buildAdvanceQuestion(params?.to_stage)
+    : '该写入需要决策依据。是否确认发起该业务动作并由您拍板？确认后将生成决策凭证（decision_id）并完成写入。';
   if (!params?.decision_id && def?.decisionScenario) {
     try {
       const d = await requireDecision(
@@ -187,7 +192,13 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
       });
     }
   }
-  if (!params?.decision_id) {
+  // 2026-09-11 方案 H（用户拍板）：handler 内自 mint 的写 Action 声明 deferDecisionMint → 旁路本闸。
+  //   动机（E2E 实证 P0）：autoDecision 但**未**声明 decisionScenario 的动作在 MCP 通道被此处永久
+  //   拦死——工具面 63 个里没有任何「生成决策」工具，客户端无路径补 decision_id ⇒ 暴露但不可调用。
+  //   语义零漂移：mint 仍由 handler 在 phase2 执行前完成（携带 executor 无法复现的 disposition/entities），
+  //   故 phase1 既不代 mint（防双 mint）也不要求 decision_id，直接签发 confirm_token；
+  //   第 0 闸在 phase2（handler mint 之后）仍被满足，未放松任何写入门槛。
+  if (!params?.decision_id && !def?.deferDecisionMint) {
     emit('trace', 'mcp-write-blocked-no-decision', { action: actionName });
     // 2026-09-02 用户指示：第0闸提示从「技术语言（携带 decision_id）」改为「业务提问（推进决策）」
     // 设计落点：推进商机（crm-deal-advance）为 autoDecision Action——引擎（或升级人工）自动 mint 决策，
@@ -209,9 +220,7 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
       gate: 'decision_required',
       code: 'DECISION_NEEDED',
       // action 为商机推进类（autoDecision）→ 直接问推进；其余写 → 问是否发起对应决策
-      question: actionName === 'crm-deal-advance'
-        ? buildAdvanceQuestion(params?.to_stage)
-        : `该写入需要决策依据。是否确认发起该业务动作并由您拍板？确认后将生成决策凭证（decision_id）并完成写入。`,
+      question: actionQuestion,
       error: '第0闸: 该写操作缺少决策依据（decision_id），需用户决策后放行。',
     };
   }
@@ -229,7 +238,9 @@ export async function mcpWritePhase1(actionName, params = {}, headers = {}) {
     const a = await advise({ utterance: utteranceText, ctx: { tenantId: ctx.tenantId }, deal: null, stage: params?.stage || params?.to_stage || null });
     advice = a.advice;
   } catch { advice = null; }
-  return { ok: true, confirm_token, ...extra, advice, form: { ...buildConfirmForm(actionName, def, ctx, params, intent.focus_domain), degraded: ctx.degraded } };
+  // deferDecisionMint 路径：附加业务提问（决策将由 handler 在 phase2 mint），供确认前复述意图。
+  const deferred = (def?.deferDecisionMint && !params?.decision_id) ? { question: actionQuestion } : {};
+  return { ok: true, confirm_token, ...deferred, ...extra, advice, form: { ...buildConfirmForm(actionName, def, ctx, params, intent.focus_domain), degraded: ctx.degraded } };
 }
 
 // 敏感读 phase1：无决策闸，仅 confirm（读不写）；降级同样软提示
@@ -289,6 +300,9 @@ export async function mcpConfirmPhase2(confirmToken, choice = '1', switchedRole 
   }
   const ctx = await buildMcpCtx({ token: extractToken(params, headers), channel: 'mcp', decisionId: session.params?.decision_id });
   ctx.role = role; // 应用切换后的角色
+  // 两阶段 confirm_token 即人类显式审批（MCP 通道的 HITL）：phase2 持 token 执行时，
+  // 视为审批流已通过（对齐 connectorRouter.js 显式 approvalPassed:true 的语义），放行 executor 第3闸。
+  ctx.approvalPassed = true;
   if (added.length) emit('trace', 'mcp-confirm-params-augmented', { action: session.action, added, actor: session.actor });
   const r = await actionExecutor.dispatch(session.action, execParams, ctx);
   emit('trace', 'mcp-confirm-executed', { action: session.action, ok: r.ok, role });

@@ -9,9 +9,13 @@ import { buildMcpTools } from './tools.js';
 import { mcpReadDirect, mcpWritePhase1, mcpReadSensitivePhase1, mcpConfirmPhase2 } from './gateway.js';
 import { mcpLogin } from './auth.js';
 import { MCP_CONFIG } from './config.js';
+// 外部数据源适配器自注册（registerProvider）；MCP 通道此前漏调 → REGISTRY 恒空 →
+// 拓客/富集静默零产出（无报错、测试仍绿，最隐蔽死接线）。此处显式注册（幂等，覆盖 stdio+http 两入口）。
+import { registerBuiltinAdapters } from '../connectors/discovery/builtinAdapters.js';
 
 // 建 MCP Server：注册全部读工具（直连）+ 2 个写阶段工具（两阶段协议）
 export function createMcpServer() {
+  registerBuiltinAdapters(); // 确保 discovery 适配器注册表已填充（否则 MCP 通道下数据源静默失效）；幂等，覆盖 stdio+http 两入口
   const server = new McpServer({
     name: MCP_CONFIG.server.name,
     version: MCP_CONFIG.server.version,
