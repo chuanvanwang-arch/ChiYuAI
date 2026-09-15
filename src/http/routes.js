@@ -25,7 +25,7 @@ import { GATE_SCENARIOS, getGateMetrics, getSevenDimCoverage, getDecisionList, g
 // 决策网络视图 API（C2/C4：因果链 / 影响地图 / 审计导出；与既有 /api/monitor/* 并列）
 import { traceDecision, getImpact } from '../decision/decisionTrace.js';
 import { exportAudit, exportTurtle } from '../decision/provenance.js';
-import { toStageCode, isOpenStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）
+import { toStageCode, isOpenStage, isPoolStage, normalizeDealStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）+ 公海排除/归一（2026-09-11 T9）
 import { writeOutcome, listOutcomes } from '../decision/outcome.js';
 import { setDecisionFeedback } from '../decision/feedback.js';
 import { traceRootCause } from '../decision/traceRootCause.js';
@@ -54,7 +54,7 @@ import { buildReasoningSteps } from '../page/reasoningSteps.js';
 // 粒子属性元模型读直连（G1 T6：/api/meta-attr 桥接；写走 data-particle-attr-update 第 0 闸）
 import { listMetaAttr } from '../metaAttr/metaAttrRepo.js';
 // 配置中心通用端点（S16–S33：configRouter 写经第0闸 + 七维拦截）
-import { createConfigRouter } from './configRouter.js';
+import { createConfigRouter, createIntegrationSecretRouter, createIntegrationProviderRouter } from './configRouter.js';
 // §15 权限重分组：配置中心注册表闸（CONFIG_ITEMS.level → 端点级 ADMIN/三角色，先于各路由第0闸）
 import { createConfigLevelGate } from './middleware/rbac.js';
 import { CONFIG_ITEMS } from '../portal/configCenter.js';
@@ -88,13 +88,14 @@ import { createMcpIdentityRouter } from '../portal/mcpIdentity.js';
 import { createBusinessBoardRouter } from '../portal/businessBoard.js';
 import { createConnectorRouter } from './connectorRouter.js';
 import { createBillingRouter } from './billingRoutes.js';
+import { createDiscoveryRouter } from './discoveryRoutes.js'; // T13：线索发现只读候选池端点
 import { createAgentConfigRouter } from '../portal/agentConfig.js';
 import { createSkillRegistryRouter } from '../portal/skillRegistry.js';
 // 受控配置页工厂（S17/S19/S23/S24…：schema + SQL + 列映射 → /api/page/<id>，renderPage 唯一出口）
 import { createControlledPagesRouter } from './controlledConfigPages.js';
 // 阶段3 业务读直连（T3 池/报价/合同/发票/订单管理端点；业务数据=粒子 payload，读直连默认通道）
 import { query, queryWrite, pool } from '../db.js';
-import { getPoolConfig, setPoolConfig } from '../sales/pool.js';
+import { getPoolConfig, setPoolConfig, readPoolConfig, writePoolConfig } from '../sales/pool.js';
 // S13 目标指标（named-account-targets）：account-360/named-accounts 消费的达标判定纯函数
 import { visitTargetFor, mergedTargets, metricDimensions } from '../sales/namedAccountTargets.js';
 // S13 指名客户监测看板聚合（owner 过滤 + 四维 + 达标缺口；纯函数，见 namedAccountBoard.js）
@@ -194,6 +195,8 @@ export function createRoutes(app, hub) {
   app.use(createFinanceReceivablesConfigRouter());
   // 平台级计费域（多租户 Token/账号计费 + 缴费 + 对账 + 导出；档位/权益来自 config_store['billing-plans']）
   app.use(createBillingRouter());
+  // T13：线索发现只读候选池端点（GET /api/discovery/candidates；租户隔离，零写零删；评分重校准走 HITL）
+  app.use(createDiscoveryRouter());
   // S13：指名客户目标指标配置后台化（config_store['named-account-targets'] + sysadmin 闸 + 决策第0闸）
   app.use(createNamedAccountTargetsRouter());
   app.use(createNamedAccountAssignRouter());
@@ -240,6 +243,10 @@ export function createRoutes(app, hub) {
   app.use(createConfigRouter({ key: 'discovery-rules', role: 'sysadmin', decisionScene: 'config-change' }));
   app.get('/discovery-rules.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/discovery-rules.html', import.meta.url))));
+  // 外部数据接入：加密凭据写端点（T13，仅 ADMIN/sysadmin；明文不落库）
+  app.use(createIntegrationSecretRouter());
+  // 外部数据接入：租户自有实例声明 CRUD（2026-09-14 补充，仅 ADMIN/sysadmin；禁物理删除→enabled 软停用）
+  app.use(createIntegrationProviderRouter());
   app.use(createFunnelRouter());
   // ─── S05 财务应收聚合端点（T1）───
   // 合同维：应收余额=Σplan−Σpaid；逾期天数=plan_end−today(plan_status≠done)；账龄读 config_store aging_buckets；发票对账状态
@@ -326,6 +333,9 @@ export function createRoutes(app, hub) {
   // 多租户计费看板页（T6）：全员可见；租户隔离在 API 层（applyTenantOverride/scopeTenant）强制本租户
   app.get('/billing.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/billing.html', import.meta.url))));
+  // T13：线索发现工作台页（前台只读面；候选池经 /api/discovery/candidates，数据由 API 层租户隔离）
+  app.get('/discovery.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/discovery.html', import.meta.url))));
   // 平台计费控制台（租户订阅计划 T5）：admin/sysadmin 管理面（页面 JS guard + API isPrivileged 双保险）
   // no-store：禁用浏览器启发式缓存，避免 admin 改完前端后旧 HTML 仍被缓存（2026-09-10 修复）
   app.get('/admin-billing-console.html', (req, res) => {
@@ -353,6 +363,9 @@ export function createRoutes(app, hub) {
   // 夜间批量复盘配置页（配置中心 id43 / R3 登记；阈值经 /api/config/decision-retro 读写，写经决策第0闸+sysadmin）
   app.get('/nightly-retro-config.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/nightly-retro-config.html', import.meta.url))));
+  // 公海池明细页（T5）：S0 待领取线索列表 + 认领闭环；页面 JS 负责拉 /api/lead-pool 与 /api/lead-pool/:id/pick
+  app.get('/lead-pool.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/lead-pool.html', import.meta.url))));
   // 租户管理页（T8：crm.tenants 列表含创建者列 + 按创建者筛选；经 /api/tenants?createdBy= 读写，角色闸在 tenantRouter.js）
   app.get('/tenant-management.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/tenant-management.html', import.meta.url))));
@@ -761,14 +774,20 @@ export function createRoutes(app, hub) {
   app.post('/api/auth/activate', handleActivate);
   app.post('/api/auth/resend-code', handleResend);
 
-  // ─── 阶段3 池配置（T3-12：池规则读写，不重启生效；getPoolConfig 幂等补默认）───
+  // ─── 阶段3 池配置（T3-12：池规则读写，不重启生效）───
   // 2026-09-05 G4：读按 scopeTenant(me)（admin '*' → system 视界），写按 scopeOf(me)（永不通配，admin 写自身租户）
+  // 2026-09-11 T5：真源迁 crm.config_store['lead-pool-config']（三类池 new/nurture/lost，per-tenant）。
+  //   读：config（新形态）+ legacy（旧组织粒子，兼容读）+ seeded（是否克隆自平台模板）。
+  //   写：pools 数组按池 id 合并（字段经 validatePoolPatch 白名单+边界校验，防写引擎不认的键）；
+  //       patch 旧形态保留（向后兼容既有调用方）。
   app.get('/api/pool-config', async (req, res) => {
     try {
       const me = resolveMe(req);
       const { orgId = 'org-hq' } = req.query;
       const tenantId = scopeTenant(me && me.ok ? me : null);
-      res.json({ orgId, config: await getPoolConfig(orgId, { tenantId }), tenantId });
+      const config = await readPoolConfig({ tenantId });
+      const legacy = await getPoolConfig(orgId, { tenantId }).catch(() => null);
+      res.json({ orgId, tenantId, config, legacy, seeded: Boolean(config._seeded) });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -776,11 +795,134 @@ export function createRoutes(app, hub) {
   app.put('/api/pool-config', async (req, res) => {
     try {
       const me = resolveMe(req);
-      const { orgId = 'org-hq', patch } = req.body || {};
-      if (!patch || typeof patch !== 'object') return res.status(400).json({ error: 'patch 必填对象' });
+      const { orgId = 'org-hq', patch, pools } = req.body || {};
       const tenantId = scopeOf(me && me.ok ? me : null);
+      if (Array.isArray(pools)) {
+        const { validatePoolPatch } = await import('../portal/poolConfigRender.js');
+        const cfg = await readPoolConfig({ tenantId });
+        const nextPools = cfg.pools.map((p) => {
+          const hit = pools.find((x) => x.id === p.id);
+          if (!hit) return p;
+          const pr = validatePoolPatch(hit.pick_rule || {});
+          const rr = validatePoolPatch({ recycle_days: hit.recycle_rule?.recycle_days });
+          if (!pr.ok || !rr.ok) throw new Error([...pr.errors, ...rr.errors].join('; '));
+          return { ...p, pick_rule: { ...p.pick_rule, ...pr.normalized }, recycle_rule: { ...p.recycle_rule, ...rr.normalized } };
+        });
+        const config = await writePoolConfig({ tenantId, patch: { pools: nextPools }, updatedBy: (me && me.actor) || 'system' });
+        return res.json({ orgId, tenantId, config, updated: true });
+      }
+      if (!patch || typeof patch !== 'object') return res.status(400).json({ error: 'patch 或 pools 必填' });
       const config = await setPoolConfig(orgId, patch, { tenantId });
       res.json({ orgId, config, updated: true, tenantId });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // ─── T1 公海池明细查询（销售查看公海 S0 待领取线索 + 认领入口数据）───
+  // 仅返回本租户 stage='S0'（公海、无主）的 CRM_DEAL；按入池时间倒序（pooled_at 优先，退化 created_at）。
+  // 读端经 scopeTenant(me)（alice=system 租户 → 仅见 system 租户 S0）；写端 pick 才是 fail-closed（P1-1 残余，见下）。
+  app.get('/api/lead-pool', async (req, res) => {
+    try {
+      const me = resolveMe(req);
+      if (!me?.ok) return res.status(401).json({ error: '未登录' });
+      const tenantId = scopeTenant(me);
+      const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500); // 默认 100（设计 §3.1：截断提示防假绿）
+      // 总数（不受 limit 影响，杜绝假绿）
+      const totalRes = await query(
+        `SELECT count(*)::int AS n FROM crm.particles WHERE tenant_id=$1 AND type='CRM_DEAL' AND payload->>'stage'='S0'`,
+        [tenantId]
+      );
+      const total = totalRes.rows[0]?.n || 0;
+      const r = await query(
+        `SELECT id, title, payload, created_at FROM crm.particles
+         WHERE tenant_id = $1 AND type = 'CRM_DEAL' AND payload->>'stage' = 'S0'
+         ORDER BY coalesce(NULLIF(payload->>'pooled_at','')::timestamptz, created_at) DESC
+         LIMIT $2`,
+        [tenantId, limit]
+      );
+      const now = Date.now();
+      const items = r.rows.map((row) => {
+        const p = row.payload || {};
+        // in_pool_days 兜底链：pooled_at → returned_at → created_at（设计 §6，恒为数字，杜绝假绿）
+        const anchor = p.pooled_at || p.returned_at || (row.created_at ? String(row.created_at) : null);
+        let inPoolDays = 0;
+        if (anchor) {
+          const t = new Date(anchor).getTime();
+          if (!Number.isNaN(t)) inPoolDays = Math.max(0, Math.floor((now - t) / 86400000));
+        }
+        // P0-1c（2026-09-15）：信号新鲜度——取 payload.signals（发现侧数组，元素 {type,provider,ts}）
+        //   各 ts 的最小年龄 → 分档 hot(≤7d)/warm(≤30d)/stale(>30d)；无信号 → unknown。
+        //   阈值与 signalFreshness.DEFAULT_AGE_TIERS 同源（7/30）；配置化衰减详见评分侧（P0-1b）。
+        let freshness = 'unknown';
+        const sigs = Array.isArray(p.signals) ? p.signals : [];
+        const sigAges = sigs
+          .map((s) => (s && s.ts ? new Date(s.ts).getTime() : NaN))
+          .filter((t) => !Number.isNaN(t))
+          .map((t) => Math.max(0, Math.floor((now - t) / 86400000)));
+        if (sigAges.length) {
+          const minAge = Math.min(...sigAges);
+          freshness = minAge <= 7 ? 'hot' : (minAge <= 30 ? 'warm' : 'stale');
+        }
+        return {
+          id: row.id,
+          name: p.name || row.title || '',
+          source: p.source || p.source_type || null,
+          pool_type: p.pool_type || null,
+          amount: (p.amount ?? p.expected_amount ?? null),
+          owner_id: p.owner_id || null,
+          pooled_at: p.pooled_at || null,
+          in_pool_days: inPoolDays,
+          freshness,
+        };
+      });
+      // 池规则（按租户读 config_store，缺省回退三池默认）
+      let rules = { daily_limit: 10, pick_interval_hours: 24, new_data_only: false, prev_owner_only: false };
+      try {
+        const cfg = await readPoolConfig({ tenantId });
+        const pn = (cfg.pools || []).find((x) => x.id === 'pool-new') || cfg.pools?.[0] || {};
+        const pr = pn?.pick_rule || {};
+        rules = {
+          daily_limit: typeof pr.daily_limit === 'number' ? pr.daily_limit : 10,
+          pick_interval_hours: pr.pick_interval_hours ?? 24,
+          new_data_only: !!pr.new_data_only,
+          prev_owner_only: !!pr.prev_owner_only,
+        };
+      } catch { /* 用默认规则 */ }
+      // 我的今日认领数（复用 crm-lead-pick 同一套 agg 口径：当日 FILTER + picked_at，date_trunc('day')）
+      let myPickToday = 0;
+      const who = me.username || me.display_name || null;
+      if (who) {
+        const agg = await query(
+          `SELECT count(*) FILTER (WHERE NULLIF(payload->>'picked_at','')::timestamptz >= date_trunc('day', now()))::int AS n
+           FROM crm.particles
+           WHERE type='CRM_DEAL' AND tenant_id=$2 AND payload->>'stage'='S0P' AND payload->>'owner_id'=$1`,
+          [who, tenantId]
+        ).catch(() => ({ rows: [{ n: 0 }] }));
+        myPickToday = agg.rows[0]?.n || 0;
+      }
+      res.json({
+        items, returned: items.length, total, truncated: items.length >= limit,
+        rules, my_pick_today: myPickToday, my_can_pick: myPickToday < rules.daily_limit,
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ─── T2 公海池认领（复用 crm-lead-pick；POST 写端 fail-closed，P1-1 残余）───
+  app.post('/api/lead-pool/:id/pick', async (req, res) => {
+    try {
+      const me = resolveMe(req);
+      if (!me?.ok) return res.status(401).json({ error: '未登录' });
+      // 缺真实租户（或 platform/system 视界）→ 无法确定套餐权益（需 core_crm），fail-closed 拒绝
+      if (!me.tenantId || me.tenantId === 'system') return res.status(400).json({ ok: false, gate: 'plan_entitlement_missing_tenant', error: '执行上下文缺租户（或 platform/system 视界），无法确定套餐权益（需 core_crm）' });
+      const owner_id = me.username || me.display_name || 'user';
+      const r = await actionExecutor.dispatch('crm-lead-pick',
+        { deal_id: req.params.id, owner_id },
+        { actor: owner_id, role: me.role, tenantId: me.tenantId ?? null, decision_id: null });
+      if (!r.ok) return res.status(400).json({ ok: false, gate: r.gate, error: r.error });
+      res.json({ ok: true, ...r });
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
@@ -923,7 +1065,7 @@ export function createRoutes(app, hub) {
       const grouped = {};
       for (const p of items) (grouped[p.type] ||= []).push(p);
       const deals = grouped.CRM_DEAL || [];
-      const leadCount = deals.filter(d => (d.payload?.stage || d.state) === 'lead').length;
+      const leadCount = deals.filter(d => normalizeDealStage(d) === 'S0').length; // T9：公海=stage S0（原 'lead'）
       const oppCount = deals.length - leadCount;
       const data = {
         components: {
@@ -939,7 +1081,7 @@ export function createRoutes(app, hub) {
             rows: (focus
               ? deals.filter(d => (d.payload?.stage || d.state) === focus)
               : deals
-            ).map(d => ({ stage: d.payload?.stage || d.state || 'lead', name: d.payload?.name || d.title || '商机', amount: d.payload?.expected_amount ?? d.payload?.amount ?? '' })),
+            ).map(d => ({ stage: normalizeDealStage(d) || 'S0', name: d.payload?.name || d.title || '商机', amount: d.payload?.expected_amount ?? d.payload?.amount ?? '' })),
           },
         },
       };
@@ -1072,7 +1214,7 @@ export function createRoutes(app, hub) {
       for (const p of items) (grouped[p.type] ||= []).push(p);
       const board = { grouped, total: items.length };
       const deals = grouped.CRM_DEAL || [];
-      const stageOf = (p) => p.payload?.stage || 'lead';
+      const stageOf = (p) => normalizeDealStage(p) || 'S0';
       const dealRows = deals.map(p => ({
         name: p.payload?.name || p.title || p.id || '商机',
         stage: stageOf(p),
@@ -1227,7 +1369,7 @@ export function createRoutes(app, hub) {
         .map(d => ({
           id: d.id,
           name: d.payload?.name || d.title || '商机',
-          stage: d.payload?.stage || 'lead',
+          stage: normalizeDealStage(d) || 'S0',
           probability: d.payload?.probability ?? '',
           amount: d.payload?.expected_amount ?? d.payload?.amount ?? '',
           owner: d.payload?.owner ?? '',
@@ -1646,6 +1788,10 @@ export function createRoutes(app, hub) {
       //   判定统一走 stageTaxonomy.isOpenStage（单一事实源），脏值/缺失 fail-open 计入。
       for (const d of (grouped.CRM_DEAL || [])) {
         const raw = d.payload?.stage;
+        // 2026-09-11 T9（P0）：公海 S0 无人跟进，不得进任何人的待办。
+        //   必须显式排除：isOpenStage('S0')===true（S0 非终态 → fail-open 计入），
+        //   否则全部公海线索会灌入待办列表。
+        if (isPoolStage(raw)) continue;
         if (!isOpenStage(raw)) continue;
         const st = toStageCode(raw) || raw || 'S1';
         todos.push({

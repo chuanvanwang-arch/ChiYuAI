@@ -24,6 +24,9 @@ export const DEFAULT_DISCOVERY_RULES = Object.freeze({
     { id: 'zhizao',       kind: 'biz-verify',        scope: 'system-candidate', costTier: 1, enabled: false },
     { id: 'clearbit',     kind: 'firmographics',     scope: 'paid',             costTier: 3, enabled: false },
     { id: 'linkedin',     kind: 'social',            scope: 'paid',             costTier: 3, enabled: false },
+    { id: 'qixin',        kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: false },
+    { id: 'anysite',      kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: false },
+    { id: 'xinbang',      kind: 'social',            scope: 'paid',             costTier: 2, enabled: false },
   ],
   signals: {
     funding_round:     { weight: 0.9 },
@@ -32,7 +35,23 @@ export const DEFAULT_DISCOVERY_RULES = Object.freeze({
     leadership_change: { weight: 0.5 },
     tech_adopt:        { weight: 0.6 },
     website_redesign:  { weight: 0.3 },
+    social_content:    { weight: 0.4 },
   },
+  // P0-1c（2026-09-15）：信号时间字段映射 + 衰减档（设计 docs/2026-09-15-anysite-borrowing-analysis.md §3）。
+  // 发现侧信号在 discoverySchema/buildDiscoveryPayload 里以 provider 类型命名（funding_round/hiring_icp_role/tender_match/social_content），
+  // 时间戳沿 discoveryOrchestrator.js:90 signals.map 透传——此处给出「信号类型 → ts 字段」映射与衰减档（缺省不衰减，向后兼容）
+  signal_time_fields: {
+    funding_round:   'funding_ts',
+    hiring_icp_role: 'hiring_ts',
+    tender_match:    'tender_ts',
+    social_content:  'social_ts',
+  },
+  signal_age_tiers: [
+    { max_days: 7,  multiplier: 1.0 },
+    { max_days: 30, multiplier: 0.6 },
+    { max_days: 90, multiplier: 0.3 },
+    { max_days: null, multiplier: 0.1 },
+  ],
   // 查重条件（配置驱动列组；对齐 Twenty flatObjectMetadata.duplicateCriteria，禁硬编码匹配键）
   duplicate_criteria: {
     CRM_ACCOUNT: [['external_id'], ['domain'], ['linkedin_url'], ['name']],

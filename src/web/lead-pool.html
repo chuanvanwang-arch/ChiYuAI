@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>公海池 · 待领取线索</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+ *{box-sizing:border-box}body{margin:0;font-family:system-ui,"PingFang SC",sans-serif;background:var(--bg);color:var(--ink)}
+ .wrap{max-width:1080px;margin:0 auto;padding:20px 20px 40px}
+ h2{font-size:18px;margin:6px 0 4px}
+ .sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+ .tabs{display:flex;gap:8px;margin:2px 0 16px;border-bottom:1px solid var(--line)}
+ .tabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--mut);padding:9px 16px;cursor:pointer;font-size:14px}
+ .tabs button.active{color:var(--ink);border-bottom-color:var(--ac);font-weight:600}
+ .panel{display:none}
+ .panel.active{display:block}
+ .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+ .toolbar input,.toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--panel);color:var(--ink)}
+ .btn-primary{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer}
+ .btn-ghost{background:transparent;color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer}
+ .quota{margin-left:auto;font-size:12px;color:var(--mut)}
+ table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+ th,td{padding:11px 14px;text-align:left;font-size:13px;border-bottom:1px solid var(--line)}
+ th{background:var(--panel2,var(--panel));color:var(--mut);font-weight:600;font-size:12px}
+ tr:last-child td{border-bottom:0}
+ .pool-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--ac-soft,#eef);color:var(--ac)}
+ .fr-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px}
+ .fr-hot{background:#e8f7ee;color:#1a7f4b}
+ .fr-warm{background:#fff6e5;color:#b8860b}
+ .fr-stale{background:#f1f1f3;color:#8a8a93}
+ .pick{background:var(--ac);color:#fff;border:0;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer}
+ .empty{padding:40px;text-align:center;color:var(--mut);font-size:14px}
+ .empty a{color:var(--ac)}
+ .trunc{padding:10px 14px;font-size:12px;color:#b45309;background:#fff7ed;border-top:1px solid var(--line)}
+ .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+ .toast.show{opacity:.95}
+</style>
+</head>
+<body>
+<div id="layout"></div>
+<div class="wrap">
+  <h2>公海池 · 待领取线索</h2>
+  <div class="tabs">
+    <button class="active" data-panel="panel-pool">公海池</button>
+    <button data-panel="panel-prospecting">主动拓客</button>
+  </div>
+
+  <!-- 面板一：公海池明细 + 认领 -->
+  <div class="panel active" id="panel-pool">
+    <div class="sub">公海（S0）为无主待领取线索，认领后进入私海待校验，需经 BANT 校验升为正式线索（S1）。</div>
+    <div class="toolbar">
+      <select id="fPool">
+        <option value="">全部池</option>
+        <option value="new">新线索池</option>
+        <option value="nurture">培育池</option>
+        <option value="lost">战败池</option>
+      </select>
+      <input id="fKw" placeholder="搜索线索名称 / 来源…" style="min-width:220px">
+      <button class="btn-ghost" id="btnRefresh">刷新</button>
+      <span class="quota" id="quota"></span>
+    </div>
+    <table id="tbl">
+      <thead><tr><th>线索</th><th>来源</th><th>池类型</th><th>入池天数</th><th>预计金额</th><th style="text-align:right">操作</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>公海暂无待领取线索。可在 <a href="/pool-config.html">线索池配置</a> 调整领取与回收规则。</div>
+    <div class="trunc" id="trunc" hidden>结果较多，仅显示前 200 条；可用筛选缩小范围。</div>
+  </div>
+
+  <!-- 面板二：主动拓客（MCP 对话驱动搜→选→入池） -->
+  <div class="panel" id="panel-prospecting">
+    <div class="sub">MCP 对话驱动的主动拓客：按 ICP 批量搜索候选企业 → 圈选 → 确认一键进入公海池（S0），写操作走决策第 0 闸 + 两阶段审核。付费数据源需在 <a href="/discovery-rules.html">线索发现规则</a> 配置凭据，未配置时返回空为预期 fail-open。</div>
+    <div class="toolbar">
+      <input id="ppIndustry" placeholder="行业（逗号分隔，如 healthcare,manufacturing）" style="min-width:240px">
+      <input id="ppHeadcount" type="number" placeholder="最小员工数" style="width:110px">
+      <input id="ppRevenue" type="number" placeholder="最小营收(元)" style="width:130px">
+      <input id="ppGeo" placeholder="地域（如 CN）" style="width:90px">
+      <button class="btn-primary" id="ppSearch">搜索候选</button>
+    </div>
+    <table id="ppTbl">
+      <thead><tr><th style="width:38px">选</th><th>企业</th><th>行业</th><th>营收</th><th>信号</th><th>适配度</th></tr></thead>
+      <tbody id="ppBody"></tbody>
+    </table>
+    <div class="empty" id="ppEmpty" hidden>暂无候选。请调整 ICP 条件后重试（付费数据源需配置凭据，未配置时返回空为预期 fail-open）。</div>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="btn-primary" id="ppConfirm">确认入池（选中）</button>
+      <span id="ppStatus" class="sub"></span>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+injectLayout();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const $ = id => document.getElementById(id);
+function showToast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
+
+// —— Tab 切换 ——
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  $(b.dataset.panel).classList.add('active');
+}));
+
+// —— 面板一：公海池明细 + 认领 ——
+let all = [];
+async function load(){
+  const token = localStorage.getItem('crm_token');
+  const res = await fetch('/api/lead-pool', { headers: token ? { Authorization:`Bearer ${token}` } : {} });
+  if(!res.ok){ showToast('加载失败：' + res.status); return; }
+  const data = await res.json().catch(()=>({ items: [] }));
+  all = Array.isArray(data.items) ? data.items : [];
+  $('trunc').hidden = !(data.truncated === true);
+  render();
+}
+function render(){
+  const pool = $('fPool').value;
+  const kw = $('fKw').value.trim().toLowerCase();
+  const freshnessRank = (f) => f==='hot' ? 0 : f==='warm' ? 1 : f==='unknown' ? 2 : 3;
+  const rows = all.filter(x =>
+    (!pool || (x.pool_type||'')===pool) &&
+    (!kw || (x.name||'').toLowerCase().includes(kw) || (x.source||'').toLowerCase().includes(kw))
+  ).sort((a,b) =>
+    freshnessRank(a.freshness) - freshnessRank(b.freshness) ||
+    (a.in_pool_days ?? 0) - (b.in_pool_days ?? 0)
+  );
+  const tb = $('rows'); tb.innerHTML = '';
+  $('empty').hidden = rows.length > 0;
+  for(const x of rows){
+    const tr = document.createElement('tr');
+    const amt = (typeof x.amount==='number' && isFinite(x.amount)) ? '¥'+x.amount.toLocaleString('zh-CN') : '—';
+    const days = (typeof x.in_pool_days==='number') ? `${x.in_pool_days} 天` : '—';
+    const fr = x.freshness || 'unknown';
+    const frBadge = fr==='hot' ? '<span class="fr-badge fr-hot">本周信号</span>'
+      : fr==='warm' ? '<span class="fr-badge fr-warm">近月信号</span>'
+      : fr==='stale' ? '<span class="fr-badge fr-stale">信号陈旧</span>' : '';
+    tr.innerHTML =
+      `<td>${esc(x.name||'(未命名线索)')}</td>`+
+      `<td>${esc(x.source||'—')}</td>`+
+      `<td><span class="pool-tag">${esc(x.pool_type||'—')}</span></td>`+
+      `<td>${frBadge}</td>`+
+      `<td>${days}</td>`+
+      `<td>${amt}</td>`+
+      `<td style="text-align:right"><button class="pick" data-id="${esc(x.id)}" data-name="${esc(x.name||'')}">认领</button></td>`;
+    tb.appendChild(tr);
+  }
+  $('quota').textContent = `共 ${rows.length} 条` + (all.length!==rows.length ? `（全池 ${all.length}）` : '');
+}
+$('fPool').addEventListener('change', render);
+$('fKw').addEventListener('input', render);
+$('btnRefresh').addEventListener('click', load);
+$('rows').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.pick'); if(!btn) return;
+  const id = btn.dataset.id, name = btn.dataset.name;
+  if(!confirm(`确认认领线索「${name}」？\n认领后进入私海待校验，需经 BANT 校验升为正式线索。`)) return;
+  btn.disabled = true;
+  const token = localStorage.getItem('crm_token');
+  const res = await fetch(`/api/lead-pool/${id}/pick`, { method:'POST', headers: token ? { Authorization:`Bearer ${token}` } : {} });
+  const data = await res.json().catch(()=>({}));
+  if(res.ok && data.ok){ showToast('认领成功，已转入私海待校验'); load(); }
+  else { showToast('认领失败：' + (data.error || data.gate || res.status)); btn.disabled = false; }
+});
+
+// —— 面板二：主动拓客 ——
+let ppSession = null, ppCands = [];
+async function ppSearch(){
+  const q = {
+    industries: $('ppIndustry').value.split(',').map(s=>s.trim()).filter(Boolean),
+    min_headcount: parseInt($('ppHeadcount').value) || undefined,
+    min_revenue: parseInt($('ppRevenue').value) || undefined,
+    geo: $('ppGeo').value.split(',').map(s=>s.trim()).filter(Boolean),
+  };
+  const token = localStorage.getItem('crm_token');
+  const res = await fetch('/api/action/prospecting-search', {
+    method:'POST',
+    headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+    body: JSON.stringify({ query: q }),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || !data.ok){ showToast('搜索失败：' + (data.error || data.gate || res.status)); return; }
+  ppSession = (data.data || data).session_id; ppCands = (data.data || data).candidates || [];
+  $('ppStatus').textContent = `命中 ${ppCands.length} 条候选`;
+  ppRender();
+}
+function ppRender(){
+  const tb = $('ppBody'); tb.innerHTML = '';
+  $('ppEmpty').hidden = ppCands.length > 0;
+  for(const c of ppCands){
+    const tr = document.createElement('tr');
+    const fit = (typeof c.fit_score === 'number') ? (c.fit_score*100).toFixed(0)+'%' : '—';
+    const sig = Object.entries(c.signals||{}).filter(([,v])=>v).map(([k])=>k).join('/') || '—';
+    const rev = c.revenue ? (c.revenue/1e8).toFixed(2)+'亿' : '—';
+    tr.innerHTML =
+      `<td><input type="checkbox" class="pp-chk" value="${esc(c.id)}"></td>`+
+      `<td>${esc(c.name||'')}</td>`+
+      `<td>${esc(c.industry||'—')}</td>`+
+      `<td>${esc(rev)}</td>`+
+      `<td>${esc(sig)}</td>`+
+      `<td>${esc(fit)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+async function ppConfirm(){
+  const ids = [...document.querySelectorAll('.pp-chk:checked')].map(c=>c.value);
+  if(!ids.length){ showToast('请先勾选候选'); return; }
+  const token = localStorage.getItem('crm_token');
+  const hd = { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) };
+  const sel = await fetch('/api/action/prospecting-select', { method:'POST', headers:hd, body:JSON.stringify({ session_id: ppSession, selected_ids: ids }) }).then(r=>r.json()).catch(()=>({ok:false}));
+  if(!sel.ok){ showToast('圈选失败：' + (sel.error || sel.gate)); return; }
+  const conf = await fetch('/api/action/prospecting-confirm', { method:'POST', headers:hd, body:JSON.stringify({ session_id: ppSession, confirmed_ids: ids }) }).then(r=>r.json()).catch(()=>({ok:false}));
+  if(conf.ok){ showToast('已确认入池，转入公海（S0）'); ppCands = []; ppRender(); $('ppStatus').textContent=''; load(); }
+  else if(conf.gate === 'approval_required'){ showToast('审批流拦截：批量入池属写操作，需经 HITL 审批（MCP 两阶段 confirm_token），请在对话中完成确认'); }
+  else { showToast('确认失败：' + (conf.error || conf.gate || '需经决策审批')); }
+}
+$('ppSearch').addEventListener('click', ppSearch);
+$('ppConfirm').addEventListener('click', ppConfirm);
+
+load();
+</script>
+</body>
+</html>
