@@ -224,6 +224,10 @@ ON CONFLICT (id) DO NOTHING;
 -- 唯一事实源：docs/specs/2026-08-25-ai-native-crm-overall-design.md §6.5 决策场景配置表（8 场景），
 -- 与 db/schema.sql crm.decision_scenario 列定义对齐；PK=(scenario_id, tenant_id)（2026-09-05 G5 复合化），
 -- ON CONFLICT (scenario_id, tenant_id) DO NOTHING 重跑安全。tenant_id 走列默认 'system'（平台模板）。
+-- ⚠ 漂移修复（2026-09-15）：本段仅 --seed 时执行，新增场景（LEAD_FIT/PROSPECTING_CONFIRM 等）曾永不到达
+--   生产库 crm_native（启动不带 --seed）→ requireDecision 抛「未知决策场景」→ MCP 写退回 DECISION_NEEDED。
+--   运行期「每次 migrate 幂等 ensure」已抽至 db/seed-decision-scenarios.sql（migrate.js 接入）。
+--   ★ 新增/修改决策场景须两处同步：本段（--seed 全量）+ db/seed-decision-scenarios.sql（运行期回灌）。
 INSERT INTO crm.decision_scenario
   (scenario_id, stage, description, trigger, methodology_ids, eval_dimensions, default_tier, autonomous_allowed) VALUES
 ('LEAD_FOLLOW_UP', '一、线索', '新线索跟不跟/升级/放弃/培育',
@@ -345,6 +349,13 @@ INSERT INTO crm.decision_scenario
  '{"cond":{"event":"created","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
  ARRAY['BANT','MEDDICC','OPP_MATRIX'],
  '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
+ 'LEAD', TRUE),
+-- PROSPECTING_CONFIRM（2026-09-14）拓客模块确认入池：批量建公海池线索（每企业一个 CRM_DEAL S0）。
+-- 与 LEAD_FIT 同档（tier=LEAD，自治可放行）；硬人工闸由 prospecting-confirm needsApproval + 第0闸两阶段承担。
+('PROSPECTING_CONFIRM', '一、线索', '拓客批量入池确认（MCP 对话驱动，S0 + source=prospecting）',
+ '{"action":["prospecting-confirm"],"connector":"prospecting"}'::jsonb,
+ ARRAY['BANT','MEDDICC'],
+ '[{"cond":"candidate_count","label":"候选数量","weight":0.5},{"cond":"fit_score_avg","label":"平均适配度","weight":0.5}]'::jsonb,
  'LEAD', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 

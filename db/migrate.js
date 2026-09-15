@@ -39,6 +39,7 @@ export const INCREMENTAL_SQL = [
   'migrate-sysadmin-write-scope.sql',    // 2026-09-06 F4（方案 C）：sysadmin 写范围收敛（data_scope.write_scope=governance）
   '2026-09-10-memory-entity-type.sql',   // 2026-09-10 客户记忆写回 C1/C2：memory_log 补 entity_type（锚点类型，与 entity_id 成对解释语义）
   'migrate-knowledge-kind-backfill.sql',  // 2026-09-10 知识 kind 枚举补齐：CRM_KNOWLEDGE 缺 payload.kind 的按形态回填 vocabulary/transition（用户裁决：先补齐存量）
+  'migration-calibration-sla.sql',        // 2026-09-14 D6 SLA 列 + 超时升级日志表 + 存量回填（幂等）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
@@ -199,6 +200,20 @@ async function main() {
     console.error('[migrate] outcome_event_map 播种失败:', e.message);
     throw e;
   }
+  // ─── 决策场景字典「每次 migrate 幂等 ensure」（2026-09-15 根治种子漂移）───
+  // 背景：决策场景曾整段写在 seed.sql，仅 --seed 时执行；而生产/本地启动只跑 `node db/migrate.js`
+  //   （无 --seed，见 docker-compose.yml:61）→ 新增场景（LEAD_FIT / PROSPECTING_CONFIRM 等）永不到达
+  //   已存在数据的库（crm_native），requireDecision 抛「未知决策场景」→ MCP 写退回 DECISION_NEEDED。
+  //   语义=初始化（ON CONFLICT (scenario_id, tenant_id) DO NOTHING 幂等）。抽为独立文件每次启动都跑，
+  //   与 seed-outcome-event-map.sql 同范式，确保新增决策场景对生产库「自动回灌、不再漂移」。
+  try {
+    const scenarioSql = readFileSync(new URL('./seed-decision-scenarios.sql', import.meta.url), 'utf8');
+    const scRes = await pool.query(scenarioSql);
+    console.log(`[migrate] 决策场景字典已确保（幂等，本次新增 ${scRes.rowCount ?? 0} 条）`);
+  } catch (e) {
+    console.error('[migrate] decision_scenario 播种失败:', e.message);
+    throw e;
+  }
   // ─── 套餐基线（2026-09-06）：**仅在缺失时**初始化播种，绝不覆盖运营配置 ───
   // 背景：此前 migrate/seed 链路完全不含 billing-plans，全新环境（生产重建 / 新库）config_store 无该键
   //   → getPlan() 回退 pricing.DEFAULT_PLAN（included_tokens=0、entitlements=[]）
@@ -240,6 +255,37 @@ async function main() {
     }
   } catch (e) {
     console.log('[migrate] 套餐基线播种跳过：', String(e.message || e).slice(0, 100));
+  }
+  // ─── 线索池三类池模板（2026-09-11 lead-public-pool-tenant Task 3）───
+  // 背景：readPoolConfig 读优先级 = config_store(租户，缺键 autoSeed) → 组织粒子旧配置 → 代码默认。
+  //   autoSeed 只在 (system,'lead-pool-config') 模板行存在时生效；模板行缺失时存量租户：
+  //   ① 读不到平台模板（配置中心改模板对存量租户不生效）；② 缺 _seeded 审计标记；
+  //   ③ 叠加 readPoolConfig 的旧配置探测（已修）曾静默退化为单池。
+  // 缺陷（T3 派发前复查 D1）：db/migration-lead-pool-config.sql 原无任何执行渠道
+  //   （不在 INCREMENTAL_SQL / migrate / pretest / seed.sql），计划 Step 3 的 `psql -f` 是一次性手工步骤、
+  //   不可复现且本机无 psql。故按 billing-plans 同款范式接入启动链路（仅缺失时初始化，绝不覆盖运营配置）。
+  // 前置：上方 migrate-tenant.js 已保证 config_store 具备 tenant_id 列 + (tenant_id,key) 复合 PK。
+  try {
+    const hasPool = await pool.query(
+      `SELECT 1 FROM crm.config_store WHERE tenant_id='system' AND key='lead-pool-config' LIMIT 1`
+    );
+    if (!hasPool.rowCount) {
+      const poolSql = readFileSync(new URL('./migration-lead-pool-config.sql', import.meta.url), 'utf8');
+      await pool.query(poolSql);
+      console.log('[migrate] 线索池三池模板基线已播种（lead-pool-config）');
+    } else {
+      console.log('[migrate] 线索池模板已存在，跳过（不覆盖现网配置）');
+    }
+  } catch (e) {
+    console.log('[migrate] 线索池模板播种跳过：', String(e.message || e).slice(0, 100));
+  }
+  // ─── T4 存量公海（S0）线索补 pooled_at（幂等回填，migrate 幂等执行）───
+  try {
+    const backfill = readFileSync(new URL('./migration-lead-pool-pooled-at.sql', import.meta.url), 'utf8');
+    await pool.query(backfill);
+    console.log('[migrate] 存量公海 S0 线索 pooled_at 回填完成');
+  } catch (e) {
+    console.log('[migrate] 存量公海 pooled_at 回填跳过：', String(e.message || e).slice(0, 100));
   }
   // ─── AGE 决策网络（C1；superuser 直启，无 DBA 阻塞）───
   if (process.argv.includes('--age')) {
