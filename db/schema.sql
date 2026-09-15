@@ -956,3 +956,55 @@ CREATE TABLE IF NOT EXISTS crm.discovery_draft (
   consumed_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS ix_crm_discovery_draft_tenant ON crm.discovery_draft(tenant_id, status, expires_at);
+
+-- ============ MCP OAuth 授权服务器（2026-09-15，docs/2026-09-15-mcp-oauth-design.md T1）============
+-- 三张表均为新增，不改动任何既有表结构（mcp_identity 列不可变——test/mcp-identity.test.js 做全列断言）。
+-- 铁律：不物理 DELETE，一律软吊销（disabled_at / consumed_at / revoked_at）。
+-- access_token 不新建表，复用 crm.mcp_identity（见 auth.js resolveIdentity，O(1) 主键定位）。
+
+CREATE TABLE IF NOT EXISTS crm.oauth_client (
+  client_id                  TEXT PRIMARY KEY,          -- DCR 生成（oauth_<32hex>）
+  client_name                TEXT,
+  redirect_uris              JSONB NOT NULL DEFAULT '[]'::jsonb,
+  grant_types                JSONB NOT NULL DEFAULT '["authorization_code","refresh_token"]'::jsonb,
+  token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+  created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at               TIMESTAMPTZ,
+  disabled_at                TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_client_active
+  ON crm.oauth_client(created_at DESC) WHERE disabled_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS crm.oauth_code (
+  code_hash             TEXT PRIMARY KEY,               -- sha256(code) hex；明文不落库
+  client_id             TEXT NOT NULL REFERENCES crm.oauth_client(client_id),
+  actor                 TEXT NOT NULL,
+  tenant_id             TEXT NOT NULL DEFAULT 'system',
+  role_tag              TEXT NOT NULL,
+  redirect_uri          TEXT NOT NULL,
+  code_challenge        TEXT NOT NULL,
+  code_challenge_method TEXT NOT NULL DEFAULT 'S256' CHECK (code_challenge_method = 'S256'),
+  scope                 TEXT NOT NULL DEFAULT 'mcp',
+  expires_at            TIMESTAMPTZ NOT NULL,
+  consumed_at           TIMESTAMPTZ,                    -- 一次性消费（CAS），绝不 DELETE
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_code_expiry ON crm.oauth_code(expires_at);
+
+CREATE TABLE IF NOT EXISTS crm.oauth_refresh (
+  token_hash   TEXT PRIMARY KEY,                        -- sha256(refresh_token) hex
+  client_id    TEXT NOT NULL REFERENCES crm.oauth_client(client_id),
+  actor        TEXT NOT NULL,
+  tenant_id    TEXT NOT NULL DEFAULT 'system',
+  role_tag     TEXT NOT NULL,
+  scope        TEXT NOT NULL DEFAULT 'mcp',
+  chain_id     UUID NOT NULL DEFAULT gen_random_uuid(), -- 轮转链；重放时整链吊销
+  rotated_to   TEXT,                                    -- 后继 token_hash（串成审计链）
+  expires_at   TIMESTAMPTZ NOT NULL,
+  used_at      TIMESTAMPTZ,                             -- 已轮转标记（非 NULL 即被使用过）
+  revoked_at   TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_refresh_chain ON crm.oauth_refresh(chain_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_refresh_active
+  ON crm.oauth_refresh(client_id, actor) WHERE revoked_at IS NULL;
