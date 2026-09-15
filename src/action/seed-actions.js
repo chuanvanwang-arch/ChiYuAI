@@ -1534,6 +1534,9 @@ export function seedActions() {
     // 2026-09-08 对话驱动决策建议（docs/plans/2026-09-08-dialog-driven-decision-advice.md T0）：
     //   方法论壳（本项，读 SKILL.md）+ 执行体 crm-decision-advise（T6 注册，产出建议卡，零写）。
     ['dialog-router', '对话坐标路由：诉求关键词×商机阶段→8 大决策场景 × S1-S8 阶段建议'],
+    // 2026-09-15 P1-1（Anysite 借鉴）：触达钩子方法论——锚点选取×24-30 词开口×来源可溯源（对齐 CitationGuard），
+    //   只读知识壳（读 skills/method-outreach-hook/SKILL.md），钩子写回由调用方经第 0 闸完成。
+    ['outreach-hook', '触达钩子：锚点选取×24-30 词开口钩子×来源可溯源（对齐 CitationGuard，fail-closed 拒出）'],
   ].forEach(([id, desc]) => registerAction({
     name: `method-${id}`, kind: 'read', permission: 'auth', requiresEntitlement: ['core_crm'],
     namespace: 'method', agentTool: true, needsApproval: false,

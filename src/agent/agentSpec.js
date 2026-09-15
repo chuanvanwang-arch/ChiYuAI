@@ -92,8 +92,9 @@ export const agentSpecs = {
     capabilities: {
       // 三处同改（装配闭包）：本 agent 的 skillCalls ⊆ actions；prospecting-* Action 在 T5 注册
       // actions 含 crm-account-360（对齐设计 §A.3：拓客候选入池前可对既有账户做画像核对）
-      actions: ['data-particle-read', 'prospecting-search', 'prospecting-select', 'prospecting-confirm', 'prospecting-lookup', 'crm-account-360'],
-      skillCalls: ['data-particle-read', 'prospecting-search', 'prospecting-select', 'prospecting-confirm', 'prospecting-lookup'],
+      // method-outreach-hook（2026-09-15 P1-1）：触达钩子方法论归 prospecting —— 获客链路"线索→钩子"同源职责
+      actions: ['data-particle-read', 'prospecting-search', 'prospecting-select', 'prospecting-confirm', 'prospecting-lookup', 'crm-account-360', 'method-outreach-hook'],
+      skillCalls: ['data-particle-read', 'prospecting-search', 'prospecting-select', 'prospecting-confirm', 'prospecting-lookup', 'method-outreach-hook'],
       knowledgeScope: { layers: ['L1'], maxHops: 2 },
     },
     context: { knowledgeLevel: 1, coverage: '>=80%', coldStart: 'adaptive' },

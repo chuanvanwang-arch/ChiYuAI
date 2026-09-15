@@ -173,6 +173,20 @@ export function seedSkills() {
           preconditions: ['steps[1].done'], postconditions: ['decision.finalized'] },
       ],
     },
+    {
+      slug: 'method-outreach-hook', version: 1,
+      description: '触达钩子方法论（锚点选取×24-30 词开口×来源可溯源）——从最新可验证信号中选锚点生成个性化触达开口（对齐 CitationGuard 纪律）',
+      rbac_roles: ['sales'],
+      steps: [
+        { step: 1, action: 'data-particle-read', decision: 'rule', params: { type: 'CRM_DEAL' }, preconditions: [], postconditions: [] },
+        { step: 2, action: null, decision: 'j_judge',
+          prompt: '基于商机画像与最新信号 {{steps[0].result}} 选取一个可溯源锚点（帖文/新闻/中标/融资）并说明选锚理由',
+          preconditions: ['steps[0].done'], postconditions: ['decision.finalized'] },
+        { step: 3, action: null, decision: 'j_judge',
+          prompt: '基于所选锚点生成 24-30 词个性化触达开口钩子，逐句标注可验证来源（不可溯源则拒出）',
+          preconditions: ['steps[1].done'], postconditions: ['decision.finalized'] },
+      ],
+    },
   ];
   for (const skill of METHOD_SKILLS) {
     registerSkill(skill);
