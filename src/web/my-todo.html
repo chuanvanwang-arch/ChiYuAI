@@ -23,6 +23,11 @@
   .pg-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--line); color: var(--mut); }
   .pg-table td { padding: 6px 8px; border-bottom: 1px solid var(--panel); }
   .pg-state { padding: 16px; text-align: center; color: var(--mut); font-size: 13px; }
+  /* D6 SLA 徽标：升级=红底白字 / 超时=红字 / 未超=琥珀字（浅色主题可读） */
+  .badge-sla { font-size: 11px; padding: 2px 6px; border-radius: 3px; }
+  .badge-sla[data-sla="escalated"] { background: #c0392b; color: #fff; }
+  .badge-sla[data-sla="overdue"] { color: #c0392b; }
+  .badge-sla[data-sla="ok"] { color: #b9770e; }
   #sse-status { font-size: 11px; color: var(--mut); margin-top: 10px; }
 </style>
   <link rel="stylesheet" href="/portal/tokens.css">
@@ -98,6 +103,30 @@ async function loadView(view) {
       card.style.display = 'none';
     }
     document.getElementById('wb-container').innerHTML = j.html || '<div class="pg-state">暂无数据</div>';
+    // D6 校准 SLA 高亮（tuning 视角）：后端渲染器输出 calibration_patch 行时携带
+    //   age_hours / sla_remaining_hours / escalated（Task C 已提供字段）；此处做 DOM 增强徽标。
+    const slaTxt = (t) => {
+      if (t.escalated) return '<span class="badge-sla" data-sla="escalated">已升级</span>';
+      if (t.sla_remaining_hours == null) return '';
+      const h = Math.round(t.sla_remaining_hours);
+      if (h < 0) return `<span class="badge-sla" data-sla="overdue">超时 ${-h}h</span>`;
+      return `<span class="badge-sla" data-sla="ok">剩 ${h}h</span>`;
+    };
+    for (const row of rows) {
+      const tr = document.querySelector(`#wb-container tr[data-id="${CSS.escape(row.patch_id || row.id || '')}"]`);
+      if (!tr) continue;
+      if (!tr.dataset.slaInjected) {
+        const cell = tr.insertCell(-1);
+        cell.innerHTML = slaTxt(row);
+        tr.dataset.slaInjected = '1';
+        const th = document.querySelector('#wb-container thead tr');
+        if (th && !th.dataset.slaTh) {
+          const hc = th.insertCell(-1);
+          hc.textContent = 'SLA';
+          th.dataset.slaTh = '1';
+        }
+      }
+    }
   } catch (e) {
     document.getElementById('wb-container').innerHTML = `<div class="pg-state" data-state="error">请求失败：${e.message}</div>`;
   }

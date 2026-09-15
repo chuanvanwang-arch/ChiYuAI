@@ -59,7 +59,9 @@
       { label: "360 视图", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 展示当前客户的 360 度视图，重点标注近期商机、风险信号与待办事项。" },
       { label: "重点客户", skill: "method-funnel-classification", targetAgent: "followup-agent", prompt: "调用 method-funnel-classification 技能，对当前负责的客户按漏斗质量分群，标出高意向与需培育对象（跟进视角）。" },
       { label: "客户拜访", skill: "method-intake-routing", targetAgent: "intake-router", prompt: "调用 method-intake-routing 技能规划客户拜访：明确拜访目标、关键决策人、待澄清痛点与现场推进动作。" },
-      { label: "客户任务线", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 梳理该客户的任务时间线，标出停滞节点与推进建议。" }
+      { label: "客户任务线", skill: "crm-account-360", targetAgent: "quote-engine", prompt: "调用 crm-account-360 梳理该客户的任务时间线，标出停滞节点与推进建议。" },
+      { label: "线索发现", skill: "discovery-run", targetAgent: "decision-agent", prompt: "调用 discovery-run 运行线索自主发现，输出候选线索池（ICP 适配分/信号/why_narrative），只读展示，不自动外联。" },
+      { label: "主动拓客", skill: "prospecting-search", targetAgent: "prospecting", prompt: "调用 prospecting-search 按当前 ICP 批量搜索候选企业；用户圈选后 select 记录，确认后 confirm 一键进入公海池（S0），写走两阶段 + 决策第 0 闸。" }
     ],
     "商机推进": [
       { label: "管道看板", skill: "crm-deal-advance", targetAgent: "quote-engine", prompt: "展示当前商机管道看板，标注各阶段数量、金额与预期关闭日期，并给出阶段推进建议。" },

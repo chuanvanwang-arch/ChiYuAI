@@ -185,7 +185,8 @@ import { get, post, put } from '/portal/api.js';
     const name = document.getElementById('ndName').value.trim();
     if (!name) { showToast('请填写商机名称'); return; }
     const token = localStorage.getItem('token');
-    const payload = { name, stage: 'lead' };
+    // 2026-09-11 T9 复查：新建直落公海 S0+pool_type=new（与 discovery/tender 写入源一致；原 'lead' 已随 T0 迁移作废）
+    const payload = { name, stage: 'S0', pool_type: 'new', pooled_at: new Date().toISOString() };
     const cid = document.getElementById('ndCustomer').value.trim();
     const oid = document.getElementById('ndOwner').value.trim();
     const amt = document.getElementById('ndAmount').value.trim();

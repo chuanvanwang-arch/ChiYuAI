@@ -35,9 +35,7 @@ import { get, post, put } from '/portal/api.js';
   window.renderAgentConfig = ac.renderAgentConfig;
   async function load(){
     try{
-      const r = await get('/api/agent-config');
-      if (!r.ok) { document.getElementById('err').textContent = `加载失败 ${r.status} ${await r.text()}`; return; }
-      const data = await r.json();
+      const data = await get('/api/agent-config');
       document.getElementById('board').innerHTML = window.renderAgentConfig(data);
     }catch(e){ document.getElementById('err').textContent='加载失败: '+e.message; }
   }

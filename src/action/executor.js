@@ -14,7 +14,8 @@ import { recordAudit } from './auditHook.js'; // 10-能力审计单点（V5：�
 import { recordTokens } from '../alerts/tokenAccounting.js'; // 09-V6 token 计量（写 Action 执行处；fail-open 不阻断）
 import { deterministicEval } from '../aiAttributes/evaluator.js'; // 门控现场复算 BANTCC 六维明细
 import { readThreshold, DEFAULT_THRESHOLDS } from '../sales/salesThresholds.js'; // 门控阈值（走配置，禁硬编码）
-import { toStageCode, S_ATTACHMENT_GATES } from '../sales/stageTaxonomy.js'; // 阶段码归一（lead→S1 等）+ 第3.5闸强制附件门禁定义
+import { toStageCode, S_ATTACHMENT_GATES, S_PRE_DEAL_STAGES } from '../sales/stageTaxonomy.js'; // 阶段码归一（lead→S1 等）+ 第3.5闸强制附件门禁定义 + 公海阶段豁免
+import { leadQualifyGap, bantMissing } from '../sales/leadQualify.js'; // S0P→S1 升级判据（与建单闸共用判定核，单一事实源）
 import { advise } from '../decision/adviseService.js'; // 对话驱动建议（2026-09-08 T7）：仅阻断路径附加，合规写零侵入
 
 export const registry = { list: listActions, get: getAction };
@@ -249,12 +250,21 @@ export const actionExecutor = {
 // 消费 side：dispatch crm-deal-advance 内联调用；hard 缺口（无需求事实/BANTCC<0.6/无方案验证）→ 拦截
 // soft 缺口（如 P4→P5 无合同签署事实）→ 仅 warnings 提示不拦截
 // 事实源：skills/method-stage-progression/methodology.json（stages[].advance_gate）
-// 阶段命名（用户规格）：S1 线索发掘→S2 需求确认→S3 方案匹配→S4 报价谈判→S5 合同确认→S6 赢单移交（S7 输单/S8 丢单 退出态）
+// 阶段命名（用户规格）：S0 公海→S0P 私海线索→S1 正式线索→S2 需求确认→S3 方案匹配→S4 报价谈判→S5 合同确认→S6 赢单移交（S7 输单/S8 丢单 退出态）
 //   门控逻辑对齐 v0.3「两关 + BANTCC」：S2→S3 复用两关闸、S3→S4 复用 BANTCC 资质闸
 //   第 3.5 闸单一事实源：src/sales/stageTaxonomy.js（S_GATE_DEFS / S_ATTACHMENT_GATES）；本处为其机器可读 check 实现
 
 // S1-S6 advance_gate 机器可读实现（与 SKILL methodology.json / stageTaxonomy.S_GATE_DEFS 逐条对齐）
 const STAGE_GATES = [
+  {
+    // S0P→S1：升级为「正式线索」的 B/A/T 硬闸（2026-09-11 设计 §3.5.2）
+    // 判据与 seed-actions.GATE_EVIDENCE.bantcc_lead 共用 src/sales/leadQualify.js（杜绝第二套副本）
+    from: 'S0P', to: 'S1', hard: true,
+    check: (p, th) => leadQualifyGap(p, {
+      pass: readThreshold(th, 'bantcc.pass'),
+      unknown: readThreshold(th, 'bantcc.unknown'),
+    }),
+  },
   {
     from: 'S1', to: 'S2', hard: true,
     check: (p, th) => {
@@ -377,19 +387,14 @@ export function salesStageGate({ curStage, toStage, dealPayload = {}, thresholds
 export function salesDealPrereq(payload = {}) {
   const raw = payload.stage || payload.state || 'S1';
   const stage = toStageCode(raw) || raw; // lead/线索别名→S1；S1 保持；未知值原样（走后续要素闸）
-  if (stage === 'S1' || raw === '线索') return { ok: true, missing: [] };
-  const b = payload.bantcc || {};
-  const aiComp = Number(payload.ai?.bantcc_completeness?.value ?? 0);
+  // 公海/私海待校验阶段豁免商机三要素闸（S0/S0P 尚未成单，不该被 B/A/T 拦）
+  // —— D2：S0/S0P 与 S1 同属「线索侧」，豁免理由一致；升级闸由 S0P→S1 阶段闸（Task 2）负责
+  if (S_PRE_DEAL_STAGES.includes(stage) || stage === 'S1' || raw === '线索') return { ok: true, missing: [] };
+  const aiComp = Number(payload.ai?.bantcc_completeness?.value ?? 0); // 保持原 .value-only 语义，不宽化
   const pass = readThreshold(DEFAULT_THRESHOLDS, 'bantcc.pass', 0.6);
-  const bOk = b.budget_ok === true || (b.budget != null && String(b.budget) !== '');
-  const aOk = b.authority_ok === true || (b.authority != null && String(b.authority) !== '');
-  const tOk = b.timetable_ok === true || b.schedule != null || b.timeline != null;
-  if ((bOk && aOk && tOk) || aiComp >= pass) return { ok: true, missing: [] };
-  const missing = [];
-  if (!bOk) missing.push('预算');
-  if (!aOk) missing.push('责任人');
-  if (!tOk) missing.push('时间表');
-  return { ok: false, missing };
+  if (Number.isFinite(aiComp) && aiComp >= pass) return { ok: true, missing: [] };
+  const missing = bantMissing(payload.bantcc); // 与 leadQualifyGap 同源（单一事实源，杜绝第二套 B/A/T 副本）
+  return missing.length ? { ok: false, missing } : { ok: true, missing: [] };
 }
 
 // 由 id/type 反查粒子类型（字段闸需 particle_type；查询失败放行，数据闸兜底）
