@@ -26,6 +26,17 @@ export const MCP_CONFIG = {
     requireAuth: true,                            // 外部智能体首次接入必须 crm_login 用户名密码验证（无凭证硬拒绝）
     tokenTtlMs: 8 * 60 * 60 * 1000,               // API token 有效期 8h（凭证隔离，短时有效）
   },
+  oauth: {
+    // MCP OAuth 授权服务器（2026-09-15，docs/2026-09-15-mcp-oauth-design.md）
+    // enabled=false 即回滚到「/mcp 无 HTTP 层闸」的旧行为（工具层 requireAuth 仍在，安全性不塌）
+    enabled: true,
+    accessTtlMs:  8 * 60 * 60 * 1000,        // access_token 8h（与 security.tokenTtlMs 语义一致）
+    refreshTtlMs: 30 * 24 * 60 * 60 * 1000,  // refresh_token 30 天，每次轮转
+    codeTtlMs:    5 * 60 * 1000,             // 授权码 5 分钟
+    scope: 'mcp',
+    allowedRedirectSchemes: ['workbuddy'],   // custom scheme 白名单（WorkBuddy 客户端回调）
+    allowLoopbackRedirect: true,             // 允许 http://127.0.0.1|localhost（本地调试）
+  },
   apiToken: {
     // 平台颁发 token → actor 映射（真实场景：token 存服务端哈希，这里仅演示注入）
     // 零信任：客户端凭证永不直接进 Action ctx.actor，必须经 auth.resolveActor 解析

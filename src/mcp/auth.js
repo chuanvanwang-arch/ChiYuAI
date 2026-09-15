@@ -122,6 +122,48 @@ export function writeScopesForRole(role) {
   return {};
 }
 
+// 颁发 MCP 身份（唯一落点：crm_login 工具 与 OAuth /oauth/token 共用，避免两份逻辑漂移）
+// 设计：docs/2026-09-15-mcp-oauth-design.md §7.1
+//
+// 软吊销范围按颁发渠道收敛（否则两条渠道会互相踢掉对方，造成间歇性、难复现的掉线）：
+//   issuedBy='oauth'     → 只吊销该 actor 下【同 client 的 oauth token】（轮转不留僵尸）
+//   issuedBy='crm_login' → 吊销该 actor 其余全部【非 oauth 渠道】token（保持既有语义；
+//                          历史 token 的 scopes 无 issued_by，经 COALESCE 判定为 crm_login，仍被吊销）
+// 注：mcp_identity 列结构不可变（test/mcp-identity.test.js 做全列断言），故渠道标记落 scopes jsonb。
+export async function issueMcpIdentity({
+  username, role, tenantId = 'system',
+  issuedBy = 'crm_login', clientId = null, ttlMs = null,
+} = {}) {
+  const { id, tokenPlain } = newStructuredToken();
+  const ttl = ttlMs || MCP_CONFIG.security.tokenTtlMs || 8 * 60 * 60 * 1000;
+  const expiresAt = new Date(Date.now() + ttl);
+  const scopes = { ...writeScopesForRole(role), issued_by: issuedBy };   // F4-3：sysadmin 治理写标记
+  if (clientId) scopes.client_id = clientId;
+
+  await queryWrite(
+    `INSERT INTO crm.mcp_identity (id, token_hash, actor, person_id, role_tag, scopes, tenant_id, expires_at)
+     VALUES ($1, crypt($2, gen_salt('bf')), $3, NULL, $4, $5, $6, $7)`,
+    [id, tokenPlain, username, role, JSON.stringify(scopes), tenantId, expiresAt]
+  );
+
+  if (issuedBy === 'oauth') {
+    await queryWrite(
+      `UPDATE crm.mcp_identity SET revoked_at = now()
+        WHERE actor = $1 AND revoked_at IS NULL AND id <> $2
+          AND scopes->>'issued_by' = 'oauth' AND scopes->>'client_id' = $3`,
+      [username, id, clientId]
+    );
+  } else {
+    await queryWrite(
+      `UPDATE crm.mcp_identity SET revoked_at = now()
+        WHERE actor = $1 AND revoked_at IS NULL AND id <> $2
+          AND COALESCE(scopes->>'issued_by', 'crm_login') <> 'oauth'`,
+      [username, id]
+    );
+  }
+  return { id, tokenPlain, expiresAt, role };
+}
+
 // 外部智能体首次接入验证：用户名 + 密码 → 颁发 MCP 接入 token（零信任：明文仅本次返回）
 // 设计：docs/2026-08-29-mcp-forced-login-design.md
 // 纪律：复用 crm.crm_users 密码体系（pgcrypto crypt 比对）；明文 token 仅返回一次；库仅存 crypt 哈希；
@@ -140,25 +182,9 @@ export async function mcpLogin({ username, password } = {}) {
     return { ok: false, status: 403,
       error: 'admin 仅限 HTTP 后台；请以业务账号(sales/manager/presales/exec/finance/contract_admin)登录 MCP' };
   }
-  const { id, tokenPlain } = newStructuredToken();
-  const ttl = MCP_CONFIG.security.tokenTtlMs || 8 * 60 * 60 * 1000;
-  const expiresAt = new Date(Date.now() + ttl);
-  const tenantId = u.tenant_id || 'system';
-  const scopes = writeScopesForRole(u.role);   // F4-3：sysadmin 治理写标记；其余角色空 scopes
-  const r = await queryWrite(
-    `INSERT INTO crm.mcp_identity (id, token_hash, actor, person_id, role_tag, scopes, tenant_id, expires_at)
-     VALUES ($1, crypt($2, gen_salt('bf')), $3, NULL, $4, $5, $6, $7)
-     RETURNING id`,
-    [id, tokenPlain, u.username, u.role, JSON.stringify(scopes), tenantId, expiresAt]
-  );
-  const newId = r.rows[0]?.id;
-  if (newId) {
-    // 软吊销该 actor 旧未吊销 token（保持身份表整洁；绝对禁删）
-    await queryWrite(
-      `UPDATE crm.mcp_identity SET revoked_at = now()
-       WHERE actor=$1 AND revoked_at IS NULL AND id <> $2`,
-      [u.username, newId]
-    );
-  }
-  return { ok: true, status: 200, token: tokenPlain, role: u.role, display_name: u.display_name };
+  // 颁发收口：与 OAuth /oauth/token 共用同一函数（唯一差异是渠道标记）
+  const issued = await issueMcpIdentity({
+    username: u.username, role: u.role, tenantId: u.tenant_id || 'system', issuedBy: 'crm_login',
+  });
+  return { ok: true, status: 200, token: issued.tokenPlain, role: u.role, display_name: u.display_name };
 }
