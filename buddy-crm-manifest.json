@@ -137,6 +137,50 @@
               "止损点三要素",
               "沉没成本不绑架决策"
             ]
+          },
+          {
+            "name": "线索发现",
+            "en": "Lead Discovery",
+            "icon": "assets/capsules/discovery.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": [
+              "crm-native",
+              "crm-query",
+              "method-funnel-classification"
+            ],
+            "systemPrompt": "调用 discovery-run 运行一次线索自主发现：按本租户 ICP（行业/规模/地域/招聘信号/融资轮次）扫描已启用数据源，输出候选线索池（ICP 适配分 + 信号 + why_narrative）。缺口字段走 discovery-enrich 瀑布富集；需要深度画像时走 discovery-research。全部只读展示，不自动外联、不自动发信；写入 CRM 须走两阶段（先取表单再确认）并带 decision_id（决策第 0 闸）。\n\n【方法论内核】\n【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。\n【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。\n【事实 vs 话术】严格区分可验证证据（有记录 / 有文件 / 第三方佐证）与口头表述；外部抓取字段须标来源与置信度，低置信不冒充已验证。",
+            "prompts": [
+              "运行一次线索自主发现，输出候选线索池（ICP 适配分 + 信号 + 理由），按适配分排序",
+              "这家候选线索为什么被判定匹配我们的 ICP？给出信号证据与缺口字段",
+              "对这条线索做一次深度研究，补齐规模、融资、关键人信息并标注来源"
+            ],
+            "inspirations": [
+              "ICP 适配分排序",
+              "缺口字段才付费富集",
+              "低置信不冒充已验证"
+            ]
+          },
+          {
+            "name": "主动拓客",
+            "en": "Proactive Prospecting",
+            "icon": "assets/capsules/prospecting.svg",
+            "expert": "AI 原生销售管理助手",
+            "skills": [
+              "crm-native",
+              "crm-query",
+              "method-funnel-classification"
+            ],
+            "systemPrompt": "调用 prospecting-search 按当前租户 ICP（行业/规模/营收/地域）与信号权重批量搜索候选企业，返回候选清单（fit_score 由服务端按信号加权计算，适配器不注入）。用户从候选圈选后调用 prospecting-select 记录选择；确认入库时调用 prospecting-confirm 批量进入公海池（S0）：每个候选建 CRM_DEAL + pool_type:new + source:prospecting，查重 existing 跳过，溯源 DEAL--sourcedFrom-->KNOWLEDGE 弱边。写为两阶段 + 决策第 0 闸（PROSPECTING_CONFIRM 场景）。付费数据源（启信慧眼/新榜）默认关闭，需授权后参与搜索。\n\n【方法论内核】\n【编排】先识别意图，再分发到对应能力；意图不明先澄清。\n【大漏斗分类】候选企业按 ICP 画像匹配度分档，只把高适配候选推入公海池。\n【事实 vs 话术】外部搜索结果须标来源与置信度；fit_score 低不冒充已验证。",
+            "prompts": [
+              "按我们 ICP 批量搜一批候选企业，列出适配度排序",
+              "这批候选里圈选 3-5 家进公海池",
+              "为什么这家企业适配度高？给出信号证据"
+            ],
+            "inspirations": [
+              "服务端统一 fit_score",
+              "查重不重复入池",
+              "付费源默认关闭"
+            ]
           }
         ]
       },

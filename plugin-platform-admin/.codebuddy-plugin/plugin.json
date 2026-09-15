@@ -1,6 +1,6 @@
 {
   "name": "crm-platform-admin",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "AI 原生销售平台管理助手——面向平台管理员 / sysadmin 的治理插件。覆盖行业租户上线（tenant-profile 配置化）、用户与 RBAC 权限新增、系统初始化（数据库迁移 + 种子 + 配置引导）三大平台治理面。继承 CRM-ai-native 同一套红线：绝对禁 DELETE、写必经决策第 0 闸、per-tenant 隔离、零信任。",
   "author": {
     "name": "CRM-ai-native",

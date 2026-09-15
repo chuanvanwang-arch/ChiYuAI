@@ -148,6 +148,58 @@ node scripts/seed-tenant-master-data.mjs --tenant acme-chem
 - `filter` 仅作用于 `CRM_PRODUCT.payload.category`；其余类型默认全复制。
 - 铁律：仅 INSERT 幂等、禁 DELETE；系统写 `decision_id=NULL`；复制后 `embedding/content_hash/fts=NULL`（首次编辑触发写时索引）。
 
+## 5.5 Step 4C — 启用本租户 discovery 数据源 + 播种行业 ICP/信号/编排
+
+新行业上线即具备**本租户自有**的线索发现能力（设计 §12）。**D1 落地通道**：把 `discovery-rules` 从 `system` 模板懒克隆到本租户（`src/config/configStore.js` autoSeed），再按本行业清单启用。
+
+### 5.5.1 启用规则（D1 三档，`scope` 即档位）
+
+| 档 | `scope` | provider | 克隆后默认 | 本 Step 是否启用 |
+|---|---|---|---|---|
+| 系统级默认 | `system` | `email-verify` / `web-research` / `tender` / `gaode` | `enabled: true` | 无需干预（开箱即用） |
+| 系统候选 | `system-candidate` | `attio` / `zhizao` | `enabled: false` | **按本行业清单置 `true`** |
+| 付费源 | `paid` | 两个商用源（**模板不得声明其名**） | `enabled: false` | **严禁启用**（须管理员显式授权 + 填 key） |
+
+### 5.5.2 落地方式（二选一，均须过决策第 0 闸）
+
+**方式 A — 配置中心 PUT（推荐，自带第 0 闸）**
+
+```
+PUT /api/config/discovery-rules
+Body: { "tenantId": "<真实租户ID>", "value": {
+  "providers": [ { "id": "attio", "enabled": true } ],
+  "icp": { "industries": ["chemical"], "min_headcount": 200, "geo": ["CN"] },
+  "signals": { "tender_match": { "weight": 0.95 } },
+  "playbooks": [ { "name": "default", "match": "", "data": ["web-research"], "ai": [], "action": [] } ]
+} }
+```
+
+**方式 B — 种子脚本 bootstrap 旁路（仅系统引导 / 种子态）**
+
+```js
+import { writeConfig } from '../../src/config/configStore.js';
+// ⚠ 形状铁律（写错会被 mergeDiscoveryRules 静默丢弃 = 假绿，无异常无日志）：
+//   providers 必须是**数组** [{id,enabled}]（写 { attio:true } 对象会被 Array.isArray 挡掉）
+//   icp 键名 = industries / min_headcount(number) / geo(array) / min_confidence
+//   signals 每项必须是 { weight: number }（直接写数字会覆盖掉对象 → 消费方 .weight === undefined）
+//   playbooks 必须是对象数组且每项有 name（compilePlaybook 无名直接 throw）
+await writeConfig('discovery-rules', {
+  providers: [{ id: 'attio', enabled: true }, { id: 'zhizao', enabled: true }],
+  icp: { industries: ['chemical'], min_headcount: 200, geo: ['CN'] },
+  signals: { tender_match: { weight: 0.95 } },
+  playbooks: [{ name: 'default', match: '', data: ['web-research'], ai: [], action: [] }],
+}, { tenantId });
+```
+
+> 已有 7 份行业模板可直接复用：`db/seed/discovery-rules-templates.js` 的 `DISCOVERY_RULES_BY_INDUSTRY.<industry>`（形状已过单测有效性校验）；各 `db/seed/tenant-profile-*.js` 导出 `seed<X>Discovery(tenantId)` 幂等落键。
+
+### 5.5.3 验收
+
+- `mergedDiscoveryRules({ tenantId }).providers` 命中本行业手册清单，**且 `signals[*].weight` 仍为 number**、`playbooks[*].name` 均存在；
+- 本租户发现候选池可产出 ≥1 条；其它租户不可见（隔离）；
+- **付费源 `enabled === false`**（断言）；
+- `profileMerger` 三消费点 byte-equal 零回归（`discovery` 段**不进 `tenant-profile`**）。
+
 ## 4.5 Step 4.5 — 播种租户 KNOWLEDGE 种子（P0-② 领域 Know-How）
 
 新行业上线即拥有本租户自有的领域 Know-How（设计：`docs/2026-09-03-tenant-knowledge-design.md` §8）。批量建四类初始条目，落 `tenant_id=本租户`（方案 B：全部数据按租户自有）。
