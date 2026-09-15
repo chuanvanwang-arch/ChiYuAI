@@ -85,7 +85,7 @@ async function main() {
     probability: 0.4, expected_amount: 150000, stage_changed_at: '2026-08-30T09:00:00+08:00',
   });
 
-  // —— 线索（2，S1 阶段 = 线索发掘） ——
+  // —— 线索（2，S1 阶段 = 正式线索） ——
   await up('CRM_DEAL', 'deal-yuntu-lead', '云图子公司 CRM 咨询', {
     name: '云图子公司 CRM 咨询', owner: SALES, stage: 'S1', account_id: a1.id,
     probability: 0.2, expected_amount: 60000, stage_changed_at: '2026-09-01T09:00:00+08:00',

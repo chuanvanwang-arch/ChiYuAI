@@ -76,7 +76,12 @@ fi
 
 # ---------- 2. 生成 .dockerignore ----------
 # 项目根含大量 PNG 截图 / zip / 文档 / 前端子工程，不排除会让 build 上下文达数百 MB。
-# 注意：docs/ 不能排除 —— src/http/routes.js 运行时会读取 docs/specs/*.md。
+# 注意：docs/ 与 skills/ 都不能排除。
+#   · docs/  —— src/http/routes.js 运行时会读取 docs/specs/*.md。
+#   · skills/ —— src/skills/skillRegistry.js:16 与 methodologySync.js:25 以 <repo>/skills
+#               为「出厂声明源」（扫 skills/*/registry.json）。排除后容器 /app/skills 缺失
+#               → listSkillDeclarations() 恒返 0 → 启动日志 `[skill-registry] seed inserted=0/0`，
+#               服务不报错但 DB skill_registry 只剩历史行（静默降级）。2026-09-11 实锤修复。
 cat > .dockerignore <<'EOF'
 node_modules
 .git
@@ -89,7 +94,6 @@ CordysCRM-main
 Lanch
 plugin
 plugin-platform-admin
-skills
 *.png
 *.jpg
 *.zip

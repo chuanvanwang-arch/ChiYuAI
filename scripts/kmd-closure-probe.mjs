@@ -243,6 +243,16 @@ async function probeD4() {
   const rules = await sql('D4b', `SELECT count(*) AS n, count(*) FILTER (WHERE enabled) AS enabled FROM crm.outcome_event_map`);
   const rm = isErr(rules) ? {} : (rules[0] || {});
 
+  // 事件发射验证：近 7 天 crm.events 中是否含已映射事件类型（防「规则齐但事件没 emit」二次假绿）
+  const ev = await sql('D4c', `
+    SELECT count(*) FILTER (WHERE payload->>'type' IN
+      ('deal-advance','quote-create','deal-archive','contract_sign')) AS mapped_emitted,
+           count(*) AS total_decision_evt
+    FROM crm.events
+    WHERE domain='decision' AND created_at > now() - interval '7 days'`);
+  const evM = isErr(ev) ? {} : (ev[0] || {});
+  const mappedEmitted = num(evM.mapped_emitted);
+
   report({
     id: 'D4',
     name: 'outcome 真实性',
@@ -256,12 +266,15 @@ async function probeD4() {
       other: num(m.other),
       event_rules: num(rm.n),
       event_rules_enabled: num(rm.enabled),
+      mapped_events_emitted_7d: mappedEmitted,
+      event_emission_ok: mappedEmitted > 0,
     },
-    criterion: "source LIKE 'event:%' 视为真自动回写（种子 seed-script 单独计数，不得混入）",
-    verdict: auto > 0
+    criterion: "source LIKE 'event:%' 视为真自动回写（种子 seed-script 单独计数，不得混入）；映射事件须确经 decision 域 emit",
+    verdict: (auto > 0
       ? `真自动回写 ${auto} 条，另有种子 ${seed} / 人工 ${num(m.manual)} 条`
-      : `真自动回写 0 条（总计 ${total} 条，其中种子 ${seed} 条）→ 业务结果从未回流`,
-    fix: "P0-2 注册 registerOutcomeIngester；P0-3 补 emit('decision','outcome-set')",
+      : `真自动回写 0 条（总计 ${total} 条，其中种子 ${seed} 条）→ 业务结果从未回流`)
+      + `；映射事件近7天发射 ${mappedEmitted} 条${mappedEmitted > 0 ? '（OK）' : '（缺失：规则齐但事件未 emit→二次假绿风险）'}`,
+    fix: "P0-2 注册 registerOutcomeIngester；P0-3 补 emit('decision','outcome-set')；映射事件须 emit 到 decision 域",
   });
 }
 

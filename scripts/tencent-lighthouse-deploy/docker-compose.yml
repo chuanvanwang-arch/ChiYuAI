@@ -41,7 +41,7 @@ services:
       PGDATABASE: ${PGDATABASE:-crm_native}
       NODE_ENV: production
       PORT: "3000"
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-model}
       # llm_config.api_key 的加密主密钥（生产必须设置强随机值；缺省走开发默认 'crm-dev-secret'）
       CRM_LLM_SECRET: ${CRM_LLM_SECRET:-}
       # ===== 激活邮件通道（自助注册→手机/邮箱激活）=====
@@ -55,6 +55,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-${SMTP_USER:-}}
+      ANY_SITE_KEY: ${ANY_SITE_KEY}
+      # 外部数据源 anysite.io 访问令牌（付费源，需显式授权+填 key；明文仅在 .env，不进镜像/代码）
+      # 凭据保险库对称加密密钥（pgcrypto pgp_sym_encrypt 用）：保存「填 Key 授权」凭据时必须。
+      # 必须与 mcp 服务一致；integration-secrets 当前为空，可设全新强随机值（生成见 .env.example 注释）。
+      # 切勿复用/泄露；部署后勿随意轮换（否则历史加密凭据不可解密）。
+      PGCRYPTO_SYM_KEY: ${PGCRYPTO_SYM_KEY}
     ports:
       - "3000:3000"
     # 先跑迁移（幂等），再启动 HTTP 服务
@@ -86,11 +92,15 @@ services:
       PGDATABASE: ${PGDATABASE:-crm_native}
       NODE_ENV: production
       # 语义向量开关：'model'=走 SiliconFlow BAAI/bge-large-zh-v1.5（1024维），空/hash=走 hashVector(384)
-      # 维度匹配：decision.embedding 是 vector(1024) → model 路径；particles.embedding 是 vector(384)，
-      #   由 hooks.js 直接用 hashVector 写入，不受此开关影响，故开启 model 不会引发维度冲突。
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+      # 维度匹配：decision.embedding 与 particles.embedding 均为 vector(1024) → model 路径。
+      #   hooks.js:ensureEmbedding 在 provider=model 时写真 1024 维向量；密钥缺失/维度错则 fail-open 写 NULL（不阻断写）。
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-model}
       # 必须与 app 服务一致，否则 mcp 侧无法解密 api_key
       CRM_LLM_SECRET: ${CRM_LLM_SECRET:-}
+      ANY_SITE_KEY: ${ANY_SITE_KEY}
+      # 外部数据源 anysite.io 访问令牌（与 app 服务一致，MCP 进程内执行 prospecting-search handler 需读取）
+      # 必须与 app 服务一致，否则 mcp 侧无法解密凭据
+      PGCRYPTO_SYM_KEY: ${PGCRYPTO_SYM_KEY}
     ports:
       - "127.0.0.1:3001:3001"
     command: node src/mcp/server.js --http

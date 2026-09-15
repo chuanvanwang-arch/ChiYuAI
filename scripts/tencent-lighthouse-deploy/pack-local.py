@@ -12,8 +12,13 @@ import argparse
 import os
 import zipfile
 
-# 运行期必需的顶层条目（docs 不可省：src/http/routes.js 运行时读取 docs/specs/*.md）
-INCLUDE_DIRS = ["src", "db", "docs", "scripts"]
+# 运行期必需的顶层条目
+#  · docs 不可省：src/http/routes.js 运行时读取 docs/specs/*.md
+#  · skills 不可省：src/skills/skillRegistry.js:17 SKILLS_ROOT=<repo>/skills，
+#    listSkillDeclarations() 扫描 skills/*/registry.json 作为「出厂声明」；
+#    缺失 → 声明恒为 0（启动日志 `[skill-registry] seed inserted=0/0`），
+#    DB 只能残留历史行，管理页快照 = DB ⊕ 声明 亦随之缺项。
+INCLUDE_DIRS = ["src", "db", "docs", "scripts", "skills"]
 INCLUDE_FILES = ["package.json", "package-lock.json"]
 
 # 排除规则（路径片段匹配）

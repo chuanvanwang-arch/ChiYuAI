@@ -359,6 +359,15 @@ async function ensureBillingPlans() {
   return run(sql);
 }
 
+// ⑯ 线索池三类池模板（2026-09-11 lead-public-pool-tenant Task 3）：测试库需有 (system,'lead-pool-config') 模板行。
+// 背景：readConfig 的 autoSeed 只在 system 模板行存在时生效；缺行则 readPoolConfig 回代码兜底，
+//   poolTypes ② 无法验证 autoSeed 与 _seeded 审计标记（假绿）。与 db/migration-lead-pool-config.sql 同源
+//   （单一 JSON 事实源；本文件用 WHERE NOT EXISTS 幂等，两代主键下均成立）。
+async function ensureLeadPoolConfig() {
+  const sql = readFileSync(new URL('../db/migration-lead-pool-config.sql', import.meta.url), 'utf8');
+  return run(sql);
+}
+
 async function main() {
   console.log(`[seed-test-config] 前置执行 @ ${PGDATABASE}`);
   const steps = [
@@ -380,6 +389,7 @@ async function main() {
     ['元模型基线复位（清测试裸插入的强制必填行）', ensureMetaAttrBaseline],
     ['套餐基线（billing-plans 5 档 + billing-settings）', ensureBillingPlans],
     ['线索发现场景（LEAD_FIT）', ensureDiscoveryScenario],
+    ['线索池三池模板（lead-pool-config）', ensureLeadPoolConfig],
   ];
   let fail = 0;
   for (const [name, fn] of steps) {
