@@ -35,6 +35,7 @@ export function createCalibrationRouter(deps = {}) {
     computeMetrics,
     attribute,
     replayScenario,
+    query: (text, params) => query(text, params), // D6：query 入依赖面（todosHandler 可注入；其余端点保持顶层 query 不变）
     ...store, // createPatch/listPatches/getPatch/approvePatch/rejectPatch/rollbackPatch
     resolveMe: (req) => realResolveMe(req),
     ...deps,
@@ -264,15 +265,24 @@ export function createCalibrationRouter(deps = {}) {
       }
       const status = String(req.query?.status || 'PENDING');
       const assignee = req.query?.assignee ? String(req.query.assignee) : null;
+      // D6：?escalated=true 仅看已升级（SLA 违约）待办；缺省/null → 全部（兼容既有调用）
+      const escalatedQ = req.query?.escalated != null
+        ? String(req.query.escalated).toLowerCase() === 'true'
+        : null;
       // tan_admin → 自动限本租户；admin/sysadmin → null = 不限
       const tenantFilter = role === 'TAN_ADMIN' ? (me.tenantId || null) : null;
-      const r = await query(
-        `SELECT * FROM crm.calibration_patch
+      const r = await D.query(
+        `SELECT *,
+           EXTRACT(EPOCH FROM (now()-created_at))/3600 AS age_hours,
+           CASE WHEN sla_due_at IS NULL THEN NULL
+                ELSE EXTRACT(EPOCH FROM (sla_due_at-now()))/3600 END AS sla_remaining_hours
+         FROM crm.calibration_patch
           WHERE status=$1
             AND ($2::text IS NULL OR assignee=$2)
             AND ($3::text IS NULL OR tenant_id=$3)
+            AND ($4::boolean IS NULL OR escalated=$4)
           ORDER BY created_at DESC LIMIT 50`,
-        [status, assignee, tenantFilter]
+        [status, assignee, tenantFilter, escalatedQ]
       );
       res.json({ todos: r.rows });
     } catch (e) {

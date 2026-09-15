@@ -24,6 +24,16 @@ export const DEFAULT_CONF = {
 //   新增权重若漏改该行，则该权重**永远无法经 API 调参**（阈值配置化铁律的静默失效）。派生后自动跟随。
 export const WEIGHT_KEYS = Object.freeze(Object.keys(DEFAULT_CONF.weights));
 
+// D6 SLA 矩阵（单一事实源；迁移回填 CASE 同源 HIGH24/MED72/LOW168，见 db/migration-calibration-sla.sql）
+// 设计：docs/2026-09-14-d6-calibration-approval-flow-plan.md §2.1。
+export const SLA_HOURS = Object.freeze({ HIGH: 24, MEDIUM: 72, LOW: 168 });
+
+// D6 到期时点 = created_at + 风险对应 SLA 窗口（未知 risk 兜底 LOW）
+export function slaDueAt(risk, createdAt = new Date()) {
+  const h = SLA_HOURS[risk] ?? SLA_HOURS.LOW;
+  return new Date(new Date(createdAt).getTime() + h * 3600 * 1000).toISOString();
+}
+
 export const PATCH_STATUS = ['PENDING', 'APPROVED', 'REJECTED', 'APPLIED', 'ROLLED_BACK'];
 // T28/J3 扩展：覆盖 confidence/edge_binding/outcome_threshold/strictness（J3 文档）+ 七类根因 knob（溯源文档）
 // T12 扩展（2026-09-05，§16.3）：加 'config_store' 承载 retro 草稿→待办→批准即生效闭环（ConfigStoreStrategy）。
@@ -81,12 +91,12 @@ export async function createPatch({ scenario_id = null, knob, target, from_value
   if (!['LOW', 'MEDIUM', 'HIGH'].includes(risk)) throw new Error('createPatch: risk 须为 LOW/MEDIUM/HIGH');
   const r = await query(
     `INSERT INTO crm.calibration_patch
-       (scenario_id, knob, target, from_value, to_value, evidence, expected_impact, risk, status, decision_id, assignee, tenant_id)
-     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8,'PENDING',$9,$10,$11)
+       (scenario_id, knob, target, from_value, to_value, evidence, expected_impact, risk, status, decision_id, assignee, tenant_id, sla_due_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8,'PENDING',$9,$10,$11,$12)
      RETURNING *`,
     [scenario_id, knob, target || null, JSON.stringify(from_value), JSON.stringify(to_value),
      JSON.stringify(evidence), expected_impact ? JSON.stringify(expected_impact) : null, risk, decision_id,
-     assignee, tenant_id]
+     assignee, tenant_id, slaDueAt(risk)]
   );
   return r.rows[0];
 }
@@ -200,4 +210,24 @@ export async function rollbackPatch(patch_id, { produce = produceDecision, resol
     );
   });
   return { patch: await getPatch(patch_id), config: await readConf(), decision: dec.decisionId };
+}
+
+// D6 超时升级扫描（治理工作流，非状态机推进）：仅置 escalated + 写追加日志，
+//   绝不改 status、绝不触 apply 写通道、禁 DELETE（守 HITL 铁律）。
+//   设计：docs/2026-09-14-d6-calibration-approval-flow-plan.md Task B。
+//   返回 { escalated } = 本次新翻转条数；已翻转行（escalated=true）不重复计。
+export async function scanEscalations() {
+  const r = await query(
+    `UPDATE crm.calibration_patch
+        SET escalated=true
+      WHERE status='PENDING' AND sla_due_at IS NOT NULL AND sla_due_at < now() AND escalated=false
+      RETURNING patch_id, risk`
+  );
+  for (const row of r.rows) {
+    await query(
+      `INSERT INTO crm.calibration_escalation_log (patch_id, risk, note) VALUES ($1,$2,'SLA breached')`,
+      [row.patch_id, row.risk]
+    );
+  }
+  return { escalated: r.rows.length };
 }
