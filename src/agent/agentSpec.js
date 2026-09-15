@@ -87,4 +87,18 @@ export const agentSpecs = {
     evaluation: { metricTemplate: 'decision_wiring_quality', evaluator: 'stage2' },
     governance: { approvals: ['recommend'], concurrency: 2, profile: 'full' },
   },
+  'prospecting': {
+    identity: { name: 'prospecting', derivedFrom: 'taskFlow:crm-prospecting', autonomy: 'recommend' },
+    capabilities: {
+      // 三处同改（装配闭包）：本 agent 的 skillCalls ⊆ actions；prospecting-* Action 在 T5 注册
+      // actions 含 crm-account-360（对齐设计 §A.3：拓客候选入池前可对既有账户做画像核对）
+      actions: ['data-particle-read', 'prospecting-search', 'prospecting-select', 'prospecting-confirm', 'prospecting-lookup', 'crm-account-360'],
+      skillCalls: ['data-particle-read', 'prospecting-search', 'prospecting-select', 'prospecting-confirm', 'prospecting-lookup'],
+      knowledgeScope: { layers: ['L1'], maxHops: 2 },
+    },
+    context: { knowledgeLevel: 1, coverage: '>=80%', coldStart: 'adaptive' },
+    memory: { read: ['intake-router'], write: [] },
+    evaluation: { metricTemplate: 'prospecting_quality', evaluator: 'stage2' },
+    governance: { approvals: ['critical'], concurrency: 3, profile: 'full' },
+  },
 };
