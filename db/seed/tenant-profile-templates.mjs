@@ -25,7 +25,7 @@ const SPECS = [
 
 export async function seedTenantProfileTemplates() {
   for (const [id, label, fn] of SPECS) {
-    await fn(TMP); // 各 seed 默认 tenant_id 被参数覆盖
+    await fn(TMP, { withDiscovery: false }); // 各 seed 默认 tenant_id 被参数覆盖；哨兵租户不写 discovery-rules（该脚本末尾仅清 tenant-profile 键 → 写了会残留）
     const { rows } = await query(
       `SELECT value FROM crm.config_store WHERE tenant_id=$1 AND key='tenant-profile'`, [TMP]);
     if (!rows[0]) { console.warn('跳过（无画像源）:', id); continue; }

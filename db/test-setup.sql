@@ -115,6 +115,20 @@ INSERT INTO crm.decision_scenario
  '{"cond":{"event":"created","stage":"lead"},"entity":"ACCOUNT","source":"particle_event"}'::jsonb,
  ARRAY['BANT','MEDDICC','OPP_MATRIX'],
  '[{"cond":"industry","label":"行业匹配","weight":0.25},{"cond":"headcount","label":"规模匹配","weight":0.2},{"cond":"geo","label":"地域匹配","weight":0.15},{"cond":"hiring_icp_role","label":"招聘信号","weight":0.2},{"cond":"funding_round","label":"融资信号","weight":0.2}]'::jsonb,
+ 'LEAD', TRUE),
+-- PROSPECTING_CONFIRM（2026-09-14，与 db/seed.sql 同构）：拓客家模块确认入池（S0 + source=prospecting）。
+-- 测试库与生产 seed 同步，避免契约校验/决策场景查询在测试库缺场景。
+('PROSPECTING_CONFIRM', '一、线索', '拓客批量入池确认（MCP 对话驱动，S0 + source=prospecting）',
+ '{"action":["prospecting-confirm"],"connector":"prospecting"}'::jsonb,
+ ARRAY['BANT','MEDDICC'],
+ '[{"cond":"candidate_count","label":"候选数量","weight":0.5},{"cond":"fit_score_avg","label":"平均适配度","weight":0.5}]'::jsonb,
+ 'LEAD', TRUE),
+-- PREHEAT_MARK（2026-09-15 P1-3，与 seed-decision-scenarios.sql 同构）：触达前预热标记——payload.preheat 子状态机迁移。
+--   HITL 铁律：engage 需 hitl_confirm（人工确认），AI 不得自动对外互动；写经第 0 闸（decisionScenario 锚定 mint）。
+('PREHEAT_MARK', '一、线索', '触达前预热标记（HITL：engage 需人工确认，AI 不自动对外互动）',
+ '{"action":["preheat-mark"],"connector":"preheat"}'::jsonb,
+ ARRAY['BANT'],
+ '[{"cond":"hitl_confirm","label":"人工确认（HITL）","weight":1.0}]'::jsonb,
  'LEAD', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
 

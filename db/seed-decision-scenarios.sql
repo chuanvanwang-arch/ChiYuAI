@@ -134,5 +134,12 @@ INSERT INTO crm.decision_scenario
  '{"action":["prospecting-confirm"],"connector":"prospecting"}'::jsonb,
  ARRAY['BANT','MEDDICC'],
  '[{"cond":"candidate_count","label":"候选数量","weight":0.5},{"cond":"fit_score_avg","label":"平均适配度","weight":0.5}]'::jsonb,
+ 'LEAD', TRUE),
+-- PREHEAT_MARK（2026-09-15 P1-3，与 test-setup.sql 同构）：触达前预热标记——payload.preheat 子状态机迁移。
+--   HITL 铁律：engage 需 hitl_confirm（人工确认），AI 不得自动对外互动；写经第 0 闸（decisionScenario 锚定 mint）。
+('PREHEAT_MARK', '一、线索', '触达前预热标记（HITL：engage 需人工确认，AI 不自动对外互动）',
+ '{"action":["preheat-mark"],"connector":"preheat"}'::jsonb,
+ ARRAY['BANT'],
+ '[{"cond":"hitl_confirm","label":"人工确认（HITL）","weight":1.0}]'::jsonb,
  'LEAD', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;

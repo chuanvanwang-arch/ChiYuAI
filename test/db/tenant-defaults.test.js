@@ -8,10 +8,12 @@ import { seedTenantDefaults, DEFAULT_TENANT_SEED_KEYS } from '../../db/seed/tena
 import { readConfig } from '../../src/config/configStore.js';
 
 // 2026-09-05 用户裁决：8 键含 context-routing（仅复制模板到租户行，不改 system 行——红线保持）
-const SEED_8KEYS = [
+// 2026-09-11（线索发现引擎 T1）：新增第 9 键 `discovery-rules`（租户级 discovery 差异化起点）；
+//   `db/seed/tenantDefaults.js:18-36` 与 `KEY_FLAG_MAP` 已同步，此处断言随实现更新（原 8 键断言已过时）。
+const SEED_9KEYS = [
   'sales-thresholds', 'named-account-targets', 'approval-config',
   'behavior-standard', 'finance-receivables', 'decision-retro',
-  'agent-event-trigger', 'context-routing',
+  'agent-event-trigger', 'context-routing', 'discovery-rules',
 ];
 
 describe('T10 seedTenantDefaults', () => {
@@ -40,16 +42,16 @@ describe('T10 seedTenantDefaults', () => {
   });
 
   it('DEFAULT_TENANT_SEED_KEYS 契约：8 个租户级差异化键（G6 扩展）', () => {
-    expect(DEFAULT_TENANT_SEED_KEYS).toEqual(SEED_8KEYS);
+    expect(DEFAULT_TENANT_SEED_KEYS).toEqual(SEED_9KEYS);
   });
 
-  it('all=true 播全量 8 键（各键均落租户行，值=system 模板）', async () => {
+  it('all=true 播全量 9 键（各键均落租户行，值=system 模板）', async () => {
     const r = await seedTenantDefaults('t-verify-t10-all', { all: true });
     expect(r.ok).toBe(true);
-    expect(r.seededKeys).toEqual(SEED_8KEYS);
+    expect(r.seededKeys).toEqual(SEED_9KEYS);
     // 直接查库确认租户行真实存在（区分「播种产物」与「autoSeed 读兜底」）
     const { query } = await import('../../src/db.js');
-    for (const k of SEED_8KEYS) {
+    for (const k of SEED_9KEYS) {
       const rs = await query(
         `SELECT 1 FROM crm.config_store WHERE tenant_id=$1 AND key=$2`,
         ['t-verify-t10-all', k]

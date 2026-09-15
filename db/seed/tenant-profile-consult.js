@@ -5,9 +5,17 @@
 // 其它租户天然不可见（按 tenant_id 隔离）；resolvePrototype 双源解析（代码基线 ∪ 租户画像）。
 import { pathToFileURL } from 'url';
 import { writeConfig } from '../../src/config/configStore.js';
+import { DISCOVERY_RULES_BY_INDUSTRY } from './discovery-rules-templates.js';
 
 
-export async function seedConsultProfile(tenantId) {
+// §12.3 discovery 段：独立落 discovery-rules 键（绝不并入 tenant-profile，保 mergeProfile 三消费点零回归）
+export async function seedConsultDiscovery(tenantId) {
+  if (!tenantId) throw new Error('tenantId is required');
+  await writeConfig('discovery-rules', DISCOVERY_RULES_BY_INDUSTRY.consult, { tenantId });
+  return { ok: true, tenantId, key: 'discovery-rules' };
+}
+
+export async function seedConsultProfile(tenantId, opts = {}) {
   if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   if (!tenantId) throw new Error('tenantId is required (pass as argv[2] or argument)');
   await writeConfig('tenant-profile', {
@@ -54,6 +62,9 @@ export async function seedConsultProfile(tenantId) {
       },
     ],
   }, { tenantId });
+  // §12.3：discovery 段落独立键（不并入 tenant-profile）
+  // opts.withDiscovery === false ⇒ 跳过（仅供 tenant-profile-templates.mjs 的哨兵租户使用，避免残留）
+  if (opts.withDiscovery !== false) await seedConsultDiscovery(tenantId);
   return { ok: true, tenantId };
 }
 
