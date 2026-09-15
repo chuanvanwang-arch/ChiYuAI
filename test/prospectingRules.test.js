@@ -44,6 +44,35 @@ describe('prospecting-rules 双层配置（T3）', () => {
   });
 });
 
+describe('hiring 岗位层级下钻（P1-2）', () => {
+  const rules = {
+    ...DEFAULT_PROSPECTING_RULES,
+    signals: { hiring: 0.7 },   // 分母恒 0.7 → 断言与层级自洽
+    signal_age_tiers: [],
+    hiring_role_tiers: { icp_key: ['VP', '总监', 'Director'], mid: ['经理', 'Manager'], jun: ['专员', '工程师'] },
+    hiring_role_weight: { icp_key: 1.0, mid: 0.6, jun: 0.3 },
+  };
+  it('① VP 级招聘权重足额，junior 降档', () => {
+    const s1 = computeFitScore({ signals: { hiring: true }, hiring_role: 'VP' }, rules);
+    const s2 = computeFitScore({ signals: { hiring: true }, hiring_role: '专员' }, rules);
+    expect(s1).toBeGreaterThan(s2);
+    expect(s1).toBeCloseTo(1.0, 5);   // 0.7×1.0/0.7
+    expect(s2).toBeCloseTo(0.3, 5);   // 0.7×0.3/0.7
+  });
+  it('② mid 层级按 0.6 档', () => {
+    const s = computeFitScore({ signals: { hiring: true }, hiring_role: '经理' }, rules);
+    expect(s).toBeCloseTo(0.6, 5);
+  });
+  it('③ 无层级词 → 默认 1.0（向后兼容，fail-open）', () => {
+    const s = computeFitScore({ signals: { hiring: true }, hiring_role: 'CTO' }, rules);
+    expect(s).toBeCloseTo(1.0, 5);
+  });
+  it('④ 无 hiring_role 字段 → 默认 1.0（fail-open，源未返回职位）', () => {
+    const s = computeFitScore({ signals: { hiring: true } }, rules);
+    expect(s).toBeCloseTo(1.0, 5);
+  });
+});
+
 describe('computeFitScore 时间衰减（P0-1b）', () => {
   const tiers = [
     { max_days: 7, multiplier: 1.0 },
@@ -68,5 +97,24 @@ describe('computeFitScore 时间衰减（P0-1b）', () => {
   it('③ 无时间戳 → 不衰减（向后兼容）', () => {
     const c = { name: 'X', signals: { funding: true } };
     expect(computeFitScore(c, rules)).toBeCloseTo(1.0, 5);
+  });
+});
+
+describe('hiring 岗位层级 → computeFitScore 联动（P1-2 端到端）', () => {
+  // hiring_role 由 qixin 适配器 mapSearchResult 附加（fail-open），computeFitScore 消费层级权重
+  // 直接 import 纯函数验证映射 + 评分联动（qixin.js 为并行会话新文件，保持 untracked，用例归本文件）
+  it('① 源返回招聘岗位 → hiring_role 附加 + VP 足额评分', async () => {
+    const { mapSearchResult } = await import('../src/connectors/discovery/adapters/qixin.js');
+    const r = mapSearchResult({ name: 'S 集团', hiring_icp_role: '招聘VP' });
+    expect(r.hiring_role).toBe('招聘VP');
+    const rules = { ...DEFAULT_PROSPECTING_RULES, signals: { hiring: 0.7 }, signal_age_tiers: [],
+                    hiring_role_tiers: { icp_key: ['VP', '总监'], mid: ['经理'], jun: ['专员', '工程师'] },
+                    hiring_role_weight: { icp_key: 1.0, mid: 0.6, jun: 0.3 } };
+    expect(computeFitScore({ signals: { hiring: true }, hiring_role: r.hiring_role }, rules)).toBeCloseTo(1.0, 5);
+  });
+  it('② 源无招聘信息 → 无 hiring_role（fail-open，评分默认 1.0）', async () => {
+    const { mapSearchResult } = await import('../src/connectors/discovery/adapters/qixin.js');
+    const r = mapSearchResult({ name: 'B 公司' });
+    expect('hiring_role' in r).toBe(false);
   });
 });
