@@ -11,6 +11,11 @@ export function registerAction(def) {
   //          仅本值为 true 时单点 opt-in 放开（tools.js 暴露层判据；首个= data-particle-create）
   //        decisionScenario?: string  // 2026-09-04：MCP 写通道无 decision_id 时，gateway 据此
   //          mint 决策（第 0 闸锚定落点）；未声明的写 Action 维持「无决策不写」DECISION_NEEDED
+  //        deferDecisionMint?: boolean  // 2026-09-11 方案 H：handler **内**自 mint 的写 Action
+  //          （autoDecision=true 但**不**声明 decisionScenario）必需——否则 MCP phase1 被第 0 闸
+  //          永久拦死（工具面 63 个里无「生成决策」工具，客户端无路径补 decision_id）。
+  //          声明后 phase1 跳过决策拦截、直接签发 confirm_token（不代 mint，防双 mint）；
+  //          mint 仍归 handler（语义零漂移：可携带 executor 无法复现的 disposition / entities）。
   //        lifecycle?: 'active'|'engine'|'reserved'  // 2026-09-03 C 方案接线：
   //          active(默认)=运行系统真实调用；engine=审批流/校准/决策/agent/method 引擎内部触发；
   //          reserved=注册暴露但暂未接线（死表面降级，遵守禁 DELETE 铁律不物理删） }

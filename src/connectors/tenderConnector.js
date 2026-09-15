@@ -47,11 +47,12 @@ export function pushTenderMatches(sub, tenders, { emitFn = emit } = {}) {
 }
 
 // —— LEAD 生成（验收②：匹配标讯自动生成线索）—— 写通道：conn-tender-push Action 承载（第 0 闸）
-// 此函数为 Action handler 复用：创建 DEAL(lead) 粒子 + sourcedFrom 边（auto_weak，provenance=tender）
+// 此函数为 Action handler 复用：创建 DEAL(S0 公海) 粒子 + sourcedFrom 边（auto_weak，provenance=tender）
+// T9 2026-09-11：直落公海 S0+pool_type=new（原写 'lead'），须经认领→BANT 校验升 S1
 export async function createLeadFromTender({ tender, tenantId = 'system' }) {
   const { createParticle, createEdge } = await import('../particles/particleRepo.js');
   const deal = await createParticle('CRM_DEAL', {
-    name: tender.title, stage: 'lead', source: '标讯',
+    name: tender.title, stage: 'S0', pool_type: 'new', source: '标讯', pooled_at: new Date().toISOString(),
     expected_amount: tender.amount || 0, region: tender.region,
     tender_id: tender.id, expected_close_date: null,
   }, { tenantId });

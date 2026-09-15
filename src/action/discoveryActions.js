@@ -5,7 +5,7 @@
 //   ③ 低置信 → confirm 信号（stage2 review），绝不冒充人工确认
 //   ④ 禁删：只增改，不删除粒子/边
 import { registerAction } from './registry.js';
-import { createEdge } from '../particles/particleRepo.js';
+import { createEdge, getParticle, updateParticle } from '../particles/particleRepo.js';
 
 // 决策场景 id（UPPER_SNAKE，与 db/seed.sql 的 crm.decision_scenario 键同源；Task 6 落 'LEAD_FIT' 行）。
 const DISCOVERY_SCENARIO = 'LEAD_FIT';
@@ -58,7 +58,10 @@ export function seedDiscoveryActions() {
       const { runWaterfall } = await import('../connectors/discovery/waterfall.js');
       const { buildEnrichmentPayload } = await import('../agent/discoverySchema.js');
       const adapters = await loadAdapters({ tenantId: ctx.tenantId });
-      const entity = (ctx.getParticle ? await ctx.getParticle(account_id) : null) || { id: account_id };
+      // ctx 上没有 getParticle（executor.js 只传 params+ctx）→ 直调 repo；旧写法是恒假守卫，
+      // entity 会退化为 { id } 致适配器拿不到 name/domain/email（静默退化、测试仍绿）。
+      const p = await getParticle(account_id).catch(() => null);
+      const entity = p ? { id: p.id, name: p.payload?.name, domain: p.payload?.domain } : { id: account_id };
       const { values, cost } = await runWaterfall(adapters, entity, fields || ['email', 'firmographics'], ctx);
       const enrichment = buildEnrichmentPayload(values);
       // 来源语义落边：ACCOUNT --sourcedFrom--> KNOWLEDGE（auto_weak，relation_confidence 落 meta）
@@ -80,11 +83,32 @@ export function seedDiscoveryActions() {
     parameters: { required: ['account_id', 'brief'] },
     handler: async ({ account_id, brief }, ctx) => {
       requireMintedDecision(ctx, 'discovery-research');
-      // Task 8 落地（模块 = connectors/discovery/claygent.js，签名 (entity, brief, {getLlmJson})）
-      const { claygentResearch } = await import('../connectors/discovery/claygent.js');
-      const { getLlmJson } = await import('../llm/client.js');
-      const entity = (ctx.getParticle ? await ctx.getParticle(account_id) : null) || { id: account_id };
-      return claygentResearch(entity, brief, { getLlmJson: ctx.getLlmJson || getLlmJson });
+      return runDiscoveryResearch({ account_id, brief }, ctx);
     },
   });
+}
+
+// 编排（可独立单测：deps 注入替身 → 零 DB）。handler 仅做「决策守卫 + 转发」。
+// fail-open：无产出绝不写库（T8 断言②）。写 payload.research 用浅合并 patch（particleRepo.js:210
+//   { ...cur.payload, ...patch }）→ 不冲掉既有 discovery/enrichment 段。
+export async function runDiscoveryResearch(input = {}, ctx = {}, deps = {}) {
+  const { account_id, brief } = input || {};
+  const getP = deps.getParticle || getParticle;               // 顶部已静态 import
+  const updP = deps.updateParticle || updateParticle;
+  const claygentResearch = deps.claygentResearch
+    || (await import('../connectors/discovery/claygent.js')).claygentResearch;
+  let getLlmJson = deps.getLlmJson;
+  if (getLlmJson === undefined) {
+    const { getLlmJson: factory } = await import('../llm/client.js');
+    // 真实形状：工厂 → 调用器；无 LLM 配置返回 null（fail-open）
+    getLlmJson = await factory({ tenantId: ctx && ctx.tenantId }).catch(() => null);
+  }
+  const p = account_id ? await getP(account_id).catch(() => null) : null;
+  const entity = p ? { id: p.id, name: p.payload && p.payload.name, domain: p.payload && p.payload.domain } : { id: account_id };
+  const research = await claygentResearch(entity, brief, { getLlmJson, fetchText: deps.fetchText });
+  const hasContent = !!(research.summary || (research.signals || []).length
+    || (research.competitors || []).length || (research.risks || []).length);
+  if (!hasContent) return { account_id, research, written: false, decision_id: (ctx && ctx.decision_id) || null };
+  await updP(account_id, { patch: { research }, tenantId: ctx && ctx.tenantId, requireDecisionId: (ctx && ctx.decision_id) || null });
+  return { account_id, research, written: true, decision_id: (ctx && ctx.decision_id) || null };
 }

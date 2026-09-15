@@ -11,6 +11,9 @@ import { emailVerify } from './adapters/emailVerify.js';
 import { webResearch } from './adapters/webResearch.js';
 import { tenderAdapter } from './adapters/tender.js';
 import { gaodeAdapter } from './adapters/gaode.js';
+import { qixinAdapter } from './adapters/qixin.js';     // 外部数据接入：启信慧眼（付费源，出厂 enabled:false）
+import { xinbangAdapter } from './adapters/xinbang.js'; // 外部数据接入：新榜（付费源，出厂 enabled:false）
+import { anysiteAdapter } from './adapters/anysite.js'; // 外部数据接入：anysite.io 企业/个人画像（付费源，出厂 enabled:false）
 import { registerProvider, listProviderIds } from './providerRegistry.js';
 
 // 出厂 system 档（与 config/discoveryRules.js:19-22 的 providers[].id 同源，禁新增字面量）
@@ -19,6 +22,9 @@ const BUILTIN_ADAPTERS = Object.freeze({
   'web-research': webResearch,
   tender: tenderAdapter,
   gaode: gaodeAdapter,
+  qixin: qixinAdapter,       // 新增（与 discoveryRules.providers[].id 同源）
+  anysite: anysiteAdapter,   // 新增（与 discoveryRules.providers[].id 同源）
+  xinbang: xinbangAdapter,   // 新增
 });
 
 export function registerBuiltinAdapters() {

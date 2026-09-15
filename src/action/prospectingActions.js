@@ -171,13 +171,25 @@ export function seedProspectingActions() {
         for (const cand of candidates) {
           const hit = await findAccount(cand.name, cand.domain).catch(() => null);
           if (hit) { results.push({ account_id: hit.id || null, deal_id: null, decision_id: ctx.decision_id, existing: true }); continue; }
+          // 溯源目标：先建 CRM_KNOWLEDGE 粒子（公告详情，真实 UUID 目标——edges.target_id 是 UUID NOT NULL，
+          //   旧代码用 `prospecting:${cand.id}` 字符串作 target_id → INSERT 抛错被 .catch 静默吞 → 边从未建成功；
+          //   2026-09-15 修复 ②：KNOWLEDGE 的 identity=['term']（缺失抛 missing required field: term），
+          //   kind 受控枚举 {icp,competitors,objections,buyer_language} → term=标题、kind=icp（招标线索即目标画像）、
+          //   content=公告详情 URL 语义。均满足原型约束后粒子才真正落库。）
+          const knowledge = await createParticle('CRM_KNOWLEDGE', {
+            term: cand.name, name: cand.name, title: cand.name,
+            kind: 'icp', content: cand.url ? `招标公告来源：${cand.url}` : cand.name,
+            source: 'tender', region: cand.region || null, confidence: cand.confidence ?? 0.7,
+          }, { tenantId: ctx.tenantId, requireDecisionId: ctx.decision_id }).catch(() => null);
           const deal = await createParticle('CRM_DEAL', {
             name: cand.name, stage: 'S0', pool_type: 'new', source: 'prospecting',
             expected_amount: cand.revenue || 0, industry: cand.industry, pooled_at: new Date().toISOString(),
           }, { tenantId: ctx.tenantId, requireDecisionId: ctx.decision_id });
-          await createEdge('CRM_DEAL', deal.id, 'sourcedFrom', 'CRM_KNOWLEDGE', `prospecting:${cand.id}`, {
-            edge_source: 'auto_weak', relation_confidence: cand.fit_score ?? 0.5, provenance: 'prospecting-lookup', decision_id: ctx.decision_id,
-          }, ctx.tenantId).catch(() => {});
+          if (knowledge?.id) {
+            await createEdge('CRM_DEAL', deal.id, 'sourcedFrom', 'CRM_KNOWLEDGE', knowledge.id, {
+              edge_source: 'auto_weak', relation_confidence: cand.fit_score ?? 0.5, provenance: 'prospecting-lookup', decision_id: ctx.decision_id,
+            }, ctx.tenantId).catch(() => {});
+          }
           results.push({ account_id: null, deal_id: deal.id, decision_id: ctx.decision_id, existing: false });
         }
         await softExpire(draft_id);
@@ -203,16 +215,24 @@ export function seedProspectingActions() {
         if (!cand) continue;
         const hit = await findAccount(cand.name, cand.domain).catch(() => null);
         if (hit) { results.push({ account_id: hit.id || null, deal_id: null, decision_id: ctx.decision_id, existing: true }); continue; }
+        // 溯源目标：先建 CRM_KNOWLEDGE 粒子（公告详情，真实 UUID 目标——同上修复：identity=['term'] 必传 + kind 受控枚举）
+        const knowledge = await createParticle('CRM_KNOWLEDGE', {
+          term: cand.name, name: cand.name, title: cand.name,
+          kind: 'icp', content: cand.url ? `招标公告来源：${cand.url}` : cand.name,
+          source: 'tender', region: cand.region || null, confidence: cand.confidence ?? 0.7,
+        }, { tenantId: ctx.tenantId, requireDecisionId: ctx.decision_id }).catch(() => null);
         const deal = await createParticle('CRM_DEAL', {
           name: cand.name, stage: 'S0', pool_type: 'new', source: 'prospecting',
           expected_amount: cand.revenue || 0, industry: cand.industry,
           pooled_at: new Date().toISOString(),
         }, { tenantId: ctx.tenantId, requireDecisionId: ctx.decision_id });
-        // 溯源弱边：CRM_DEAL --sourcedFrom--> CRM_KNOWLEDGE（修订 1，主语统一对齐 createLeadFromTender）
-        await createEdge('CRM_DEAL', deal.id, 'sourcedFrom', 'CRM_KNOWLEDGE', `prospecting:${cand.id}`, {
-          edge_source: 'auto_weak', relation_confidence: cand.fit_score ?? 0.5,
-          provenance: 'prospecting-search', decision_id: ctx.decision_id,
-        }, ctx.tenantId).catch(() => {});
+        // 溯源弱边（修订 1，主语统一对齐 createLeadFromTender）：DEAL --sourcedFrom--> KNOWLEDGE（真实 UUID）
+        if (knowledge?.id) {
+          await createEdge('CRM_DEAL', deal.id, 'sourcedFrom', 'CRM_KNOWLEDGE', knowledge.id, {
+            edge_source: 'auto_weak', relation_confidence: cand.fit_score ?? 0.5,
+            provenance: 'prospecting-search', decision_id: ctx.decision_id,
+          }, ctx.tenantId).catch(() => {});
+        }
         results.push({ account_id: null, deal_id: deal.id, decision_id: ctx.decision_id, existing: false });
       }
       // P0-3b：精富集尝试计数（session 路径；hit=新落非 existing）

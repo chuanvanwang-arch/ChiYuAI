@@ -1,0 +1,78 @@
+<!-- src/web/discovery.html — 线索发现工作台（前台只读面）
+     三区：triggerBar（触发条）/ candidatePool（候选线索池表）/ glassBoxDrawer（C2 详情抽屉）
+     只读：评分重校准、外联发送一律走 MCP 胶囊入口（discovery-run HITL + 第0闸），本页不裸调写端点
+     样式：/portal/tokens.css + /portal/common.css（受控渲染页既有令牌） -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="omzTEBY0b8yBj86Tc2u847">
+<head data-page-node-id="6QZkbyWQNhsNGRXOHSYC7d">
+  <meta charset="utf-8" data-page-node-id="8l72VZRxuEoQzXH0eOS9FS" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="AN7PYJueX1v6VzXANdQCvx" />
+  <title>线索发现工作台</title>
+  <link rel="stylesheet" href="/portal/tokens.css" data-page-node-id="Fq8rpk1JIcB9U48SKkTWnC" />
+  <link rel="stylesheet" href="/portal/common.css" data-page-node-id="jclxxjhKYHbf51Iim5OCyq" />
+</head>
+<body data-page-node-id="CHdII98U8Q2r6R92PSK6AT">
+<div id="app" data-page-node-id="GZduzOozuzYBDageiGn1I6">
+  <header class="page-head" data-page-node-id="ncqtQgvUqtIl8OSynJqGWx">
+    <div class="ph-main" data-page-node-id="JnIPrm4CDWqxVeWTPhwgcU"><h1 class="page-title" data-page-node-id="5vk2CQkkHGizvtBYdcEUkt">线索发现工作台</h1></div>
+  </header>
+  <!-- ① 触发条 triggerBar：当前租户 dataset（ICP 摘要 + 数据源徽标 + 上次运行时间） -->
+  <section id="triggerBar" class="pg-card" data-page-node-id="UBZ9MrhMUDjmhX5e974X1k">
+    <div id="icp-summary" data-page-node-id="EiDGmTGnHkOaoCENvAbdbt"></div>
+    <div id="data-source-badges" data-page-node-id="PVRsuu7QSWCzHKi70WNoTB"></div>
+    <div id="last-run-at" data-page-node-id="TNRUkh6tgIYMiloXRgqA6c"></div>
+    <!-- 运行发现：经 MCP 胶囊注入 prompt（discovery-run）触发，写走两阶段 + 第0闸，本页不裸调写端点 -->
+    <button id="run-discovery-btn" type="button" data-page-node-id="fXvkXUDGWyYLo0O4Tij3Vu">运行发现</button>
+  </section>
+  <!-- ② 候选线索池表 candidatePool：只读 -->
+  <section id="candidatePool" class="pg-card" data-page-node-id="zOdsQEL9vM8eNryFsNLKl0">
+    <table id="candidate-table" data-page-node-id="EytBBmO8UqafCmhiuqgJtX">
+      <thead data-page-node-id="AANb2d604WugenX1LZDmjV"><tr data-page-node-id="aNT1Ujdcz9olj3MAvyehEo">
+        <th data-page-node-id="BTI28XaRtIAd9RhJqT67Zc">公司</th><th data-page-node-id="VsYj2N2JCw1oJBD0sWchx7">ICP 适配分</th><th data-page-node-id="QRjsHbDMUCgWUscy5YDp85">信号</th><th data-page-node-id="iBMWhseyw7iA7V5FXJcgpR">why_narrative</th><th data-page-node-id="T5hNl2lfsAoTQ0wuOHr351">来源</th>
+      </tr></thead>
+      <tbody id="candidate-tbody" data-page-node-id="HStLPoBdLoo3vhlVmsOMjr"></tbody>
+    </table>
+  </section>
+  <!-- ③ 详情抽屉 glassBoxDrawer（C2）：rule_ref + j_score + trace 时间线 + 编排轨迹 + 账户持久记忆追加记录 -->
+  <aside id="glassBoxDrawer" class="drawer" hidden data-page-node-id="NhurmdBObrkfXwv7GH1ytA">
+    <div id="gbox-rule-ref" data-page-node-id="84MV7ZCmqWg63oCTv7vHsE"></div>
+    <div id="gbox-j-score" data-page-node-id="3aijzviHs1tTuiSrN2Wg9R"></div>
+    <div id="gbox-trace" data-page-node-id="kLOywz436KrAw6SHHV2yJn"></div>
+    <div id="gbox-playbook" data-page-node-id="h6CBRVN1JI3GJjRZK094CO"></div>
+    <div id="gbox-account-memory" data-page-node-id="HqMFfHd9ot2YC6LP78eDvg"></div>
+  </aside>
+</div>
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { get } from '/portal/api.js';
+  injectLayout();
+  // 只读端点：GET /api/discovery/candidates（候选池）；detail 经 /api/particles/:id/schema（既有只读）
+  // 触发：<buddy-capsule> 注入 prompt（discovery-run）→ 写经 MCP 两阶段 + 第0闸，本页不裸调
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function render(items) {
+    const tbody = document.getElementById('candidate-tbody');
+    if (!tbody) return;
+    if (!items.length) { tbody.innerHTML = '<tr><td colspan="5">暂无已评分候选</td></tr>'; return; }
+    // 渲染进既有表体（列：公司 / ICP 适配分 / 信号 / why_narrative / 来源），保留表头语义
+    tbody.innerHTML = items.map((it) => `
+      <tr data-account-id="${esc(it.account_id)}">
+        <td>${esc(it.name || it.account_id)}</td>
+        <td>${it.icp_fit_score == null ? '—' : Number(it.icp_fit_score).toFixed(2)}</td>
+        <td>${(it.signals || []).map((s) => `<span class="badge">${esc(typeof s === 'string' ? s : s && s.type)}</span>`).join('')}</td>
+        <td>${esc(it.why_narrative || '')}</td>
+        <td>${(it.sources || []).map((s) => `<span class="badge">${esc(s)}</span>`).join('')}</td>
+      </tr>`).join('');
+  }
+  async function load() {
+    try {
+      const data = await get('/api/discovery/candidates');
+      render(data?.items || []);
+    } catch (e) {
+      // 未登录/未配置 → 空态，不阻断页面
+      render([]);
+    }
+  }
+  load();
+</script>
+</body>
+</html>

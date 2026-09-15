@@ -35,9 +35,10 @@ export function buildTodayPriority(deals, decisionsByDeal = {}) {
 const S_ALIAS = {
   lead: 'S1', opportunity: 'S2', quoted: 'S3', contracted: 'S4', ordered: 'S5', paid: 'S6',
   lost: 'S7', disqualified: 'S8',
+  S0: 'S0', S0P: 'S0P',   // 公海 / 私海线索（2026-09-11）
 };
 export const pipelineStages = [
-  { key: 'S1', title: '线索发掘' },
+  { key: 'S1', title: '正式线索' },
   { key: 'S2', title: '需求确认' },
   { key: 'S3', title: '方案匹配' },
   { key: 'S4', title: '报价谈判' },

@@ -18,6 +18,7 @@ export const DEFAULT_PROSPECTING_RULES = Object.freeze({
     qixin:   { enabled: false, weight: 0.6 },
     xinbang: { enabled: false, weight: 0.2 },
     anysite: { enabled: false, weight: 0.2 },
+    tender:  { enabled: false, weight: 0.8 },   // 2026-09-15：标讯主动搜索源（design docs/2026-09-15-tender-active-search-design.md）
   },
   candidate_limit: 50,
   fit_threshold: 0.6,

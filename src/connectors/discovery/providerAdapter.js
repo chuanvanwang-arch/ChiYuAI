@@ -1,6 +1,7 @@
 // src/connectors/discovery/providerAdapter.js
 // 统一接口（设计 v8.1 §3）：enrich(entity, fields, ctx) -> { [field]: { value, confidence, cost, provider, ts } }
 // 铁律：无命中必须返回 {}（不是 null）；不得抛业务异常（waterfall 侧兜底，但适配器应自愈）
+// search()（2026-09-14 拓客新增能力）：可选——无 search 的适配器跳过搜索阶段（基类默认空实现，不破坏 enrich 契约）
 export class ProviderAdapter {
   constructor(cfg = {}) {
     this.id = cfg.id;
@@ -13,6 +14,7 @@ export class ProviderAdapter {
     this.config = cfg;
   }
   async enrich() { throw new Error(`[provider:${this.id}] enrich() not implemented`); }
+  async search() { return []; }   // 拓客可选能力：默认空（无 search 适配器跳过搜索，不改变 enrich 契约）
 }
 
 // 统一结果条目构造：保证 6 元齐全（value/confidence/cost/provider/ts），防各适配器字段漂移

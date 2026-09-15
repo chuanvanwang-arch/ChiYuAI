@@ -4,22 +4,30 @@
 //   2. 字段映射复用 discoveryRules.signals 权重键
 //   3. token 绝不进前端 / 日志 / memory
 //   4. 公司搜索路径前期实测 404 → 依次尝试候选路径，全失败 fail-open（不下发死路径）
-// 认证：access-token header = 完整 JWT（裸 UUID 会 401）。已验证可用端点：POST /api/linkedin/email/user。
+// 认证：access-token header = JWT（不带 'A.' 前缀——实测 anysite 期望裸 JWT，带前缀返回 Invalid token）。
+// 已验证可用端点：GET /token/statistic（探活）、POST /api/linkedin/search/companies（公司搜索）、
+//   POST /api/linkedin/email/user（email 富集）。
 import { ProviderAdapter, fieldHit } from '../providerAdapter.js';
 import { registerProvider } from '../providerRegistry.js';
 
 const ANY_SITE_API = process.env.ANY_SITE_API || 'https://api.anysite.io/api';
-// 候选公司搜索路径（优先级降序）；实测 /api/db/linkedin/search/companies 与 /api/linkedin/search/companies 均 404，
-// 故全量 fail-open，待真机校准后收敛到单一有效路径（开放项）。
+// 候选公司搜索路径（优先级降序）；真机实测：无效/缺失 token 时返回 401（端点存在、鉴权未过，非 404），
+// 故仍 fail-open；需有效 JWT 方能出数，待真机校准后收敛到单一有效路径（开放项）。
+// 公司搜索路径（优先级降序）：
+//   1) /linkedin/search/sql/companies —— 70M 公司库 SQL 检索（支持 description/country_hq/employee_count/industry 结构化筛选；
+//      官方博客确认这是「按 ICP 批量搜公司」的正确端点，live search 只能按名字搜）
+//   2) /linkedin/search/companies —— live 搜索（仅 keywords 名字匹配，作为兜底）
+// 认证：access-token header = 裸 JWT（不带 'A.' 前缀——实测 anysite 期望裸 JWT，带前缀返回 Invalid token）
 const SEARCH_PATHS = [
-  '/db/linkedin/search/companies',
+  '/linkedin/search/sql/companies',
   '/linkedin/search/companies',
-  '/linkedin/company/search',
 ];
 
 function authHeaders(ctx = {}) {
-  const key = ctx.credentials?.anysite || process.env.ANY_SITE_KEY;
+  let key = ctx.credentials?.anysite || process.env.ANY_SITE_KEY;
   if (!key) return null;
+  // anysite 期望裸 JWT（实测带 'A.' 前缀会返回 Invalid token）——剥离前缀归一
+  if (key.startsWith('A.')) key = key.slice(2);
   return { 'access-token': key, 'Content-Type': 'application/json' };
 }
 
@@ -60,7 +68,7 @@ export function anysiteAdapter(cfg = {}) {
       if (cfg.__mock?.statistic) return { ok: !!cfg.__mock.statistic.ok, valid: !!cfg.__mock.statistic.valid, ts: new Date().toISOString() };
       const headers = authHeaders(ctx);
       if (!headers) return { ok: false, valid: false, detail: 'no credentials' };
-      const data = await http('/linkedin/email/user', { email: '' }, ctx); // 已验证端点兜底探活
+      const data = await http('/linkedin/email/user', { email: 'health@anysite.io' }, ctx); // 已验证端点兜底探活（空邮箱会被 422，用合法占位邮箱）
       return { ok: data !== null, valid: data !== null, ts: new Date().toISOString() };
     }
 
@@ -91,11 +99,29 @@ export function anysiteAdapter(cfg = {}) {
       }
       const key = ctx.credentials?.anysite || process.env.ANY_SITE_KEY;
       if (!key) return [];
-      const keywords = (query.industries || []).join(' ') || query.name || query.keywords || '';
       const count = Math.min(Number(query.limit) || 20, 50);
+      // ICP 映射：
+      //   industries/name/keywords → description DSL 检索词（anysite SQL 端点支持 description 全文 + DSL）
+      //   erp / tech_stack 信号（SAP/Salesforce 等）→ 并入 description DSL（布尔 OR，精确短语）
+      //   min_headcount → employee_count_min（收入>10亿制造业通常员工数大，用规模代理）
+      const kw = [
+        ...(Array.isArray(query.industries) ? query.industries : []),
+        ...(Array.isArray(query.erp) ? query.erp.map((x) => `"${x}"`) : []),
+        ...(query.specialities && Array.isArray(query.specialities) ? query.specialities : []),
+      ].filter(Boolean);
+      const dsl = query.keywords || (kw.length ? kw.join('|') : '');
+      const body = { count };
+      if (dsl) body.description = dsl;
+      if (Array.isArray(query.geo) && query.geo.length) body.country_hq = query.geo; // ISO2
+      const headMin = Number(query.min_headcount) || Number(query.employee_count_min) || 0;
+      if (headMin) body.employee_count_min = headMin;
+      if (query.profit_margin_pct || query.min_revenue_y) {
+        // 收入/利润无原生筛选字段 → 用 headcount 与 industry 代理（高收入高利润制造业多为大企业）
+        if (!headMin) body.employee_count_min = 1000;
+      }
       for (const path of SEARCH_PATHS) {
-        const data = await http(path, { keywords, count }, ctx).catch(() => null);
-        const items = data?.items || (Array.isArray(data) ? data : null);
+        const data = await http(path, body, ctx).catch(() => null);
+        const items = data?.items || data?.records || (Array.isArray(data) ? data : null);
         if (Array.isArray(items) && items.length) return items.map(candidateFromCompany).filter(Boolean);
       }
       return []; // fail-open：全候选路径 404/异常 → 空

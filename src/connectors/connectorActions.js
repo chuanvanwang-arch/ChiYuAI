@@ -124,4 +124,29 @@ export function seedConnectorActions() {
       return { matched: hits.length, leads };
     },
   });
+
+  // conn-signal-lead-gen：强购买信号命中（融资/招聘/招投标/社媒）→ 自动生成 S0 公海线索
+  // 范式：完全镜像 conn-tender-push（connectorActions.js:98-126），复用 createLeadFromTender + sourcedFrom 弱边。
+  // agentTool:false → 仅由 webhook/定时器/admin 端点触发，不进 agent capabilities（免 agentSpec 闭包改动）。
+  registerAction({
+    name: 'conn-signal-lead-gen', kind: 'write', permission: 'auth',
+    namespace: 'connector', agentTool: false, force: false, needsApproval: true,
+    autoDecision: true, confirm: 'stage2', owner: 'connector-signal', version: '1.0.0',
+    autoWeakEdge: true, weakPredicate: 'sourcedFrom',
+    schema: { signal_type: 'string', account_id: 'string', match: 'object' },
+    parameters: { required: ['signal_type', 'account_id'] },
+    handler: async ({ signal_type, account_id, match }, ctx) => {
+      const createLeadFromTender = ctx.createLeadFromTender
+        || (await import('../connectors/tenderConnector.js')).createLeadFromTender;
+      const createEdgeFn = ctx.createEdge || createEdge;
+      const deal = await createLeadFromTender({ signal: { type: signal_type, ...match }, tenantId: ctx.tenantId });
+      // 溯源弱边：ACCOUNT --sourcedFrom--> DEAL（强信号来源语义）
+      await createEdgeFn('CRM_ACCOUNT', account_id, 'sourcedFrom', 'CRM_DEAL', deal.id, {
+        edge_source: 'auto_weak', relation_confidence: match?.confidence ?? 0.7,
+        provenance: 'signal-lead-gen', decision_id: ctx.decision_id,
+      }, ctx.tenantId).catch(() => {});
+      await updateParticle(account_id, { patch: { last_signal_lead: { signal_type, deal_id: deal.id } } }).catch(() => {});
+      return { deal_id: deal.id, account_id, signal_type };
+    },
+  });
 }

@@ -15,8 +15,10 @@ import { mergedDiscoveryRules } from '../config/discoveryRules.js';
 import { resolveAdapters } from '../connectors/discovery/providerRegistry.js';
 import { runWaterfall } from '../connectors/discovery/waterfall.js';
 import { resolveExistingOrCreate } from '../connectors/discovery/dedupResolver.js';
-import { buildEnrichmentPayload, buildDiscoveryPayload } from './discoverySchema.js';
+import { buildEnrichmentPayload, buildDiscoveryPayload, enforceContextByteLimit } from './discoverySchema.js';
+import { selectPlaybook, compilePlaybook } from '../connectors/discovery/orchestrationCompiler.js';
 import { registerBuiltinAdapters } from '../connectors/discovery/builtinAdapters.js'; // 幂等：确保内置适配器已注册
+import { emit } from '../events/bus.js';
 
 // 生产写助手的 opts（抽为纯函数 → 单测可断言「租户 / decision_id 真的透传」，无需连库）
 export function repoWriteOpts(ctx = {}) {
@@ -46,8 +48,19 @@ export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
   // ② 规则：租户感知（config_store['discovery-rules'] ⊕ 出厂默认）；deps.rules 可整体注入
   const rules = deps.rules || await mergedDiscoveryRules({ tenantId }, deps.ruleDeps || {});
 
-  // ③ 数据源：enabled 过滤 + costTier 升序（付费源出厂 false，需显式授权）；deps.adapters 可注入（单测零 IO）
-  const adapters = deps.adapters || resolveAdapters(rules, { allowIds: input.allowIds });
+  // ③ 数据源：playbook 推导 allowIds（配置驱动）；enabled 过滤 + costTier 升序；deps.adapters 可注入（单测零 IO）
+  //    playbook 未配置（selectPlaybook → null）⇒ 退回 input.allowIds 原语义（不过滤 = 全量启用源）
+  const playbook = selectPlaybook(rules, input.signals || []);
+  const dataStep = playbook ? compilePlaybook(playbook).steps.find((st) => st.stage === 'data') : null;
+  const allowIds = dataStep?.adapters?.length ? dataStep.adapters : input.allowIds;
+  const adapters = deps.adapters || resolveAdapters(rules, { allowIds });
+
+  // ③-b 凭据注入：按已启用适配器 id 解析 per-tenant 解密凭据 → 透传 ctx.credentials
+  //   deps.resolveCredentials 可注入（单测零 IO）；生产默认走 credentialVault.resolveCredentials（pgcrypto 解密）
+  const providerIds = adapters.map((a) => a.id);
+  const credentials = deps.resolveCredentials
+    ? await deps.resolveCredentials({ tenantId, providerIds, deps })
+    : (await import('../connectors/discovery/credentialVault.js')).resolveCredentials({ tenantId, providerIds });
 
   // ④ 写助手：生产默认真实现（直调 repo + 透传 tenantId / decision_id），单测可注入替身
   const opts = repoWriteOpts(ctx);
@@ -69,7 +82,7 @@ export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
   const fields = Array.isArray(input.fields) && input.fields.length
     ? input.fields
     : [...new Set(adapters.flatMap((a) => a.coverageFields || []))];
-  const { values, cost, calls } = await runWaterfall(adapters, { ...seed, id: account.id }, fields, ctx);
+  const { values, cost, calls } = await runWaterfall(adapters, { ...seed, id: account.id }, fields, { ...ctx, credentials });
   const enrichment = buildEnrichmentPayload(values);
 
   // ⑦ 评分入 payload：初值占位，真实评分由 lead-fit 场景（Task 6）经 decision 回写（glass-box 见 Task 15）
@@ -80,10 +93,12 @@ export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
   // ⑧ 写回客户（只增改，不删除）
   await update(account.id, { enrichment, discovery });
 
-  // ⑨ 产出线索商机（identity=name 必填；stage 经 normalizeStage 归一 → S1）
+  // ⑨ 产出线索商机（identity=name 必填；T9 2026-09-11：直落公海 S0+pool_type=new，
+  //    须经销售认领→BANT 校验才升 S1 正式线索，不再直接写 'lead'）
   const deal = await create('CRM_DEAL', {
     name: seed.deal_name || `${seed.name} · 线索`,
-    stage: 'lead', source: 'discovery', account_id: account.id,
+    stage: 'S0', pool_type: 'new', source: 'discovery', account_id: account.id,
+    pooled_at: new Date().toISOString(),
   });
 
   // ⑩ 溯源弱边：仅在确实拿到知识粒子 id 时落边（沿用 connectorActions.js:41 范式）；无则不落，绝不伪造
@@ -95,6 +110,18 @@ export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
       provenance: 'discovery-run', decision_id: decisionId,
     }, opts.tenantId).catch(() => {});
   }
+
+  // ⑪ 记忆捕获源（P0#2）：发现结论 emit 到 'discovery' 域 → capture.js 白名单捕获 → memory_log
+  //   三条硬约束：① 必须带非空 summary（injector.memoryText 只认 text|summary|note|content）
+  //              ② 必须带 account_id（memoryLog.js:55 C2 锚点 → entity_type=ACCOUNT，跨商机累积）
+  //              ③ 不得含瞬态噪声形态（judge.js judgeWorthiness 命中即静默不落库）
+  emit('discovery', 'lead-discovered', enforceContextByteLimit({
+    summary: `发现线索 ${seed.name} → ${deal.id}（rule_ref=scenario:lead-fit；decision_id=${decisionId || 'pending'}）`,
+    account_id: account.id,
+    deal_id: deal.id,
+    tenant_id: tenantId,
+    evidence: enrichment,
+  }));
 
   return {
     accountId: account.id, dealId: deal.id, tenantId,

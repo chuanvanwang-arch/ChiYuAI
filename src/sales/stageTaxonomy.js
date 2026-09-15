@@ -4,8 +4,17 @@
 
 export const S_STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 
+// ── 公海阶段（2026-09-11）：公海 = S0；认领后 = S0P（私海待校验）；BANT 校验通过 = S1（正式线索）──
+// ⚠ 两套集合并存是有意为之：funnelKpi.js:36 用 S_STAGES.indexOf() 做前缀展开，
+//    把 S0 插进 S_STAGES 会让漏斗上游吞进公海线索 → 全部转化率失真。故 S_STAGES 冻结为 S1-S8。
+export const S_POOL_STAGE = 'S0';    // 公海
+export const S_PICKED_STAGE = 'S0P'; // 私海线索（待校验）
+export const S_ALL_STAGES = [S_POOL_STAGE, S_PICKED_STAGE, ...S_STAGES];
+export const S_PRE_DEAL_STAGES = [S_POOL_STAGE, S_PICKED_STAGE];
+
 export const S_LABEL = {
-  S1: '线索发掘', S2: '需求确认', S3: '方案匹配', S4: '报价谈判',
+  S0: '公海', S0P: '私海线索',
+  S1: '正式线索', S2: '需求确认', S3: '方案匹配', S4: '报价谈判',
   S5: '合同确认', S6: '赢单移交', S7: '输单', S8: '丢单',
 };
 
@@ -38,6 +47,22 @@ export function isOpenStage(v) {
   return !S_TERMINAL_STAGES.includes(code);
 }
 
+// 是否公海阶段（S0）。S0P 属私海（有归属、需跟进），不在此列。
+// 用途：待办/跟进视图据此排除公海——公海无人跟进，不该出现在任何人的待办里。
+export function isPoolStage(v) {
+  return toStageCode(v) === S_POOL_STAGE;
+}
+
+// 阶段归一（DB 视角）：公海判定以 owner_id 为准，而非仅看 stage。
+// 迁移遗漏或脏数据时，「无主却标 S1」会制造「已认领」的假象 → 统一纠偏为 S0。
+// 入参可为粒子（取 .payload）或裸 payload。
+export function normalizeDealStage(deal = {}) {
+  const p = deal.payload || deal;
+  const code = toStageCode(p?.stage);
+  if (!p?.owner_id && (code === S_POOL_STAGE || code === 'S1')) return S_POOL_STAGE;
+  return code;
+}
+
 // 合法推进边（含退出边 S7/S8，任意阶段可进；赢单 S6 后不再向前）
 export const S_TRANSITIONS = [
   { from: 'S1', to: 'S2' }, { from: 'S2', to: 'S3' }, { from: 'S3', to: 'S4' },
@@ -47,6 +72,10 @@ export const S_TRANSITIONS = [
   { from: 'S4', to: 'S7' }, { from: 'S5', to: 'S7' }, { from: 'S6', to: 'S7' },
   { from: 'S1', to: 'S8' }, { from: 'S2', to: 'S8' }, { from: 'S3', to: 'S8' },
   { from: 'S4', to: 'S8' }, { from: 'S5', to: 'S8' }, { from: 'S6', to: 'S8' },
+  // 公海三档（2026-09-11）：认领不经 advance（走 crm-lead-pick 的 updateParticle，受 PickRule 约束）
+  { from: 'S0P', to: 'S1' },                                  // BANT 校验通过 → 正式线索
+  { from: 'S0', to: 'S7' }, { from: 'S0', to: 'S8' },         // 公海直接判无效
+  { from: 'S0P', to: 'S7' }, { from: 'S0P', to: 'S8' },       // 待校验直接判无效
 ];
 
 // 第 3.5 闸内容定义（设计 §2.1），纯数据；执行逻辑在 executor.salesStageGate
@@ -56,6 +85,7 @@ export const S_GATE_DEFS = [
   { from: 'S3', to: 'S4', hard: true, key: 'bantcc_quote', attach: null },
   { from: 'S4', to: 'S5', hard: true, key: 'review_contract', attach: 'customer_approval_screenshot' }, // G-S5 阶段门禁
   { from: 'S5', to: 'S6', hard: true, key: 'contract_paid', attach: null },
+  { from: 'S0P', to: 'S1', hard: true, key: 'bantcc_lead', attach: null },   // B/A/T 三要素（或 bantcc_completeness≥pass）→ 正式线索
 ];
 
 // 阶段门禁（强制附件，设计 §2.4）。AI 判存在性，缺则 hard 阻断。
@@ -66,7 +96,7 @@ export const S_ATTACHMENT_GATES = {
 
 export function toStageCode(v) {
   if (!v) return v;
-  if (v.startsWith('S') && S_STAGES.includes(v)) return v; // 已是 S 码
+  if (v.startsWith('S') && S_ALL_STAGES.includes(v)) return v; // 已是 S 码（含 S0/S0P）
   return S_ALIAS_FWD[v] || v;
 }
 export function fromStageCode(code) {
@@ -80,6 +110,7 @@ export function fromStageCode(code) {
 //   生产实测佐证：decision 表 SOLUTION_VALUE / CLIENT_STRATEGY / POST_CONTRACT 三类场景均 0 行。
 //   对齐依据：本文件 S_LABEL（S3 方案匹配 / S4 报价谈判 / S5 合同确认 / S6 赢单移交）。
 export const STAGE_DEFAULT_SCENARIO = {
+  S0: 'LEAD_FOLLOW_UP', S0P: 'LEAD_FOLLOW_UP',
   S1: 'LEAD_FOLLOW_UP', S2: 'OPP_QUALIFY', S3: 'SOLUTION_VALUE',
   S4: 'QUOTE_PRICING', S5: 'SIGN_RISK', S6: 'POST_CONTRACT',
   S7: 'LOSS_REVIEW', S8: 'LOSS_REVIEW',

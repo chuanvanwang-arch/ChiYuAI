@@ -4,47 +4,78 @@
 label{display:block;margin:10px 0 4px;font-size:13px;color:var(--mut)}
 input,select{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px}
 button{padding:7px 16px;border:0;border-radius:7px;background:var(--ac);color:#fff;margin-top:14px;cursor:pointer}
-.muted{color:var(--mut);font-size:13px}</style>
+.muted{color:var(--mut);font-size:13px}
+.tabs{display:flex;gap:6px;margin:6px 0 14px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.tab-btn{padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;margin:0}
+.tab-btn.active{background:var(--ac);color:#fff;border-color:var(--ac)}
+.pool-tab{border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--warn);font-size:12px}</style>
 <link rel="stylesheet" href="/portal/tokens.css">
 <link rel="stylesheet" href="/portal/common.css">
   <script type="module" src="/portal/components.js"></script>
 </head>
 <body>
-<div class="panel"><h2>🗂 池配置</h2><p class="muted">线索池/商机池 pick/recycle 规则 · setPoolConfig 持久化 · GET/PUT /api/pool-config</p><div id="app">加载中…</div></div>
+<div class="panel"><h2>🗂 池配置<span id="pool-badge"></span></h2>
+<p class="muted">三类池（新线索/培育/战败回收）领取与回收规则 · 每租户一套 · GET/PUT /api/pool-config</p>
+<div id="pool-tabs">加载中…</div></div>
 <script type="module">
-import { get, post, put } from '/portal/api.js';
-import { renderPoolForm, validatePoolPatch } from '/portal/poolConfigRender.js';
+import { renderPoolTabs } from '/portal/poolConfigRender.js';
 import { injectLayout } from '/portal/layout.js';
 injectLayout();
 const TOKEN = localStorage.getItem('crm_token');
-const app = document.getElementById('app');
+const app = document.getElementById('pool-tabs');
 if (!TOKEN) location.href = '/home.html';
+let CFG = { pools: [] };
+
+function bindTabs() {
+  for (const b of app.querySelectorAll('.tab-btn')) {
+    b.onclick = () => {
+      for (const x of app.querySelectorAll('.tab-btn')) x.classList.remove('active');
+      for (const s of app.querySelectorAll('.pool-tab')) s.hidden = true;
+      b.classList.add('active');
+      const hit = app.querySelector(`.pool-tab[data-pool="${b.dataset.target}"]`);
+      if (hit) hit.hidden = false;
+    };
+  }
+  for (const btn of app.querySelectorAll('[data-save]')) {
+    btn.onclick = () => save(btn.dataset.save);
+  }
+}
+
+// 从本池 TAB 的输入框读回五键（name 与引擎消费键一致），PUT {pools:[{id,pick_rule,recycle_rule}]}
+async function save(poolId) {
+  const sec = app.querySelector(`.pool-tab[data-pool="${poolId}"]`);
+  if (!sec) return;
+  const num = (n) => Number(sec.querySelector(`[name="${n}"]`).value);
+  const bool = (n) => !!sec.querySelector(`[name="${n}"]`).checked;
+  const body = { pools: [{ id: poolId, pick_rule: {
+    daily_limit: num('daily_limit'),
+    pick_interval_hours: num('pick_interval_hours'),
+    prev_owner_only: bool('prev_owner_only'),
+    new_data_only: bool('new_data_only'),
+  }, recycle_rule: { recycle_days: num('recycle_days') } }] };
+  const r = await fetch('/api/pool-config', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  alert(r.ok ? `已保存 ${poolId}` : ('失败：' + (j.error || r.status)));
+  load();
+}
+
 async function load() {
   try {
     const r = await fetch('/api/pool-config', { headers: { Authorization: `Bearer ${TOKEN}` } });
     const j = await r.json();
     if (!r.ok) { app.innerHTML = `<p class="muted">加载失败：${j.error || r.status}</p>`; return; }
-    app.innerHTML = renderPoolForm(j.config) + `<p class="muted">org ${j.orgId}</p>`;
-    bind();
+    CFG = j.config || { pools: [] };
+    app.innerHTML = renderPoolTabs(CFG);
+    document.getElementById('pool-badge').textContent = j.seeded ? '（继承自平台模板）' : '';
+    bindTabs();
   } catch (e) { app.innerHTML = `<p class="muted">${e.message}</p>`; }
 }
-function bind() {
-  const f = document.getElementById('poolf');
-  if (!f) return;
-  f.onsubmit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(f);
-    const patch = { pickRule: fd.get('pickRule'), recycleAfterDays: Number(fd.get('recycleAfterDays')) };
-    const v = validatePoolPatch(patch);
-    if (!v.ok) { alert('校验失败：' + v.errors.join('; ')); return; }
-    const r = await fetch('/api/pool-config', { method: 'PUT', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId: 'org-hq', patch: v.normalized }) });
-    const j = await r.json();
-    alert(r.ok ? `已保存（org ${j.orgId}）` : ('失败：' + (j.error || r.status)));
-    load();
-  };
-}
 load();
-setInterval(() => { if (TOKEN) load(); }, 15000);
-
+setInterval(() => { if (TOKEN) load(); }, 30000);
 </script>
 </body></html>

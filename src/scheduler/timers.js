@@ -7,11 +7,15 @@
 import { distillMemory } from '../memory/memoryLog.js';
 import { runRiskScan } from './riskScanner.js';
 import { runDecisionRetro, runRoutingReviewPass, runParamInspectionPass } from '../decision/retro.js';
+import { runIcpEvolutionPass } from '../evolution/icpSelfEvolution.js';
+import { createIcpStore } from '../evolution/icpStore.js';
 import { emit } from '../events/bus.js';
 import { recordFailure } from '../monitor/monitorStore.js';
 import { query } from '../db.js';
 import { readConfig } from '../config/configStore.js';
 import { saveNightlyReport } from '../report/nightlyReport.js';
+import { recordTokens as realRecordTokens } from '../alerts/tokenAccounting.js';
+import { scanEscalations } from '../calibration/store.js';
 
 const timers = new Map();   // name → { handle, intervalMs, kind }
 
@@ -29,10 +33,13 @@ const RETRO_HOUR = 2; // 每日跑批时点（运维调度，非业务阈值）
 //   ②负责把到期的 A/B 时间片实验判成结论 → 只出 PENDING 处方（红线：绝不自动写 context-routing）。
 //   ③对 config_store + 场景级九尺子参数逐项体检（确定性、无 LLM；共 26 项含九尺子扩展）→ 只出 PENDING 处方（绝不自动 apply）。
 //   三段各自 catch 互不传染：复盘失败（LLM 超时/降级）不拖垮收口/体检，任一段失败也不影响其余报告落库。
-export const runRetroOnce = async ({ retroFn, routingFn, paramFn, saveReportFn } = {}) => {
+export const runRetroOnce = async ({ retroFn, routingFn, paramFn, icpFn, icpStoreFn, saveReportFn } = {}) => {
   const runRetro = retroFn || runDecisionRetro;
   const runRouting = routingFn || runRoutingReviewPass;
   const runParam = paramFn || runParamInspectionPass;
+  // ③.5 ICP 自进化（P0#3）：可注入；store 为工厂（零 IO，无候选草稿时不会被调用）
+  const runIcp = icpFn || runIcpEvolutionPass;
+  const icpStore = icpStoreFn ? icpStoreFn() : createIcpStore();
   const saveReport = saveReportFn || saveNightlyReport;
   // ① LLM 决策复盘（失败降级不传染）
   const retro = await runRetro({ windowHours: 24 }).catch((err) => {
@@ -53,12 +60,20 @@ export const runRetroOnce = async ({ retroFn, routingFn, paramFn, saveReportFn }
     recordFailure('param-inspection-failed', err);
     return null;
   });
+  // ③.5 ICP 自进化（P0#3；确定性、独立 catch；**只出草稿，HITL 前绝不生效**）
+  //   默认无候选 draft → runIcpEvolutionPass 在 gate 之前 return（skipped:'no_draft_proposed'），
+  //   不落决策行、不碰 config_store → 夜批零行为变化。候选由后台配置页（T17）/ CLI 显式注入 draft。
+  const icp = await runIcp({ tenantId: 'system', store: icpStore }).catch((err) => {
+    emit('trace', 'icp-evolution-failed', { error: String(err?.message || err) });
+    recordFailure('icp-evolution-failed', err);
+    return null;
+  });
   // ④ 报告生成（第 4 个独立 catch：三段任一失败不拖垮报告落库）
   await saveReport({ retro, routing, param }).catch((err) => {
     emit('trace', 'nightly-report-failed', { error: String(err?.message || err) });
     recordFailure('nightly-report-failed', err);
   });
-  return { retro, routing, param };
+  return { retro, routing, param, icp };
 };
 
 // 下一个 02:00 时点（今日已过 → 顺延次日）
@@ -99,6 +114,52 @@ export async function catchUpRetro({ run = runRetroOnce, nowMs = Date.now() } = 
   }
 }
 
+// —— 外部数据接入：integration-poll（混合模式·定时拉取）——
+// 纯函数（可单测，零 IO）：逐租户对启用 provider 拉取 → runWaterfall → monitorAccount（C3 闭环）
+// recordTokens（可注入；缺省接真 tokenAccounting）按租户聚合本轮 cost 落账（零新表，fail-open 不阻断主流程）
+export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, emit, recordTokens } = {}) {
+  const recTok = recordTokens || realRecordTokens;
+  const tenants = listActiveTenants ? await listActiveTenants().catch(() => [{ tenant_id: 'system' }]) : [{ tenant_id: 'system' }];
+  for (const t of tenants) {
+    const tid = t.tenant_id;
+    let adapters = [];
+    try { adapters = (await loadAdapters({ tenantId: tid })) || []; } catch { continue; }
+    if (!adapters.length) continue;
+    let tenantCost = 0;
+    const { rows: accRows } = await query(
+      `SELECT id, payload FROM crm.particles WHERE type='CRM_ACCOUNT' AND tenant_id=$1`, [tid]
+    ).catch(() => ({ rows: [] }));
+    for (const acc of accRows) {
+      const fields = [...new Set(adapters.flatMap((a) => a.coverageFields || []))];
+      const { values, cost } = await runWaterfall(adapters, { ...acc.payload, id: acc.id }, fields, { tenantId: tid }).catch(() => ({ values: {}, cost: 0 }));
+      tenantCost += Number(cost) || 0;
+      const sigs = Object.entries(values).map(([f, v]) => ({ type: f, provider: v?.provider, ts: v?.ts }));
+      if (sigs.length) await monitorAccount({ tenantId: tid }, acc.id, sigs).catch(() => {});
+    }
+    // 可观测接线（T14）：聚合本轮 cost 落 token_accounting（零新表；fail-open）
+    await recTok({ actor: 'integration-poll', action: 'integration-poll', tokensIn: tenantCost, tokensOut: 0, tenantId: tid, module: 'integration' }).catch(() => {});
+    emit && emit('trace', 'integration-poll-done', { tenant_id: tid, providers: adapters.map((a) => a.id) });
+  }
+}
+
+// D6 校准 SLA 超时升级扫描（治理工作流，非状态机推进）：依赖注入便于单测；默认走 store.scanEscalations。
+//   失败 emit trace + recordFailure（G3 不静默）；绝不自动 apply（守 HITL 铁律）。
+//   设计：docs/2026-09-14-d6-calibration-approval-flow-plan.md Task D。
+export const runCalibrationSlaScanOnce = async ({ scanFn, emit, recordFailure } = {}) => {
+  const scan = scanFn || scanEscalations;
+  const out = { escalated: 0 };
+  try {
+    const r = await scan();
+    out.escalated = r?.escalated || 0;
+    if (out.escalated) emit?.('trace', 'calibration-sla-escalated', { count: out.escalated });
+  } catch (err) {
+    emit?.('trace', 'calibration-sla-scan-failed', { error: String(err?.message || err) });
+    recordFailure?.('calibration-sla-scan-failed', err);
+    out.error = String(err?.message || err);
+  }
+  return out;
+};
+
 export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   if (timers.size > 0) return timers.size;   // 幂等单例：已注册则原样返回
   // ① nightly 蒸馏：每 24h 蒸馏 30 天前的流水 → distilled，60 天 → archived（标 distilled 非删除）
@@ -119,13 +180,14 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
     });
   }, 1800000);
   timers.set('crm-risk-scan', { handle: scan, intervalMs: 1800000, kind: 'rule', registeredAt: now });
-  // ③ lead 池回收扫描：每 30 分钟查超期未跟进（>recycle_days）且仍为 lead 阶段的 DEAL
-  //    命中 → emit lead-overdue 预警事件 → 触发 crm-lead-recycle 语义（池回收闭环，T3-1 验收② 事件源）
+  // ③ lead 池回收扫描：每 30 分钟查超期未跟进（>recycle_days）且仍为**私海待校验（S0P）**的 DEAL
+  //    2026-09-11 T4：口径从遗留 stage='lead' 迁移到 S0P（公海 S0 无归属不回收，回收对象=已认领未转正式线索）。
+  //    命中 → emit lead-overdue 预警事件（带 tenant_id，多租户下按租户可路由）→ 触发 crm-lead-recycle 语义
   //    直接走查询不做跨粒子写（回收动作由 lead-recycle Action 显式触发，扫描只产生预警事件）
   const recycle = setInterval(() => {
     query(
-      `SELECT id, payload FROM crm.particles
-       WHERE type='CRM_DEAL' AND payload->>'stage'='lead' AND payload->>'owner_id' IS NOT NULL`
+      `SELECT id, tenant_id, payload FROM crm.particles
+       WHERE type='CRM_DEAL' AND payload->>'stage'='S0P' AND payload->>'owner_id' IS NOT NULL`
     ).then(({ rows }) => {
       const now = Date.now();
       const overdue = rows.filter((r) => {
@@ -135,11 +197,11 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
       });
       for (const deal of overdue) {
         emit('alert', 'lead-overdue', {
-          particleType: 'CRM_DEAL', action: 'lead-recycled',
+          particleType: 'CRM_DEAL', action: 'lead-recycled', tenant_id: deal.tenant_id,
           metric: { overdueDays: Math.floor((Date.now() - new Date(deal.payload.last_follow_up_at).getTime()) / 86400000) },
           particle_id: deal.id,
         });
-        emit('crm', 'lead-overdue', { deal_id: deal.id, owner_id: deal.payload.owner_id });
+        emit('crm', 'lead-overdue', { deal_id: deal.id, owner_id: deal.payload.owner_id, tenant_id: deal.tenant_id });
       }
       if (overdue.length) {
         emit('trace', 'lead-pool-recycle-scan', { scanned: rows.length, overdue: overdue.length });
@@ -370,5 +432,37 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   const patrolTimer = setInterval(runPatrol, patrolIntervalMs);
   runPatrol(); // 启动预热
   timers.set('provenance-patrol', { handle: patrolTimer, intervalMs: patrolIntervalMs, kind: 'rule', registeredAt: now });
+
+  // ⑩ 外部数据接入定时拉取（混合模式）：间隔走 config_store['integration-poll'].interval_ms，env INTEGRATION_POLL_MS 优先
+  //    逐租户对启用 provider 拉取 → runWaterfall → monitorAccount（C3 闭环，复用既有发现编排，不另造链路）
+  const pollCfg = (await readConfig('integration-poll', { tenantId: 'system' }).catch(() => null))?.value || {};
+  const pollIntervalMs = Number(process.env.INTEGRATION_POLL_MS || pollCfg.interval_ms || 21600000);
+  const runPoll = () => {
+    if (process.env.VITEST) return; // 测试隔离护栏：避免后台真实拉取与断言竞态
+    import('../connectors/discovery/tenantInstances.js').then(async (m) => {
+      await runIntegrationPollOnce({
+        listActiveTenants: (await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }))).listActiveTenants,
+        loadAdapters: (await import('../connectors/discovery/providerRegistry.js')).loadAdapters,
+        query,
+        runWaterfall: (await import('../connectors/discovery/waterfall.js')).runWaterfall,
+        monitorAccount: (await import('../connectors/discovery/monitorAccount.js')).monitorAccount,
+        emit,
+        resolveCredentials: (await import('../connectors/discovery/credentialVault.js')).resolveCredentials,
+      }).catch((err) => {
+        emit('trace', 'integration-poll-failed', { error: String(err?.message || err) });
+        recordFailure('integration-poll-failed', err);
+      });
+    });
+  };
+  const pollTimer = setInterval(runPoll, pollIntervalMs);
+  timers.set('integration-poll', { handle: pollTimer, intervalMs: pollIntervalMs, kind: 'rule', registeredAt: now });
+
+  // ⑪ D6 校准 SLA 超时升级扫描（2026-09-14）：每 30min 扫 PENDING 超时项 → 置 escalated + 写追加日志，
+  //    绝不自动 apply（守 HITL 铁律）；失败 emit trace + recordFailure（G3 不静默）。
+  const slaScan = setInterval(() => {
+    runCalibrationSlaScanOnce({ emit, recordFailure }).catch(() => {});
+  }, 1800000);
+  timers.set('calibration-sla-scan', { handle: slaScan, intervalMs: 1800000, kind: 'rule', registeredAt: now });
+
   return timers.size;
 }

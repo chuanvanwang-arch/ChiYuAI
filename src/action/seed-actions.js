@@ -13,18 +13,21 @@ import { recordFailure } from '../monitor/monitorStore.js';
 import { advise } from '../decision/adviseService.js';
 import { collectFollowupRequirement } from '../decision/requirementConditions.js';
 import {
-  S_STAGES, S_LABEL, S_TRANSITIONS, S_GATE_DEFS, S_ATTACHMENT_GATES, toStageCode,
+  S_ALL_STAGES, S_LABEL, S_TRANSITIONS, S_GATE_DEFS, S_ATTACHMENT_GATES, toStageCode,
   STAGE_DEFAULT_SCENARIO as STAGE_SCENARIO, // 2026-09-08：上移至 stageTaxonomy.js 为单一事实源（注释随之上移）
 } from '../sales/stageTaxonomy.js';
 import { scoreBantcc6 } from '../sales/gateThresholdDelta.js';
 import { mantOk, funnelZone, forecastClass, weightedAmount } from '../sales/funnelQuality.js';
 import { evaluateBehaviorChecklist } from '../sales/behaviorChecklist.js';
 import { mergedThresholds, readThreshold, deriveRhythmDays } from '../sales/salesThresholds.js';
+import { leadQualifyGap } from '../sales/leadQualify.js'; // S0P→S1 升级判据（与 executor STAGE_GATES 同源）
 import { reopenDeal } from '../sales/reopenDeal.js';
 import { mergedTargets } from '../sales/namedAccountTargets.js';
 import {
   detectAccountDuplicate, mergeIntoExisting,
 } from '../particles/dedup.js'; // 2026-09-08 客户去重创建闸（docs/plans/2026-09-07-crm-dedup.md 任务2）
+import { seedProspectingActions } from './prospectingActions.js'; // 2026-09-14 拓客三 Action（T5，装配汇聚 3/3）
+import { seedPreheatActions } from './preheatActions.js'; // 2026-09-15 P1-3 触达前预热（T11，装配汇聚 3/3）
 
 // 商机推进决策沉淀铁律（2026-09-02）：crm-deal-advance 的 last_decision_id 必须 updateParticle 写回，
 //   单纯改内存对象不落库 = 决策断链（审计/决策网络无法从商机追溯决策）。同型缺陷排查：任何
@@ -440,7 +443,7 @@ export function seedActions() {
 
       let stage = toStageCode(p.stage);
       // 兼容历史脏值（如 'leads'）：S 码映射未命中时，先做单复数归一再试（不改动公共 taxonomy 模块）
-      if (!S_STAGES.includes(stage) && typeof p.stage === 'string') {
+      if (!S_ALL_STAGES.includes(stage) && typeof p.stage === 'string') {
         stage = toStageCode(p.stage.replace(/s$/, '')) || stage;
       }
       // 下一阶段取合法推进边，排除退出边（S7 输单 / S8 丢单）
@@ -462,6 +465,11 @@ export function seedActions() {
           && Boolean(p.quotation_id || p.quote_amount || p.expected_amount),
         review_contract: () => Boolean(p.contract_no || p.contract_id),
         contract_paid: () => Boolean(Number(p.paid_amount) > 0 || p.paid === true),
+        // S0P→S1 升级正式线索：与 executor STAGE_GATES 同判据（共享 leadQualifyGap，单一事实源）
+        bantcc_lead: () => leadQualifyGap(p, {
+          pass: bantccPass,
+          unknown: readThreshold(thresholds, 'bantcc.unknown'),
+        }) === null,
       };
       const missing = [];
       if (gateDef) {
@@ -730,7 +738,7 @@ export function seedActions() {
 
   // 跨粒子能力 Action（领域级，非粒子 CRUD）；autoDecision：自身经自主引擎 mint decision 满足第 0 闸
   registerAction({
-    name: 'crm-deal-advance', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'critical', autoDecision: true,
+    name: 'crm-deal-advance', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'critical', autoDecision: true, deferDecisionMint: true,
     namespace: 'crm', agentTool: true, force: false, needsApproval: false,
     version: '1.0.0', owner: 'crm-native',
     schema: { deal_id: 'string', to_stage: 'string', transitionedBecause: 'string' },
@@ -759,6 +767,15 @@ export function seedActions() {
         emit('decision', 'deal-advance', { deal_id, to_stage, decision_id, mode: res.mode });
       }
       const updated = await advanceStage(deal_id, to_stage, { transitionedBecause, owner: ctx.actor });
+      // S0P→S1 升级为「正式线索」：落状态载体 qualified_at / qualified_by（设计 §3.5.2 / §2.3）
+      // advanceStage 只写 stage（lifecycle.js:6 契约），状态字段须在 handler 内手工补写并随 updateParticle 落库。
+      if (toStageCode(deal.payload.stage) === 'S0P' && toStageCode(to_stage) === 'S1') {
+        updated.payload = {
+          ...updated.payload,
+          qualified_at: new Date().toISOString(),
+          qualified_by: ctx.actor,
+        };
+      }
       // 决策沉淀到商机（decided_on 边：DEAL → DECISION 由 decision.involved_entities 承载）
       // 2026-09-02 修复：last_decision_id 必须真正写回粒子 payload（此前只改内存对象，
       //   推进后 DB 中 last_decision_id 恒为 null → 决策与商机断链，审计无法从商机追溯决策）。
@@ -781,7 +798,7 @@ export function seedActions() {
   // 范式同 crm-deal-advance：action 自身 mint 决策满足写通道第 0 闸；不动 advanceStage 只进不退。
   // 不加入 WRITE_WHITELIST（whitelist.js 维持原样）→ 默认 human_gate，重开需显式 HITL 确认（零信任）。
   registerAction({
-    name: 'crm-deal-reopen', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'critical', autoDecision: true,
+    name: 'crm-deal-reopen', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'critical', autoDecision: true, deferDecisionMint: true,
     namespace: 'crm', agentTool: true, force: false, needsApproval: false,
     version: '1.0.0', owner: 'crm-native',
     schema: { deal_id: 'string', reason: 'string' },
@@ -797,14 +814,15 @@ export function seedActions() {
       if (!decision_id) {
         const res = await requireDecision(
           'DEAL_REOPEN',
-          { stage: 'S2', deal_id, reopen_from: deal.payload.stage },
+          // stage = 重开目标阶段（T7 改：S2 → S0P，重开须重走 BANT；随 reopenDeal 目标同步）
+          { stage: 'S0P', deal_id, reopen_from: deal.payload.stage },
           [{ type: 'DEAL', id: deal_id }],
           { actor_id: ctx.actor, disposition: 'APPROVE' }
         );
         decision_id = res.decision.decision_id;
         emit('decision', 'deal-reopen', { deal_id, decision_id, mode: res.mode });
       }
-      const updated = await reopenDeal(deal_id, { reason, owner: ctx.actor, decision_id });
+      const updated = await reopenDeal(deal_id, { reason, owner: ctx.actor, decision_id, tenantId: ctx.tenantId });
       return { ...updated, decision_id };
     },
   });
@@ -848,21 +866,34 @@ export function seedActions() {
     },
     handler: async ({ deal_id, owner_id, pool_id }, ctx) => {
       const { query } = await import('../db.js');
-      const { getPoolConfig, checkPickRule } = await import('../sales/pool.js');
+      const { readPoolConfig, poolOf, resolvePoolId, checkPickRule } = await import('../sales/pool.js');
       const deal = await getParticle(deal_id);
       if (!deal) throw new Error(`DEAL 不存在: ${deal_id}`);
-      if (deal.payload.stage !== 'lead') throw new Error(`非线索阶段: ${deal.payload.stage}（仅 lead 阶段可领取）`);
-      // 池配置（默认 org-hq；pool_id 指定目标池，H29 多池实证）
-      // 2026-09-05 G4：读按租户限定（ctx.tenantId；缺省 system——平台组织）
-      const cfg = await getPoolConfig(pool_id || 'org-hq', { tenantId: ctx.tenantId || 'system' });
-      const prev_owner = deal.payload.owner_id;
-      // 当日领取计数 + 上次领取时间（聚合：池内今日已领取数量）
+      // 仅公海(S0)可领；已认领(S0P/S1+)拒领（杜绝重复归属）
+      if (toStageCode(deal.payload.stage) !== 'S0') {
+        throw new Error(`非公海阶段: ${deal.payload.stage}（仅 S0 公海可领取）`);
+      }
+      if (deal.payload.owner_id) throw new Error('该线索已有归属，不可重复领取');
+      // 池配置（三类池 per-tenant；禁 'org-hq' 硬编码）
+      const tenantId = ctx.tenantId || 'system';
+      const cfg = await readPoolConfig({ tenantId });
+      const pool = poolOf(cfg, resolvePoolId(cfg, { pool_id }));
+      const prev_owner = deal.payload.prev_owner_id || null;
+      // 当日领取计数 + 最近一次领取时间
+      //   P1：补 tenant 谓词（禁跨租户计数串扰）
+      //   D1（2026-09-11 派发前复查）：原 `count(*)` 无日期条件 → today_picked_count 实为
+      //     「该 owner 在库 S0P 总量」，daily_limit 退化为总量上限（累计持有 N 条即锁死当日份额；
+      //     线索被回收后计数腾空 → 可无限刷单绕过日限）。且 max(updated_at) 会被任意跟进刷新
+      //     → pick_interval_hours 间隔判定失真。改为「当日 FILTER + picked_at」条件聚合。
       const agg = await query(
-        `SELECT count(*)::int n, max(updated_at) last_pick FROM crm.particles
-         WHERE type='CRM_DEAL' AND payload->>'stage'='lead' AND payload->>'owner_id'=$1`,
-        [owner_id]
-      ).catch(() => ({ rows: [{ n: 0, last_pick: null }] }));
-      const check = checkPickRule(cfg.pick_rule, {
+        `SELECT
+           count(*) FILTER (WHERE NULLIF(payload->>'picked_at','')::timestamptz >= date_trunc('day', now()))::int AS n,
+           max(NULLIF(payload->>'picked_at','')::timestamptz) AS last_pick
+         FROM crm.particles
+         WHERE type='CRM_DEAL' AND tenant_id=$2 AND payload->>'stage'='S0P' AND payload->>'owner_id'=$1`,
+        [owner_id, tenantId]
+      ).catch((e) => { recordFailure('crm-lead-pick-agg-failed', e); return { rows: [{ n: 0, last_pick: null }] }; });
+      const check = checkPickRule(pool.pick_rule, {
         owner: owner_id, prev_owner,
         today_picked_count: agg.rows[0].n,
         last_picked_at: agg.rows[0].last_pick,
@@ -876,7 +907,7 @@ export function seedActions() {
         const { requireDecision } = await import('../decision/autonomyEngine.js');
         const res = await requireDecision(
           'LEAD_FOLLOW_UP',
-          { action: 'lead-pick', deal_id, owner_id, pool: pool_id || 'org-hq' },
+          { action: 'lead-pick', deal_id, owner_id, pool: pool.id },
           [{ type: 'CRM_DEAL', id: deal_id }],
           { actor_id: ctx.actor, disposition: 'APPROVE' }
         );
@@ -884,10 +915,18 @@ export function seedActions() {
         emit('decision', 'lead-pick', { deal_id, owner_id, decision_id, mode: res.mode });
       }
       const updated = await updateParticle(deal_id, {
-        patch: { ...deal.payload, owner_id, picked_at: new Date().toISOString(), pool_id: pool_id || 'org-hq' },
-        requireDecisionId: decision_id, tenantId: ctx.tenantId,
+        patch: {
+          ...deal.payload,
+          stage: 'S0P',                       // 认领 = 进入私海待校验，不等于正式线索
+          owner_id, prev_owner_id: prev_owner,
+          picked_at: new Date().toISOString(),
+          pool_id: pool.id, pool_type: pool.type || 'new',
+        },
+        requireDecisionId: decision_id, tenantId,
+        // T3 CAS：仅当仍处 S0 且无人认领时方可认领，消除并发竞态（已被领/已升阶则拒绝）
+        casExpectStage: 'S0', casExpectOwnerEmpty: true,
       });
-      emit('crm', 'lead-picked', { deal_id, owner_id, pool_id: pool_id || 'org-hq' });
+      emit('crm', 'lead-picked', { deal_id, owner_id, pool_id: pool.id, tenant_id: tenantId });
       return { ...updated, decision_id };
     },
   });
@@ -902,14 +941,17 @@ export function seedActions() {
       properties: { deal_id: { type: 'string', candidateSource: 'CRM_DEAL' } },
     },
     handler: async ({ deal_id, reason }, ctx) => {
-      const { query } = await import('../db.js');
-      const { getPoolConfig, checkRecycleRule } = await import('../sales/pool.js');
+      const { readPoolConfig, poolOf, resolvePoolId, checkRecycleRule } = await import('../sales/pool.js');
       const deal = await getParticle(deal_id);
       if (!deal) throw new Error(`DEAL 不存在: ${deal_id}`);
-      if (deal.payload.stage !== 'lead') throw new Error(`非线索阶段: ${deal.payload.stage}(仅 lead 阶段可回收)`);
-      // 2026-09-05 G4：读按租户限定（ctx.tenantId；缺省 system——平台组织）
-      const cfg = await getPoolConfig(deal.payload.pool_id || 'org-hq', { tenantId: ctx.tenantId || 'system' });
-      const check = checkRecycleRule(cfg.recycle_rule, { last_follow_up_at: deal.payload.last_follow_up_at });
+      // 回收对象 = 已认领的私海待校验线索（S0P）；公海 S0 无人跟进，不参与超期回收
+      if (toStageCode(deal.payload.stage) !== 'S0P') {
+        throw new Error(`非私海待校验阶段: ${deal.payload.stage}（仅 S0P 可回收）`);
+      }
+      const tenantId = ctx.tenantId || 'system';
+      const cfg = await readPoolConfig({ tenantId });
+      const curPool = poolOf(cfg, resolvePoolId(cfg, { pool_id: deal.payload.pool_id, pool_type: deal.payload.pool_type }));
+      const check = checkRecycleRule(curPool.recycle_rule, { last_follow_up_at: deal.payload.last_follow_up_at });
       if (!check.ok) throw new Error(`未达回收条件: ${check.reason}`);
       // 写通道第 0 闸（autoDecision）
       let decision_id = ctx.decision_id;
@@ -925,12 +967,207 @@ export function seedActions() {
         emit('decision', 'lead-recycle', { deal_id, decision_id, mode: res.mode });
       }
       // 回收：解除归属（owner 置空 = 回公海）+ 事件总线可审计
+      const targetId = (!curPool.recycle_rule.recycle_target || curPool.recycle_rule.recycle_target === 'self')
+        ? curPool.id : curPool.recycle_rule.recycle_target;
+      const tgtPool = poolOf(cfg, targetId);
       const updated = await updateParticle(deal_id, {
-        patch: { ...deal.payload, owner_id: null, recycled_at: new Date().toISOString(), recycle_reason: reason || check.reason },
+        patch: {
+          ...deal.payload,
+          stage: 'S0',                        // 回到公海
+          owner_id: null, prev_owner_id: deal.payload.owner_id || null,
+          pool_id: tgtPool.id, pool_type: tgtPool.type || curPool.type,
+          recycled_at: new Date().toISOString(),
+          recycle_reason: reason || check.reason,
+          pooled_at: new Date().toISOString(),   // T4：回公海重置入池时间（in_pool_days 改用 pooled_at）
+        },
         requireDecisionId: decision_id,
+        tenantId,                             // P0 修复：此前未传 → 回收写操作无租户谓词
       });
-      emit('crm', 'lead-recycled', { deal_id, reason: reason || check.reason, decision_id });
+      emit('crm', 'lead-recycled', { deal_id, reason: reason || check.reason, decision_id, tenant_id: tenantId });
       return { ...updated, decision_id };
+    },
+  });
+  // crm-lead-return：销售手动退回公海（场景②：核实无立项/无预算，不能转正式商机）
+  // 关键：不调用 checkRecycleRule —— 退回是「质量」判据（客户没立项），不是「时间」判据。
+  //   原 crm-lead-recycle 硬校验超期 → 未超期即 throw，销售退回被引擎拒（本 Action 存在的根因）。
+  registerAction({
+    name: 'crm-lead-return', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'normal', autoDecision: true, deferDecisionMint: true,
+    namespace: 'crm', agentTool: true, force: false, needsApproval: false,
+    version: '1.0.0', owner: 'crm-native',
+    schema: { deal_id: 'string', reason_code: 'string', note: 'string' },
+    parameters: {
+      required: ['deal_id', 'reason_code'],
+      properties: { deal_id: { type: 'string', candidateSource: 'CRM_DEAL' } },
+    },
+    handler: async ({ deal_id, reason_code, note }, ctx) => {
+      const RETURN_REASONS = new Set(['no_project', 'no_budget', 'no_decision_maker', 'no_timeline', 'other']);
+      if (!RETURN_REASONS.has(reason_code)) {
+        throw new Error(`非法 reason_code: ${reason_code}（须为 ${[...RETURN_REASONS].join('/')}）`);
+      }
+      const { readPoolConfig, poolOf, resolvePoolId } = await import('../sales/pool.js');
+      const deal = await getParticle(deal_id);
+      if (!deal) throw new Error(`DEAL 不存在: ${deal_id}`);
+      const stage = toStageCode(deal.payload.stage);
+      if (stage !== 'S0P' && stage !== 'S1') throw new Error(`非可退回阶段: ${deal.payload.stage}（仅 S0P/S1）`);
+      if (!deal.payload.owner_id) throw new Error('无归属线索无需退回（已在公海）');
+      const tenantId = ctx.tenantId || 'system';
+      const cfg = await readPoolConfig({ tenantId });
+      const curPool = poolOf(cfg, resolvePoolId(cfg, { pool_id: deal.payload.pool_id, pool_type: deal.payload.pool_type }));
+      const targetId = curPool?.return_target || 'pool-nurture';   // 默认进培育池，不回新线索池
+      const tgtPool = poolOf(cfg, targetId);
+
+      let decision_id = ctx.decision_id;
+      if (!decision_id) {
+        const { requireDecision } = await import('../decision/autonomyEngine.js');
+        const res = await requireDecision(
+          'LEAD_FOLLOW_UP',
+          { action: 'lead-return', deal_id, reason_code, from_stage: stage },
+          [{ type: 'CRM_DEAL', id: deal_id }],
+          { actor_id: ctx.actor, disposition: 'APPROVE' }
+        );
+        decision_id = res.decision.decision_id;
+        emit('decision', 'lead-return', { deal_id, decision_id, mode: res.mode });
+      }
+      const updated = await updateParticle(deal_id, {
+        patch: {
+          ...deal.payload,
+          stage: 'S0', owner_id: null,
+          prev_owner_id: deal.payload.owner_id,
+          pool_id: tgtPool?.id || targetId,
+          pool_type: tgtPool?.type || 'nurture',
+          returned_at: new Date().toISOString(),
+          return_reason: reason_code,
+          return_note: note || null,
+          pooled_at: new Date().toISOString(),   // T4：退回公海重置入池时间
+          qualified_at: null, qualified_by: null,   // 退回即取消「正式线索」资格
+          mant_ok_at_return: mantOk(deal.payload.funnel || {}).ok,  // 审计留痕，不作拒绝判据
+        },
+        requireDecisionId: decision_id, tenantId,
+      });
+      emit('crm', 'lead-returned', { deal_id, reason_code, decision_id, tenant_id: tenantId });
+      return { ...updated, decision_id };
+    },
+  });
+  // crm-deal-archive-to-pool：战败归档进战败公海（场景③）
+  // 语义：归档后 stage=S0（统一公海语义）+ pool_type=lost，同时写 last_terminal_stage 保留输单/丢单事实，
+  //       避免「归档即丢失战败信息」；再激活由 crm-deal-reopen 从 S0(lost) → S0P 重走 BANT。
+  registerAction({
+    name: 'crm-deal-archive-to-pool', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'critical', autoDecision: true, deferDecisionMint: true,
+    namespace: 'crm', agentTool: true, force: false, needsApproval: false,
+    version: '1.0.0', owner: 'crm-native',
+    schema: { deal_id: 'string', reason: 'string' },
+    parameters: {
+      required: ['deal_id'],
+      properties: { deal_id: { type: 'string', candidateSource: 'CRM_DEAL' } },
+    },
+    handler: async ({ deal_id, reason }, ctx) => {
+      const { readPoolConfig } = await import('../sales/pool.js');
+      const deal = await getParticle(deal_id);
+      if (!deal) throw new Error(`DEAL 不存在: ${deal_id}`);
+      const cur = toStageCode(deal.payload.stage);
+      if (cur !== 'S7' && cur !== 'S8') throw new Error(`仅终态(S7/S8)可归档，当前=${deal.payload.stage}`);
+      const tenantId = ctx.tenantId || 'system';
+      const cfg = await readPoolConfig({ tenantId });
+      const lost = cfg.pools.find((p) => p.type === 'lost') || { id: 'pool-lost', type: 'lost' };
+
+      let decision_id = ctx.decision_id;
+      if (!decision_id) {
+        const { requireDecision } = await import('../decision/autonomyEngine.js');
+        const res = await requireDecision(
+          'LOSS_REVIEW',
+          { action: 'deal-archive-to-pool', deal_id, from_stage: cur },
+          [{ type: 'CRM_DEAL', id: deal_id }],
+          { actor_id: ctx.actor, disposition: 'REJECT' }
+        );
+        decision_id = res.decision.decision_id;
+        emit('decision', 'deal-archive', { deal_id, decision_id, mode: res.mode });
+      }
+      const updated = await updateParticle(deal_id, {
+        patch: {
+          ...deal.payload,
+          stage: 'S0', pool_id: lost.id, pool_type: 'lost',
+          owner_id: null, prev_owner_id: deal.payload.owner_id || null,
+          prev_pool_id: deal.payload.pool_id || null,       // 供重开时恢复
+          prev_pool_type: deal.payload.pool_type || null,
+          last_terminal_stage: cur,                          // 保留 S7/S8 事实，不因归档丢失
+          archived_at: new Date().toISOString(),
+          archive_reason: reason || null,
+          pooled_at: new Date().toISOString(),   // T4：归档进战败公海亦重置入池时间
+        },
+        requireDecisionId: decision_id, tenantId,
+      });
+      emit('crm', 'deal-archived-to-pool', { deal_id, last_terminal_stage: cur, decision_id, tenant_id: tenantId });
+      return { ...updated, decision_id };
+    },
+  });
+  // crm-lead-reclaim-bulk：离职批量回收（场景④）
+  // 语义：限定真实租户（禁 system 通配，避免一次误操作扫全库）；
+  //   非终态(S0P/S1-S6) 归还原 pool_type 对应池并置 S0 公海；
+  //   终态(S7/S8) 只解除归属并归 lost，不动阶段（避免把已关闭商机重新推回公海污染漏斗）。
+  registerAction({
+    name: 'crm-lead-reclaim-bulk', kind: 'write', permission: 'auth', requiresEntitlement: ['core_crm'], confirm: 'critical', autoDecision: true, deferDecisionMint: true,
+    namespace: 'crm', agentTool: true, force: false, needsApproval: false,
+    version: '1.0.0', owner: 'crm-native',
+    schema: { user_id: 'string', reason: 'string' },
+    parameters: { required: ['user_id'], properties: {} },
+    handler: async ({ user_id, reason }, ctx) => {
+      const { query } = await import('../db.js');
+      const tenantId = ctx.tenantId || 'system';
+      if (!tenantId || tenantId === 'system') throw new Error('离职回收必须限定真实租户（禁 system 通配）');
+      const { readPoolConfig, resolvePoolId } = await import('../sales/pool.js');
+      const cfg = await readPoolConfig({ tenantId });
+      const lost = cfg.pools.find((p) => p.type === 'lost') || { id: 'pool-lost', type: 'lost' };
+      const rows = await query(
+        `SELECT id, payload FROM crm.particles
+         WHERE type='CRM_DEAL' AND tenant_id=$1 AND payload->>'owner_id'=$2`,
+        [tenantId, user_id]
+      ).catch((e) => { recordFailure('crm-lead-reclaim-query-failed', e); return { rows: [] }; });
+
+      const targets = (rows.rows || []).filter((r) => {
+        const s = toStageCode(r.payload?.stage);
+        return ['S0P', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'].includes(s);
+      });
+
+      let decision_id = ctx.decision_id;
+      if (!decision_id) {
+        const { requireDecision } = await import('../decision/autonomyEngine.js');
+        const res = await requireDecision(
+          'LEAD_FOLLOW_UP',
+          { action: 'lead-reclaim-bulk', user_id, tenantId, count: targets.length },
+          [{ type: 'CRM_PERSON', id: user_id }],
+          { actor_id: ctx.actor, disposition: 'APPROVE' }
+        );
+        decision_id = res.decision.decision_id;
+        emit('decision', 'lead-reclaim-bulk', { user_id, tenantId, decision_id, mode: res.mode });
+      }
+
+      let count = 0;
+      const failed = [];
+      for (const r of targets) {
+        const cur = toStageCode(r.payload.stage);
+        const terminal = cur === 'S7' || cur === 'S8';
+        const poolType = terminal ? 'lost' : (r.payload.pool_type || 'new');
+        const pid = terminal ? lost.id : resolvePoolId(cfg, { pool_type: poolType });
+        try {
+          await updateParticle(r.id, {
+            patch: {
+              ...r.payload,
+              ...(terminal ? {} : { stage: 'S0' }),
+              owner_id: null, prev_owner_id: user_id,
+              pool_id: pid, pool_type: poolType,
+              reclaimed_at: new Date().toISOString(),
+              reclaim_reason: reason || 'offboard',
+              pooled_at: new Date().toISOString(),   // T4：离职回收重置入池时间
+            },
+            requireDecisionId: decision_id, tenantId,
+          });
+          count += 1;
+        } catch (e) {
+          failed.push({ id: r.id, error: String(e?.message || e) });
+        }
+      }
+      emit('crm', 'lead-reclaimed-bulk', { user_id, tenant_id: tenantId, count, failed: failed.length, decision_id }); // T8 复查：事件键统一 tenant_id（同族 lead-returned / deal-archived-to-pool）
+      return { ok: true, count, failed, decision_id };
     },
   });
   registerAction({
@@ -1994,6 +2231,10 @@ export function seedActions() {
     'crm_decision_root_cause', 'crm_decision_outcome_set', 'crm_graph_query', 'crm_root_cause_list',
     'decision-disposition', 'agent-dispatch',
   ]);
+  // 2026-09-14 拓客三 Action（T5 装配汇聚 3/3）：prospecting-* 与 discovery-* 并列注册
+  seedProspectingActions();
+  // 2026-09-15 P1-3 触达前预热（T11 装配汇聚 3/3）：preheat-schedule/mark/status 三 Action
+  seedPreheatActions();
   const RESERVED_NAMES = new Set([
     'crm-quote-estimate', 'crm-review-gate-evaluate', 'crm-followup-schedule', 'crm-stage-progression-evaluate',
     'crm-funnel-classify', 'crm-behavior-check', 'crm-field-permission', 'crm-deal-swas-update',

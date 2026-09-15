@@ -5,6 +5,25 @@ import { mergedDiscoveryRules } from '../../config/discoveryRules.js';
 
 const REGISTRY = new Map();
 
+// —— per-tenant 注册子机制（外部数据接入：租户自有系统实例，跨租户隔离）——
+const TENANT_REGISTRY = new Map(); // key = `${tenantId}:${instanceId}` -> factory
+
+export function registerTenantInstance(tenantId, descriptor, factory) {
+  if (!tenantId || !descriptor?.id || typeof factory !== 'function') {
+    throw new Error('registerTenantInstance(tenantId, descriptor, factory) 参数非法');
+  }
+  TENANT_REGISTRY.set(`${tenantId}:${descriptor.id}`, factory);
+  return factory;
+}
+export function getTenantInstances(tenantId) {
+  if (!tenantId) return [];
+  const prefix = `${tenantId}:`;
+  return [...TENANT_REGISTRY.entries()]
+    .filter(([k]) => k.startsWith(prefix))
+    .map(([, f]) => f);
+}
+export function _resetTenantRegistry() { TENANT_REGISTRY.clear(); }
+
 export function registerProvider(id, factory) {
   if (!id || typeof factory !== 'function') throw new Error('registerProvider(id, factory) 参数非法');
   REGISTRY.set(id, factory);
@@ -25,7 +44,13 @@ export function resolveAdapters(rules, { allowIds, registry = REGISTRY } = {}) {
 }
 
 // 租户感知加载：config_store['discovery-rules']（per-tenant）⊕ 出厂默认
+// 租户自有实例：由 deps.loadTenantAdapters 注入（默认 tenantInstances.loadTenantAdapters），
+// 隔离在 tenantInstances 模块内完成（${tenantId}: 前缀）。本模块保持不 import 任何 adapter。
 export async function loadAdapters({ tenantId = 'system' } = {}, deps = {}) {
   const rules = await mergedDiscoveryRules({ tenantId }, deps);
-  return resolveAdapters(rules, { allowIds: deps.allowIds, registry: deps.registry });
+  const builtins = resolveAdapters(rules, { allowIds: deps.allowIds, registry: deps.registry });
+  const tenantAdapters = deps.loadTenantAdapters
+    ? await deps.loadTenantAdapters(tenantId, deps).catch(() => [])
+    : [];
+  return [...builtins, ...tenantAdapters];
 }
