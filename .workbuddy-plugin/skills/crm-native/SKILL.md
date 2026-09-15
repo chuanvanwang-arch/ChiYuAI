@@ -26,19 +26,23 @@ security:
 - 仅在 MCP 连接确认就绪后，才进入下方「意图路由 / 角色自适应 / 惰性编排」等后续流程。
 - **恢复**：本地环境若 MCP 服务未运行，先执行 `npm run mcp:http`（默认端口 3001）再重试；生产环境由服务端常驻进程提供，无需本地启动。workbuddy 侧 `crm-native-mcp` 连接器须处于 enabled。
 
-## 第 0.5 步 · 首次接入：先去平台网站注册并激活，再回来登录（仅首次）
+## 第 0.5 步 · 首次接入：先去平台网站注册并激活，再回来授权/登录（仅首次）
 
 > 用户首次使用「AI 原生销售助手」前，必须先在平台官网拥有**已激活**的账号；本助手不提供注册/激活界面，只做登录凭证校验。
 
-- **触发**：调用任意业务工具时若网关返回 `gate:'auth_required'`（无有效凭证），即进入本引导，绝不降级为匿名只读放行。
-- **引导话术（给用户）**：
+- **触发**：调用任意业务工具时若网关返回 `gate:'auth_required'`（无有效凭证），或 HTTP 层直接返回 `401`（响应头带 `WWW-Authenticate: Bearer resource_metadata=…`），即进入本引导，绝不降级为匿名只读放行。
+- **先完成账号准备（与授权渠道无关）**：
   1. 打开平台官网首页（含「免费注册」入口，注册即按公司名自动开通企业租户）：http://81.70.184.198/
   2. 填写公司名称 / 邮箱 / 密码（手机号选填：填则走短信激活，否则走邮箱激活）→ 提交注册。
   3. 查收邮箱 / 手机短信中的 6 位激活码，在网站激活页输入完成激活。
-  4. 回到本助手，触发**安全凭据对话框**（见下方红线），输入用户名（邮箱）与密码完成 `crm_login` 登录。
-- **仅首次**：`crm_login` 成功后，连接器持久化 token，后续会话自动携带 → 用户无需再次输入用户名密码。
-- **激活闸**：未激活账号 `crm_login` 会被拒（提示「请先通过邮箱/手机激活」）。若用户是某租户首位注册用户（自动成为 admin），MCP 助手仅接受业务角色账号（sales/manager/presales/exec/finance/contract_admin）——admin 仅限 HTTP 后台；请让其在网站「用户管理」加一个业务角色账号用于助手登录。
-- 严禁在对话中索要/回显密码明文（见安全红线）；凭据仅经安全对话框回传用于 `crm_login` 鉴权。
+- **渠道一（推荐，WorkBuddy 客户端）· OAuth 授权**：连接时客户端自动打开浏览器 → 在授权页用 CRM 业务账号登录 → 点「授权」→ 回调完成。
+  - 客户端持有 `access_token`（8 小时）与 `refresh_token`（30 天，每次刷新轮转）；过期自动**静默续期**，用户无需重复授权。
+  - 若浏览器未弹出或授权失败：**断开并重新连接该连接器**即可重新触发授权；切勿手填 token。
+- **渠道二（CLI / 脚本）· `crm_login(username,password)` 登录**：一次性换取 8 小时 token，后续调用携带 `api_token=<token>` 或 `Authorization: Bearer <token>`。
+  - 仅用于 CLI；WorkBuddy 客户端请走渠道一（密码经**安全凭据对话框**回传，非聊天）。
+- **两条渠道互不吊销对方 token**（各自独立生效）：OAuth 续期不会踢掉 CLI token，`crm_login` 也不会踢掉 OAuth 会话。
+- **激活闸**：未激活账号授权/`crm_login` 均会被拒（提示「请先通过邮箱/手机激活」）。若用户是某租户首位注册用户（自动成为 admin），MCP 助手仅接受业务角色账号（sales/manager/presales/exec/finance/contract_admin）——admin 仅限 HTTP 后台；请让其在网站「用户管理」加一个业务角色账号用于助手登录。
+- 严禁在对话中索要/回显密码明文（见安全红线）；密码仅在授权页或安全凭据对话框内输入，仅用于鉴权。
 
 ## 意图路由（一句话 → 技能分发）
 
@@ -88,7 +92,8 @@ security:
 ## 安全红线（继承总则）
 
 - **MCP 凭据验证铁律：不得在对话中直接向用户索要用户名/密码。** 凡需经 `crm-native-mcp` 做用户名+密码验证（登录/身份校验），必须**弹出系统对话框/凭据输入界面**（对话框式采集），由用户在界面内输入后回传，仅将验证结果用于 MCP 鉴权；绝不让用户在聊天里明文报出账号密码。若环境无对话框能力（CLI/受限环境），则**明确告知用户无法安全采集、并停止该操作**，绝不退化为对话问密码。
-- 只读直连放行；写必须两阶段（phase1 取表单 → phase2 confirm_token 执行）+ decision_id（第0闸）。
+- 只读直连放行；写必须两阶段（phase1 取表单 → phase2 confirm_token 执行）。
+  决策第 0 闸（无决策不写）由**服务端**满足：客户端**无需提供、通常也无法提供** `decision_id`——决策凭证由网关自动生成（声明了决策场景的写），或由执行器在 phase2 写入前自行生成（`autoDecision` 写：推进 `crm-deal-advance`／重开 `crm-deal-reopen`／退回 `crm-lead-return`／归档 `crm-deal-archive-to-pool`／离职回收 `crm-lead-reclaim-bulk`）。`decision_id` 仍可作可选参数透传（对接既有决策时用）。
 - 待办签批为两阶段写：phase1 表单 → phase2 confirm_token；approver 匹配才可签（越权拒）。
 - 绝对禁删：无 delete/remove 工具；凭证隔离：客户端 token 只映射 actor，不直达 Action ctx。
 
@@ -124,7 +129,8 @@ security:
 |---|---|
 | `data-particle-create` / `data-particle-update` / `data-particle-edge-create` / `data-particle-attr-update` | 粒子底座写（第0闸） |
 | ↳ `data-particle-update` 语义（2026-09-09 起经 MCP 对外开放） | **字段级并入**：`payload = {...原payload, ...patch}`，仅覆盖传入字段，未传字段原样保留；**无删除通道（禁删铁律）**；软停用走 `state` 流转 + `force=true` 双闸；`decision_id` 落粒子列留痕；跨租户写被拒（`cross_tenant_write_denied`） |
-| `crm-deal-advance` / `crm-lead-pick` / `crm-lead-recycle` / `crm-deal-rollback` | 商机/线索推进（只进不退/输单必填/高危 force） |
+| `crm-deal-advance` / `crm-lead-pick` / `crm-lead-recycle` / `crm-deal-rollback` | 商机/线索推进（只进不退/输单必填/高危 force）。⚠ `crm-lead-pick` / `crm-lead-recycle` 为 `lifecycle=reserved` —— **注册保留但不暴露于 MCP 工具面**（2026-09-03 暴露面收敛），推进一律走 `crm-deal-advance` |
+| `crm-deal-reopen` / `crm-lead-return` / `crm-deal-archive-to-pool` / `crm-lead-reclaim-bulk` | **线索池动作族（2026-09-11，经 MCP 对外开放）**：重开（S7/S8 或 战败公海 → `S0P`，须重走 BANT）／退回公海（S0P/S1 → `S0`，**质量判据**，`reason_code ∈ no_project / no_budget / no_decision_maker / no_timeline / other` 必填）／战败归档（仅 S7/S8 → `S0` + `pool_type='lost'`，留 `last_terminal_stage` 战败事实）／离职批量回收（`user_id` 批量；**拒 `tenantId='system'` 通配**；非终态置 `S0` 归原池，终态仅解绑归 `lost` 不动阶段）。全部经 `updateParticle` **字段变更**（**禁 `advanceStage`**——其只进不退，`S0P→S0` 必被拒）+ `decision_id`；后两者 `confirm:'critical'` |
 | `crm-proposal-write` | 技术方案写（presales） |
 | `crm-quote-create` / `crm-quote-submit` / `crm-quote-activate` | 报价三段 |
 | `crm-contract-create` / `crm-contract-submit` | 合同两段 |
@@ -132,12 +138,16 @@ security:
 | `crm-order-create` / `crm-order-submit` / `crm-order-advance` | 订单三段 |
 | `crm-payment-plan-create` / `crm-payment-record-create` | 回款两段 |
 | `crm-import-batch` | 批量导入（高危 force） |
+| `discovery-run` / `discovery-enrich` / `discovery-research` | 线索自主发现三段（发现 → 富集 → 研究）：外部数据只落 payload 事实字段 + `sourcedFrom` 弱边；写主数据走**两阶段**（先取表单再确认）+ **第 0 闸** `decision_id`（`LEAD_FIT` 场景）；`human_gate`（不进 autonomous 白名单） |
+| `prospecting-search` / `prospecting-select` / `prospecting-confirm` | **主动拓客三段（2026-09-14）**：ICP 画像批量搜候选（search，只读）→ 圈选（select，只读）→ 批量入公海池（confirm，写）：每候选建 `CRM_DEAL` S0 + `pool_type:'new'` + `source:'prospecting'`；查重 `existing:true` 跳过；溯源 `DEAL --sourcedFrom--> KNOWLEDGE` 弱边（conf=fit_score）；写走**两阶段** + **第 0 闸** `decision_id`（`PROSPECTING_CONFIRM` 场景，tier=LEAD 自治放行，硬人工闸由 `needsApproval` 承担） |
 | `crm-approval-flow-define` / `crm-approval-start` / `crm-approval-approve` / `crm-approval-withdraw` / `crm-approval-transfer` / `crm-approval-add-sign` | 审批流定义与操作 |
 
 > **起单指定审批人**：`crm-approval-start` 支持可选参数 `approvers`（字符串数组，如 `["role:presales","role:manager"]`）显式指定审批链；省略时按流配置的节点规则解析（ROLE/SPECIFIC_PERSON）。
 > ⚠ 显式指定时**必须覆盖该流程的全部审批节点**，否则起单会被拒绝（fail-closed，避免剩余节点被静默跳过）。
 
 > 上述写 Action 由 crm-write 子技能经两阶段协议分发（phase1 取表单 → phase2 confirm 执行），本 SKILL 仅编排路由，不直接 dispatch。清单 Action 全部 ∈ `seedActions()` 注册集（防漂移）。
+
+> **线索三档阶段语义（2026-09-11，S0/S0P 前插）**：`S0` = **公海**（无 owner，可从公海池领取）／`S0P` = **私海待校验**（已认领，owner 有值，**未过 BANT**）／`S1` = **正式线索**（BANT 过闸，写 `qualified_at` / `qualified_by`）。获客写入源（`discovery-run` 等）**直落 `S0`**；公海线索**不进**待办/跟进列表（无人跟进）。三池 = `pool-new` / `pool-nurture` / `pool-lost`，池规则真源在 `crm.config_store['lead-pool-config']`（**按租户**隔离，支持 `daily_limit` / `pick_interval_hours` / `recycle_days` 等引擎键）。阶段集合分两套：`S1–S8` 冻结（漏斗口径），`S0` / `S0P` 仅入状态机与校验。
 
 ## 安全红线
 - AI 永远不在对话中接收或显示密钥明文（凭证补完走 .env / 环境变量 / 命令 三种安全通道）。

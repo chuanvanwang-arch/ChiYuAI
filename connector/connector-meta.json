@@ -7,21 +7,25 @@
   "description_en": "Query and advance your CRM in natural language: opportunity stages, customer 360, receivables risk, and sales methodology. Read-only by default; writes require two-phase confirmation.",
   "source": "crm-native",
   "type": "mcp",
-  "version": "1.5.0",
-  "auth_mode": "token",
+  "version": "1.8.0",
+  "auth_mode": "oauth",
   "minWorkbuddyVersion": "4.23.0",
   "examples_zh": [
     "列出本周需要跟进的商机",
     "查询 OP-2026-04012 当前阶段和下一步建议动作",
     "哪些客户回款逾期超过 30 天",
     "把 XX 制造这家客户的下次跟进改到下周三",
-    "用 MEDDIC 评估 C 医疗器械这个商机还差什么"
+    "用 MEDDIC 评估 C 医疗器械这个商机还差什么",
+    "帮我找找符合我们画像的新线索，按 ICP 适配分排序",
+    "按 ICP 画像批量搜一批新企业，圈选几个进公海池"
   ],
   "examples_en": [
     "List opportunities that need follow-up this week",
     "Show the current stage and next best action for OP-2026-04012",
     "Which customers have receivables overdue by more than 30 days",
     "Reschedule the next follow-up for account XX Manufacturing to next Wednesday",
-    "Assess what is missing in the C Medical Devices opportunity using MEDDIC"
+    "Assess what is missing in the C Medical Devices opportunity using MEDDIC",
+    "Find new leads that match our ICP profile, ranked by fit score",
+    "Find new companies matching our ICP at scale and shortlist some into the public pool"
   ]
 }

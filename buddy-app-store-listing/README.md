@@ -125,8 +125,8 @@ https://www.chiyuai.com/oauth/callback
 ```
 connector/
 ├── connector-meta.json     # 元信息：名称/描述/示例/auth_mode/minWorkbuddyVersion
-├── mcp.json                # streamableHttp，url 与 token 均用 ${VAR} 占位
-├── token-schema.json       # 用户自填表单：MCP 地址 + 接入 Token
+├── mcp.json                # streamableHttp，url 用 ${VAR} 占位；OAuth 模式下不写 Authorization 头
+├── token-schema.json       # 用户自填表单：仅 MCP 地址（授权由 OAuth 浏览器完成）
 ├── icon.png                # 512×512 PNG（复用 crm-native 品牌视觉）
 └── skills/                 # 16 个技能（复用 plugin/skills）
     ├── crm-native          # 编排入口：意图路由 → 技能分发
@@ -140,15 +140,19 @@ connector/
 | 项 | 取值 | 理由 |
 |---|---|---|
 | `type` | `mcp` | MCP + Skill 为官方推荐方案 |
-| `auth_mode` | `token` | CRM 侧为 Bearer token 鉴权（`src/mcp/auth.js`），非 OAuth |
-| `minWorkbuddyVersion` | `4.23.0` | `auth_mode: token` 的最低版本要求 |
+| `auth_mode` | `oauth`（2026-09-15 由 `token` 改） | 客户端走 OAuth 2.1 授权码 + PKCE（S256），授权后持 `access_token`(8h) + `refresh_token`(30 天轮转) 自动静默续期 |
+| `minWorkbuddyVersion` | `4.23.0` | 该版本起支持 `auth_mode` 与 MCP OAuth 发现链 |
 | `url` | `${CRM_MCP_URL}` | 占位符，用户可改（本地联调 / 私有部署） |
-| `headers` | `Authorization: Bearer ${CRM_API_TOKEN}` | 与 `extractToken` 三源解析一致 |
+| `headers` | **不写**（OAuth 模式下由客户端注入 `Authorization: Bearer …`） | 写死会与客户端注入头冲突 |
+
+> ⚠️ 残留口径修正：`mcp.json` 若仍写 `Authorization: Bearer ${CRM_API_TOKEN}`，客户端既不发起 OAuth，
+> 又会被 Nginx 的 `auth_basic` 质询拦下（两者都发 `Authorization` 头）→ 表现为「全员连不上」。
+> 该冲突已于 2026-09-15 修复（见 `docs/2026-09-15-mcp-oauth-design.md`）。
 
 ### ⚠️ 两个待解决问题
 
 1. **HTTPS 阻塞**：`chiyuai.com` 存在 SNI 级拦截（见第 4 节实测）。连接器同样要求远程 MCP 用 HTTPS → **备案是唯一根治路径**。备案前只能本地联调（`http://localhost:3001/mcp`）。
-2. **Token 有效期 8 小时**：`src/mcp/auth.js` 中 `MCP_CONFIG.security.tokenTtlMs` 默认 8h，用户自填模式下体验差。可选改进：为连接器发放长周期 token，或在 CRM 侧实现 MCP OAuth 2.1（5 个端点 + PKCE）。
+2. ~~**Token 有效期 8 小时**~~ ✅ **已于 2026-09-15 解决**：CRM 侧已实现 MCP OAuth 2.1（`/.well-known/*` 双 metadata + RFC 7591 动态注册 + `/oauth/authorize` + `/oauth/token`，PKCE S256、refresh 30 天轮转）。用户一次性浏览器授权后自动续期，不再手填 token。设计与实施见 `docs/2026-09-15-mcp-oauth-design.md`。
 
 ---
 

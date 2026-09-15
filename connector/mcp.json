@@ -3,9 +3,6 @@
     "crm-native": {
       "type": "streamableHttp",
       "url": "${CRM_MCP_URL}",
-      "headers": {
-        "Authorization": "Bearer ${CRM_API_TOKEN}"
-      },
       "timeout": 30000
     }
   }

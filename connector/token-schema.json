@@ -1,8 +1,8 @@
 {
   "title": "CRM 接入配置",
   "title_en": "CRM Connection",
-  "description": "连接你的 AI 原生 CRM。凭证仅保存在本机 ~/.workbuddy 目录下，不经过云端。",
-  "description_en": "Connect your AI-native CRM. Credentials are stored locally on your machine only.",
+  "description": "连接你的 AI 原生 CRM。首次连接将打开浏览器完成账号授权，授权后自动维持登录（有效期 30 天）。",
+  "description_en": "Connect your AI-native CRM. A browser window opens for account authorization on first connect; the session then stays signed in for 30 days.",
   "fields": [
     {
       "key": "CRM_MCP_URL",
@@ -12,15 +12,6 @@
       "required": true,
       "defaultValue": "http://81.70.184.198/mcp",
       "description": "CRM 的 MCP 端点。私有部署或本地联调可改为 http://localhost:3001/mcp。"
-    },
-    {
-      "key": "CRM_API_TOKEN",
-      "label": "接入 Token",
-      "label_en": "Access Token",
-      "type": "password",
-      "required": true,
-      "placeholder": "通过 crm_login 领取",
-      "description": "用于访问 CRM 的个人访问令牌，请勿分享。当前实现有效期 8 小时，过期后需重新领取。"
     }
   ]
 }

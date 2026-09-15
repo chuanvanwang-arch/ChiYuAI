@@ -63,14 +63,15 @@ plugin/                      # 包根（上传单元）
 
 ### MCP Server（对外无头暴露）
 
-任意办公智能体经 MCP Server 调用本平台能力（零信任、凭证隔离、绝对禁删）。**首次接入必须先 `crm_login(username,password)` 用户名密码验证领取 token**，之后所有工具调用携带 `api_token`（或 `Authorization: Bearer`）；无有效凭证 → `gate='auth_required'` 硬拒绝（08-29 强制登录改造，`requireAuth=true`，不再免登录降级）：
+任意办公智能体经 MCP Server 调用本平台能力（零信任、凭证隔离、绝对禁删）。**首次接入两种渠道任选其一**：① **OAuth 授权（推荐，WorkBuddy 客户端）** —— 连接时自动打开浏览器，用 CRM 业务账号登录并授权；客户端持 `access_token`（8h）与 `refresh_token`（30 天轮转），过期自动静默续期；② **`crm_login(username,password)` 用户名密码验证（CLI/脚本）** —— 一次性换取 8h token，之后所有工具调用携带 `api_token`（或 `Authorization: Bearer`）。两渠道**互不吊销对方 token**。无有效凭证 → `gate='auth_required'` 硬拒绝（08-29 强制登录改造，`requireAuth=true`，不再免登录降级）；`/mcp` 未授权请求返回 `401 + WWW-Authenticate: Bearer resource_metadata=…`（触发客户端 OAuth 发现链）：
 
 ```bash
 npm run mcp:http     # StreamableHTTP @3001 /mcp（供外部 Agent 无头调用）
 npm run mcp:stdio     # stdio（供本地 Agent 子进程调用）
 ```
 
-- **登录**：`crm_login(username,password)`（免 token 调用）→ 返回 `{ok, token, role, display_name}`；仅业务账号可登录（admin 仅限 HTTP 后台）。
+- **OAuth 端点**：`/.well-known/oauth-protected-resource`、`/.well-known/oauth-authorization-server`、`/oauth/register`（RFC 7591 动态注册）、`/oauth/authorize`（登录页 + PKCE S256）、`/oauth/token`（授权码交换 / refresh 轮转）。
+- **登录（CLI/脚本渠道）**：`crm_login(username,password)`（免 token 调用）→ 返回 `{ok, token, role, display_name}`；仅业务账号可登录（admin 仅限 HTTP 后台）。
 - **读工具**：直连 Action Registry 读操作，无需确认。
 - **写工具**：两阶段（phase1 取表单 → 返回 `confirm_token`；phase2 携 `confirm_token` 执行），并强制 `decision_id`（决策第 0 闸）。
 - **安全红线**：无 delete/remove 工具；凭证格式升级后旧 token 需重新 `crm_login`（结构化 token `crm_<id>_<secret>`）；无凭证一律 `auth_required`。
@@ -142,3 +143,138 @@ python scripts/pack-crm-plugin.py        # 输出 plugin/crm-native-plugin.zip
 ```
 
 > 权威源是**仓库根 `skills/`**；`plugin/skills/` 为分发副本，已同步。
+
+---
+
+## 2026-09-11 同步说明：线索自主发现（`discovery-*`）
+
+> 对应平台侧交付：`docs/2026-09-10-lead-discovery-design.md` +
+> 实施计划 `docs/superpowers/plans/2026-09-10-lead-discovery-engine.md`（Task 1–21）。
+
+**版本 1.7.1 → 1.8.0。**
+
+### 新增能力：三个 MCP 写工具（线索自主发现三段）
+
+| 工具 | 用途 | 闸门 |
+|---|---|---|
+| `discovery-run` | 一次线索自主发现：按租户 ICP（行业/规模/地域/招聘信号/融资轮次）扫描已启用数据源，输出候选线索池（ICP 适配分 + 信号 + `why_narrative`） | 两阶段 + 第 0 闸（`LEAD_FIT`） |
+| `discovery-enrich` | 对指定 account 执行一次字段瀑布富集（缺口字段才走付费源；来源落 `sourcedFrom` 弱边） | 同上 |
+| `discovery-research` | Claygent 式自主研究（区块二分抓取 + glass-box 推理链） | 同上 |
+
+**纪律**：① 外部数据只落 payload 事实字段 + `sourcedFrom` 弱边（`auto_weak`，置信度落边 meta）；
+② 写主数据走**两阶段**（phase1 取表单 → phase2 `confirm_token` 执行）并带 `decision_id`；
+③ `human_gate` —— **不进**对话入口 autonomous 写白名单（跨外联面，绝不自动发信）；
+④ 绝对禁删，只增改。
+
+### 本包改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `skills/crm-native/SKILL.md` | Action 写清单增 `discovery-run` / `discovery-enrich` / `discovery-research` 三行（标注两阶段 + 第 0 闸 + `human_gate`） |
+| `.workbuddy-plugin/agents/crm-native.md` | 一句话能力映射增「找新线索 / 候选线索排序 → `discovery-run`」行 |
+| `.workbuddy-plugin/plugin.json` / `plugin/openclaw.plugin.json` / `plugin/package.json` | 版本 1.7.1 → 1.8.0 |
+| `connector/connector-meta.json` | 连接器版本 1.5.0 → 1.6.0 + 示例增一条（按 ICP 适配分找新线索） |
+| `scripts/verify-plugin-zips.py` | `expect_version` 1.7.1 → 1.8.0 + 2 条防漂移内容规则（`discovery-run` / `两阶段`） |
+
+> **副本一致性**：`skills/crm-native/SKILL.md` 共 **4 份** byte-equal 副本
+> （`skills/` 权威源 + `.workbuddy-plugin/skills/` + `connector/skills/` + `plugin/skills/`）；
+> `.workbuddy-plugin/agents/crm-native.md` 共 **2 份**（+ `plugin/agents/`）。改动须四/两份一起改。
+
+### 打包
+
+```bash
+python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
+python scripts/verify-plugin-zips.py     # 期望 version = 1.9.0（见下节）
+```
+
+
+---
+
+> 对应平台侧交付：`docs/2026-09-11-lead-public-pool-tenant-design.md` +
+> 实施计划 `docs/superpowers/plans/2026-09-11-lead-public-pool-tenant.md`（Task 1–10）。
+
+**版本 1.8.0 → 1.9.0。**
+
+### 新增能力：线索池动作族（4 个 MCP 写工具）
+
+| 工具 | 用途 | 闸门 |
+|---|---|---|
+| `crm-lead-return` | 线索退回公海（S0P/S1 → `S0`）：**质量判据**（人工判断不合格），不查超期；`reason_code ∈ no_project / no_budget / no_decision_maker / no_timeline / other` 必填 | 两阶段 + 第 0 闸 |
+| `crm-deal-archive-to-pool` | 战败归档（仅 S7/S8 → `S0` + `pool_type='lost'`）：留 `last_terminal_stage` 战败事实与 `prev_pool_*` 供重开恢复 | 两阶段 + 第 0 闸 + `LOSS_REVIEW`（`confirm:'critical'`） |
+| `crm-lead-reclaim-bulk` | 离职批量回收：非终态置 `S0` 归原 `pool_type` 池；终态仅解绑归 `lost` **不动阶段**（防关闭商机回灌污染漏斗）；单条失败入 `failed[]` 不中断整批 | 两阶段 + 第 0 闸；**拒 `tenantId='system'` 通配** |
+| `crm-deal-reopen` | 重开（S7/S8 或 战败公海 `S0+lost` → `S0P`）：重开须**重走 BANT**，出池恢复 `prev_pool_*` | 两阶段 + 第 0 闸 |
+
+**纪律**：① 阶段集合分两套 —— `S1–S8` **冻结**（漏斗口径，`funnelKpi` 前缀膨胀依赖），`S0`（公海）/ `S0P`（私海待校验）仅入状态机与校验；
+② 池 = **配置非粒子**，真源 `crm.config_store['lead-pool-config']`（**按租户**隔离，三池 `pool-new` / `pool-nurture` / `pool-lost`），页面可编辑键 = 引擎消费键；
+③ 退回 / 回收 / 归档 / 重开**一律 `updateParticle` 字段变更**，**禁 `advanceStage`**（其只进不退，`S0P→S0` 必被拒）；
+④ 公海 `S0` 无人跟进 → **不进**待办/跟进列表（`isOpenStage('S0')===true` 会 fail-open 计入，须显式排除）；
+⑤ 绝对禁删，只增改。
+
+### 反向漂移订正（本轮实测发现）
+
+`buildMcpTools()` 实测工具面 **63 个**，其中 `crm-lead-pick` / `crm-lead-recycle` 为 `lifecycle=reserved` → **不在** MCP 工具面，但包内写清单此前将其列为可调用动作。本轮已在 SKILL.md 显式标注 `reserved`（推进统一走 `crm-deal-advance`），并把 4 个真暴露的动作补入清单。
+
+### 本包改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `skills/crm-native/SKILL.md`（4 份副本） | 写清单增「线索池动作族」行 + 标注 pick/recycle 为 `reserved` + 增「线索三档阶段语义（S0/S0P）」说明段 |
+| `.workbuddy-plugin/agents/crm-native.md`（2 份） | 一句话能力映射增 2 行（退回/归档、重开/离职回收） |
+| `.workbuddy-plugin/plugin.json` / `plugin/openclaw.plugin.json` / `plugin/package.json` | 版本 1.8.0 → 1.9.0 |
+| `scripts/verify-plugin-zips.py` | `expect_version` 1.8.0 → 1.9.0 + 3 条锚定 `skills/crm-native/SKILL.md` / `agents/crm-native.md` 的防漂移内容规则 |
+
+> **副本一致性**：`skills/crm-native/SKILL.md` 共 **4 份** byte-equal 副本（`skills/` 权威源 + `.workbuddy-plugin/skills/` + `connector/skills/` + `plugin/skills/`）；`.workbuddy-plugin/agents/crm-native.md` 共 **2 份**（+ `plugin/agents/`）。本轮已 md5 校验一致。
+
+### 平台侧协议订正：**写动作的决策凭证由服务端生成**（`deferDecisionMint`，2026-09-11 方案 H）
+
+E2E 实测发现：`crm-deal-advance` / `crm-deal-reopen` / `crm-lead-return` / `crm-deal-archive-to-pool` / `crm-lead-reclaim-bulk` 这 5 个写动作在 MCP 通道 **phase1 被决策第 0 闸永久拦死**（返 `DECISION_NEEDED`，不发 `confirm_token`）——因为它们的决策在 **handler 内部**生成（携带 executor 无法复现的 `disposition` / `entities`），未声明网关代 mint 所需的决策场景；而 MCP 工具面 **63 个工具里没有任何「生成决策」工具**，客户端**无路径**补 `decision_id` ⇒ **工具暴露了但不可调用**。
+
+修法（不改闸语义）：这 5 个动作声明 `deferDecisionMint` → phase1 **跳过决策拦截、直接签发 `confirm_token`**（仍**不**代 mint，防双 mint）；决策由 handler 在 **phase2 写入前**自行生成，第 0 闸在写入路径上仍被满足。普通写动作行为**完全不变**（仍 `DECISION_NEEDED`）。
+
+对**外部智能体**的影响（本次同时订正 SKILL / agent 文档）：写动作的两阶段流程**不变**，但**不需要**（也拿不到）`decision_id` —— 决策凭证由服务端自动生成并在写入时留痕。
+
+### 打包
+
+```bash
+python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
+python scripts/verify-plugin-zips.py     # 期望 version = 1.10.0 且 8 条线索池/拓客/写闸规则 ok
+```
+
+> ⚠ 遗留观察（本轮未处理）：`plugin/.workbuddy-plugin/plugin.json` 仍停留在 `1.5.0`——历史嵌套副本，不属版本三清单，未被打包与校验引用。
+
+---
+
+## 2026-09-15 同步说明：主动拓客（`prospecting-*`）
+
+> 对应平台侧交付：`docs/2026-09-14-prospecting-module-design.md`（已批准）+ 实施计划
+> `docs/superpowers/plans/2026-09-14-prospecting-module-plan.md`（Task 1–8）。本轮 T1–T7 已收口。
+
+**版本 1.9.0 → 1.10.0。**（功能新增：3 个对外 MCP 工具，minor bump；上次 1.9.0 已 commit 入库，非折入未提交版本。）
+
+### 新增能力：主动拓客三段（MCP 对话驱动批量建公海池）
+
+| 工具 | 用途 | 闸门 |
+|---|---|---|
+| `prospecting-search` | 按租户 ICP（行业/规模/营收/地域）+ 信号权重（hiring/funding/tender/social）批量搜索候选企业，返回候选清单 + `fit_score`（**服务端** `mergedProspectingRules` 信号加权算，**适配器不注入**） | **只读**（无闸） |
+| `prospecting-select` | 从候选清单圈选（校验 `selected_ids ⊆ candidates`，防注入） | **只读**（无闸） |
+| `prospecting-confirm` | 批量入公海池：每候选建 `CRM_DEAL` S0 + `pool_type:'new'` + `source:'prospecting'`；查重 `existing:true` 跳过；溯源 `DEAL --sourcedFrom--> KNOWLEDGE` 弱边（conf=`fit_score`） | 两阶段 + 第 0 闸（`PROSPECTING_CONFIRM`） |
+
+**纪律**：① 数据源 `qixin` / `xinbang` 默认 `enabled:false`（付费源，需显式授权 + 填 key）；② 适配器 `search()` 无凭据/异常返回 `[]`（fail-open，不抛业务异常）；③ 会话状态机（searching→listing→selecting→pending_confirm→pooled）**内存态不落粒子**；④ 绝对禁删，只增改。
+
+### 本包改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `skills/crm-native/SKILL.md`（4 份副本） | Action 写清单增 `prospecting-search` / `prospecting-select` / `prospecting-confirm` 三行（标注只读/两阶段 + 第 0 闸 `PROSPECTING_CONFIRM`） |
+| `.workbuddy-plugin/agents/crm-native.md`（2 份） | 一句话能力映射增「按 ICP 批量搜企业进公海池 → `prospecting-*`」行 |
+| `.workbuddy-plugin/plugin.json` / `plugin/openclaw.plugin.json` / `plugin/package.json` | 版本 1.9.0 → 1.10.0 |
+| `scripts/verify-plugin-zips.py` | `expect_version` 1.9.0 → 1.10.0 + 3 条防漂移内容规则（`prospecting-search` 路由 / `PROSPECTING_CONFIRM` 写闸 / agent 拓客能力映射，均锚定 `skills/` 与 `agents/` 防假绿） |
+
+> **副本一致性**：`skills/crm-native/SKILL.md` 共 **4 份** byte-equal 副本（`skills/` 权威源 + `.workbuddy-plugin/skills/` + `connector/skills/` + `plugin/skills/`）；`.workbuddy-plugin/agents/crm-native.md` 共 **2 份**（+ `plugin/agents/`）。本轮已 md5 校验一致（SKILL `7e527cb5` / agents `a99335cb`）。
+
+### 打包
+
+```bash
+python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
+python scripts/verify-plugin-zips.py     # 期望 version = 1.10.0 且 8 条防漂移规则 ok（已实测 ✅ 两个包全过）
+```
