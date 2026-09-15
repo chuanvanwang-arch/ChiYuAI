@@ -112,7 +112,7 @@ describe('discovery-rules.html 后台配置页', () => {
     expect(html, '缺策略表格主体').toContain('id="pb-body"');
     expect(html, '缺新建策略按钮').toContain('id="pb-add"');
     expect(html, '缺只读 JSON 预览').toContain('id="pb-preview"');
-    expect(html, '缺表头列定义').toMatch(/<th>名称\(必填\)<\/th>/);
+    expect(html, '缺表头列定义').toMatch(/<th[^>]*>名称\(必填\)<\/th>/);
     expect(html, '旧裸 JSON textarea 应已移除').not.toContain('id="playbooks-json"');
   });
 
