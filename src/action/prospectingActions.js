@@ -76,11 +76,17 @@ export function seedProspectingActions() {
         .filter(([, s]) => s && s.enabled)
         .map(([id, s]) => ({ id, enabled: true, costTier: 0 }));
       const adapters = resolveAdapters({ providers: enabled });
+      // 凭据注入（对齐 discoveryOrchestrator.js:58-63）：resolveCredentials per-tenant 解密 → 透传 ctx.credentials。
+      //   deps.resolveCredentials 可注入（单测零 DB）；生产默认走 credentialVault（pgcrypto 解密，落库即生效，无需重启）
+      const credentials = deps.resolveCredentials
+        ? await deps.resolveCredentials({ tenantId: ctx.tenantId, providerIds: enabled.map((p) => p.id), deps })
+        : (await import('../connectors/discovery/credentialVault.js')).resolveCredentials({ tenantId: ctx.tenantId, providerIds: enabled.map((p) => p.id) });
+      const searchCtx = { ...ctx, credentials };
       // qixin 强信号 + xinbang 辅助信号（join 增强）
       let candidates = [];
       for (const a of adapters) {
         if (typeof a.search !== 'function') continue;   // 无 search 跳过
-        const list = await a.search(query, ctx).catch(() => []);
+        const list = await a.search(query, searchCtx).catch(() => []);
         for (const c of list) {
           candidates.push({
             ...c,
@@ -175,6 +181,11 @@ export function seedProspectingActions() {
           results.push({ account_id: null, deal_id: deal.id, decision_id: ctx.decision_id, existing: false });
         }
         await softExpire(draft_id);
+        // P0-3b：精富集尝试计数（仅统计本次入池的候选；entrich 命中=非 existing 新落）
+        busEmit('enrichment', 'enrichment-attempt', {
+          tenant_id: ctx.tenantId, provider: 'prospecting-draft', cost: 0,
+          calls: results.length, hits: results.filter((r) => !r.existing).length,
+        });
         busEmit('prospecting', 'batch-pooled', { tenant_id: ctx.tenantId, total: results.length, decision_id: ctx.decision_id, via: 'discovery_draft' });
         return { results, via: 'discovery_draft' };
       }
@@ -204,6 +215,11 @@ export function seedProspectingActions() {
         }, ctx.tenantId).catch(() => {});
         results.push({ account_id: null, deal_id: deal.id, decision_id: ctx.decision_id, existing: false });
       }
+      // P0-3b：精富集尝试计数（session 路径；hit=新落非 existing）
+      busEmit('enrichment', 'enrichment-attempt', {
+        tenant_id: ctx.tenantId, provider: 'prospecting-session', cost: 0,
+        calls: results.length, hits: results.filter((r) => !r.existing).length,
+      });
       busEmit('prospecting', 'batch-pooled', { tenant_id: ctx.tenantId, total: results.length, decision_id: ctx.decision_id });
       updateSession(session_id, { state: 'pooled', confirmed_ids });
       return { results };

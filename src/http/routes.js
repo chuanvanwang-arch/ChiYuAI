@@ -928,6 +928,35 @@ export function createRoutes(app, hub) {
     }
   });
 
+  // ─── P0-3b：富集成本/命中率指标端点（设计 docs/2026-09-15-anysite-borrowing-analysis.md §3 P0-3）───
+  // 数据源：crm.events 的 enrichment 域事件（prospectingActions confirm 段每入池一条发 enrichment-attempt）
+  // 抗假绿：rate 分母 = 事件条数（真实 calls），不虚造；hits = 新落池数（非 existing）
+  app.get('/api/enrichment-metrics', async (req, res) => {
+    try {
+      const me = resolveMe(req);
+      if (!me?.ok) return res.status(401).json({ error: '未登录' });
+      const tenantId = scopeTenant(me);
+      // 语义：calls = Σ(payload.calls)（累计精富集候选数，与 P0-3a aggregateEnrichment 同口径），
+      //       不是 count(*)（事件条数）——一次 confirm 批量只发 1 条事件，但含多条候选。
+      const r = await query(
+        `SELECT COALESCE(sum((payload->>'calls')::int), 0)::int AS calls,
+                COALESCE(sum((payload->>'cost')::numeric), 0)::float AS cost,
+                COALESCE(sum((payload->>'hits')::int), 0)::int AS hits
+         FROM crm.events WHERE domain='enrichment' AND payload->>'tenant_id'=$1`,
+        [tenantId]
+      );
+      const row = r.rows[0] || { calls: 0, cost: 0, hits: 0 };
+      const calls = row.calls || 0;
+      const hits = row.hits || 0;
+      res.json({
+        calls, cost: row.cost || 0, hits,
+        rate: calls > 0 ? hits / calls : 0,
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ─── L2C 业务闭环看板聚合端点（富化版，对齐 docs/2026-08-28-business-closure-design.md）───
   // 富化：补 CRM_ACCOUNT + 金额映射 + 回款合并(PLAN/RECORD/INVOICE) + leadPool(DEAL-stage=lead) + total；
   // 向后兼容保留 grouped（/api/page/home 仍可用）。服务端逻辑在 businessBoard.js，渲染在 businessClosureRender.js。
