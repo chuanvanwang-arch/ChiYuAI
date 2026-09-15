@@ -6,9 +6,11 @@ import { seedActions } from '../src/action/seed-actions.js';
 import { getAction } from '../src/action/registry.js';
 import { agentSpecs } from '../src/agent/agentSpec.js';
 
-beforeAll(() => {
+let module;
+beforeAll(async () => {
   seedSkills();
   seedActions();
+  module = await import('../src/skills/methodOutreachHook.js');
 });
 
 describe('method-outreach-hook 三处装配', () => {
@@ -32,5 +34,40 @@ describe('method-outreach-hook 三处装配', () => {
     );
     expect(host, '至少一个 agent 声明 method-outreach-hook').toBeTruthy();
     expect(host.capabilities.skillCalls).toContain('method-outreach-hook');
+  });
+});
+
+describe('outreach hook generation (P1-1b)', () => {
+  it('可溯源钩子 → 产出 hook+anchor+confidence', async () => {
+    const { generateHook } = module;
+    const out = await generateHook({
+      deal: { name: 'S 集团', industry: '低代码平台', size: '500 人' },
+      signal: { type: 'tender', ts: Date.now(), url: 'https://tender.example/13115' },
+      contact: { name: '周IT', title: 'IT 总监', decision_power: 'recommend' },
+    });
+    expect(out.hook).toBeDefined();
+    expect(out.hook.split(' ').length).toBeLessThanOrEqual(30);
+    expect(out.anchor.url).toContain('tender.example');
+    expect(out.verifiable.every((v) => v.ok)).toBe(true);
+    expect(out.verifiable_all).toBe(true);
+    expect(out.confidence).toBe(0.9);
+  });
+
+  it('无锚点可引用 → 拒生成（fail-closed）', async () => {
+    const { generateHook } = module;
+    await expect(generateHook({ deal: { name: 'X' }, signal: {}, contact: {} })).rejects.toThrow(/锚点|anchor/);
+  });
+
+  it('超 30 词钩子 → 拒出（fail-closed，对齐 CitationGuard）', async () => {
+    const { generateHook } = module;
+    // 按空格分词 > 30 词（中文无空格不分词，用英文空格串构造超长钩子；verify 端按空格分词计数）
+    const longHook = Array.from({ length: 35 }, (_, i) => `word${i}`).join(' ');
+    // 直接测 buildFallbackHook 受 MAX_WORDS 保护的网关：走 generateHook 且 llm 返回超长串
+    await expect(generateHook({
+      deal: { name: 'S 集团', industry: '低代码平台', size: '500 人' },
+      signal: { type: 'tender', ts: Date.now(), url: 'https://tender.example/13115' },
+      contact: { title: 'IT 总监' },
+      llm: { genHook: async () => longHook },
+    })).rejects.toThrow(/30 词/);
   });
 });
