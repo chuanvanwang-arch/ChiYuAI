@@ -23,6 +23,7 @@ const ICONS = {
   'quote-generation': ['sales', `<rect x="20" y="13" width="24" height="34" rx="4"/><path d="M26 24h12M26 32h12M26 40h6"/><path d="M37 47v-8h8"/>`],
   'daily-followup': ['sales', `<rect x="15" y="19" width="34" height="28" rx="5"/><path d="M15 28h34M24 14v9M40 14v9"/><path d="M25 36l5 5 9-10"/>`],
   'risk-alert': ['sales', `<path d="M32 15l18 31H14z"/><path d="M32 27v8"/><circle cx="32" cy="40" r="1.8" fill="#fff" stroke="none"/>`],
+  'discovery': ['sales', `<circle cx="28" cy="28" r="11"/><path d="M36 36l11 11"/><path d="M44 12v8M40 16h8"/>`],
   'pipeline-board': ['manager', `<rect x="14" y="20" width="10" height="24" rx="2"/><rect x="27" y="20" width="10" height="24" rx="2"/><rect x="40" y="20" width="10" height="24" rx="2"/><path d="M14 31h10M27 26h10M40 34h10"/>`],
   'funnel-diagnosis': ['manager', `<path d="M14 18h36l-13 16v9l-10 6v-15z"/><path d="M21 26h22"/>`],
   'deal-retrospective': ['manager', `<circle cx="34" cy="34" r="13"/><path d="M34 26v8l6 4"/><path d="M17 24l-5-4 5-4"/><path d="M24 21l-5-4 5-4"/>`],

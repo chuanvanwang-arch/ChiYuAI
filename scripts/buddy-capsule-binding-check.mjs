@@ -14,8 +14,10 @@ const BINDINGS = [
   // 客户洞察
   { tab: '客户洞察', cap: '360 视图', skill: 'crm-account-360', intent: 'quote', deterministic: false },
   { tab: '客户洞察', cap: '重点客户', skill: 'method-funnel-classification', intent: 'followup', deterministic: true },
-  { tab: '客户洞察', cap: '客户调研', skill: 'method-intake-routing', targetAgent: 'intake-router', deterministic: true },
+  { tab: '客户洞察', cap: '客户拜访', skill: 'method-intake-routing', targetAgent: 'intake-router', deterministic: true },
   { tab: '客户洞察', cap: '客户任务线', skill: 'crm-account-360', intent: 'quote', deterministic: false },
+  { tab: '客户洞察', cap: '线索发现', skill: 'discovery-run', targetAgent: 'decision-agent', deterministic: true },
+  { tab: '客户洞察', cap: '主动拓客', skill: 'prospecting-search', targetAgent: 'prospecting', deterministic: true },
   // 商机推进
   { tab: '商机推进', cap: '管道看板', skill: 'crm-deal-advance', intent: 'quote', deterministic: false },
   { tab: '商机推进', cap: '阶段评估', skill: 'method-stage-progression', intent: 'quote', deterministic: true },
