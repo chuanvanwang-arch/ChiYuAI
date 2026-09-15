@@ -248,7 +248,12 @@ export async function requireDecision(scenario_id, trigger_context = {}, involve
   // ④ EXCEPTION 强制 HITL + 上级背书 + 审计高亮（无论置信度）
   const forceException = opts.disposition === 'EXCEPTION';
   // 高风险 + 不允许自主 → 升级
-  const highNoAuto = tier === 'HIGH' && !sc.autonomous_allowed;
+  // E1 修复（2026-09-16，用户批准方案 a）：此前该判断只存在于 dead variable highNoAuto（赋值后从未被读取），
+  //   而 :274 的 escalated 只看 tier/置信度 → 场景级 autonomous_allowed 在配置面承诺（decisionScenario.js:126
+  //   渲染「✅自主/⛔人工」）与执行面背离 = 假绿。现接入：autonomous_allowed !== true → 一律升级（fail-closed）。
+  //   ⚠ 兼容 2026-08-28 裁定（docs/specs/2026-08-25-ai-native-crm-overall-design.md:617「自主闸门不得无条件放行」）：
+  //   本改动**只收紧 FALSE 侧**——== true 时仍需过置信度门控（:274 后半段不变），裁定禁止的路径依然被禁止。
+  const sceneAllowsAuto = sc.autonomous_allowed === true;
   // ATTIO relation 组置信度调节（12 §7.4 决策层承接，spec 语义：关系强→可自主度高、升级阈值放宽）
   // 当前实现是微弱 +0.05/+0.05 点缀，远够不到阈值 → 与 spec「关系强即拉高置信度到可自主」不符。
   // 按 spec §7.4 合规修法：relation 组作为自主边界调节因子——双强关系时置信度显著上调（能过阈值），
@@ -268,10 +273,13 @@ export async function requireDecision(scenario_id, trigger_context = {}, involve
   // 置信度门控对【所有非 HIGH 分级】统一生效（对齐总体设计 §6.9 step4e / §6.10「无高置信先例则升级，杜绝瞎自主」）：
   //   无先例（coverage==0）→ 置信度≈0 < 阈值 → 保守升级 HITL（403）——「无先例即 HITL」
   //   有先例但相似度/覆盖不足 → 置信度 < 阈值 → 仍升级（避免弱先例误导的「瞎自主」）
-  //   仅当 置信度 ≥ 阈值（先例 grounded）且分级 ∈ {LEAD,NORMAL} → 自主放行（201）
+  //   仅当 置信度 ≥ 阈值（先例 grounded）且分级 ∈ {LEAD,NORMAL} 且场景声明 autonomous_allowed → 自主放行（201）
   //   （2026-08-28 设计裁定：扭转此前「autonomous_allowed=TRUE 低位场景无条件自主放行」的引擎偏差，
   //    使引擎与总体设计文档 §6.9 算法级一致；routes.js:200 第0闸 403 语义对应）
-  const escalated = forceException || tier === 'HIGH' || (tier !== 'HIGH' && conf < effectiveThreshold);
+  //   ★ 2026-09-16 补：!sceneAllowsAuto —— 场景未声明允许自主（FALSE/未设）一律升级。
+  //     这是 2026-08-28 裁定的**同向补完**（裁定只禁 TRUE 侧无条件放行，未规定 FALSE 侧行为；
+  //     :251 原 highNoAuto 是 dead variable，证明原意图本就含此判断）。语义为 fail-closed。
+  const escalated = forceException || tier === 'HIGH' || !sceneAllowsAuto || (tier !== 'HIGH' && conf < effectiveThreshold);
 
   // 方案C：决策落库前 fire-forget 派发 decision-enrich（并行装配 L1-L4 + 富集先例，不阻塞判定）
   //   放在分支外——富集适用于所有决策（自主/升级），决策前上下文装配与判定结果无关，非仅自主分支。

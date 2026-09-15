@@ -158,6 +158,27 @@ const FULL = {
     expect(r3.confidence).toBeGreaterThanOrEqual(0.8);
   });
 
+  // E1 负向哨兵（2026-09-16 修复配套，设计 §11.1.1 方案 a）：
+  //   只测「打开时正常工作」的开关等于没测——必须断言「关掉它行为停止」。
+  //   OPP_QUALIFY 的 autonomous_allowed=FALSE（db/test-setup.sql）、default_tier=NORMAL。
+  //   注入极低阈值使**置信度门控必然通过**，故唯一可能的升级原因只剩 autonomous_allowed → 可归因。
+  it('E1 修复：autonomous_allowed=FALSE 的场景即使置信度充足也一律升级（配置面承诺与执行面一致）', async () => {
+    const looseConf = {
+      threshold: 0.05,
+      weights: { similarity: 0.4, coverage: 0.3, method: 0.1, evidence_coverage: 0.1, allMet: 0.1 },
+    };
+    const C = { customer: 'normal', project: 'standard', conditions: FULL };
+    for (const id of ['e1', 'e2']) {
+      const r = await requireDecision('OPP_QUALIFY', C, [{ type: 'DEAL', id }], { conf: looseConf, k: 5 });
+      await confirmDecision(r.decision.decision_id, { by_role: 'manager' });
+    }
+    const r3 = await requireDecision('OPP_QUALIFY', C, [{ type: 'DEAL', id: 'e3' }], { conf: looseConf, k: 5 });
+    // 归因三断言：必须排除「tier=HIGH」与「置信度不足」这两条既有闸，否则测的不是本修复
+    expect(r3.tier).toBe('NORMAL');
+    expect(r3.confidence).toBeGreaterThanOrEqual(0.05);
+    expect(r3.mode).toBe('escalated');
+  });
+
   it('HIGH 风险 → 升级 HITL（不检索先例即升级）', async () => {
     const r = await requireDecision('QUOTE_PRICING', { customer: 'strategic', project: 'critical', conditions: { price: true } }, [{ type: 'DEAL', id: 'd9' }]);
     expect(r.mode).toBe('escalated');
