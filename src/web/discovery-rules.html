@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="AKqMFwwkkEkBfCsOdtBcRf">
+<head data-page-node-id="H4EVD4rcoJMkE9iJmiamDG">
+<meta charset="UTF-8" data-page-node-id="9Gon1c9y31o0wHB7nZqDGK" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="EalAmSpm5C3nTZjW5RMDcZ" />
+<title>线索发现 · 拓客规则</title>
+<link rel="stylesheet" href="/portal/tokens.css" data-page-node-id="uwTp0W8CCAlDNoJsu51s5i">
+<link rel="stylesheet" href="/portal/common.css" data-page-node-id="m3d12dAY6lWV2mBvyRn0dC">
+<style>
+  /* 只用 tokens.css 令牌，禁写死色值（主题随令牌） */
+  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+  .wrap { padding: 18px 20px; max-width: 1180px; margin: 0 auto; }
+  .note { background: var(--warn); color: #fff; padding: 12px 14px; border-radius: 6px; font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
+  .note b { color: #fff; }
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--mut); padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  .tabs button.active { color: var(--ink); border-bottom-color: var(--ac); }
+  .panel { display: none; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
+  .panel.active { display: block; }
+  .sect-title { font-weight: 600; margin-bottom: 10px; }
+  .hint { color: var(--mut); font-size: 12px; line-height: 1.6; margin: 6px 0 10px; }
+  .field { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+  .field label { width: 300px; font-size: 13px; color: var(--mut); }
+  .field input, .field textarea { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); }
+  .field textarea { width: 100%; min-height: 72px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  table.cfg { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.cfg th, table.cfg td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  tr.disabled { opacity: .45; }
+  .muted { color: var(--mut); font-size: 12px; }
+  #status { font-size: 12px; color: var(--mut); }
+  .toolbar { display: flex; gap: 10px; align-items: center; }
+  .crm-btn { background: var(--ac); color: #fff; border: 0; border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
+  .crm-btn:hover { opacity: .9; }
+  /* 实例编辑弹层（深色主题一致性；遮罩用 color-mix 由令牌派生，不写死色值） */
+  dialog#inst-dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--panel-bd); border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow); max-width: 560px; }
+  dialog#inst-dialog::backdrop { background: color-mix(in srgb, var(--bg) 72%, transparent); }
+  dialog#inst-dialog h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  dialog#inst-dialog .field textarea { min-height: 64px; }
+</style>
+<script type="module" src="/portal/components.js"></script>
+</head>
+<body data-page-node-id="8jNj82kS4Em0EWGTkGDvVe">
+<header class="page-head" data-page-node-id="A8eyHzP6GUECPYzCxbI3GC"><div class="ph-main" data-page-node-id="CREMNTkK2tg2nKTIDSyv7F"><h1 class="page-title" data-page-node-id="LxtxsF5CVMZy0G7kz6id55">线索发现 · 拓客规则</h1></div></header>
+<div class="wrap" data-page-node-id="uscST8lQcoj9QrRyLriyiX">
+  <div class="note" data-page-node-id="vQM7qai2ICQhWCZ8c4EsQq">
+    本页回答两个问题：<b data-page-node-id="ylX37UIfYMP4GLWmsQ4n9v">线索从哪来</b>、<b data-page-node-id="R5MvdScFdn3H1foRNIi2lQ">什么线索值得要</b>。
+    你可以在这里设定目标客户画像（行业 / 规模 / 地区）、选择数据来源、调整信号关注度、配置去重规则——全部在后台调整，无需改代码。
+    任一付费数据源默认关闭，需显式授权并填写密钥后才会启用；所有保存都会生成审批凭证（写操作经系统审批闸门）。
+  </div>
+
+  <div class="panel" style="background:var(--panel)" data-page-node-id="40E93WVUWsXi6v5pOlGOlv">
+    <div class="sect-title" data-page-node-id="rhUVJxf7yx50B9TG6OXEBY">主动拓客（对话驱动）</div>
+    <div class="hint" data-page-node-id="nfqZXzDFLjF0rWFDyJDXty">
+      除了被动接收融资 / 招聘 / 中标等外部信号，你还可以在 MCP 对话里<b data-page-node-id="h0yVqEppLBT9d0Na493D0f">主动拓客</b>：
+      对销售助手说「找 50 人以上、年营收 1 亿以上的医疗企业」，助手会按下方「目标客户画像」与「信号权重」批量搜索候选企业，
+      你圈选确认后一键进入公海池（S0）。所用规则与上方配置一致；付费数据源同样默认关闭，需授权后才参与搜索。
+      <span style="opacity:.55" data-page-node-id="LyWcuBI7HfpoFmQmxPcMC9">（对应模块设计：docs/2026-09-14-prospecting-module-design.md，前端入口为后续迭代）</span>
+    </div>
+  </div>
+
+  <div class="tabs" data-page-node-id="bRGy0GJQQ9zhHkJgPSZYcZ">
+    <button data-tab="icp" class="active" data-page-node-id="FN9EBnluiMAM3YwQb7ijWB">目标客户画像</button>
+    <button data-tab="providers" data-page-node-id="3lY61UwnuRzP4jawPWKbwL">数据来源</button>
+    <button data-tab="signals" data-page-node-id="KuFVJ6DQRZ17o6cJrWmihj">关注信号</button>
+    <button data-tab="duplicate" data-page-node-id="Ga7BxBOZtmmi04ljpfTy3C">去重规则</button>
+    <button data-tab="playbooks" data-page-node-id="Mn0Ne3k5QR8GGGTozcEB7z">自动策略</button>
+    <button data-tab="integration-sources" data-page-node-id="iEWDFsbFnYhPaoJeB5hYDd">外部数据接入</button>
+  </div>
+
+  <section class="panel active" id="panel-icp" data-page-node-id="Nt469E3V7FJDZSNtjTnvvD">
+    <div class="sect-title" data-page-node-id="pnZ6nVm1f8bbyYRlb0anng">目标客户画像（ICP）</div>
+    <div class="hint" data-page-node-id="foz7NMwn1AXyjBySgJ57bd">定义「什么样的企业是你的目标客户」。线索发现与主动拓客（对话内）都会按这组条件筛选候选。</div>
+    <div class="field" data-page-node-id="jUfFLAVoWmyAOUhZjZQ8ki"><label data-page-node-id="LrfEhJPUI2esmHAj43Mfc3">目标行业（多个用逗号分隔，不填则不限制）</label><input id="icp-industries" data-page-node-id="UnHAftxyr6JwZPK2KC7D24" /></div>
+    <div class="field" data-page-node-id="0dqtazMCnWrVP9OZZQcEHW"><label data-page-node-id="qJmPXEKGNM1w6rl3xMRIZw">最小员工规模（人）</label><input type="number" id="icp-headcount" min="0" step="1" data-page-node-id="eMx3J4M6pxpYMumhlQU5qd" /></div>
+    <div class="field" data-page-node-id="7butgBKjDq3nIAbh5eUm09"><label data-page-node-id="i0kYBg6lrlj8K4ystuJm5d">地理范围（多个用逗号分隔）</label><input id="icp-geo" data-page-node-id="adqGLpGUxsGpdc25kQHcRJ" /></div>
+    <div class="field" data-page-node-id="sw21GNnqJwYhW8Sxox32Pm"><label data-page-node-id="EHtSrdajIGHlMjqnycXxEy">画像置信度门槛（0–1，低于此不入池）</label><input type="number" id="icp-confidence" min="0" max="1" step="0.05" data-page-node-id="v2uRUHqSqWE7aSZZQJyWIM" /></div>
+  </section>
+
+  <section class="panel" id="panel-providers" data-page-node-id="EpnvHuPKFOrNNXFU7zEPYE">
+    <div class="sect-title" data-page-node-id="acBBwPDcfcN1uGvK5nQpS0">数据来源</div>
+    <div class="hint" data-page-node-id="F2OXAie2GNmazwvBCEQAs1">从哪些渠道获取线索。系统级数据源（邮箱验证 / 网页检索 / 标讯 / 地理画像）出厂即可用；<b data-page-node-id="t6M6iJ46BUAtkgno46ry3r">付费数据源</b>默认关闭，需在「外部数据接入」页授权后启用。</div>
+    <table class="cfg" data-page-node-id="IXcIl8crIZoK85jOXMGiFe">
+      <thead data-page-node-id="JMc7EieUihtrhRqT2XyzgB"><tr data-page-node-id="azOTtmBIi7LihwHbvK45Tq"><th data-page-node-id="Q9WPWiKnj1lGPH1sQHCCGp">数据源</th><th data-page-node-id="2c5IFRKbiwNC9MT5l93TOg">类型</th><th data-page-node-id="iCFMjFUskIcDdRSfcDyvJr">适用范围</th><th data-page-node-id="EhIpfyQD81aQEW7tem3nCa">成本档</th><th data-page-node-id="TlJ619lVS0Ins5K1ZiG2fG">启用</th></tr></thead>
+      <tbody id="providers-body" data-page-node-id="NGKF35svIYO4b922s5Fcav"></tbody>
+    </table>
+  </section>
+
+  <section class="panel" id="panel-signals" data-page-node-id="5KqxVWpLcHSgE25YMA8jFA">
+    <div class="sect-title" data-page-node-id="b03ys4kzcbx3D0ZzJJo1ot">关注信号与权重（0–1）</div>
+    <div class="hint" data-page-node-id="hlq5qg6OpraoElUDg1awPB">哪些企业动态更能说明「对方正处在有购买需求的窗口期」。权重越高，命中该信号的企业排序越靠前。</div>
+    <div id="signals-body" data-page-node-id="2EJafjUTIBsY8NqTgmqMBV"></div>
+  </section>
+
+  <section class="panel" id="panel-duplicate" data-page-node-id="6fHOzP1wReDda04dWg3MbB">
+    <div class="sect-title" data-page-node-id="DkWhDva3IYINaFmfBvOimP">去重规则（按顺序逐组比对）</div>
+    <div class="hint" data-page-node-id="6lRLDcgEbqkGdO7w3N4SsO">避免同一家企业重复入池。比对按顺序执行：先按第 1 组条件，都命中即视为重复；否则尝试第 2 组，以此类推。同一组内多个字段需<b data-page-node-id="H9GY9zLbK7aC7G1gNERGgO">全部命中</b>才算重复。</div>
+    <div class="field" data-page-node-id="0mCWxB7FK3oqHfnHe2ULYc"><label data-page-node-id="RvginNh8SUqgICBOl8Pxam">企业（CRM_ACCOUNT，JSON 二维数组）</label><textarea id="dup-account" spellcheck="false"></textarea></div>
+    <div class="field" data-page-node-id="VYsLqUk5qPwlBDDeh4LfjM"><label data-page-node-id="ESH6Vd8oOeGD9psOtn1eYL">联系人（CRM_CONTACT，JSON 二维数组）</label><textarea id="dup-contact" spellcheck="false"></textarea></div>
+    <div class="muted" data-page-node-id="vlHi7gAEIkdOM93Cx5m7Yh">例：<code data-page-node-id="mUfWWqntbDzAzTAdef7Eb8">[["external_id"],["domain"],["name"]]</code> —— 先按外部 ID 比，再按域名，最后按名称。</div>
+  </section>
+
+  <section class="panel" id="panel-playbooks" data-page-node-id="FY1fM22xCZkjAFEPJG07Hu">
+    <div class="sect-title" data-page-node-id="HU1j8il85iNUTF8Wyq2SEx">自动处理策略（Playbooks）</div>
+    <div class="hint" data-page-node-id="gLc8zBxGiPuSsR33HeQxdX">为特定客户群编写「命中后如何处理」的策略：自动收窄数据来源、挂接智能体处理。<b data-page-node-id="DocPeo7VqCspT88Um3HAs8">出厂不预置</b>（显示 <code data-page-node-id="KRmZ631yOlJuMtD1HhGsyQ">[]</code> 属正常，非故障）；行业模板在租户开户时按行业播种（<code data-page-node-id="snSliKUlp11ZTGTe9xrusM">db/seed/discovery-rules-templates.js</code>）。
+      每行一项策略；<code data-page-node-id="XogtOHPNC4Qhra7tOt9eHu">名称</code>必填（空将被拒绝保存）；<code data-page-node-id="JjTpWaKDKA7FrJZNlo4WLh">命中信号</code>填信号类型，多个用 <code data-page-node-id="4jPelrifyyXhZJelG4C095">&amp;&amp;</code> 同时命中（如 <code data-page-node-id="gUc0ATrppgjTkROr0dy3Lf">tender_match&amp;&amp;funding_round</code>，留空或以 <code data-page-node-id="1sXzM0mNydtldJoKDP83Sw">default</code> 命名作兜底）；<code data-page-node-id="D7vjmFq82QpZiyydHyP9mw">数据源/AI研究/动作</code>为数组，单元格内逗号分隔（如 <code data-page-node-id="h0KDd70hWC0GvyA8ATzgQM">tender,gaode</code>）。</div>
+    <div class="toolbar" style="margin-bottom:8px" data-page-node-id="QiczzyKEyWtqEOpQtPWQZR">
+      <button class="crm-btn" id="pb-add" type="button" data-page-node-id="Fko7c53SDDDwSxLsJwJYG3">＋ 新建策略</button>
+    </div>
+    <table class="cfg" id="pb-table" data-page-node-id="xH7RT96REqZEMypGdkCQU2">
+      <thead data-page-node-id="haSIXXRq0FEO4de6MrMGQz"><tr data-page-node-id="avlOVn3pNCphnzQw1SgShg"><th data-page-node-id="GPcHaAZZbO3qv8FrUzLlYw">名称(必填)</th><th data-page-node-id="RJHWQFjPLEu294GGPx89Ff">命中信号(&amp;&amp;)</th><th data-page-node-id="sy79pU7taTGudI9Jtsw3X5">数据源</th><th data-page-node-id="we5McSrkQDVBxgrRMqzTyH">AI 研究</th><th data-page-node-id="2ZgPlXIhB3H4YHqvEOiCQN">执行动作</th><th data-page-node-id="3vzekXsti14Ehz1w9L3CGj">删除</th></tr></thead>
+      <tbody id="pb-body" data-page-node-id="3UU9DpqAAZjAquruBTQbMb"></tbody>
+    </table>
+    <datalist id="pb-signal-list" data-page-node-id="i7qzkPnjGmCmUZvqY7uHnR"></datalist>
+    <datalist id="pb-adapter-list" data-page-node-id="skVMG7maQTzeMJEhorr7Cf"></datalist>
+    <datalist id="pb-name-list" data-page-node-id="kN5Kp5Y4YoRSuCng2M4Qfe"><option value="default" data-page-node-id="dtO5sLA6vthRwtuYjThD0S"></datalist>
+    <details style="margin-top:10px" data-page-node-id="cHIxTL0R30Jqxuu7eIUBvk"><summary data-page-node-id="rBr3uH3ffnf9FzppkpumVS">查看 JSON（只读预览）</summary>
+      <pre id="pb-preview" class="json-preview" data-page-node-id="pqlWRj9v06PQlo7KuDZ3yI">[]</pre>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-integration-sources" data-page-node-id="6Qld7ZxjhwDHp3o34YjNuz">
+    <div class="sect-title" data-page-node-id="3Mt3wqwFPuzf76C1qr82Ge">外部数据接入</div>
+    <div class="hint" data-page-node-id="y7SKOQ3dAoJKxQG2DLMJFT">在此授权付费数据源（启信慧眼 / 新榜）并登记租户自有系统（REST / MCP / CLI）。密钥经加密落库，不以明文显示或写入日志。</div>
+    <table class="cfg" data-page-node-id="1uFJ3yFuqYaDHWYswFVfZI">
+      <thead data-page-node-id="id3M7TdW5mvnpdCjmSYRzi"><tr data-page-node-id="GaSJodEwf0KpoExcHOJoZf"><th data-page-node-id="44USi8lVpgQOcDAzFFw3JM">数据源</th><th data-page-node-id="kbouG9NQTLa27d33V5uDZ5">类型</th><th data-page-node-id="8NzBpZUhwKCk1O2wgUgKKk">适用范围</th><th data-page-node-id="ZFWqVERl8ezZHNJJUxBgVj">授权状态</th><th data-page-node-id="zml9Gfu2K7mtrrdoNzZhhK">操作</th></tr></thead>
+      <tbody id="intsrc-body" data-page-node-id="oaC8y7o2HnsURgQu6Hk3At"></tbody>
+    </table>
+    <div class="sect-title" style="margin-top:14px" data-page-node-id="JnHq87YpgmYQG1hKk9mgHl">租户自有系统实例</div>
+    <div class="toolbar" style="margin-bottom:8px" data-page-node-id="YPoBuZ8Emi4oTmLwKMFVUo">
+      <button class="crm-btn" id="inst-add" data-page-node-id="1rM72d9xzzog29xsXsuNM6">＋ 新增实例</button>
+      <span class="muted" data-page-node-id="yxv2HH32zzMEdmFBfY5Pqj">启停用软开关控制；<b data-page-node-id="4j2WxcgEEsUBwOA0LYI1hA">不物理删除</b>（系统禁止删除数据）</span>
+    </div>
+    <table class="cfg" data-page-node-id="raiMJhnF54oQZmk1ecLcfy">
+      <thead data-page-node-id="tJ5LFoWr8kjE99ucR4A7gZ"><tr data-page-node-id="8dMFsabImVn7BT3UNX9bkB"><th data-page-node-id="oKxzfw9njUMLBqGBUbrxH2">ID</th><th data-page-node-id="mjpFKYGOFHFXks3el7GTJr">类型</th><th data-page-node-id="6cBGB2TmSQD2NpQdiW1duV">端点 / 命令</th><th data-page-node-id="mGnHRY3HNGAGJ00j2NS7pj">字段映射</th><th data-page-node-id="wXYbW6bYWq13wtBAJcNsPs">状态</th><th data-page-node-id="L63DRQQvKyuARxPGTu3FBw">操作</th></tr></thead>
+      <tbody id="inst-body" data-page-node-id="sa8u1mmj0b9okwsd7o10oP"></tbody>
+    </table>
+    <div class="muted" style="margin-top:10px" data-page-node-id="fMciCHIfBbvNHl6qJfTvXT">外部系统同步由定时任务触发（间隔可在系统配置调整，默认 6 小时）；最近同步时间见同步事件记录。</div>
+  </section>
+  <!-- 实例编辑对话框（弹层） -->
+  <dialog id="inst-dialog" data-page-node-id="rBWphQjYHgZ1jSR3LSDBGA">
+    <!-- 注意：不可用 method="dialog" —— 那会让点击「保存」在 click 默认动作阶段直接关闭弹层，
+         校验失败（ID 必填 / 字段映射非法 JSON / 重名 409）时用户已填内容全部丢失。 -->
+    <form id="inst-form" class="wrap" style="padding:0;max-width:520px" data-page-node-id="tGomCM1HUeoqHp3iQQKd3E">
+      <h3 id="inst-dialog-title" data-page-node-id="dfwA5YsHGCjgYtRhGXCOJM">新增实例</h3>
+      <div class="field" data-page-node-id="xATPwjOgFtoO7ezmvNmInR"><label data-page-node-id="1ujDZhDptiyEKq5FiAWzcg">实例 ID（唯一）</label><input id="f-id" data-page-node-id="cB5mnhV4dFt3Nux86yaDNt" /></div>
+      <div class="field" data-page-node-id="g59n1k7BZFirmHB8H2lZFd"><label data-page-node-id="EUmwaWpybHHm9zg4jKfYsv">类型</label>
+        <select id="f-kind" data-page-node-id="C3ZvfBVeXbYD6YpT9KB2lL">
+          <option value="generic-rest" data-page-node-id="I1jSgjaZi2QrbLvKAVMpRp">generic-rest（REST API）</option>
+          <option value="generic-mcp" data-page-node-id="fNAb8iz2nrG6EX5FG5cfhm">generic-mcp（MCP）</option>
+          <option value="generic-cli" data-page-node-id="vMqcd77mbU6IAW0z8Xvd6B">generic-cli（CLI）</option>
+        </select>
+      </div>
+      <div class="field" data-page-node-id="pGgIT5YH5SrTkim1vHsGZm"><label data-page-node-id="LpcNdpAP2oGYj3OlIdP60v">端点 / 命令</label><input id="f-endpoint" placeholder="REST: https://…  MCP: mcp-server  CLI: 命令" data-page-node-id="N9zqD40NW0oVrzTYSSLxsx" /></div>
+      <div class="field" data-page-node-id="UBoecf1MyFQ0zRMbPHuxpE"><label data-page-node-id="yJSdbCTneNVKOhcJX0JzBu">字段映射（JSON 对象）</label><textarea id="f-fieldmap" spellcheck="false" placeholder='{"registered_address":"address","legal_person":"legal"}'></textarea></div>
+      <div class="field" data-page-node-id="iXmSfBFYcUxD1FxCTRDIWl"><label data-page-node-id="zYWMpcXrcWGRiD4soFGv7t">启用</label><input type="checkbox" id="f-enabled" checked data-page-node-id="i8T3ljjfNJyZTPtolm4OBQ" /></div>
+      <div class="toolbar" style="justify-content:flex-end" data-page-node-id="8kYhug0DYtL4N1uUnMYq2t">
+        <button type="button" class="crm-btn" id="f-cancel" data-page-node-id="ruNNDhgzuFnEFunUoiHYFM">取消</button>
+        <button type="submit" class="crm-btn" id="f-save" data-page-node-id="rtiEEvg4JlTZZNa9VMtv9C">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toolbar" data-page-node-id="JOksFAN8tPmIILyy1k7EtP">
+    <crm-button id="saveBtn" data-page-node-id="mlS7yDR29OH1jfnX8NJvJw">保存变更</crm-button>
+    <crm-button class="sec" id="reloadBtn" data-page-node-id="D3NAFLDwwSSlCXCBMwnsiK">重新加载</crm-button>
+    <span id="status" data-page-node-id="9FwsitPDs4EpjhzYG5xBYE">就绪</span>
+    <span class="muted" id="readonlyHint" data-page-node-id="9TYOjVS8a4RvxtyXUk2JXO"></span>
+  </div>
+</div>
+
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+import { get, put, post } from '/portal/api.js';
+injectLayout();
+
+// 出厂默认 = src/config/discoveryRules.js DEFAULT_DISCOVERY_RULES（未配置时只读回显该组值）
+// ⚠ 唯一事实源在后端；此处为「离线兜底副本」，必须逐键对齐（providers 以 id 对齐 / signals 键集对齐）。
+//    2026-09-15 修漂移：曾缺 qixin·xinbang（providers）与 social_content（signals）→ 已补齐，
+//    并由 test/web/discoveryRulesPage.test.js ⑪ 锁死（再次漂移即红）。
+const DEFAULTS = {
+  icp: { industries: ['industrial_coatings', 'chemical', 'additives'], min_headcount: 50, geo: ['CN'], min_confidence: 0.6 },
+  providers: [
+    { id: 'email-verify', kind: 'email/phone',       scope: 'system',           costTier: 1, enabled: true },
+    { id: 'web-research', kind: 'web/serp',          scope: 'system',           costTier: 0, enabled: true },
+    { id: 'tender',       kind: 'internal-signal',   scope: 'system',           costTier: 0, enabled: true },
+    { id: 'gaode',        kind: 'geo_firmographics', scope: 'system',           costTier: 1, enabled: true },
+    { id: 'attio',        kind: 'firmographics',     scope: 'system-candidate', costTier: 2, enabled: false },
+    { id: 'zhizao',       kind: 'biz-verify',        scope: 'system-candidate', costTier: 1, enabled: false },
+    { id: 'clearbit',     kind: 'firmographics',     scope: 'paid',             costTier: 3, enabled: false },
+    { id: 'linkedin',     kind: 'social',            scope: 'paid',             costTier: 3, enabled: false },
+    { id: 'qixin',        kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: false },
+    { id: 'xinbang',      kind: 'social',            scope: 'paid',             costTier: 2, enabled: false },
+    { id: 'anysite',      kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: false },
+  ],
+  signals: {
+    funding_round: { weight: 0.9 }, hiring_icp_role: { weight: 0.7 }, tender_match: { weight: 0.8 },
+    leadership_change: { weight: 0.5 }, tech_adopt: { weight: 0.6 }, website_redesign: { weight: 0.3 },
+    social_content: { weight: 0.4 },
+  },
+  duplicate_criteria: { CRM_ACCOUNT: [['external_id'], ['domain'], ['linkedin_url'], ['name']], CRM_CONTACT: [['external_id'], ['email']] },
+  playbooks: [],
+};
+
+// 信号显示名（业务可读）
+const SIGNAL_LABELS = {
+  funding_round: '融资动态', hiring_icp_role: '目标岗位招聘', tender_match: '中标标讯',
+  leadership_change: '管理层变动', tech_adopt: '新技术采用', website_redesign: '官网改版',
+  social_content: '社媒内容',
+};
+
+// ─── 自动策略（Playbooks）可视化表格编辑器（2026-09-15 方案③）───
+// 模型驱动：pbRows 是唯一真源；fill() 填充并渲染，collect() 读模型输出数组。
+// 数组字段（data/ai/action）在表格单元格内以逗号分隔编辑，collect 时转回数组。
+let pbRows = [];
+const splitCsv = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+const normalizePb = (p) => ({
+  name: String(p?.name || '').trim(),
+  match: String(p?.match || '').trim(),
+  data: Array.isArray(p?.data) ? p.data : splitCsv(p?.data),
+  ai: Array.isArray(p?.ai) ? p.ai : splitCsv(p?.ai),
+  action: Array.isArray(p?.action) ? p.action : splitCsv(p?.action),
+});
+function toPbObj(p) {
+  return { name: p.name, match: p.match || '', data: p.data || [], ai: p.ai || [], action: p.action || [] };
+}
+function renderPlaybooks() {
+  const body = document.getElementById('pb-body');
+  if (!body) return;
+  body.innerHTML = (pbRows || []).map((r, i) => `
+    <tr class="pb-row" data-i="${i}">
+      <td><input class="pb-name" data-i="${i}" value="${esc(r.name)}" list="pb-name-list" placeholder="tender-first / default"></td>
+      <td><input class="pb-match" data-i="${i}" value="${esc(r.match)}" list="pb-signal-list" placeholder="tender_match&&funding_round"></td>
+      <td><input class="pb-data" data-i="${i}" value="${esc((r.data || []).join(','))}" list="pb-adapter-list" placeholder="tender,gaode"></td>
+      <td><input class="pb-ai" data-i="${i}" value="${esc((r.ai || []).join(','))}" placeholder="claygentResearch:lite"></td>
+      <td><input class="pb-action" data-i="${i}" value="${esc((r.action || []).join(','))}" placeholder="method-followup-engine"></td>
+      <td><button type="button" class="crm-btn pb-del" data-i="${i}">删除</button></td>
+    </tr>`).join('');
+  body.querySelectorAll('input[data-i]').forEach((el) => {
+    el.addEventListener('input', () => {
+      const i = Number(el.dataset.i);
+      if (el.classList.contains('pb-name')) pbRows[i].name = el.value.trim();
+      else if (el.classList.contains('pb-match')) pbRows[i].match = el.value.trim();
+      else if (el.classList.contains('pb-data')) pbRows[i].data = splitCsv(el.value);
+      else if (el.classList.contains('pb-ai')) pbRows[i].ai = splitCsv(el.value);
+      else if (el.classList.contains('pb-action')) pbRows[i].action = splitCsv(el.value);
+      updatePbPreview();
+    });
+  });
+  body.querySelectorAll('.pb-del').forEach((b) => b.addEventListener('click', () => {
+    pbRows.splice(Number(b.dataset.i), 1); renderPlaybooks();
+  }));
+  updatePbPreview();
+}
+function updatePbPreview() {
+  const pre = document.getElementById('pb-preview');
+  if (pre) pre.textContent = JSON.stringify(pbRows.map(toPbObj), null, 2);
+}
+function addPlaybook() {
+  pbRows.push({ name: '', match: '', data: [], ai: [], action: [] });
+  renderPlaybooks();
+}
+function seedPbDatalists() {
+  const sig = document.getElementById('pb-signal-list');
+  if (sig) sig.innerHTML = Object.keys(SIGNAL_LABELS).map((k) => `<option value="${k}">`).join('');
+  const adp = document.getElementById('pb-adapter-list');
+  if (adp) adp.innerHTML = (DEFAULTS.providers || []).map((p) => `<option value="${p.id}">`).join('');
+}
+
+let current = null;
+function setStatus(s) { document.getElementById('status').textContent = s; }
+
+document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + b.dataset.tab));
+}));
+
+function renderProviders(list) {
+  document.getElementById('providers-body').innerHTML = (list || []).map((p) => `
+    <tr class="${p.scope === 'paid' ? 'disabled' : ''}">
+      <td>${p.id}${p.scope === 'paid' ? ' <span class="muted">（付费，需授权）</span>' : ''}</td>
+      <td>${p.kind || ''}</td><td>${p.scope || ''}</td><td>${p.costTier ?? ''}</td>
+      <td><input type="checkbox" data-provider="${p.id}" ${p.enabled ? 'checked' : ''} ${p.scope === 'paid' ? 'disabled' : ''}></td>
+    </tr>`).join('');
+}
+function renderSignals(sig) {
+  document.getElementById('signals-body').innerHTML = Object.keys(sig || {}).map((k) => `
+    <div class="field"><label>${SIGNAL_LABELS[k] || k} <span class="muted">(${k})</span></label>
+      <input type="range" data-signal="${k}" min="0" max="1" step="0.05" value="${sig[k]?.weight ?? 0}">
+      <span class="muted" id="sigval-${k}">${sig[k]?.weight ?? 0}</span></div>`).join('');
+  document.querySelectorAll('input[data-signal]').forEach((el) => el.addEventListener('input', () => {
+    document.getElementById('sigval-' + el.dataset.signal).textContent = el.value;
+  }));
+}
+function fill(v) {
+  const icp = v.icp || {};
+  document.getElementById('icp-industries').value = (icp.industries || []).join(', ');
+  document.getElementById('icp-headcount').value = icp.min_headcount ?? '';
+  document.getElementById('icp-geo').value = (icp.geo || []).join(', ');
+  document.getElementById('icp-confidence').value = icp.min_confidence ?? '';
+  renderProviders(v.providers || []);
+  renderSignals(v.signals || {});
+  const dc = v.duplicate_criteria || {};
+  document.getElementById('dup-account').value = JSON.stringify(dc.CRM_ACCOUNT || []);
+  document.getElementById('dup-contact').value = JSON.stringify(dc.CRM_CONTACT || []);
+  pbRows = (v.playbooks || []).map(normalizePb); renderPlaybooks();
+}
+function collect() {
+  const signals = {};
+  document.querySelectorAll('input[data-signal]').forEach((el) => { signals[el.dataset.signal] = { weight: Number(el.value) }; });
+  const providers = (current?.providers || DEFAULTS.providers).map((p) => {
+    const box = document.querySelector(`input[data-provider="${p.id}"]`);
+    return { ...p, enabled: p.scope === 'paid' ? false : !!box?.checked };
+  });
+  return {
+    icp: {
+      industries: document.getElementById('icp-industries').value.split(',').map((s) => s.trim()).filter(Boolean),
+      min_headcount: Number(document.getElementById('icp-headcount').value) || 0,
+      geo: document.getElementById('icp-geo').value.split(',').map((s) => s.trim()).filter(Boolean),
+      min_confidence: Number(document.getElementById('icp-confidence').value) || 0,
+    },
+    providers, signals,
+    duplicate_criteria: {
+      CRM_ACCOUNT: JSON.parse(document.getElementById('dup-account').value || '[]'),
+      CRM_CONTACT: JSON.parse(document.getElementById('dup-contact').value || '[]'),
+    },
+    playbooks: pbRows.filter((p) => p.name).map(toPbObj),
+  };
+}
+// ─── 外部数据接入 Tab：付费源授权 + 租户自有实例一览 ───
+// 展示层友好名称/描述映射（仅展示用）；接入事实以 DEFAULTS.providers（后端出厂默认离线副本）+ config_store 为准。
+// 新增 provider 只需改 DEFAULTS.providers（对齐后端 src/config/discoveryRules.js），无需改此处硬编码清单。
+const PROVIDER_META = {
+  qixin:   { name: '启信慧眼', desc: '企业画像/招投标/融资/招聘强信号' },
+  xinbang: { name: '新榜',     desc: '公众号/小红书/抖音发布内容辅助信号' },
+  anysite: { name: 'Anysite',  desc: '企业/个人画像：LinkedIn 公司画像、人员搜索、邮箱查找（access-token 认证）' },
+};
+// 配置驱动：从 DEFAULTS.providers 派生已接入（有展示元数据）的付费源清单，不写死。
+const INTEGRATION_CATALOG = DEFAULTS.providers
+  .filter((p) => p.scope === 'paid' && PROVIDER_META[p.id])
+  .map((p) => ({
+    id: p.id,
+    name: (PROVIDER_META[p.id] || {}).name || p.id,
+    kind: p.kind,
+    scope: p.scope,
+    desc: (PROVIDER_META[p.id] || {}).desc || '',
+  }));
+async function authorizeSource(pid) {
+  const key = prompt('请输入 ' + pid + ' 的 API Key（将加密落库，明文不留存）');
+  if (!key) return;
+  try {
+    setStatus('授权中…');
+    await post('/api/integration/secret', { tenantId: 'system', providerId: pid, raw: key });
+    setStatus('已授权 ' + pid + '（凭据加密落库）');
+    loadIntegrationSources();
+  } catch (e) { setStatus('授权失败：' + (e.message || e)); }
+}
+// 租户自有实例 CRUD（2026-09-14 补充，配置中心）：GET/POST/PUT /api/integration/providers；禁物理删除（enabled 软停用）
+let instList = [];
+let instErr = null; // 实例列表错误单独承载：load() 与 loadIntegrationSources() 是两条并行异步链，
+                    // 若都写 #status 会互相覆盖（失败原因被"未配置"提示吃掉，用户看不到为什么是空表）
+async function loadIntegrationSources() {
+  const body = document.getElementById('intsrc-body');
+  body.innerHTML = INTEGRATION_CATALOG.map((p) => `
+    <tr>
+      <td>${p.name} <span class="muted">(${p.id})</span></td>
+      <td>${p.kind}</td><td>${p.scope}</td>
+      <td><span class="muted">经授权接入，明文不回传</span></td>
+      <td><button class="crm-btn" data-auth="${p.id}">填 Key 授权</button></td>
+    </tr>`).join('');
+  body.querySelectorAll('button[data-auth]').forEach((b) => b.addEventListener('click', () => authorizeSource(b.dataset.auth)));
+  // 租户自有实例列表
+  try {
+    const r = await get('/api/integration/providers');
+    instList = Array.isArray(r?.instances) ? r.instances : [];
+    instErr = null;
+  } catch (e) {
+    instList = [];
+    instErr = '实例列表加载失败：' + (e.message || e);
+  }
+  renderInstList();
+}
+function renderInstList() {
+  const tb = document.getElementById('inst-body');
+  const placeholder = instErr
+    ? `<span style="color:var(--err)">${esc(instErr)}</span>`
+    : '（暂无自有系统实例——点击「新增实例」登记）';
+  tb.innerHTML = instList.length ? instList.map((s, i) => `
+    <tr class="${s.enabled === false ? 'disabled' : ''}">
+      <td>${esc(s.id)}</td>
+      <td>${esc(s.kind)}</td>
+      <td class="muted">${esc(s.endpoint || s.command || '—')}</td>
+      <td class="muted">${s.field_map ? esc(JSON.stringify(s.field_map)) : '—'}</td>
+      <td>${s.enabled === false ? '停用' : '启用'}</td>
+      <td>
+        <button class="crm-btn" data-edit="${i}">编辑</button>
+        <button class="crm-btn" data-toggle="${i}">${s.enabled === false ? '启用' : '停用'}</button>
+      </td>
+    </tr>`).join('')
+    : `<tr><td colspan="6" class="muted">${placeholder}</td></tr>`;
+  tb.querySelectorAll('button[data-edit]').forEach((b) => b.addEventListener('click', () => openInstDialog(instList[Number(b.dataset.edit)])));
+  tb.querySelectorAll('button[data-toggle]').forEach((b) => b.addEventListener('click', () => toggleInst(instList[Number(b.dataset.toggle)])));
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let editingId = null;
+function openInstDialog(inst) {
+  editingId = inst ? inst.id : null;
+  document.getElementById('inst-dialog-title').textContent = inst ? `编辑实例 ${inst.id}` : '新增实例';
+  document.getElementById('f-id').value = inst ? inst.id : '';
+  document.getElementById('f-id').disabled = !!inst; // 编辑不可改 id（重命名=重建；禁删铁律下保持稳定标识）
+  document.getElementById('f-kind').value = inst ? inst.kind : 'generic-rest';
+  document.getElementById('f-endpoint').value = inst ? (inst.endpoint || inst.command || '') : '';
+  document.getElementById('f-fieldmap').value = inst?.field_map ? JSON.stringify(inst.field_map, null, 2) : '';
+  document.getElementById('f-enabled').checked = inst ? inst.enabled !== false : true;
+  document.getElementById('inst-dialog').showModal();
+}
+function closeInstDialog() { document.getElementById('inst-dialog').close(); }
+async function saveInstDialog() {
+  const id = document.getElementById('f-id').value.trim();
+  const kind = document.getElementById('f-kind').value;
+  const endpoint = document.getElementById('f-endpoint').value.trim();
+  const fmRaw = document.getElementById('f-fieldmap').value.trim();
+  const enabled = document.getElementById('f-enabled').checked;
+  if (!id) { setStatus('实例 ID 必填'); return; }
+  let field_map;
+  try { field_map = fmRaw ? JSON.parse(fmRaw) : {}; } catch { setStatus('字段映射不是合法 JSON'); return; }
+  try {
+    if (editingId) {
+      const patch = { kind, enabled, endpoint, command: kind === 'generic-cli' ? endpoint : undefined, field_map };
+      await put(`/api/integration/providers/${encodeURIComponent(editingId)}`, { tenantId: 'system', patch });
+      setStatus('已更新实例（审批凭证已生成）');
+    } else {
+      const instance = { id, kind, enabled, endpoint, command: kind === 'generic-cli' ? endpoint : undefined, field_map };
+      await post('/api/integration/providers', { tenantId: 'system', instance });
+      setStatus('已新增实例（审批凭证已生成）');
+    }
+    closeInstDialog();
+    loadIntegrationSources();
+  } catch (e) { setStatus('保存失败：' + (e.message || e)); }
+}
+async function toggleInst(inst) {
+  try {
+    await put(`/api/integration/providers/${encodeURIComponent(inst.id)}`, { tenantId: 'system', patch: { enabled: inst.enabled === false } });
+    setStatus(`已${inst.enabled === false ? '启用' : '停用'} ${inst.id}`);
+    loadIntegrationSources();
+  } catch (e) { setStatus('切换失败：' + (e.message || e)); }
+}
+document.getElementById('inst-add').addEventListener('click', () => openInstDialog(null));
+document.getElementById('f-cancel').addEventListener('click', closeInstDialog);
+// 保存统一走 form submit（含 Enter 键）：一律 preventDefault，仅在真正保存成功后才 closeInstDialog()。
+// 校验失败时保持弹层打开，用户输入不丢失（详见 form 上方注释）。
+document.getElementById('inst-form').addEventListener('submit', (e) => { e.preventDefault(); saveInstDialog(); });
+
+async function load() {
+  setStatus('加载中…');
+  try {
+    const data = await get('/api/config/discovery-rules');
+    current = (data && data.value) ? data.value : {};
+    document.getElementById('readonlyHint').textContent = '';
+    fill({ ...DEFAULTS, ...current });
+    setStatus('已加载最新配置');
+  } catch (e) {
+    current = {};
+    fill(DEFAULTS);
+    if (e && e.status === 404) {
+      // 未配置 → 404（configRouter.js:98）：亮出厂默认（只读态）。这是**正常态**，不是故障。
+      document.getElementById('readonlyHint').textContent = '（当前展示出厂默认值，尚未保存到系统）';
+      setStatus('尚未配置——当前显示系统出厂默认；首次「保存变更」后即按本租户生效');
+    } else {
+      // 真实加载失败（网络 / 403 权限 / 500）：必须与「未配置」区分——
+      // 旧文案把两者写成「未配置或加载失败」，故障会被误当成默认态（假绿）。
+      document.getElementById('readonlyHint').textContent = '（加载失败，下方为系统出厂默认，仅供参考）';
+      setStatus('加载失败（HTTP ' + (e?.status || '?') + '）：' + (e?.message || e));
+    }
+  }
+}
+async function save() {
+  setStatus('保存中…');
+  let value;
+  try { value = collect(); } catch (err) { setStatus('JSON 格式错误：' + (err.message || err)); return; }
+  if (pbRows.some((p) => !p.name)) { setStatus('策略名称必填'); return; }
+  try {
+    const r = await put('/api/config/discovery-rules', { value });
+    current = r.value || value;
+    setStatus('已保存生效（写操作经审批闸门，凭证=' + (r.decision || '—') + '）');
+  } catch (e) { setStatus('保存失败：' + (e.message || e)); }
+}
+document.getElementById('saveBtn').addEventListener('click', save);
+document.getElementById('reloadBtn').addEventListener('click', load);
+document.getElementById('pb-add').addEventListener('click', addPlaybook);
+seedPbDatalists();
+load();
+loadIntegrationSources();
+</script>
+</body>
+</html>
