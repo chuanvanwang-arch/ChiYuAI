@@ -23,8 +23,8 @@ export function createProspectScanner({ query, signalStore, readConfig = default
         await emitSignal(signalStore, tenantId, e.id, 's0_stale', 'high', 'sales', `prospect:s0_stale:${e.id}:day`, { ageDays: Math.floor(ageDays) });
         signals += 1;
       }
-      // ② S0P 回收前 T-3 天预警（有归属 + 跟进超 recycleDays-3）
-      if (p.stage === 'S0P' && p.owner_id && followAge != null && followAge > (recycleDays - 3)) {
+      // ② S0P 回收前 T-3 天预警（有归属 + 跟进达 recycleDays-3 即预警，含边界日，符合"提前 3 天"语义）
+      if (p.stage === 'S0P' && p.owner_id && followAge != null && followAge >= (recycleDays - 3)) {
         await emitSignal(signalStore, tenantId, e.id, 's0p_recycle_warn', 'medium', 'sales', `prospect:s0p_recycle_warn:${e.id}:day`, { followAgeDays: Math.floor(followAge) });
         signals += 1;
       }
