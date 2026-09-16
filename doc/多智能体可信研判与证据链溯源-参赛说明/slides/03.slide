@@ -1,0 +1,46 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 20, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center', gap: 48 }}>
+
+  <Box style={{ width: 420, flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ fontSize: 104, fontWeight: 'bold', color: '#34D399', lineHeight: 1 }}>100%</Text>
+    <Box style={{ width: 120, height: 4, background: 'linear-gradient(135deg,#22D3EE 0%,#34D399 100%)', marginTop: 20, marginBottom: 20 }} />
+    <Text style={{ fontSize: 19, color: '#EEF1F6', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.6 }}>
+      每条结论都能下钻到<br />原始来源段落
+    </Text>
+    <Text style={{ fontSize: 14, color: '#666D80', marginTop: 16, textAlign: 'center', lineHeight: 1.7 }}>
+      架构设计目标 · 非实测指标<br />实测值待 PoC 阶段公布
+    </Text>
+  </Box>
+
+  <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+      <Box style={{ width: 36, height: 3, background: '#FBBF24' }} />
+      <Text style={{ fontSize: 15, color: '#FBBF24', letterSpacing: 2, fontWeight: 'bold' }}>THE ARGUMENT</Text>
+    </Box>
+
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6', lineHeight: 1.35 }}>
+      研判已经很快了，<br />问题是<span style={{ color: '#FBBF24' }}>凭什么信它</span>
+    </Text>
+
+    <Box style={{ flexDirection: 'column', gap: 14, marginTop: 30 }}>
+      <Box style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start' }}>
+        <Box style={{ width: 3, height: 62, background: '#22D3EE', marginTop: 4 }} />
+        <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.75, flex: 1 }}>
+          过去几年，研判类系统解决了"出结论"的速度与覆盖面；<b style={{ color: '#EEF1F6' }}>没有解决结论为什么成立</b>。
+        </Text>
+      </Box>
+      <Box style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start' }}>
+        <Box style={{ width: 3, height: 62, background: '#FBBF24', marginTop: 4 }} />
+        <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.75, flex: 1 }}>
+          结论不可追，复核成本就高；复核成本高，人就不敢用；<b style={{ color: '#EEF1F6' }}>不敢用，判断能力就进不了业务闭环</b>。
+        </Text>
+      </Box>
+      <Box style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start' }}>
+        <Box style={{ width: 3, height: 62, background: '#34D399', marginTop: 4 }} />
+        <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.75, flex: 1 }}>
+          我们补的不是更强的模型，而是<b style={{ color: '#34D399' }}>判断的可信度结构</b>：度量、消解、溯源、可审。
+        </Text>
+      </Box>
+    </Box>
+  </Box>
+
+</Slide>

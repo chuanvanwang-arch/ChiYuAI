@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>多智能体可信研判与证据链溯源系统 · ChiYu AI · 录制版</title>
+<style>
+  :root{
+    --bg:#080A0F; --panel:#101420; --card:#161C28; --line:#232B3B;
+    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#a78bfa;
+    --t1:#eef1f6; --t2:#a4abbd; --t3:#5c6579;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1280px;height:720px;background:#000;overflow:hidden}
+  #stage{
+    position:relative;width:1280px;height:720px;background:var(--bg);
+    font-family:'Microsoft YaHei','Noto Sans SC',sans-serif;color:var(--t1);overflow:hidden;
+  }
+  .scene{position:absolute;inset:0;opacity:0;padding:56px 72px 110px}
+  .brand{position:absolute;left:56px;top:34px;font-size:15px;color:var(--t3);letter-spacing:2px;font-weight:600;z-index:50}
+  .brand b{color:var(--cyan)}
+  .clock{position:absolute;right:56px;top:34px;font-size:15px;color:var(--t3);z-index:50;font-variant-numeric:tabular-nums}
+  .cap{position:absolute;left:72px;right:72px;bottom:56px;font-size:22px;color:var(--t2);line-height:1.6;z-index:60;
+       border-left:4px solid var(--cyan);padding-left:18px;min-height:70px}
+  .cap b{color:var(--t1)}
+  .bar{position:absolute;left:0;bottom:0;height:5px;background:linear-gradient(90deg,var(--cyan),var(--green));z-index:70;width:0}
+  h1.big{font-size:52px;font-weight:900;line-height:1.25}
+  h2.ttl{font-size:34px;font-weight:800;margin-bottom:8px}
+  .sub{font-size:19px;color:var(--t2)}
+  .eyebrow{font-size:14px;letter-spacing:3px;color:var(--cyan);font-weight:700;margin-bottom:14px}
+  .eyebrow.a{color:var(--amber)} .eyebrow.g{color:var(--green)}
+
+  /* 智能体结论卡 */
+  .agents{position:absolute;left:72px;top:168px;width:700px;display:flex;flex-direction:column;gap:12px}
+  .ag{display:flex;align-items:center;gap:14px;background:#141A26;border:1px solid var(--line);border-radius:10px;padding:14px 16px;opacity:0}
+  .ag .who{font-size:15px;font-weight:700;width:150px;color:var(--t1)}
+  .ag .say{font-size:14px;color:var(--t2);flex:1}
+  .ag .cf{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:64px;text-align:right}
+  .ag.opp{background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.4)}
+  .ag.dim{opacity:.25 !important;filter:saturate(.2)}
+
+  .sidepanel{position:absolute;right:72px;top:166px;width:404px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px}
+  .kpi .n{font-size:50px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:14px;color:var(--t3);margin-top:8px;line-height:1.5}
+
+  /* 三级证据链 */
+  .chain{position:absolute;left:72px;top:164px;right:72px;display:flex;flex-direction:column;gap:14px}
+  .lvl{display:flex;align-items:center;gap:14px;opacity:0}
+  .lvl .tag{width:82px;font-size:14px;font-weight:800;letter-spacing:1px}
+  .lvl .row{display:flex;gap:12px;flex:1}
+  .nd{flex:1;background:#141A26;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .nd .k{font-size:13px;font-weight:700;color:var(--t1)}
+  .nd .v{font-size:12.5px;color:var(--t3);margin-top:6px;line-height:1.5}
+  .nd.sup{border-color:rgba(52,211,153,.45)} .nd.opp{border-color:rgba(248,113,113,.45)}
+  .nd.one{max-width:none}
+
+  /* 三维度量 */
+  .dims{position:absolute;left:72px;top:176px;width:640px;display:flex;flex-direction:column;gap:20px}
+  .dim{opacity:0}
+  .dim .dh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .dim .dn{font-size:17px;font-weight:700}
+  .dim .dv{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .dim .db{height:14px;background:#131924;border-radius:7px;overflow:hidden}
+  .dim .df{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green))}
+  .dim .dd{font-size:12.5px;color:var(--t3);margin-top:7px}
+
+  /* 论证对抗 */
+  .debate{position:absolute;left:72px;top:164px;right:72px;display:flex;gap:16px;align-items:stretch}
+  .side{flex:1;background:#141A26;border:1px solid var(--line);border-radius:12px;padding:18px;opacity:0}
+  .side.pro{border-color:rgba(52,211,153,.45)} .side.con{border-color:rgba(248,113,113,.45)}
+  .side h4{font-size:16px;font-weight:800;margin-bottom:10px}
+  .side.pro h4{color:var(--green)} .side.con h4{color:var(--red)}
+  .side p{font-size:13px;color:var(--t2);line-height:1.7}
+  .judge{flex:0 0 300px;background:linear-gradient(180deg,#182031,#131924);border:1px solid rgba(96,165,250,.5);border-radius:12px;padding:18px;opacity:0}
+  .judge .tag{font-size:12px;font-weight:800;letter-spacing:2px;color:var(--blue)}
+  .judge h3{font-size:19px;font-weight:800;margin:10px 0 8px}
+  .judge p{font-size:13px;color:var(--t2);line-height:1.7}
+  .result{position:absolute;left:72px;right:72px;bottom:150px;display:flex;gap:14px;opacity:0}
+  .result .rc{flex:1;background:#131924;border:1px solid #2c3346;border-radius:12px;padding:14px 18px}
+  .result .rc .k{font-size:12.5px;color:var(--t3)}
+  .result .rc .v{font-size:15px;margin-top:7px;line-height:1.5}
+
+  /* 溯源下钻 */
+  .drill{position:absolute;left:72px;top:170px;width:660px;display:flex;flex-direction:column;gap:10px}
+  .dr{display:flex;align-items:center;gap:12px;background:#141A26;border:1px solid var(--line);border-radius:10px;padding:12px 16px;opacity:0}
+  .dr .dk{font-size:13px;font-weight:700;width:220px;color:var(--t1)}
+  .dr .dv{font-size:12.5px;color:var(--t3);flex:1}
+  .dr.hit{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.06)}
+  .dr.hit .dv{color:var(--amber)}
+  .gates{position:absolute;right:72px;top:170px;width:404px;display:flex;flex-direction:column;gap:12px}
+  .gate{display:flex;align-items:center;gap:12px;background:#141A26;border:1px solid var(--line);border-radius:10px;padding:14px 16px;opacity:0}
+  .gate .g1{font-size:14px;font-weight:700;width:118px;color:var(--t1)}
+  .gate .g2{font-size:12.5px;color:var(--t3);flex:1;line-height:1.5}
+  .gate .g3{font-size:13px;font-weight:800}
+  .ok{color:var(--green)} .warn{color:var(--amber)}
+
+  /* 推理树 */
+  .tree{position:absolute;left:72px;top:164px;width:640px}
+  .audit{position:absolute;right:72px;top:164px;width:404px;display:flex;flex-direction:column;gap:12px}
+  .hash{display:flex;align-items:center;gap:10px;background:#141A26;border:1px solid var(--line);border-radius:8px;padding:14px 16px;opacity:0}
+  .hash .h1{font-size:12.5px;color:var(--t2);width:120px}
+  .hash .h2{font-size:12px;color:var(--t3);font-family:Consolas,monospace;flex:1}
+  .chip2{border:1px dashed #2c3346;border-radius:10px;padding:12px 16px;font-size:13px;color:var(--t2);opacity:0;line-height:1.6}
+
+  .endwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center}
+  .endwrap .chips{margin-top:34px;display:flex;gap:14px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:11px 22px;font-size:16px;color:var(--t2)}
+  .chip.hl{border-color:rgba(34,211,238,.5);color:var(--cyan);background:rgba(34,211,238,.08)}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div class="brand">ChiYu AI <b>·</b> 多智能体可信研判与证据链溯源系统</div>
+  <div class="clock" id="clock">场景 01 / 08</div>
+
+  <!-- S1 标题 -->
+  <div class="scene" id="s1">
+    <div style="height:100%;display:flex;flex-direction:column;justify-content:center">
+      <div class="eyebrow">多智能体可信研判与证据链溯源系统 · TRUSTED MULTI-AGENT ANALYSIS</div>
+      <h1 class="big">研判已经很快了——<br>问题是，<span style="color:var(--cyan)">凭什么信它</span></h1>
+      <div class="sub" style="margin-top:26px">可信度量 · 冲突消解 · 证据溯源 · 推理透明 ｜ 让每条结论都带着它的依据</div>
+    </div>
+  </div>
+
+  <!-- S2 结论冲突 -->
+  <div class="scene" id="s2">
+    <div class="eyebrow a">SCENE 01 · 现状</div>
+    <h2 class="ttl">多个智能体各执一词，简单投票把分歧抹平</h2>
+    <div class="sub">讨论组里的"平均结论"，丢掉的恰恰是最有价值的信息</div>
+    <div class="agents" id="agents"></div>
+    <div class="sidepanel">
+      <div class="kpi"><div class="n" style="color:var(--amber)">2</div><div class="l">种互斥结论并存 · 无人给出消解依据</div></div>
+      <div class="kpi"><div class="n" style="color:var(--red);font-size:26px">分歧被平均</div><div class="l">反证被当作噪声丢弃，少数意见无处可见</div></div>
+    </div>
+  </div>
+
+  <!-- S3 证据入图 -->
+  <div class="scene" id="s3">
+    <div class="eyebrow">SCENE 02 · 证据图谱</div>
+    <h2 class="ttl">先把结论、证据、来源三级结构建起来</h2>
+    <div class="sub">每条证据支持谁、反驳谁，来源是原始段落还是转述，全部入图</div>
+    <div class="chain" id="chain"></div>
+  </div>
+
+  <!-- S4 三维度量 -->
+  <div class="scene" id="s4">
+    <div class="eyebrow">SCENE 03 · 三维可信度量</div>
+    <h2 class="ttl">信源 × 证据 × 逻辑，说清分从哪里来</h2>
+    <div class="sub">置信度不是一个拍出来的百分比，而是三个可复算的维度</div>
+    <div class="dims" id="dims"></div>
+    <div class="sidepanel" style="top:200px">
+      <div class="kpi" style="border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.06)">
+        <div class="n" style="color:var(--amber);font-size:26px">冲突已识别</div>
+        <div class="l">E2 反驳与中间结论 M2 不一致 · 自动进入消解流程</div>
+      </div>
+      <div class="kpi"><div class="n" style="color:var(--cyan);font-size:26px">缺什么报什么</div><div class="l">置信度不足不放行，不静默通过</div></div>
+    </div>
+  </div>
+
+  <!-- S5 博弈对抗消解 -->
+  <div class="scene" id="s5">
+    <div class="eyebrow">SCENE 04 · 冲突消解</div>
+    <h2 class="ttl">正方、反方、仲裁——对抗之后才给结论</h2>
+    <div class="sub">不投票：双方各自陈述依据，仲裁按信源等级与证据强度裁决</div>
+    <div class="debate" id="debate" style="top:198px">
+      <div class="side pro" id="pro">
+        <h4>正方 · 支持协同发布</h4>
+        <p>3 家独立来源在同一时间窗内出现相同表述；<br>账号注册信息存在共性；<br>一手数据接口记录到同步发布痕迹。</p>
+      </div>
+      <div class="side con" id="con">
+        <h4>反方 · 反对协同发布</h4>
+        <p>时间线核查显示两个关键节点顺序相反；<br>其中 1 家来源为转述，无原始出处；<br>存在共同前因（行业例会）可解释共现。</p>
+      </div>
+      <div class="judge" id="judge">
+        <div class="tag">ARBITRATION · 仲裁裁决</div>
+        <h3>裁决：命题降级为"待验证"</h3>
+        <p>支持侧证据虽多，但反方提出的时序矛盾未被解释；两者证据强度不足以判定因果，故不升格为结论。</p>
+      </div>
+    </div>
+    <div class="result" id="result">
+      <div class="rc"><div class="k">最终结论</div><div class="v" style="color:var(--t1)">A 事件存在协同发布特征（置信度 <b style="color:var(--amber)">0.58</b> · 待验证）</div></div>
+      <div class="rc"><div class="k">分歧留档</div><div class="v" style="color:var(--purple)">反方意见与理由一并入库，不覆盖</div></div>
+      <div class="rc"><div class="k">裁决依据</div><div class="v" style="color:var(--green)">时序优先 · 反事实检验未通过</div></div>
+    </div>
+  </div>
+
+  <!-- S6 溯源与因果 -->
+  <div class="scene" id="s6">
+    <div class="eyebrow g">SCENE 05 · 证据溯源与因果校验</div>
+    <h2 class="ttl">从结论一路下钻，到原始段落</h2>
+    <div class="sub">每一级都可点开核对；因果三关不过，结论不升格</div>
+    <div class="drill" id="drill"></div>
+    <div class="gates" id="gates"></div>
+  </div>
+
+  <!-- S7 推理透明可审 -->
+  <div class="scene" id="s7">
+    <div class="eyebrow g">SCENE 06 · 推理树与全程可审</div>
+    <h2 class="ttl">中间结论留痕，可复现、可审计、可干预</h2>
+    <div class="sub">复核人看到的是推理过程，不是一句最终结论</div>
+    <div class="tree">
+      <svg width='640' height='330' viewBox='0 0 640 330'>
+        <rect x='210' y='6' width='220' height='46' rx='9' fill='#141A26' stroke='#22d3ee' strokeWidth='2' />
+        <text x='320' y='35' fill='#eef1f6' fontSize='14' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>根结论 · 置信度 0.58</text>
+        <path d='M320 52 L320 68 M110 68 L530 68 M320 68 L320 68' stroke='#2c3346' strokeWidth='1.5' />
+        <path d='M110 68 L110 88 M320 68 L320 88 M530 68 L530 88' stroke='#2c3346' strokeWidth='1.5' />
+        <rect x='18' y='88' width='184' height='52' rx='8' fill='#141A26' stroke='#34d399' strokeWidth='1.5' />
+        <text x='110' y='110' fill='#eef1f6' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>M1 · 已确证</text>
+        <text x='110' y='129' fill='#5c6579' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>账号信息存在共性</text>
+        <rect x='228' y='88' width='184' height='52' rx='8' fill='#141A26' stroke='#fbbf24' strokeWidth='1.5' />
+        <text x='320' y='110' fill='#eef1f6' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>M2 · 待验证</text>
+        <text x='320' y='129' fill='#5c6579' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>指令链路未获取</text>
+        <rect x='438' y='88' width='184' height='52' rx='8' fill='#141A26' stroke='#f87171' strokeWidth='1.5' />
+        <text x='530' y='110' fill='#eef1f6' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>M3 · 存疑</text>
+        <text x='530' y='129' fill='#5c6579' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>与反证 E2 冲突</text>
+        <path d='M110 140 L110 168 M320 140 L320 168 M530 140 L530 168' stroke='#2c3346' strokeWidth='1.5' />
+        <path d='M110 168 L530 168 M320 168 L320 190' stroke='#2c3346' strokeWidth='1.5' />
+        <rect x='150' y='190' width='340' height='48' rx='8' fill='#111620' stroke='#6b5f2e' strokeWidth='1.5' strokeDasharray='5 4' />
+        <text x='320' y='211' fill='#a4abbd' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>缺依据节点 · 未获取到指令链路原始记录</text>
+        <text x='320' y='229' fill='#fbbf24' fontSize='11.5' textAnchor='middle' fontFamily='Microsoft YaHei'>缺什么就报什么，不静默通过</text>
+        <rect x='18' y='258' width='604' height='62' rx='9' fill='#111620' stroke='#232b3b' strokeWidth='1' strokeDasharray='5 4' />
+        <text x='36' y='282' fill='#eef1f6' fontSize='13' fontWeight='bold' fontFamily='Microsoft YaHei'>节点四态：已确证 · 待验证 · 存疑 · 缺依据</text>
+        <text x='36' y='304' fill='#a4abbd' fontSize='12.5' fontFamily='Microsoft YaHei'>每个节点记录中间结论、依据、置信度、时间戳与生成它的智能体</text>
+      </svg>
+    </div>
+    <div class="audit" id="audit"></div>
+  </div>
+
+  <!-- S8 结尾 -->
+  <div class="scene" id="s8">
+    <div class="endwrap">
+      <h1 class="big" style="font-size:42px">让每一条结论都带着它的证据，<br>让每一次判断都可以被复核，<br><span style="color:var(--green)">让组织的研判能力可以积累</span></h1>
+      <div class="chips">
+        <div class="chip hl">可信度量 · 冲突消解 · 证据溯源 · 推理透明</div>
+        <div class="chip">MCP 标准接口接入第三方智能体</div>
+        <div class="chip">换研判域只换一份配置画像</div>
+      </div>
+      <div style="margin-top:44px;font-size:21px;color:var(--t1);font-weight:700">北京青羽智行科技有限公司 · ChiYu AI</div>
+      <div style="margin-top:10px;font-size:16px;color:var(--t3)">www.chiyuai.com ｜ 场景为能力逻辑推演，量化指标待实测</div>
+    </div>
+  </div>
+
+  <div class="bar" id="bar"></div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- 时长（毫秒），由录制脚本注入 window.__DUR 覆盖 ----------
+  var DEFAULT_DUR = [17000,15000,15000,16000,20000,17000,18000,13000];
+  var DUR = (window.__DUR && window.__DUR.length === 8) ? window.__DUR.slice() : DEFAULT_DUR.slice();
+  for (var i = 0; i < DUR.length; i++) DUR[i] = Math.round(DUR[i]);
+
+  var SCENES = [
+    {id:'s1', cap:'研判已经很快了——<b>问题是凭什么信它</b>。我们把"可信"做成可度量、可追溯、可复核的结构。'},
+    {id:'s2', cap:'多个智能体各执一词，简单投票把分歧抹平——<b>被平均掉的恰恰是最有价值的信息</b>。'},
+    {id:'s3', cap:'先把结论、证据、来源<b>三级结构入图</b>：谁支持、谁反驳、来源是否一手，全部可查。'},
+    {id:'s4', cap:'三维可信度量：<b>信源 × 证据 × 逻辑</b>，置信度是三个可复算维度的结果，不是一个拍出来的数字。'},
+    {id:'s5', cap:'冲突不靠投票：<b>正方、反方、仲裁</b>三方对抗后裁决，反方意见与理由一并留档，不被覆盖。'},
+    {id:'s6', cap:'从结论一路下钻到<b>原始段落</b>；因果三关——时序优先、反事实检验、混杂因素排查。'},
+    {id:'s7', cap:'中间结论逐条留痕，推理树<b>可复现、可审计、可干预</b>；复核人可排除证据并触发重算。'},
+    {id:'s8', cap:'让每一条结论都带着它的证据，<b>让组织的研判能力可以积累</b>。'}
+  ];
+  var START = [], acc = 0;
+  for (i = 0; i < 8; i++) { START.push(acc); acc += DUR[i]; }
+  var TOTAL = acc;
+
+  // ---------- 动画登记 ----------
+  var anims = [];
+  function A(el, frames, start, dur, easing){
+    var a = el.animate(frames, {
+      duration: Math.max(1, dur), delay: Math.max(0, start),
+      fill: 'both', easing: easing || 'cubic-bezier(.2,.8,.2,1)'
+    });
+    a.pause(); anims.push(a); return a;
+  }
+  function reveal(list, t0, step, dur, from){
+    for(var i=0;i<list.length;i++){
+      var fr = from==='right'
+        ? [{opacity:0,transform:'translateX(20px)'},{opacity:1,transform:'translateX(0)'}]
+        : [{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'translateY(0)'}];
+      A(list[i], fr, t0+i*step, dur);
+    }
+  }
+
+  // ---------- S2 智能体结论 ----------
+  var AGENTS = [
+    ['事实抽取智能体','A 事件存在协同发布特征，独立来源 3 家','0.74','#34d399'],
+    ['时序核查智能体','时间线不支持协同发布，两节点顺序相反','0.68','#f87171'],
+    ['立场研判智能体','存在统一倾向，表述模板高度相似','0.71','#34d399'],
+    ['投票加权结果','三个智能体简单平均，分歧被抹平','0.71','#5c6579']
+  ];
+  var agEl = document.getElementById('agents');
+  AGENTS.forEach(function(a, idx){
+    var d = document.createElement('div');
+    d.className = 'ag' + (idx===1 ? ' opp' : '') + (idx===3 ? ' dim' : '');
+    d.innerHTML = '<div class="who">'+a[0]+'</div><div class="say">'+a[1]+'</div>'
+      + '<div class="cf" style="color:'+a[3]+'">'+a[2]+'</div>';
+    agEl.appendChild(d);
+  });
+
+  // ---------- S3 证据链三级 ----------
+  var CHAIN = [
+    ['结论', '#22d3ee', [['C1 · 结论节点','A 事件呈现协同发布特征 ｜ 置信度待定'],
+                          ['C2 · 冲突标记','与反证 E2 时序不成立，进入消解流程']]],
+    ['证据', '#fbbf24', [['E1 · 支持','独立来源 3 家，含 1 个一手数据接口'],
+                          ['E2 · 反驳','时间线核查顺序相反，关键节点缺失'],
+                          ['E3 · 支持','文本模板相似度显著高于基线']]],
+    ['来源', '#34d399', [['S1 · 原始文档','段落 12 ｜ 抓取 09:41 ｜ 一手'],
+                          ['S2 · 转述报道','段落 3 ｜ 抓取 14:07 ｜ 二手'],
+                          ['S3 · 数据接口','原始记录 ｜ 抓取 09:12 ｜ 一手']]]
+  ];
+  var chainEl = document.getElementById('chain');
+  CHAIN.forEach(function(lv){
+    var row = document.createElement('div'); row.className = 'lvl';
+    var html = '<div class="tag" style="color:'+lv[1]+'">'+lv[0]+'</div><div class="row">';
+    lv[2].forEach(function(n, i){
+      var cls = 'nd' + (lv[0]==='证据' ? (i===1 ? ' opp' : ' sup') : '');
+      html += '<div class="'+cls+'"><div class="k">'+n[0]+'</div><div class="v">'+n[1]+'</div></div>';
+    });
+    html += '</div>';
+    row.innerHTML = html;
+    chainEl.appendChild(row);
+  });
+
+  // ---------- S4 三维度量 ----------
+  var DIMS = [
+    ['信源可信度','0.82','2 个一手来源 + 1 个二手转述，来源等级已分级','#22d3ee','82%'],
+    ['证据强度','0.66','支持侧 3 条、反驳侧 1 条，但反驳侧时序证据权重更高','#fbbf24','66%'],
+    ['逻辑一致性','0.58','推理链存在 1 处未解释矛盾，反证尚未排除','#f87171','58%']
+  ];
+  var dimsEl = document.getElementById('dims');
+  DIMS.forEach(function(d){
+    var el = document.createElement('div'); el.className = 'dim';
+    el.innerHTML = '<div class="dh"><span class="dn" style="color:'+d[3]+'">'+d[0]+'</span>'
+      + '<span class="dv" style="color:'+d[3]+'">'+d[1]+'</span></div>'
+      + '<div class="db"><div class="df" data-w="'+d[4]+'"></div></div>'
+      + '<div class="dd">'+d[2]+'</div>';
+    dimsEl.appendChild(el);
+  });
+  var dfs = dimsEl.querySelectorAll('.df');
+
+  // ---------- S5 对抗结果 ----------
+  // 静态 HTML，仅做时序动画
+
+  // ---------- S6 溯源下钻 ----------
+  var DRILL = [
+    ['结论 · C1','A 事件呈现协同发布特征',false],
+    ['证据 · E2','时间线核查：两关键节点顺序相反',false],
+    ['来源 · S2','转述报道 ｜ 原文段落 3',false],
+    ['命中片段','"……相关表述于当日上午集中出现……"（高亮定位到原始段落）',true]
+  ];
+  var drillEl = document.getElementById('drill');
+  DRILL.forEach(function(d){
+    var el = document.createElement('div'); el.className = 'dr' + (d[2] ? ' hit' : '');
+    el.innerHTML = '<div class="dk">'+d[0]+'</div><div class="dv">'+d[1]+'</div>';
+    drillEl.appendChild(el);
+  });
+  var GATES = [
+    ['① 时序优先','因必须先于果；时序不成立即降级为相关','通过','ok'],
+    ['② 反事实检验','假定该因不发生，果是否仍成立','不通过','warn'],
+    ['③ 混杂因素','是否存在共同前因同时解释两者','发现共因','warn'],
+    ['结论状态','因果证据不足，保持"待验证"不升格','已标注','ok']
+  ];
+  var gatesEl = document.getElementById('gates');
+  GATES.forEach(function(g){
+    var el = document.createElement('div'); el.className = 'gate';
+    el.innerHTML = '<div class="g1">'+g[0]+'</div><div class="g2">'+g[1]+'</div>'
+      + '<div class="g3 '+g[3]+'">'+g[2]+'</div>';
+    gatesEl.appendChild(el);
+  });
+
+  // ---------- S7 审计链 ----------
+  var AUDIT = [
+    ['节点创建','推理树 M1/M2/M3 写入 · 09:41:07'],
+    ['证据变更','E2 关系标记为"反驳" · 09:44:12'],
+    ['人工干预','复核人排除 E3（来源为转述）· 09:52:30'],
+    ['重算完成','置信度 0.61 → 0.58 · 09:52:33'],
+    ['哈希链校验','prev_hash 链式校验通过 · 不可篡改']
+  ];
+  var auditEl = document.getElementById('audit');
+  AUDIT.forEach(function(a){
+    var el = document.createElement('div'); el.className = 'hash';
+    el.innerHTML = '<div class="h1">'+a[0]+'</div><div class="h2">'+a[1]+'</div>';
+    auditEl.appendChild(el);
+  });
+  var note = document.createElement('div');
+  note.className = 'chip2';
+  note.innerHTML = '复核人可<b style="color:#eef1f6">排除某条证据</b>或直接修改结论，系统随即重算并保留修改前后两版结果；证据排除为软标记，原始证据不删除。';
+  auditEl.appendChild(note);
+
+  // ---------- 时间轴编排 ----------
+  for (i = 0; i < 8; i++) {
+    var el = document.getElementById(SCENES[i].id);
+    A(el, [{opacity:0,offset:0},{opacity:1,offset:0.05},{opacity:1,offset:0.95},{opacity:0,offset:1}],
+      START[i], DUR[i], 'linear');
+  }
+  // S1 标题入场
+  A(document.querySelector('#s1 .eyebrow'), [{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}], 300, 600);
+  A(document.querySelector('#s1 h1'), [{opacity:0,transform:'translateY(18px)'},{opacity:1,transform:'translateY(0)'}], 800, 900);
+  A(document.querySelector('#s1 .sub'), [{opacity:0},{opacity:1}], 1700, 700);
+
+  // S2 智能体逐一给出结论
+  reveal(agEl.children, START[1]+200, 420, 420);
+  // S3 三级依次入图
+  reveal(chainEl.children, START[2]+250, 900, 520);
+  // S4 三维度量 + 冲突识别
+  reveal(dimsEl.children, START[3]+200, 500, 450);
+  for (i = 0; i < dfs.length; i++) {
+    A(dfs[i], [{width:'0%'},{width:dfs[i].dataset.w}], START[3]+900+i*260, 850, 'ease-out');
+  }
+  // S5 对抗消解
+  A(document.getElementById('pro'), [{opacity:0,transform:'translateX(-18px)'},{opacity:1,transform:'translateX(0)'}], START[4]+250, 550);
+  A(document.getElementById('con'), [{opacity:0,transform:'translateX(18px)'},{opacity:1,transform:'translateX(0)'}], START[4]+1000, 550);
+  A(document.getElementById('judge'), [{opacity:0,transform:'scale(.95)'},{opacity:1,transform:'scale(1)'}], START[4]+1900, 700);
+  reveal(document.getElementById('result').children, START[4]+3000, 420, 520);
+  // S6 逐级下钻
+  reveal(drillEl.children, START[5]+200, 420, 420);
+  reveal(gatesEl.children, START[5]+1100, 350, 420);
+  // S7 审计链
+  reveal(auditEl.children, START[6]+300, 340, 420);
+
+  // 进度条
+  A(document.getElementById('bar'), [{width:'0%'},{width:'100%'}], 0, TOTAL, 'linear');
+
+  // ---------- 字幕 / 时钟（由 seek 更新文本） ----------
+  var capEl = document.createElement('div'); capEl.className = 'cap';
+  document.getElementById('stage').appendChild(capEl);
+  var clockEl = document.getElementById('clock');
+  var lastIdx = -1;
+
+  window.__total = TOTAL;
+  window.__seek = function(t){
+    for (var k=0;k<anims.length;k++){ try { anims[k].currentTime = t; } catch(e){} }
+    var idx = 0;
+    for (var j=0;j<8;j++){ if (t >= START[j]) idx = j; }
+    if (idx !== lastIdx){
+      lastIdx = idx;
+      capEl.innerHTML = SCENES[idx].cap;
+      clockEl.textContent = '场景 0' + (idx+1) + ' / 08';
+    }
+  };
+  window.__seek(0);
+})();
+</script>
+</body>
+</html>

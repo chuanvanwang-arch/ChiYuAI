@@ -1,0 +1,64 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>CONTENTS</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>目录</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 24, flexDirection: 'row', gap: 20 }}>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 26, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#22D3EE', lineHeight: 1 }}>01</Text>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6', marginTop: 14 }}>技术方案</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 12 }}>
+          边缘研判—集群归因—业务闭环三层智能体，叠加 K-M-D 认知决策管道与设备记忆体，说明判断如何产生、如何被校验。
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 14, color: '#666D80', marginTop: 16 }}>架构 · 管道 · 记忆 · 校验</Text>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #60A5FA', padding: 26, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#60A5FA', lineHeight: 1 }}>02</Text>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6', marginTop: 14 }}>应用场景</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 12 }}>
+          锅炉、泵站、空压机、暖通等设备集群：告警风暴收敛、跨设备连锁根因判别、重复故障根治、新人接手陌生设备。
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 14, color: '#666D80', marginTop: 16 }}>集群监控 · 根因 · 处置 · 传承</Text>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #34D399', padding: 26, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#34D399', lineHeight: 1 }}>03</Text>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6', marginTop: 14 }}>落地效果</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 12 }}>
+          平台底座已在 ChiYu AI 销售管理平台生产运行；设备域处于 PoC 准备阶段，验证路径与指标口径如实说明。
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 14, color: '#666D80', marginTop: 16 }}>底座已上线 · 设备域 PoC · 指标待实测</Text>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #FBBF24', padding: 26, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#FBBF24', lineHeight: 1 }}>04</Text>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6', marginTop: 14 }}>团队介绍</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 12 }}>
+          北京青羽智行科技有限公司（ChiYu AI），AI 原生架构与行业落地团队，已形成软著与发明专利积累。
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 14, color: '#666D80', marginTop: 16 }}>团队 · 知识产权 · 路线图</Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>02 / 14</Text>
+  </Box>
+
+</Slide>

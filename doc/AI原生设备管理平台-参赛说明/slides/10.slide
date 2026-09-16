@@ -1,0 +1,82 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#FBBF24' }} />
+      <Text style={{ fontSize: 15, color: '#FBBF24', letterSpacing: 2, fontWeight: 'bold' }}>BENCHMARK</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>对标工业互联网平台：差异在判断与闭环</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 16, flexDirection: 'column' }}>
+
+    <Box style={{ flexDirection: 'row', background: '#1A1F2B', borderRadius: 10, padding: 14, paddingLeft: 18, paddingRight: 18 }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold' }}>能力维度</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold' }}>主流工业互联网平台</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold' }}>ChiYu AI 原生设备管理平台</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold' }}>差异价值</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 13, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 16, color: '#EEF1F6', fontWeight: 'bold' }}>告警机制</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#FBBF24' }}>△ 阈值 / 规则引擎，规则需人工逐条配置</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#34D399' }}>✓ 边缘本地研判 + 集群关联归因，输出结论</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>从配规则到给结论</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 13, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 16, color: '#EEF1F6', fontWeight: 'bold' }}>告警风暴</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#F87171' }}>✗ 多设备并发刷屏，缺少收敛机制</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#34D399' }}>✓ 聚合去重 + 时序关联，收敛为一条根因</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>运维聚焦源头</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 13, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 16, color: '#EEF1F6', fontWeight: 'bold' }}>跨设备根因</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#F87171' }}>✗ 单机视角，连锁传导靠人跨系统拼</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#34D399' }}>✓ 设备—工艺—产线拓扑 + 时序推理</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>减少抢修方向错</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 13, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 16, color: '#EEF1F6', fontWeight: 'bold' }}>记忆与经验</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#FBBF24' }}>△ 有历史数据，经验非结构化易流失</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#34D399' }}>✓ 设备记忆体 + 向量检索，先例可调用</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>经验可继承</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 13, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 16, color: '#EEF1F6', fontWeight: 'bold' }}>决策可解释</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#FBBF24' }}>△ 规则触发可追，复杂判断仍是黑箱</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#34D399' }}>✓ 九尺子校验 + 9 列决策记录 + 概念引用</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>敢用 · 能追责</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 13, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 200 }}><Text style={{ fontSize: 16, color: '#EEF1F6', fontWeight: 'bold' }}>业务闭环</Text></Box>
+      <Box style={{ width: 320 }}><Text style={{ fontSize: 15, color: '#FBBF24' }}>△ 告警到工单靠人转，需外挂 CMMS</Text></Box>
+      <Box style={{ width: 380 }}><Text style={{ fontSize: 15, color: '#34D399' }}>✓ 工单 / 备件 / 排程内嵌，闭环留痕</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>从看板到执行</Text></Box>
+    </Box>
+
+    <Box style={{ marginTop: 16, background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 16, paddingLeft: 20, paddingRight: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <Box style={{ paddingTop: 5, paddingBottom: 5, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(251,191,36,.14)' }}>
+        <Text style={{ fontSize: 14, color: '#FBBF24', fontWeight: 'bold' }}>主动认弱</Text>
+      </Box>
+      <Text style={{ fontSize: 16, color: '#A4ABBD', flex: 1, lineHeight: 1.6 }}>
+        设备接入协议、组态看板、规模与生态成熟度三项，我们不如存量平台——这些维度<b>不宣称更强</b>，采用集成而非重建。
+      </Text>
+    </Box>
+
+    <Text style={{ fontSize: 14, color: '#666D80', marginTop: 12 }}>
+      左列为工业互联网平台通用能力特征，不针对任何特定厂商；✓ / ✗ / △ 为三态对照标记。
+    </Text>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>10 / 14</Text>
+  </Box>
+
+</Slide>

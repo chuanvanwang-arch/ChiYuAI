@@ -1,0 +1,60 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>CONTENTS</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>四章讲清一件事：让判断可以被复核</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 18, flexDirection: 'column', gap: 16 }}>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderLeft: '3px solid #22D3EE', padding: 24, flexDirection: 'row', alignItems: 'center', gap: 22 }}>
+      <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#22D3EE', width: 74 }}>01</Text>
+      <Box style={{ flex: 1 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>技术方案</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          三层智能体架构与四项核心能力：三维可信度量、博弈对抗冲突消解、证据图谱与因果校验、推理树全程可审。
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderLeft: '3px solid #60A5FA', padding: 24, flexDirection: 'row', alignItems: 'center', gap: 22 }}>
+      <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#60A5FA', width: 74 }}>02</Text>
+      <Box style={{ flex: 1 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>应用场景</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          舆情监测、开源情报分析、金融风控三类研判任务共用同一可信底座；换研判域只换一份配置画像，不动内核。
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderLeft: '3px solid #34D399', padding: 24, flexDirection: 'row', alignItems: 'center', gap: 22 }}>
+      <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#34D399', width: 74 }}>03</Text>
+      <Box style={{ flex: 1 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>落地效果</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          决策管道、冲突消解、可解释推理已在生产环境运行六万余行源码；研判域为 PoC 阶段，指标待实测后公布。
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderLeft: '3px solid #A78BFA', padding: 24, flexDirection: 'row', alignItems: 'center', gap: 22 }}>
+      <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#A78BFA', width: 74 }}>04</Text>
+      <Box style={{ flex: 1 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>团队与边界</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          团队构成与知识产权；以及我们主动声明的能力边界——不覆盖分歧、不自动处置、不宣称模型精度领先。
+        </Text>
+      </Box>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>02 / 14</Text>
+  </Box>
+
+</Slide>

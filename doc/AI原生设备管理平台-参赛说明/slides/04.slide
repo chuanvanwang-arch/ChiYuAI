@@ -1,0 +1,64 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#FBBF24' }} />
+      <Text style={{ fontSize: 15, color: '#FBBF24', letterSpacing: 2, fontWeight: 'bold' }}>PAIN POINTS</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>四个痛点，都发生在告警之后</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 20, flexDirection: 'column', gap: 18 }}>
+
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 18 }}>
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #FBBF24', padding: 24, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6' }}>告警风暴</Text>
+          <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.7, marginTop: 12 }}>
+            几十上百台异构设备并发告警，阈值体系各自为政。运维真正缺的不是更多告警，而是"哪一条才是源头"。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 15, color: '#FBBF24', marginTop: 14, fontWeight: 'bold' }}>后果：真正故障被噪音淹没</Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #F87171', padding: 24, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6' }}>连锁传导</Text>
+          <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.7, marginTop: 12 }}>
+            A 设备异常引发 B、C 连锁告警。只看单机的系统必然误判源头，抢修方向错一次的代价远高于误报本身。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 15, color: '#F87171', marginTop: 14, fontWeight: 'bold' }}>后果：抢修人力投向次生告警</Text>
+      </Box>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 18 }}>
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #60A5FA', padding: 24, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6' }}>经验不可继承</Text>
+          <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.7, marginTop: 12 }}>
+            老师傅的判别直觉留在人脑里，工单只记"已处理"。人员流动一次，组织的设备记忆就归零一次。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 15, color: '#60A5FA', marginTop: 14, fontWeight: 'bold' }}>后果：同类故障反复从头判断</Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #A78BFA', padding: 24, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#EEF1F6' }}>闭环断裂</Text>
+          <Text style={{ fontSize: 17, color: '#A4ABBD', lineHeight: 1.7, marginTop: 12 }}>
+            告警到工单靠人转，备件是否齐套要另外查，处置结果很少回到知识库。看见之后没有下一步动作。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 15, color: '#A78BFA', marginTop: 14, fontWeight: 'bold' }}>后果：判断无法沉淀为资产</Text>
+      </Box>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>04 / 14</Text>
+  </Box>
+
+</Slide>

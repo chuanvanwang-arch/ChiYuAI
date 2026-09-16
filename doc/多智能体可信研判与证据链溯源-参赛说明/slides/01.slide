@@ -1,0 +1,66 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 20, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center', gap: 40 }}>
+
+  <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 26 }}>
+      <Box style={{ width: 44, height: 4, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 16, color: '#22D3EE', letterSpacing: 3, fontWeight: 'bold' }}>AI 应用大赛 · 参赛作品说明</Text>
+    </Box>
+
+    <Text style={{ fontSize: 56, fontWeight: 'bold', lineHeight: 1.18, color: '#EEF1F6' }}>
+      多智能体可信研判<br />与证据链溯源系统
+    </Text>
+
+    <Box style={{ width: 96, height: 5, background: 'linear-gradient(135deg,#22D3EE 0%,#34D399 100%)', marginTop: 24, marginBottom: 24 }} />
+
+    <Text style={{ fontSize: 22, color: '#A4ABBD', lineHeight: 1.6 }}>
+      让每一条研判结论都带着它的<br /><span style={{ color: '#34D399', fontWeight: 'bold' }}>证据链、推理链与分歧记录</span>
+    </Text>
+
+    <Box style={{ flexDirection: 'row', gap: 12, marginTop: 32 }}>
+      <Box style={{ paddingTop: 8, paddingBottom: 8, paddingLeft: 18, paddingRight: 18, borderRadius: 999, border: '1px solid #2C3346', background: 'rgba(34,211,238,.12)' }}>
+        <Text style={{ fontSize: 15, color: '#22D3EE', fontWeight: 'bold' }}>可信度量 · 冲突消解 · 证据溯源 · 推理透明</Text>
+      </Box>
+      <Box style={{ paddingTop: 8, paddingBottom: 8, paddingLeft: 18, paddingRight: 18, borderRadius: 999, border: '1px solid #2C3346' }}>
+        <Text style={{ fontSize: 15, color: '#A4ABBD', fontWeight: 'bold' }}>MCP 标准接口</Text>
+      </Box>
+    </Box>
+
+    <Text style={{ fontSize: 16, color: '#666D80', marginTop: 38, lineHeight: 1.7 }}>
+      北京青羽智行科技有限公司 · ChiYu AI<br />2026 年 9 月
+    </Text>
+  </Box>
+
+  <Box style={{ width: 470, height: 470, alignItems: 'center', justifyContent: 'center' }}>
+    <svg width={470} height={470} viewBox='0 0 470 470'>
+      <circle cx='235' cy='235' r='208' fill='none' stroke='#1F2532' strokeWidth='1' />
+      <circle cx='235' cy='235' r='152' fill='none' stroke='#232838' strokeWidth='1' />
+      <circle cx='235' cy='235' r='96' fill='none' stroke='#2C3346' strokeWidth='1' />
+      <path d='M235 235 L160 105' stroke='#22D3EE' strokeWidth='2' opacity='0.75' />
+      <path d='M235 235 L235 385' stroke='#22D3EE' strokeWidth='2' opacity='0.75' />
+      <path d='M235 235 L376 184' stroke='#22D3EE' strokeWidth='2' opacity='0.75' />
+      <path d='M160 105 L335 62' stroke='#34D399' strokeWidth='1.5' opacity='0.45' />
+      <path d='M160 105 L38 200' stroke='#34D399' strokeWidth='1.5' opacity='0.45' />
+      <path d='M235 385 L135 408' stroke='#34D399' strokeWidth='1.5' opacity='0.45' />
+      <path d='M376 184 L408 335' stroke='#34D399' strokeWidth='1.5' opacity='0.45' />
+      <circle cx='160' cy='105' r='24' fill='#161A24' stroke='#22D3EE' strokeWidth='2' />
+      <circle cx='235' cy='385' r='24' fill='#161A24' stroke='#22D3EE' strokeWidth='2' />
+      <circle cx='376' cy='184' r='24' fill='#161A24' stroke='#22D3EE' strokeWidth='2' />
+      <circle cx='335' cy='62' r='16' fill='#13161E' stroke='#34D399' strokeWidth='1.5' />
+      <circle cx='38' cy='200' r='16' fill='#13161E' stroke='#34D399' strokeWidth='1.5' />
+      <circle cx='135' cy='408' r='16' fill='#13161E' stroke='#34D399' strokeWidth='1.5' />
+      <circle cx='408' cy='335' r='16' fill='#13161E' stroke='#34D399' strokeWidth='1.5' />
+      <circle cx='235' cy='235' r='40' fill='#13161E' stroke='#22D3EE' strokeWidth='3' />
+      <text x='235' y='231' fill='#EEF1F6' fontSize='14' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>结论</text>
+      <text x='235' y='250' fill='#666D80' fontSize='10' textAnchor='middle' fontFamily='Microsoft YaHei'>受信度量</text>
+      <text x='160' y='143' fill='#A4ABBD' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>证据 A</text>
+      <text x='235' y='423' fill='#A4ABBD' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>证据 B</text>
+      <text x='376' y='222' fill='#A4ABBD' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>反证 C</text>
+      <text x='335' y='38' fill='#666D80' fontSize='10' textAnchor='middle' fontFamily='Microsoft YaHei'>来源</text>
+      <text x='38' y='176' fill='#666D80' fontSize='10' textAnchor='middle' fontFamily='Microsoft YaHei'>来源</text>
+      <text x='135' y='440' fill='#666D80' fontSize='10' textAnchor='middle' fontFamily='Microsoft YaHei'>来源</text>
+      <text x='408' y='311' fill='#666D80' fontSize='10' textAnchor='middle' fontFamily='Microsoft YaHei'>来源</text>
+      <text x='235' y='462' fill='#4B5468' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>支持 · 反驳 · 来源，全程可下钻</text>
+    </svg>
+  </Box>
+
+</Slide>

@@ -1,0 +1,81 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#A78BFA' }} />
+      <Text style={{ fontSize: 15, color: '#A78BFA', letterSpacing: 2, fontWeight: 'bold' }}>K-M-D PIPELINE</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>K-M-D 认知决策管道：每一步都可解释</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 18, flexDirection: 'column', justifyContent: 'space-between' }}>
+
+    <Box style={{ flexDirection: 'row', gap: 14, height: 168 }}>
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 22, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 15, color: '#22D3EE', fontWeight: 'bold', letterSpacing: 1 }}>K · 知识层</Text>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#EEF1F6', marginTop: 10 }}>装配什么</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.6, marginTop: 10 }}>
+            设备记忆（工况 / 故障处置 / 备件 / 工艺耦合 / 检修）与租户级 Know-How、工艺本体一起装配进上下文。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 14, color: '#666D80', marginTop: 12 }}>写库即构建 · 语义检索</Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #60A5FA', padding: 22, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 15, color: '#60A5FA', fontWeight: 'bold', letterSpacing: 1 }}>M · 方法层</Text>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#EEF1F6', marginTop: 10 }}>依据什么方法</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.6, marginTop: 10 }}>
+            装载 RCM、FMEA、FTA、5Why 等诊断方法论与运维行为标准，每次判断标注"用了什么方法、要什么输入"。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 14, color: '#666D80', marginTop: 12 }}>方法论即配置 · 可替换</Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #A78BFA', padding: 22, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 15, color: '#A78BFA', fontWeight: 'bold', letterSpacing: 1 }}>D · 决策层</Text>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#EEF1F6', marginTop: 10 }}>凭什么放行</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.6, marginTop: 10 }}>
+            九尺子逐项打分，输出 9 列决策记录：场景、结论、置信度、依据、风险、概念引用等，缺信息就报缺，不放行。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 14, color: '#666D80', marginTop: 12 }}>8 项确定性 + 1 项可选大模型</Text>
+      </Box>
+    </Box>
+
+    <Box style={{ background: '#13161E', borderRadius: 14, border: '1px solid #232838', padding: 22 }}>
+      <Box style={{ flexDirection: 'row', gap: 22 }}>
+        <Box style={{ flex: 1 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#EEF1F6', marginBottom: 14 }}>9 列决策记录（每一条结论都是一条）</Text>
+          <Box style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>场景</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>结论</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>置信度</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>依据</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>风险</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>概念引用</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>涉事实体</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>时间戳</Text></Box>
+            <Box style={{ paddingTop: 6, paddingBottom: 6, paddingLeft: 14, paddingRight: 14, borderRadius: 8, background: '#1A1F2B', border: '1px solid #2C3346' }}><Text style={{ fontSize: 15, color: '#A4ABBD' }}>决策链</Text></Box>
+          </Box>
+        </Box>
+
+        <Box style={{ width: 300, paddingLeft: 22, borderLeft: '1px solid #232838' }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#EEF1F6', marginBottom: 12 }}>决策第 0 闸</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65 }}>
+            任何写操作先过校验闸：缺什么报什么，不静默通过；处置建议必带依据与风险，并保留<span style={{ color: '#34D399', fontWeight: 'bold' }}>人工复核入口</span>——不自动执行生产操作。
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>07 / 14</Text>
+  </Box>
+
+</Slide>

@@ -1,0 +1,78 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 36, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 68, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+      <Box style={{ width: 36, height: 3, background: '#FBBF24' }} />
+      <Text style={{ fontSize: 15, color: '#FBBF24', letterSpacing: 2, fontWeight: 'bold' }}>BENCHMARK</Text>
+    </Box>
+    <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#EEF1F6' }}>对标与边界：差异在可信结构，不在模型本体</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 10, flexDirection: 'column' }}>
+
+    <Box style={{ flexDirection: 'row', background: '#1A1F2B', borderRadius: 10, padding: 12, paddingLeft: 18, paddingRight: 18 }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>能力维度</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>通用大模型研判工具</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>传统规则引擎 / BI</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>ChiYu AI 可信研判系统</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>结论形态</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#FBBF24' }}>△ 生成一段文本结论即结束</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#F87171' }}>✗ 阈值命中的结果行</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>✓ 结论 + 证据链 + 推理树一并输出</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>多智能体协同</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#FBBF24' }}>△ 单模型或固定角色对话串</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#F87171' }}>✗ 无</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>✓ 多角色并行研判 + 仲裁智能体消解</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>冲突处理</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#F87171' }}>✗ 无显式机制，靠提示词调和</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#FBBF24' }}>△ 人工比对，无自动消解</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>✓ 冲突识别 + 五策略消解 + 分歧留档</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>过程可审</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#FBBF24' }}>△ 只有会话记录，不可复现</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#F87171' }}>✗ 无推理过程可审</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>✓ 推理树 + 审计哈希链 + 可干预重算</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center', background: 'rgba(251,191,36,.04)' }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 15, color: '#FBBF24', fontWeight: 'bold' }}>模型本体精度</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#34D399' }}>✓ 头部厂商模型能力更强</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#666D80' }}>—</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>△ 不宣称更强，采用接入与配置</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center', background: 'rgba(251,191,36,.04)' }}>
+      <Box style={{ width: 190 }}><Text style={{ fontSize: 15, color: '#FBBF24', fontWeight: 'bold' }}>行业语料规模</Text></Box>
+      <Box style={{ width: 300 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>△ 通用语料广，垂直深度有限</Text></Box>
+      <Box style={{ width: 280 }}><Text style={{ fontSize: 14, color: '#34D399' }}>✓ 垂直机构积累更深</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>△ 不宣称更多，用证据图谱组织存量</Text></Box>
+    </Box>
+
+    <Box style={{ marginTop: 12, background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 13, paddingLeft: 20, paddingRight: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <Box style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(251,191,36,.14)' }}>
+        <Text style={{ fontSize: 13.5, color: '#FBBF24', fontWeight: 'bold' }}>主动认弱</Text>
+      </Box>
+      <Text style={{ fontSize: 14.5, color: '#A4ABBD', flex: 1, lineHeight: 1.55 }}>
+        模型本体能力与语料规模两项，我们<b>不声称领先</b>——这两层的分工是接入与组织，我们的差异化在结论之上的可信结构。
+      </Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 36, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 13.5, color: '#666D80' }}>对照列为同类能力的一般特征，不针对任何特定厂商或产品 ｜ ✓ / ✗ / △ 为三态对照标记</Text>
+    <Text style={{ fontSize: 13.5, color: '#666D80' }}>12 / 14</Text>
+  </Box>
+
+</Slide>

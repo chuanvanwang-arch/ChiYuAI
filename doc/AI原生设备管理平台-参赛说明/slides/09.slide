@@ -1,0 +1,62 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#60A5FA' }} />
+      <Text style={{ fontSize: 15, color: '#60A5FA', letterSpacing: 2, fontWeight: 'bold' }}>SCENARIOS</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>应用场景：面向设备集群的三类典型问题</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 20, flexDirection: 'row', gap: 18 }}>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 24, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 15, color: '#22D3EE', fontWeight: 'bold', letterSpacing: 1 }}>场景一 · 告警收敛</Text>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#EEF1F6', marginTop: 12 }}>锅炉集群连锁告警</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 14 }}>
+          多台锅炉与给水泵同时告警。边缘侧过滤噪声，集群侧按时序与工艺耦合判别原发故障源，把多条告警收敛为一条根因，并给出风险等级与处置优先级，交人工复核后派单。
+        </Text>
+        <Text style={{ fontSize: 15, color: '#666D80', marginTop: 16, lineHeight: 1.6 }}>
+          推演链路：边缘过滤 → 集群聚合 → 时序归因 → 风险分级 → 人工复核 → 派单
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#22D3EE', marginTop: 14, fontWeight: 'bold' }}>适用：热力 · 泵站 · 暖通机组集群</Text>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #34D399', padding: 24, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 15, color: '#34D399', fontWeight: 'bold', letterSpacing: 1 }}>场景二 · 重复故障</Text>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#EEF1F6', marginTop: 12 }}>同一台泵的第三次告警</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 14 }}>
+          同类振动告警第三次出现。系统调出前两次的处置记录与效果评价，比对本次频谱后指出"重复消警"的问题，给出根治建议与判据修正方案，审批后固化进故障知识库。
+        </Text>
+        <Text style={{ fontSize: 15, color: '#666D80', marginTop: 16, lineHeight: 1.6 }}>
+          推演链路：检索先例 → 效果比对 → 判据修正建议 → 复盘审批 → 固化
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#34D399', marginTop: 14, fontWeight: 'bold' }}>适用：高频重复故障设备 · 老产线</Text>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #FBBF24', padding: 24, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 15, color: '#FBBF24', fontWeight: 'bold', letterSpacing: 1 }}>场景三 · 经验传承</Text>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#EEF1F6', marginTop: 12 }}>新人接手陌生设备</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.7, marginTop: 14 }}>
+          新人点开设备画像，看到的不是一串参数，而是历史故障、处置先例、注意事项与关联工艺；同类设备的共性问题与标准处置卡一并呈现，上手路径由系统推荐。
+        </Text>
+        <Text style={{ fontSize: 15, color: '#666D80', marginTop: 16, lineHeight: 1.6 }}>
+          推演链路：设备记忆体 → 同类共性问题 → 标准处置卡 → 上手路径
+        </Text>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#FBBF24', marginTop: 14, fontWeight: 'bold' }}>适用：人员流动频繁的运维班组</Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台 ｜ 以上为能力运行逻辑推演，量化指标需实测后填充</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>09 / 14</Text>
+  </Box>
+
+</Slide>

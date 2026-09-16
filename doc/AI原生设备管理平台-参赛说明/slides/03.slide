@@ -1,0 +1,64 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#34D399' }} />
+      <Text style={{ fontSize: 15, color: '#34D399', letterSpacing: 2, fontWeight: 'bold' }}>THE POSITION</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>立论：数据之后，谁来判断</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 56 }}>
+
+    <Box style={{ width: 430, alignItems: 'center', justifyContent: 'center' }}>
+      <svg width={430} height={330} viewBox='0 0 430 330'>
+        <text x='40' y='150' fill='#4B5468' fontSize='96' fontWeight='bold' textAnchor='middle' fontFamily='Arial'>N</text>
+        <path d='M90 118 L180 118' stroke='#34D399' strokeWidth='6' strokeLinecap='round' />
+        <path d='M160 100 L186 118 L160 136' fill='none' stroke='#34D399' strokeWidth='6' strokeLinecap='round' />
+        <text x='270' y='150' fill='#34D399' fontSize='132' fontWeight='bold' textAnchor='middle' fontFamily='Arial'>1</text>
+        <text x='60' y='196' fill='#666D80' fontSize='18' textAnchor='middle' fontFamily='Microsoft YaHei'>条并发告警</text>
+        <text x='272' y='196' fill='#34D399' fontSize='18' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>条根因</text>
+        <rect x='40' y='240' width='350' height='56' rx='10' fill='#161A24' stroke='#2C3346' />
+        <text x='215' y='274' fill='#A4ABBD' fontSize='17' textAnchor='middle' fontFamily='Microsoft YaHei'>收敛发生在边缘过滤与集群归因之后</text>
+      </svg>
+    </Box>
+
+    <Box style={{ flex: 1, justifyContent: 'center' }}>
+      <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#EEF1F6', lineHeight: 1.55 }}>
+        连接与可视化<span style={{ color: '#22D3EE' }}>已被解决</span>，<br />判断与闭环<span style={{ color: '#34D399' }}>仍是空白</span>。
+      </Text>
+
+      <Box style={{ marginTop: 28, paddingLeft: 20, borderLeft: '3px solid #232838' }}>
+        <Text style={{ fontSize: 18, color: '#A4ABBD', lineHeight: 1.75 }}>
+          工业互联网平台把设备上云、时序存储、组态看板、阈值告警做到了成熟。告警出来之后——哪一条是源头、该怎么处置、下次怎么更快——依然靠人。
+        </Text>
+      </Box>
+
+      <Box style={{ marginTop: 24, flexDirection: 'column', gap: 14 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+          <Box style={{ width: 10, height: 10, borderRadius: 5, background: '#22D3EE', marginTop: 7 }} />
+          <Text style={{ fontSize: 18, color: '#EEF1F6', lineHeight: 1.6, flex: 1 }}>把经验变成可检索的记忆——设备记忆体</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+          <Box style={{ width: 10, height: 10, borderRadius: 5, background: '#34D399', marginTop: 7 }} />
+          <Text style={{ fontSize: 18, color: '#EEF1F6', lineHeight: 1.6, flex: 1 }}>把判断变成可解释的决策——九尺子校验</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+          <Box style={{ width: 10, height: 10, borderRadius: 5, background: '#FBBF24', marginTop: 7 }} />
+          <Text style={{ fontSize: 18, color: '#EEF1F6', lineHeight: 1.6, flex: 1 }}>把处置变成可复用的 SOP——复盘回写</Text>
+        </Box>
+      </Box>
+
+      <Text style={{ fontSize: 15, color: '#666D80', marginTop: 26, lineHeight: 1.6 }}>
+        我们不做连接层的重复建设：协议、组态、生态成熟度不如存量平台，选择集成而非重建。
+      </Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>03 / 14</Text>
+  </Box>
+
+</Slide>

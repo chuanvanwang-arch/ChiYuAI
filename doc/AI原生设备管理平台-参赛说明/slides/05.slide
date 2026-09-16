@@ -1,0 +1,82 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>SOLUTION OVERVIEW</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>方案总览：一条轨道 + 三大能力</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 20, flexDirection: 'column', justifyContent: 'space-between' }}>
+
+    <Box style={{ background: '#161A24', borderRadius: 14, border: '1px solid #232838', padding: 22 }}>
+      <Text style={{ fontSize: 17, color: '#666D80', marginBottom: 16 }}>设备全寿命周期一条轨道 · 环节断裂自动预警</Text>
+      <svg width={1090} height={92} viewBox='0 0 1090 92'>
+        <rect x='4' y='14' width='104' height='46' rx='10' fill='rgba(34,211,238,.12)' stroke='#22D3EE' />
+        <text x='56' y='43' fill='#22D3EE' fontSize='18' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>台账</text>
+        <path d='M116 37 L134 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='142' y='14' width='104' height='46' rx='10' fill='#13161E' stroke='#2C3346' />
+        <text x='194' y='43' fill='#A4ABBD' fontSize='18' textAnchor='middle' fontFamily='Microsoft YaHei'>点检</text>
+        <path d='M254 37 L272 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='280' y='14' width='104' height='46' rx='10' fill='#13161E' stroke='#2C3346' />
+        <text x='332' y='43' fill='#A4ABBD' fontSize='18' textAnchor='middle' fontFamily='Microsoft YaHei'>监测</text>
+        <path d='M392 37 L410 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='418' y='14' width='104' height='46' rx='10' fill='rgba(251,191,36,.12)' stroke='#FBBF24' />
+        <text x='470' y='43' fill='#FBBF24' fontSize='18' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>告警</text>
+        <path d='M530 37 L548 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='556' y='14' width='104' height='46' rx='10' fill='#13161E' stroke='#2C3346' />
+        <text x='608' y='43' fill='#A4ABBD' fontSize='18' textAnchor='middle' fontFamily='Microsoft YaHei'>诊断</text>
+        <path d='M668 37 L686 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='694' y='14' width='104' height='46' rx='10' fill='#13161E' stroke='#2C3346' />
+        <text x='746' y='43' fill='#A4ABBD' fontSize='18' textAnchor='middle' fontFamily='Microsoft YaHei'>工单</text>
+        <path d='M806 37 L824 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='832' y='14' width='104' height='46' rx='10' fill='#13161E' stroke='#2C3346' />
+        <text x='884' y='43' fill='#A4ABBD' fontSize='18' textAnchor='middle' fontFamily='Microsoft YaHei'>维修</text>
+        <path d='M944 37 L962 37' stroke='#4B5468' strokeWidth='2' />
+        <rect x='970' y='14' width='104' height='46' rx='10' fill='rgba(52,211,153,.12)' stroke='#34D399' />
+        <text x='1022' y='43' fill='#34D399' fontSize='18' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>复盘</text>
+        <text x='546' y='86' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>备件齐套校验贯穿工单与维修环节</text>
+      </svg>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', gap: 18 }}>
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 22, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>方法论与标准内嵌</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 10 }}>
+            RCM、FMEA、FTA、5Why 与运维行为标准固化进平台，判断有章法；点检、交接班、工单闭环逐条可测评。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 14, color: '#22D3EE', marginTop: 12, fontWeight: 'bold' }}>判断不再拍脑袋</Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #34D399', padding: 22, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>记忆与可解释决策</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 10 }}>
+            设备记忆体沉淀工况、故障与处置、部件备件、工艺耦合、检修记录；每条结论带依据、风险与置信度。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 14, color: '#34D399', marginTop: 12, fontWeight: 'bold' }}>敢用 · 能追责</Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #A78BFA', padding: 22, justifyContent: 'space-between' }}>
+        <Box>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>闭环与复盘回写</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, marginTop: 10 }}>
+            工单、备件、排程内嵌并留痕；复盘智能体把教训转成标准处置卡，回灌设备记忆与故障知识库。
+          </Text>
+        </Box>
+        <Text style={{ fontSize: 14, color: '#A78BFA', marginTop: 12, fontWeight: 'bold' }}>越用越准</Text>
+      </Box>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>05 / 14</Text>
+  </Box>
+
+</Slide>

@@ -1,0 +1,91 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>SOLUTION OVERVIEW</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>一条研判链路，三项能力，三类场景共用</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 16, flexDirection: 'column' }}>
+
+    <svg width={1152} height={70} viewBox='0 0 1152 70'>
+      <rect x='0' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#22D3EE' strokeWidth='1.5' />
+      <text x='54' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>采集接入</text>
+      <rect x='130' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#22D3EE' strokeWidth='1.5' />
+      <text x='184' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>结构化抽取</text>
+      <rect x='260' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#22D3EE' strokeWidth='1.5' />
+      <text x='314' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>入证据图谱</text>
+      <rect x='390' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#FBBF24' strokeWidth='1.5' />
+      <text x='444' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>多角色研判</text>
+      <rect x='520' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#FBBF24' strokeWidth='1.5' />
+      <text x='574' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>冲突识别</text>
+      <rect x='650' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#FBBF24' strokeWidth='1.5' />
+      <text x='704' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>对抗消解</text>
+      <rect x='780' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#34D399' strokeWidth='1.5' />
+      <text x='834' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>因果校验</text>
+      <rect x='910' y='13' width='108' height='44' rx='9' fill='#161A24' stroke='#34D399' strokeWidth='1.5' />
+      <text x='964' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>推理树可审</text>
+      <rect x='1040' y='13' width='112' height='44' rx='9' fill='#161A24' stroke='#34D399' strokeWidth='1.5' />
+      <text x='1096' y='41' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>人工复核归档</text>
+      <text x='122' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='252' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='382' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='512' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='642' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='772' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='902' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <text x='1032' y='41' fill='#666D80' fontSize='14' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+    </svg>
+
+    <Box style={{ flexDirection: 'row', gap: 16, marginTop: 18 }}>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 22 }}>
+        <Text style={{ fontSize: 14, color: '#22D3EE', fontWeight: 'bold', letterSpacing: 1 }}>赛题能力 ①</Text>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6', marginTop: 10 }}>可信度量与冲突消解</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.75, marginTop: 12 }}>
+          以信源可信度、证据强度、逻辑一致性三维构建置信度模型；自动识别结论冲突，经正方、反方与仲裁三方的博弈对抗消解，异议留档不覆盖。
+        </Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #FBBF24', padding: 22 }}>
+        <Text style={{ fontSize: 14, color: '#FBBF24', fontWeight: 'bold', letterSpacing: 1 }}>赛题能力 ②</Text>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6', marginTop: 10 }}>证据溯源与因果校验</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.75, marginTop: 12 }}>
+          构建结论、证据、来源三级证据图谱，支持逐级下钻至原始段落；以时序优先、反事实检验、混杂因素排查三关区分相关与因果，防范归因错误。
+        </Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #34D399', padding: 22 }}>
+        <Text style={{ fontSize: 14, color: '#34D399', fontWeight: 'bold', letterSpacing: 1 }}>赛题能力 ③</Text>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6', marginTop: 10 }}>推理透明与全程可审</Text>
+        <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.75, marginTop: 12 }}>
+          逐步记录中间结论与逻辑链，以推理树可视化输出；确定性评分保证同输入同结论；日志哈希链防篡改，人工可修改证据并触发重算，全程留痕。
+        </Text>
+      </Box>
+
+    </Box>
+
+    <Box style={{ flexDirection: 'row', gap: 12, marginTop: 18, alignItems: 'center' }}>
+      <Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold', width: 96 }}>三类场景</Text>
+      <Box style={{ paddingTop: 7, paddingBottom: 7, paddingLeft: 16, paddingRight: 16, borderRadius: 999, border: '1px solid #2C3346', background: 'rgba(34,211,238,.10)' }}>
+        <Text style={{ fontSize: 15, color: '#22D3EE', fontWeight: 'bold' }}>舆情监测</Text>
+      </Box>
+      <Box style={{ paddingTop: 7, paddingBottom: 7, paddingLeft: 16, paddingRight: 16, borderRadius: 999, border: '1px solid #2C3346', background: 'rgba(34,211,238,.10)' }}>
+        <Text style={{ fontSize: 15, color: '#22D3EE', fontWeight: 'bold' }}>开源情报分析</Text>
+      </Box>
+      <Box style={{ paddingTop: 7, paddingBottom: 7, paddingLeft: 16, paddingRight: 16, borderRadius: 999, border: '1px solid #2C3346', background: 'rgba(34,211,238,.10)' }}>
+        <Text style={{ fontSize: 15, color: '#22D3EE', fontWeight: 'bold' }}>金融风控</Text>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#A4ABBD', flex: 1, marginLeft: 6 }}>同一可信底座，换研判域只换一份配置画像</Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>05 / 14</Text>
+  </Box>
+
+</Slide>

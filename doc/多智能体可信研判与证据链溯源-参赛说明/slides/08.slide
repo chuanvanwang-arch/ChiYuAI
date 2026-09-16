@@ -1,0 +1,79 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#FBBF24' }} />
+      <Text style={{ fontSize: 15, color: '#FBBF24', letterSpacing: 2, fontWeight: 'bold' }}>CONFLICT RESOLUTION · 赛题能力 ①</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>冲突消解：不靠投票，靠对抗与留档</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 12, flexDirection: 'column' }}>
+
+    <svg width={1152} height={62} viewBox='0 0 1152 62'>
+      <rect x='0' y='8' width='248' height='46' rx='10' fill='#161A24' stroke='#FBBF24' strokeWidth='1.5' />
+      <text x='124' y='37' fill='#EEF1F6' fontSize='15' textAnchor='middle' fontFamily='Microsoft YaHei'>冲突识别：结论间不一致自动告警</text>
+      <text x='266' y='37' fill='#666D80' fontSize='16' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <rect x='288' y='8' width='248' height='46' rx='10' fill='#161A24' stroke='#FBBF24' strokeWidth='1.5' />
+      <text x='412' y='37' fill='#EEF1F6' fontSize='15' textAnchor='middle' fontFamily='Microsoft YaHei'>分类定性：事实 / 口径 / 立场</text>
+      <text x='554' y='37' fill='#666D80' fontSize='16' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <rect x='576' y='8' width='288' height='46' rx='10' fill='#161A24' stroke='#60A5FA' strokeWidth='1.5' />
+      <text x='720' y='37' fill='#EEF1F6' fontSize='15' textAnchor='middle' fontFamily='Microsoft YaHei'>博弈对抗：正方 / 反方 / 仲裁</text>
+      <text x='882' y='37' fill='#666D80' fontSize='16' textAnchor='middle' fontFamily='Microsoft YaHei'>→</text>
+      <rect x='904' y='8' width='248' height='46' rx='10' fill='#161A24' stroke='#A78BFA' strokeWidth='1.5' />
+      <text x='1028' y='37' fill='#EEF1F6' fontSize='15' textAnchor='middle' fontFamily='Microsoft YaHei'>加权消解 + 分歧留档</text>
+    </svg>
+
+    <Box style={{ marginTop: 14, flexDirection: 'row', background: '#1A1F2B', borderRadius: 10, padding: 12, paddingLeft: 18, paddingRight: 18 }}>
+      <Box style={{ width: 230 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>消解策略</Text></Box>
+      <Box style={{ width: 290 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>适用冲突类型</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#666D80', fontWeight: 'bold' }}>处理方式与输出</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 230 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>① 信源可信度加权</Text></Box>
+      <Box style={{ width: 290 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>双方来源等级差异明显</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>按来源可信度重算结论权重，输出调整后置信度</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 230 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>② 证据强度比较</Text></Box>
+      <Box style={{ width: 290 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>独立证据数量与等级悬殊</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>以独立证据数、等级与时序定序，弱侧标注证据缺口</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 230 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>③ 逻辑一致性校验</Text></Box>
+      <Box style={{ width: 290 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>一方推理链自相矛盾</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#34D399' }}>定位矛盾节点，矛盾方降级并在推理树标注缺陷</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 230 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>④ 对抗辩论裁决</Text></Box>
+      <Box style={{ width: 290 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>事实与口径均无定论</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#FBBF24' }}>正方与反方各陈依据，仲裁智能体裁决并记录裁决理由</Text></Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', borderBottom: '1px solid #232838', padding: 12, paddingLeft: 18, paddingRight: 18, alignItems: 'center' }}>
+      <Box style={{ width: 230 }}><Text style={{ fontSize: 15, color: '#EEF1F6', fontWeight: 'bold' }}>⑤ 人工仲裁</Text></Box>
+      <Box style={{ width: 290 }}><Text style={{ fontSize: 14, color: '#A4ABBD' }}>重大判断或高风险结论</Text></Box>
+      <Box style={{ flex: 1 }}><Text style={{ fontSize: 14, color: '#A78BFA' }}>系统挂起并推送人工，两套结论并列保留，等待裁定</Text></Box>
+    </Box>
+
+    <Box style={{ marginTop: 14, background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 14, paddingLeft: 20, paddingRight: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <Box style={{ paddingTop: 5, paddingBottom: 5, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(167,139,250,.16)' }}>
+        <Text style={{ fontSize: 14, color: '#A78BFA', fontWeight: 'bold' }}>关键机制</Text>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#A4ABBD', flex: 1, lineHeight: 1.6 }}>
+        <b style={{ color: '#EEF1F6' }}>少数意见不被覆盖</b>：分歧记录随结论一同进入证据链，复核人看到的是"主流结论 + 尚未消解的分歧"，而不是一个被平均掉的数字。
+      </Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>08 / 14</Text>
+  </Box>
+
+</Slide>

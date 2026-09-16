@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI 原生设备管理平台 · ChiYu AI · 录制版</title>
+<style>
+  :root{
+    --bg:#080A0F; --panel:#101420; --card:#161C28; --line:#232B3B;
+    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#a78bfa;
+    --t1:#eef1f6; --t2:#a4abbd; --t3:#5c6579;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1280px;height:720px;background:#000;overflow:hidden}
+  #stage{
+    position:relative;width:1280px;height:720px;background:var(--bg);
+    font-family:'Microsoft YaHei','Noto Sans SC',sans-serif;color:var(--t1);overflow:hidden;
+  }
+  .scene{position:absolute;inset:0;opacity:0;padding:56px 72px 110px}
+  .brand{position:absolute;left:56px;top:34px;font-size:15px;color:var(--t3);letter-spacing:2px;font-weight:600;z-index:50}
+  .brand b{color:var(--cyan)}
+  .clock{position:absolute;right:56px;top:34px;font-size:15px;color:var(--t3);z-index:50;font-variant-numeric:tabular-nums}
+  .cap{position:absolute;left:72px;right:72px;bottom:56px;font-size:22px;color:var(--t2);line-height:1.6;z-index:60;
+       border-left:4px solid var(--cyan);padding-left:18px;min-height:70px}
+  .cap b{color:var(--t1)}
+  .bar{position:absolute;left:0;bottom:0;height:5px;background:linear-gradient(90deg,var(--cyan),var(--green));z-index:70;width:0}
+  h1.big{font-size:58px;font-weight:900;line-height:1.22}
+  h2.ttl{font-size:35px;font-weight:800;margin-bottom:8px}
+  .sub{font-size:19px;color:var(--t2)}
+  .eyebrow{font-size:14px;letter-spacing:3px;color:var(--cyan);font-weight:700;margin-bottom:14px}
+
+  .alarmwall{position:absolute;left:72px;top:152px;width:640px;height:420px;overflow:hidden}
+  .al{display:flex;align-items:center;gap:10px;font-size:13px;padding:7px 12px;border-radius:6px;margin-bottom:6px;
+      background:#141A26;border:1px solid var(--line);opacity:0}
+  .al .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+  .al .tm{color:var(--t3);font-variant-numeric:tabular-nums}
+  .al .eq{color:var(--t1);font-weight:600}
+  .al .msg{color:var(--t2)}
+  .al.dim{opacity:.22 !important;filter:saturate(.15)}
+  .al.keep{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.07)}
+
+  .sidepanel{position:absolute;right:72px;top:150px;width:420px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px}
+  .kpi .n{font-size:52px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:14px;color:var(--t3);margin-top:8px}
+
+  .nodes{position:absolute;left:72px;top:172px;width:560px}
+  .ln{display:flex;align-items:center;gap:12px;background:#141A26;border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin-bottom:9px;opacity:0}
+  .rootbox{position:absolute;right:96px;top:212px;width:430px;background:linear-gradient(180deg,#182031,#131924);
+    border:1px solid rgba(52,211,153,.45);border-radius:16px;padding:26px;opacity:0}
+  .rootbox .tag{font-size:13px;color:var(--green);font-weight:800;letter-spacing:2px}
+  .rootbox h3{font-size:27px;font-weight:800;margin:12px 0 10px}
+  .rootbox p{font-size:15px;color:var(--t2);line-height:1.7}
+
+  .decgrid{position:absolute;left:72px;top:168px;right:72px;display:flex;gap:12px;flex-wrap:wrap}
+  .fld{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 18px;min-width:180px;opacity:0}
+  .fld .k{font-size:12px;color:var(--t3);letter-spacing:1px}
+  .fld .v{font-size:19px;font-weight:700;margin-top:6px}
+  .rulers{position:absolute;left:72px;right:72px;bottom:152px}
+  .ruler{display:flex;align-items:center;gap:12px;margin-bottom:7px;opacity:0}
+  .ruler .rn{width:150px;font-size:14px;color:var(--t2)}
+  .ruler .rb{flex:1;height:12px;background:#131924;border-radius:6px;overflow:hidden;position:relative}
+  .ruler .rf{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green))}
+  .ruler .rv{width:52px;text-align:right;font-size:14px;color:var(--t1);font-weight:700;font-variant-numeric:tabular-nums}
+
+  .flow{position:absolute;left:72px;top:214px;right:72px;display:flex;align-items:center;gap:14px}
+  .fnode{flex:1;background:var(--card);border:1px solid var(--line);border-top:3px solid var(--blue);border-radius:12px;padding:22px 18px;text-align:center;opacity:0}
+  .fnode .fk{font-size:20px;font-weight:800}
+  .fnode .fv{font-size:13px;color:var(--t3);margin-top:8px;line-height:1.6}
+  .fnode.g{border-top-color:var(--green)} .fnode.a{border-top-color:var(--amber)} .fnode.p{border-top-color:var(--purple)}
+  .farr{color:var(--t3);font-size:26px}
+
+  .endwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center}
+  .endwrap .chips{margin-top:34px;display:flex;gap:14px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:11px 22px;font-size:16px;color:var(--t2)}
+  .chip.hl{border-color:rgba(34,211,238,.5);color:var(--cyan);background:rgba(34,211,238,.08)}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div class="brand">ChiYu AI <b>·</b> AI 原生设备管理平台</div>
+  <div class="clock" id="clock">场景 01 / 08</div>
+
+  <!-- S1 标题 -->
+  <div class="scene" id="s1">
+    <div style="height:100%;display:flex;flex-direction:column;justify-content:center">
+      <div class="eyebrow">AI 原生设备管理平台 · EQUIPMENT MANAGEMENT</div>
+      <h1 class="big">把老师傅的经验、判断与处置记忆，<br>变成设备群自己的<span style="color:var(--cyan)">认知与闭环</span></h1>
+      <div class="sub" style="margin-top:26px">边缘研判 · 集群归因 · 业务闭环 ｜ K-M-D 认知决策管道</div>
+    </div>
+  </div>
+
+  <!-- S2 告警风暴 -->
+  <div class="scene" id="s2">
+    <div class="eyebrow">SCENE 01 · 现状</div>
+    <h2 class="ttl">多设备并发：告警风暴</h2>
+    <div class="sub">告警在刷屏，运维无从下手</div>
+    <div class="alarmwall" id="alarmwall"></div>
+    <div class="sidepanel">
+      <div class="kpi"><div class="n" id="kpiCount" style="color:var(--red)">0</div><div class="l">条并发告警 · 持续增长</div></div>
+      <div class="kpi"><div class="n" style="color:var(--t3);font-size:32px">?</div><div class="l">哪一条才是真正的源头</div></div>
+    </div>
+  </div>
+
+  <!-- S3 边缘过滤 -->
+  <div class="scene" id="s3">
+    <div class="eyebrow">SCENE 02 · L0 边缘层</div>
+    <h2 class="ttl">边缘侧本地研判：噪声留在本地</h2>
+    <div class="sub">单机异常在边缘闭环，仅上报确认异常与跨设备疑点</div>
+    <div class="alarmwall" id="alarmwall2"></div>
+    <div class="sidepanel">
+      <div class="kpi"><div class="n" style="color:var(--amber)">6</div><div class="l">条有效告警 · 已上报集群层</div></div>
+      <div class="kpi"><div class="n" style="color:var(--green);font-size:34px">本地闭环</div><div class="l">无效噪声与瞬时波动边缘过滤</div></div>
+    </div>
+  </div>
+
+  <!-- S4 集群归因 -->
+  <div class="scene" id="s4">
+    <div class="eyebrow">SCENE 03 · L1 集群层</div>
+    <h2 class="ttl">集群归因：6 条告警收敛为 1 条根因</h2>
+    <div class="sub">时序关联 + 工艺耦合，区分原发故障与次生告警</div>
+    <div class="nodes" id="nodes"></div>
+    <div class="rootbox" id="rootbox">
+      <div class="tag">ROOT CAUSE · 原发故障</div>
+      <h3>2# 给水泵轴承磨损</h3>
+      <p>依据：振动烈度超 ISO 判据且持续上升，早于锅炉侧温度异常 11 分钟；<br>3#、4# 锅炉高温告警为次生连锁，不建议优先处置。</p>
+    </div>
+  </div>
+
+  <!-- S5 决策记录 -->
+  <div class="scene" id="s5">
+    <div class="eyebrow">SCENE 04 · D 决策层</div>
+    <h2 class="ttl">每条结论都是一条可解释的决策记录</h2>
+    <div class="sub">九尺子逐项打分，缺什么信息就报什么，不放行、不静默通过</div>
+    <div class="decgrid" id="decgrid"></div>
+    <div class="rulers" id="rulers"></div>
+  </div>
+
+  <!-- S6 业务闭环 -->
+  <div class="scene" id="s6">
+    <div class="eyebrow">SCENE 05 · L2 业务层</div>
+    <h2 class="ttl">闭环落地：从根因到工单、备件与排程</h2>
+    <div class="sub">处置建议必带依据与风险，保留人工复核入口，不自动执行生产操作</div>
+    <div class="flow" id="flow"></div>
+    <div id="s6note" style="position:absolute;left:72px;right:72px;bottom:150px;background:#131924;border:1px dashed #2c3346;border-radius:12px;padding:16px 20px;opacity:0">
+      <div style="font-size:15px;color:var(--amber)">决策第 0 闸 · 校验通过 ｜ 风险：中（停机窗口需与生产排程协同）｜ 处置建议：更换轴承 + 复检对轮同心度 ｜ <span style="color:var(--green)">已转人工复核</span></div>
+    </div>
+  </div>
+
+  <!-- S7 复盘回写 -->
+  <div class="scene" id="s7">
+    <div class="eyebrow">SCENE 06 · 复盘回写</div>
+    <h2 class="ttl">处置结束，才是知识产生的开始</h2>
+    <div class="sub">复盘智能体自动归因，教训转成标准处置卡，回灌设备记忆与故障知识库</div>
+    <div class="flow" id="flow2" style="top:300px"></div>
+    <div id="s7a" style="position:absolute;left:72px;right:72px;bottom:150px;display:flex;gap:14px;opacity:0">
+      <div style="flex:1;background:#131924;border:1px solid #2c3346;border-radius:12px;padding:16px 20px">
+        <div style="font-size:14px;color:var(--t3)">本次沉淀</div>
+        <div style="font-size:17px;margin-top:8px;color:var(--t1)">新增处置先例 1 条 · 修正振动判据阈值 1 项 · 关联设备标注 2 台</div>
+      </div>
+      <div style="flex:1;background:#131924;border:1px solid #2c3346;border-radius:12px;padding:16px 20px">
+        <div style="font-size:14px;color:var(--t3)">下次同类告警</div>
+        <div style="font-size:17px;margin-top:8px;color:var(--green)">直接调出本次先例，不再从零判断</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S8 结尾 -->
+  <div class="scene" id="s8">
+    <div class="endwrap">
+      <h1 class="big" style="font-size:44px">让每一次告警有归因，每一次处置有依据，<br><span style="color:var(--green)">每一次故障都沉淀成组织的资产</span></h1>
+      <div class="chips">
+        <div class="chip hl">边缘研判 · 集群归因 · 业务闭环</div>
+        <div class="chip">K-M-D 认知决策 + 复盘回写</div>
+        <div class="chip">换设备类型只换一份配置画像</div>
+      </div>
+      <div style="margin-top:48px;font-size:21px;color:var(--t1);font-weight:700">北京青羽智行科技有限公司 · ChiYu AI</div>
+      <div style="margin-top:10px;font-size:16px;color:var(--t3)">www.chiyuai.com ｜ 场景为能力逻辑推演，量化指标待实测</div>
+    </div>
+  </div>
+
+  <div class="bar" id="bar"></div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- 时长（毫秒），由录制脚本注入 window.__DUR 覆盖 ----------
+  var DEFAULT_DUR = [17000,14000,15000,20000,18000,17000,15000,13000];
+  var DUR = (window.__DUR && window.__DUR.length === 8) ? window.__DUR.slice() : DEFAULT_DUR.slice();
+  for (var i = 0; i < DUR.length; i++) DUR[i] = Math.round(DUR[i]);
+
+  var SCENES = [
+    {id:'s1', cap:'工业互联网平台已把连接与可视化做到成熟——<b>告警之后谁来判断，仍是空白</b>。'},
+    {id:'s2', cap:'真实工厂里，几十台设备同时告警。<b>运维缺的不是更多告警，而是哪一条才是源头</b>。'},
+    {id:'s3', cap:'L0 边缘层：每台设备一个智能体，<b>噪声留在本地</b>，仅上报确认异常与跨设备疑点。'},
+    {id:'s4', cap:'L1 集群层：按时序与工艺耦合判别<b>原发故障与次生告警</b>，多条告警收敛为一条根因。'},
+    {id:'s5', cap:'D 决策层：每条结论输出九列决策记录，<b>九尺子逐项打分</b>，依据可一路追回。'},
+    {id:'s6', cap:'L2 业务层：根因变成<b>工单、备件与排程动作</b>；处置建议带依据与风险，交人工复核。'},
+    {id:'s7', cap:'复盘回写：<b>教训自动转成标准处置卡</b>，下次同类告警直接调出先例，不再从零判断。'},
+    {id:'s8', cap:'让每一次告警有归因，每一次处置有依据，<b>每一次故障都沉淀成组织的资产</b>。'}
+  ];
+  var START = [], acc = 0;
+  for (i = 0; i < 8; i++) { START.push(acc); acc += DUR[i]; }
+  var TOTAL = acc;
+
+  // ---------- 动画登记 ----------
+  var anims = [];
+  function A(el, frames, start, dur, easing){
+    var a = el.animate(frames, {
+      duration: Math.max(1, dur), delay: Math.max(0, start),
+      fill: 'both', easing: easing || 'cubic-bezier(.2,.8,.2,1)'
+    });
+    a.pause(); anims.push(a); return a;
+  }
+
+  // ---------- 构建 DOM ----------
+  var EQ=['1#锅炉','2#给水泵','3#锅炉','4#引风机','5#循环泵','2#给水泵','6#空压机','3#给水泵','7#冷却塔','4#引风机','1#锅炉','8#除氧器'];
+  var MSG=['出水温度高','轴承振动超阈','炉膛负压波动','电机电流异常','出口压力低','轴向位移大','排气温度高','振动烈度上升','风机转速偏差','轴承温度高','给水流量低','液位波动'];
+  var LV=['red','amber','amber','red','amber','red','amber','amber','red','amber','red','amber'];
+  var COLOR={red:'#f87171',amber:'#fbbf24',green:'#34d399'};
+  var BASE_T = new Date(2026,8,11,9,42,10).getTime();
+
+  function buildWall(el, n, dimFrom){
+    el.innerHTML='';
+    for(var i=0;i<n;i++){
+      var d=document.createElement('div');
+      var isDim = i>=dimFrom;
+      d.className='al'+(isDim?' dim':' keep');
+      var eq=EQ[i%12], msg=MSG[(i*5)%12], lv=isDim?'amber':LV[(i*3)%12];
+      var t=new Date(BASE_T-(n-i)*17000);
+      var p=function(x){return String(x).padStart(2,'0');};
+      d.innerHTML='<span class="dot" style="background:'+COLOR[lv]+'"></span>'
+        +'<span class="tm">'+p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds())+'</span>'
+        +'<span class="eq">'+eq+'</span><span class="msg">'+msg+'</span>';
+      el.appendChild(d);
+    }
+  }
+  function reveal(list, t0, step, dur, from){
+    for(var i=0;i<list.length;i++){
+      var fr = from==='right'
+        ? [{opacity:0,transform:'translateX(20px)'},{opacity:1,transform:'translateX(0)'}]
+        : [{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'translateY(0)'}];
+      A(list[i], fr, t0+i*step, dur);
+    }
+  }
+
+  buildWall(document.getElementById('alarmwall'), 26, 999);
+  buildWall(document.getElementById('alarmwall2'), 26, 6);
+
+  var NODES=['2#给水泵 · 轴向位移大','3#锅炉 · 出水温度高','4#引风机 · 电机电流异常','5#循环泵 · 出口压力低','6#空压机 · 排气温度高','4#引风机 · 轴承温度高'];
+  var nodesEl=document.getElementById('nodes');
+  NODES.forEach(function(t,i){
+    var d=document.createElement('div'); d.className='ln';
+    d.innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:'+(i===0?'#34d399':'#5c6579')+'"></span><span style="font-size:15px;color:#a4abbd">'+t+'</span>';
+    nodesEl.appendChild(d);
+  });
+
+  var FIELDS=[['场景','集群连锁告警'],['结论','2#给水泵轴承磨损'],['置信度','0.82'],['依据','时序 + 工艺拓扑'],['风险','中 · 需停机窗口'],['概念引用','FMEA · 振动判据'],['涉事实体','3 台设备 · 1 条产线'],['决策链','可追溯至先例 #A17']];
+  var dg=document.getElementById('decgrid');
+  FIELDS.forEach(function(f){
+    var d=document.createElement('div'); d.className='fld';
+    d.innerHTML='<div class="k">'+f[0]+'</div><div class="v">'+f[1]+'</div>'; dg.appendChild(d);
+  });
+
+  var RULERS=[['精确性',3],['广度',3],['一致性',4],['依据充分性',3],['风险显性化',4],['时效性',3],['可追溯性',4],['可行动性',3],['清晰性',3]];
+  var rl=document.getElementById('rulers');
+  RULERS.forEach(function(r){
+    var d=document.createElement('div'); d.className='ruler';
+    d.innerHTML='<div class="rn">'+r[0]+'</div><div class="rb"><div class="rf" data-w="'+(r[1]/4*100)+'"></div></div><div class="rv">'+r[1]+' / 4</div>';
+    rl.appendChild(d);
+  });
+  var rfs = rl.querySelectorAll('.rf');
+
+  function buildFlow(el, arr){
+    arr.forEach(function(f,i){
+      var d=document.createElement('div'); d.className='fnode '+(f[2]||'');
+      d.innerHTML='<div class="fk">'+f[0]+'</div><div class="fv">'+f[1]+'</div>'; el.appendChild(d);
+      if(i<3){ var a=document.createElement('div'); a.className='farr'; a.textContent='→'; el.appendChild(a); }
+    });
+  }
+  var FLOW=[['工单派发','维修班组 B · 持证校验通过',''],['备件齐套','轴承 6208 库存 2 件 · 已预留','a'],
+            ['排程协同','建议停机窗口 14:00–16:00','p'],['人工复核','班长确认后执行','g']];
+  var FLOW2=[['处置归档','工单结论与实测数据入档',''],['复盘归因','判据偏差与处置效果评价','a'],
+             ['知识沉淀','生成标准处置卡 · 审批后入库','p'],['记忆回灌','写入设备记忆体与故障先例库','g']];
+  buildFlow(document.getElementById('flow'), FLOW);
+  buildFlow(document.getElementById('flow2'), FLOW2);
+
+  // ---------- 时间轴编排 ----------
+  for (i = 0; i < 8; i++) {
+    var el = document.getElementById(SCENES[i].id);
+    A(el, [{opacity:0,offset:0},{opacity:1,offset:0.05},{opacity:1,offset:0.95},{opacity:0,offset:1}],
+      START[i], DUR[i], 'linear');
+  }
+  // S1 标题入场
+  A(document.querySelector('#s1 .eyebrow'), [{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}], 300, 600);
+  A(document.querySelector('#s1 h1'), [{opacity:0,transform:'translateY(18px)'},{opacity:1,transform:'translateY(0)'}], 800, 900);
+  A(document.querySelector('#s1 .sub'), [{opacity:0},{opacity:1}], 1700, 700);
+
+  // S2 告警风暴
+  reveal(document.getElementById('alarmwall').children, START[1]+150, 68, 380);
+  // S3 边缘过滤
+  reveal(document.getElementById('alarmwall2').children, START[2]+200, 42, 380);
+  // S4 集群归因
+  reveal(nodesEl.children, START[3]+400, 240, 420, 'right');
+  A(document.getElementById('rootbox'), [{opacity:0,transform:'scale(.94)'},{opacity:1,transform:'scale(1)'}], START[3]+2400, 650);
+  // S5 决策记录
+  reveal(dg.children, START[4]+150, 110, 360);
+  reveal(rl.children, START[4]+1700, 120, 360);
+  for (i = 0; i < rfs.length; i++) {
+    A(rfs[i], [{width:'0%'},{width:rfs[i].dataset.w+'%'}], START[4]+2600+i*70, 700, 'ease-out');
+  }
+  // S6 业务闭环
+  reveal(document.getElementById('flow').children, START[5]+300, 240, 480);
+  A(document.getElementById('s6note'), [{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}], START[5]+1800, 600);
+  // S7 复盘回写
+  reveal(document.getElementById('flow2').children, START[6]+300, 240, 480);
+  A(document.getElementById('s7a'), [{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}], START[6]+1700, 600);
+
+  // 进度条
+  A(document.getElementById('bar'), [{width:'0%'},{width:'100%'}], 0, TOTAL, 'linear');
+
+  // ---------- 字幕 / 时钟 / 计数（由 seek 更新文本） ----------
+  var capEl=document.createElement('div'); capEl.className='cap';
+  document.getElementById('stage').appendChild(capEl);
+  var clockEl=document.getElementById('clock');
+  var kpiCount=document.getElementById('kpiCount');
+  var lastIdx=-1;
+
+  window.__total = TOTAL;
+  window.__seek = function(t){
+    for (var k=0;k<anims.length;k++){ try { anims[k].currentTime = t; } catch(e){} }
+    var idx = 0;
+    for (var j=0;j<8;j++){ if (t >= START[j]) idx = j; }
+    if (idx !== lastIdx){
+      lastIdx = idx;
+      capEl.innerHTML = SCENES[idx].cap;
+      clockEl.textContent = '场景 0' + (idx+1) + ' / 08';
+    }
+    var v = Math.floor((t - START[1] - 150) / 240);
+    kpiCount.textContent = (t < START[1]) ? 0 : (v < 0 ? 0 : (v > 26 ? 26 : v));
+  };
+  window.__seek(0);
+})();
+</script>
+</body>
+</html>

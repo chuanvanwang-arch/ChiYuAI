@@ -1,0 +1,99 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>TRUST MODEL · 赛题能力 ①</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>可信度量：三个维度，说清分从哪里来</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 14, flexDirection: 'column' }}>
+
+    <Box style={{ flexDirection: 'row', gap: 16 }}>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 22 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>信源可信度</Text>
+        <Text style={{ fontSize: 14, color: '#22D3EE', fontWeight: 'bold', marginTop: 6 }}>这条信息，谁说的</Text>
+        <Text style={{ fontSize: 15, color: '#A4ABBD', lineHeight: 1.85, marginTop: 12 }}>
+          · 来源等级：官方、权威媒体、行业机构、匿名渠道分级<br />
+          · 一手性：原始出处，还是转述与二次加工<br />
+          · 历史准确率：该来源过往结论的复核结果<br />
+          · 可交叉验证性：能否被独立来源印证
+        </Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #FBBF24', padding: 22 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>证据强度</Text>
+        <Text style={{ fontSize: 14, color: '#FBBF24', fontWeight: 'bold', marginTop: 6 }}>拿什么支撑这个说法</Text>
+        <Text style={{ fontSize: 15, color: '#A4ABBD', lineHeight: 1.85, marginTop: 12 }}>
+          · 数量与独立性：多源独立优于同源重复<br />
+          · 时效性：与事件时间窗的匹配程度<br />
+          · 贴合度：直接支持结论，还是仅相关共现<br />
+          · 证据等级：原始数据优于转述与推断
+        </Text>
+      </Box>
+
+      <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #34D399', padding: 22 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#EEF1F6' }}>逻辑一致性</Text>
+        <Text style={{ fontSize: 14, color: '#34D399', fontWeight: 'bold', marginTop: 6 }}>推得通吗，有没有自相矛盾</Text>
+        <Text style={{ fontSize: 15, color: '#A4ABBD', lineHeight: 1.85, marginTop: 12 }}>
+          · 推理链完整度：每个中间结论都有依据<br />
+          · 内部矛盾数：结论与自身证据是否冲突<br />
+          · 与既有知识冲突度：是否与已确证知识相悖<br />
+          · 反证处理：反例被解释，还是被留档
+        </Text>
+      </Box>
+
+    </Box>
+
+    <Box style={{ marginTop: 16, background: '#13161E', borderRadius: 12, border: '1px solid #232838', padding: 18, paddingLeft: 22, paddingRight: 22 }}>
+      <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>九尺子逐项校验</Text>
+        <Text style={{ fontSize: 14, color: '#666D80' }}>8 项确定性评分 + 1 项模型评估，输出可复算的 9 列决策记录</Text>
+        <Box style={{ flex: 1 }} />
+        <Box style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(251,191,36,.14)' }}>
+          <Text style={{ fontSize: 13, color: '#FBBF24', fontWeight: 'bold' }}>示例 · 机制示意</Text>
+        </Box>
+      </Box>
+
+      <svg width={1108} height={78} viewBox='0 0 1108 78'>
+        <text x='0' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>精确性</text>
+        <rect x='0' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='0' y='24' width='78' height='11' rx='5' fill='#22D3EE' />
+        <text x='124' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>广度</text>
+        <rect x='124' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='124' y='24' width='78' height='11' rx='5' fill='#22D3EE' />
+        <text x='248' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>一致性</text>
+        <rect x='248' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='248' y='24' width='104' height='11' rx='5' fill='#22D3EE' />
+        <text x='372' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>依据充分性</text>
+        <rect x='372' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='372' y='24' width='104' height='11' rx='5' fill='#34D399' />
+        <text x='496' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>风险显性化</text>
+        <rect x='496' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='496' y='24' width='78' height='11' rx='5' fill='#34D399' />
+        <text x='620' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>时效性</text>
+        <rect x='620' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='620' y='24' width='78' height='11' rx='5' fill='#34D399' />
+        <text x='744' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>可追溯性</text>
+        <rect x='744' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='744' y='24' width='104' height='11' rx='5' fill='#34D399' />
+        <text x='868' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>可行动性</text>
+        <rect x='868' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='868' y='24' width='78' height='11' rx='5' fill='#22D3EE' />
+        <text x='992' y='16' fill='#A4ABBD' fontSize='12' fontFamily='Microsoft YaHei'>清晰性</text>
+        <rect x='992' y='24' width='104' height='11' rx='5' fill='#1A1F2B' />
+        <rect x='992' y='24' width='78' height='11' rx='5' fill='#22D3EE' />
+        <text x='0' y='60' fill='#666D80' fontSize='12' fontFamily='Microsoft YaHei'>决策第 0 闸：缺信息就报缺 · 置信度不足不放行 · 不静默通过 · 处置类结论一律转人工复核</text>
+      </svg>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>07 / 14</Text>
+  </Box>
+
+</Slide>

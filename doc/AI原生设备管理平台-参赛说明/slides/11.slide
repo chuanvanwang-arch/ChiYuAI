@@ -1,0 +1,78 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#34D399' }} />
+      <Text style={{ fontSize: 15, color: '#34D399', letterSpacing: 2, fontWeight: 'bold' }}>DEPLOYMENT</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>落地情况：底座已生产运行，设备域进入 PoC</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 18, flexDirection: 'row', gap: 26 }}>
+
+    <Box style={{ width: 400, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontSize: 92, fontWeight: 'bold', color: '#34D399', lineHeight: 1, fontFamily: 'Arial' }}>60,290</Text>
+      <Text style={{ fontSize: 18, color: '#A4ABBD', marginTop: 14 }}>行源程序 · 平台底座已交付</Text>
+      <Box style={{ width: 120, height: 4, background: 'linear-gradient(135deg,#22D3EE 0%,#34D399 100%)', marginTop: 20, marginBottom: 20 }} />
+      <Text style={{ fontSize: 17, color: '#EEF1F6', fontWeight: 'bold', lineHeight: 1.6, textAlign: 'center' }}>
+        ChiYu AI 销售管理平台 V1.0<br />软件著作权 · SaaS 已上线
+      </Text>
+      <Text style={{ fontSize: 15, color: '#666D80', marginTop: 18, lineHeight: 1.6, textAlign: 'center' }}>
+        同一套记忆系统、决策系统与 K-M-D 管道，<br />向设备域迁移
+      </Text>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+
+      <Box style={{ background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #22D3EE', padding: 22, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+        <Box style={{ width: 52, height: 52, borderRadius: 12, background: 'rgba(34,211,238,.14)', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 22, color: '#22D3EE', fontWeight: 'bold' }}>01</Text>
+        </Box>
+        <Box style={{ flex: 1 }}>
+          <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#EEF1F6' }}>已完成：架构与能力设计</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.6, marginTop: 6 }}>
+            三层智能体架构、K-M-D 管道、设备记忆体模型与全寿命周期链路已定义，能力文档与介绍材料齐备。
+          </Text>
+        </Box>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #FBBF24', padding: 22, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+        <Box style={{ width: 52, height: 52, borderRadius: 12, background: 'rgba(251,191,36,.14)', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 22, color: '#FBBF24', fontWeight: 'bold' }}>02</Text>
+        </Box>
+        <Box style={{ flex: 1 }}>
+          <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#EEF1F6' }}>进行中：单设备类型 PoC 准备</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.6, marginTop: 6 }}>
+            选定一类设备（泵站 / 空压机 / 暖通机组）接入历史运行与故障记录，验证记忆构建、根因判别与复盘回写是否闭合。
+          </Text>
+        </Box>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 14, border: '1px solid #232838', borderTop: '3px solid #34D399', padding: 22, flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+        <Box style={{ width: 52, height: 52, borderRadius: 12, background: 'rgba(52,211,153,.14)', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 22, color: '#34D399', fontWeight: 'bold' }}>03</Text>
+        </Box>
+        <Box style={{ flex: 1 }}>
+          <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#EEF1F6' }}>下一步：集群试点与指标实测</Text>
+          <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.6, marginTop: 6 }}>
+            扩至一个厂区设备集群，实测告警收敛率、原发 / 次生判别准确率与工单闭环率，指标以实测为准。
+          </Text>
+        </Box>
+      </Box>
+
+      <Box style={{ background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 16, paddingLeft: 20 }}>
+        <Text style={{ fontSize: 16, color: '#FBBF24', lineHeight: 1.65, fontWeight: 'bold' }}>
+          诚实声明：设备域暂无行业客户案例与量化收益数据，本页不承诺任何未经实测的指标。
+        </Text>
+      </Box>
+
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>11 / 14</Text>
+  </Box>
+
+</Slide>

@@ -1,0 +1,32 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 20, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+
+  <svg width={1086} height={44} viewBox='0 0 1086 44' style={{ position: 'absolute', top: 96, left: 64 }}>
+    <rect x='493' y='20' width='100' height='4' rx='2' fill='linear-gradient(135deg,#22D3EE 0%,#34D399 100%)' />
+  </svg>
+
+  <Text style={{ fontSize: 50, fontWeight: 'bold', color: '#EEF1F6', textAlign: 'center', lineHeight: 1.35 }}>
+    让每一次告警有归因，<br />每一次处置有依据，<br /><span style={{ color: '#34D399' }}>每一次故障都沉淀成组织的资产</span>
+  </Text>
+
+  <Box style={{ flexDirection: 'row', gap: 16, marginTop: 40 }}>
+    <Box style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 22, paddingRight: 22, borderRadius: 999, border: '1px solid #2C3346', background: 'rgba(34,211,238,.10)' }}>
+      <Text style={{ fontSize: 16, color: '#22D3EE', fontWeight: 'bold' }}>边缘研判 · 集群归因 · 业务闭环</Text>
+    </Box>
+    <Box style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 22, paddingRight: 22, borderRadius: 999, border: '1px solid #2C3346' }}>
+      <Text style={{ fontSize: 16, color: '#A4ABBD', fontWeight: 'bold' }}>K-M-D 认知决策 + 复盘回写</Text>
+    </Box>
+    <Box style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 22, paddingRight: 22, borderRadius: 999, border: '1px solid #2C3346' }}>
+      <Text style={{ fontSize: 16, color: '#A4ABBD', fontWeight: 'bold' }}>换设备类型只换一份配置画像</Text>
+    </Box>
+  </Box>
+
+  <Box style={{ marginTop: 56, alignItems: 'center' }}>
+    <Text style={{ fontSize: 20, color: '#EEF1F6', fontWeight: 'bold' }}>北京青羽智行科技有限公司 · ChiYu AI</Text>
+    <Text style={{ fontSize: 16, color: '#666D80', marginTop: 10 }}>www.chiyuai.com ｜ 2026 年 9 月</Text>
+  </Box>
+
+  <Text style={{ fontSize: 14, color: '#4B5468', marginTop: 26, textAlign: 'center' }}>
+    本材料中的场景为能力运行逻辑推演，量化指标需实测后填充，未对外承诺
+  </Text>
+
+</Slide>

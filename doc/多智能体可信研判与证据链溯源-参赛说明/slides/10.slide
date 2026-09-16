@@ -1,0 +1,88 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#34D399' }} />
+      <Text style={{ fontSize: 15, color: '#34D399', letterSpacing: 2, fontWeight: 'bold' }}>AUDITABILITY · 赛题能力 ③</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>推理透明：可审计、可复现、可干预</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 14, flexDirection: 'row', gap: 22 }}>
+
+    <Box style={{ width: 620 }}>
+      <svg width={620} height={400} viewBox='0 0 620 400'>
+        <rect x='190' y='6' width='240' height='50' rx='10' fill='#161A24' stroke='#22D3EE' strokeWidth='2' />
+        <text x='310' y='27' fill='#EEF1F6' fontSize='14' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>根结论</text>
+        <text x='310' y='46' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>置信度 0.78 · 待验证</text>
+
+        <path d='M310 56 L310 78 M310 78 L120 78 M310 78 L310 78 M310 78 L500 78' stroke='#2C3346' strokeWidth='1.5' />
+        <path d='M120 78 L120 100 M310 78 L310 100 M500 78 L500 100' stroke='#2C3346' strokeWidth='1.5' />
+
+        <rect x='26' y='100' width='188' height='58' rx='9' fill='#161A24' stroke='#34D399' strokeWidth='1.5' />
+        <text x='120' y='123' fill='#EEF1F6' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>中间结论 M1 · 已确证</text>
+        <text x='120' y='143' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>发布账号高度重合</text>
+
+        <rect x='216' y='100' width='188' height='58' rx='9' fill='#161A24' stroke='#FBBF24' strokeWidth='1.5' />
+        <text x='310' y='123' fill='#EEF1F6' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>中间结论 M2 · 待验证</text>
+        <text x='310' y='143' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>存在统一指令下发</text>
+
+        <rect x='406' y='100' width='188' height='58' rx='9' fill='#161A24' stroke='#F87171' strokeWidth='1.5' />
+        <text x='500' y='123' fill='#EEF1F6' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>中间结论 M3 · 存疑</text>
+        <text x='500' y='143' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>与反证 E2 冲突</text>
+
+        <path d='M120 158 L120 186 M310 158 L310 186 M500 158 L500 186' stroke='#2C3346' strokeWidth='1.5' />
+        <path d='M120 186 L310 186 M310 186 L500 186' stroke='#2C3346' strokeWidth='1.5' />
+        <path d='M310 186 L310 208' stroke='#2C3346' strokeWidth='1.5' />
+
+        <rect x='120' y='208' width='380' height='52' rx='9' fill='#13161E' stroke='#665D2E' strokeWidth='1.5' strokeDasharray='5 4' />
+        <text x='310' y='230' fill='#A4ABBD' fontSize='12.5' textAnchor='middle' fontFamily='Microsoft YaHei'>缺依据节点 · 未获取到指令链路原始记录</text>
+        <text x='310' y='249' fill='#FBBF24' fontSize='11.5' textAnchor='middle' fontFamily='Microsoft YaHei'>缺什么就报什么，不静默通过</text>
+
+        <rect x='26' y='284' width='568' height='104' rx='10' fill='#13161E' stroke='#2C3346' strokeWidth='1' strokeDasharray='5 4' />
+        <text x='46' y='310' fill='#EEF1F6' fontSize='14' fontWeight='bold' fontFamily='Microsoft YaHei'>节点四态：已确证 · 待验证 · 存疑 · 缺依据</text>
+        <text x='46' y='334' fill='#A4ABBD' fontSize='13' fontFamily='Microsoft YaHei'>每个节点记录：中间结论、依据、置信度、时间戳、生成它的智能体</text>
+        <text x='46' y='356' fill='#A4ABBD' fontSize='13' fontFamily='Microsoft YaHei'>节点可展开原始推理片段，复核人可逐跳核对，不跳步</text>
+        <text x='46' y='378' fill='#666D80' fontSize='12' fontFamily='Microsoft YaHei'>同一份推理树支持导出为审计材料，用于事后复核与归档</text>
+      </svg>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', gap: 13 }}>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #22D3EE', padding: 15 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>可复现</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 6 }}>
+          九尺子以 8 项确定性评分打底，同输入、同配置、同版本可得到同一结论与同一分数。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #34D399', padding: 15 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>可审计</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 6 }}>
+          推理链与证据变更逐条写入审计日志并串成哈希链，事后篡改可被检测。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #FBBF24', padding: 15 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>可干预</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 6 }}>
+          复核人可排除某条证据或直接修改结论，系统随即重算并保留修改前后两版结果。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 13 }}>
+        <Text style={{ fontSize: 13.5, color: '#A4ABBD', lineHeight: 1.7 }}>
+          证据排除采用<b style={{ color: '#EEF1F6' }}>软标记</b>而非删除，原始证据永久保留，审计可回溯完整操作序列。
+        </Text>
+      </Box>
+
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>10 / 14</Text>
+  </Box>
+
+</Slide>

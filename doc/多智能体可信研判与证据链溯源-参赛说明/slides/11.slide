@@ -1,0 +1,60 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 20, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+
+  <Box style={{ width: 400, flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ fontSize: 88, fontWeight: 'bold', color: '#34D399', lineHeight: 1 }}>60,290</Text>
+    <Box style={{ width: 120, height: 4, background: 'linear-gradient(135deg,#22D3EE 0%,#34D399 100%)', marginTop: 18, marginBottom: 18 }} />
+    <Text style={{ fontSize: 19, color: '#EEF1F6', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.6 }}>
+      行源程序已写入<br />软件著作权申请
+    </Text>
+    <Text style={{ fontSize: 14, color: '#666D80', marginTop: 14, textAlign: 'center', lineHeight: 1.7 }}>
+      ChiYu AI 销售管理平台 V1.0<br />决策管道与冲突消解模块已在生产运行
+    </Text>
+  </Box>
+
+  <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <Box style={{ width: 36, height: 3, background: '#34D399' }} />
+      <Text style={{ fontSize: 15, color: '#34D399', letterSpacing: 2, fontWeight: 'bold' }}>TRACTION &amp; VALIDATION</Text>
+    </Box>
+
+    <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#EEF1F6', lineHeight: 1.35, marginBottom: 22 }}>
+      底座已经生产验证，<br />研判域按三阶段推进
+    </Text>
+
+    <Box style={{ flexDirection: 'column', gap: 12 }}>
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #34D399', padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ paddingTop: 5, paddingBottom: 5, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(52,211,153,.14)', width: 90, alignItems: 'center' }}>
+          <Text style={{ fontSize: 13.5, color: '#34D399', fontWeight: 'bold' }}>已完成</Text>
+        </Box>
+        <Text style={{ fontSize: 15.5, color: '#A4ABBD', flex: 1, lineHeight: 1.6 }}>
+          平台底座生产运行：多智能体编排、决策管道、冲突消解五策略、可解释推理链、事件总线与审计日志。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #FBBF24', padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ paddingTop: 5, paddingBottom: 5, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(251,191,36,.14)', width: 90, alignItems: 'center' }}>
+          <Text style={{ fontSize: 13.5, color: '#FBBF24', fontWeight: 'bold' }}>进行中</Text>
+        </Box>
+        <Text style={{ fontSize: 15.5, color: '#A4ABBD', flex: 1, lineHeight: 1.6 }}>
+          可信研判域 PoC：三维置信度、证据图谱三级下钻、博弈对抗消解、推理树与人工重算页面。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #60A5FA', padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ paddingTop: 5, paddingBottom: 5, paddingLeft: 12, paddingRight: 12, borderRadius: 6, background: 'rgba(96,165,250,.14)', width: 90, alignItems: 'center' }}>
+          <Text style={{ fontSize: 13.5, color: '#60A5FA', fontWeight: 'bold' }}>待实测</Text>
+        </Box>
+        <Text style={{ fontSize: 15.5, color: '#A4ABBD', flex: 1, lineHeight: 1.6 }}>
+          在公开研判专题上完成端到端实测，公布冲突识别率、证据覆盖率与人工复核工时变化。
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ marginTop: 16, background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 14, paddingLeft: 20, paddingRight: 20 }}>
+      <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.65 }}>
+        <b style={{ color: '#FBBF24' }}>如实说明：</b>研判域目前<b style={{ color: '#EEF1F6' }}>暂无第三方客户案例</b>，上述指标为待实测项，我们不预先承诺具体数字。
+      </Text>
+    </Box>
+  </Box>
+
+</Slide>

@@ -1,0 +1,66 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>BUSINESS VALUE</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>商业价值：不做替代，做被缺的那一段</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 20, flexDirection: 'row', gap: 22 }}>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', padding: 26, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#EEF1F6', marginBottom: 16 }}>市场空白在哪</Text>
+        <Box style={{ flexDirection: 'column', gap: 14 }}>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#22D3EE', fontWeight: 'bold' }}>→</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>存量工业互联网平台普遍止步于看板与阈值告警，判断与闭环是明确的空白地带。</Text>
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#22D3EE', fontWeight: 'bold' }}>→</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>规上工业企业设备存量巨大，运维人力增长跟不上设备增长，经验断层是刚需痛点。</Text>
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#22D3EE', fontWeight: 'bold' }}>→</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>工厂要的不是更多数据，而是"出事时告诉我该修哪台、为什么、上次怎么修的"。</Text>
+          </Box>
+        </Box>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#666D80', marginTop: 18 }}>市场规模数据待第三方报告核实 [待补充]</Text>
+    </Box>
+
+    <Box style={{ flex: 1, background: '#161A24', borderRadius: 14, border: '1px solid #232838', padding: 26, justifyContent: 'space-between' }}>
+      <Box>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#EEF1F6', marginBottom: 16 }}>为什么是我们</Text>
+        <Box style={{ flexDirection: 'column', gap: 14 }}>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#34D399', fontWeight: 'bold' }}>✓</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>互补定位：可叠加在既有平台的数据层之上，不动客户现有投资。</Text>
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#34D399', fontWeight: 'bold' }}>✓</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>复制成本低：换设备类型靠配置画像，不新增代码、不改内核。</Text>
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#34D399', fontWeight: 'bold' }}>✓</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>能力可迁移：记忆系统、决策系统、K-M-D 已在销售场景生产验证。</Text>
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#34D399', fontWeight: 'bold' }}>✓</Text>
+            <Text style={{ fontSize: 16, color: '#A4ABBD', lineHeight: 1.65, flex: 1 }}>安全可控：决策第 0 闸 + 人工复核，不自动执行生产操作，符合工业红线。</Text>
+          </Box>
+        </Box>
+      </Box>
+      <Text style={{ fontSize: 15, color: '#666D80', marginTop: 18 }}>定价与商业模式 [待补充]</Text>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · AI 原生设备管理平台</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>12 / 14</Text>
+  </Box>
+
+</Slide>

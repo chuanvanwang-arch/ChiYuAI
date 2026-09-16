@@ -1,0 +1,92 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#34D399' }} />
+      <Text style={{ fontSize: 15, color: '#34D399', letterSpacing: 2, fontWeight: 'bold' }}>EVIDENCE TRACEABILITY · 赛题能力 ②</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>证据溯源：从结论一路下钻到原始段落</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 14, flexDirection: 'row', gap: 22 }}>
+
+    <Box style={{ width: 660 }}>
+      <svg width={660} height={400} viewBox='0 0 660 400'>
+        <rect x='110' y='6' width='520' height='54' rx='10' fill='#161A24' stroke='#22D3EE' strokeWidth='2' />
+        <text x='370' y='28' fill='#EEF1F6' fontSize='15' fontWeight='bold' textAnchor='middle' fontFamily='Microsoft YaHei'>结论：A 事件呈现协同发布特征</text>
+        <text x='370' y='48' fill='#666D80' fontSize='12' textAnchor='middle' fontFamily='Microsoft YaHei'>置信度 0.78 ｜ 状态：待验证（因果证据不足）</text>
+
+        <path d='M370 60 L190 112' stroke='#34D399' strokeWidth='1.5' opacity='0.7' />
+        <path d='M370 60 L370 112' stroke='#F87171' strokeWidth='1.5' opacity='0.7' />
+        <path d='M370 60 L550 112' stroke='#34D399' strokeWidth='1.5' opacity='0.7' />
+
+        <rect x='110' y='112' width='160' height='52' rx='9' fill='#161A24' stroke='#34D399' strokeWidth='1.5' />
+        <text x='190' y='134' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>E1 · 支持</text>
+        <text x='190' y='152' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>独立来源 3 家</text>
+        <rect x='290' y='112' width='160' height='52' rx='9' fill='#161A24' stroke='#F87171' strokeWidth='1.5' />
+        <text x='370' y='134' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>E2 · 反驳</text>
+        <text x='370' y='152' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>时间线不成立</text>
+        <rect x='470' y='112' width='160' height='52' rx='9' fill='#161A24' stroke='#34D399' strokeWidth='1.5' />
+        <text x='550' y='134' fill='#EEF1F6' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>E3 · 支持</text>
+        <text x='550' y='152' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>一手数据佐证</text>
+
+        <path d='M190 164 L190 216' stroke='#2C3346' strokeWidth='1.5' />
+        <path d='M370 164 L370 216' stroke='#2C3346' strokeWidth='1.5' />
+        <path d='M550 164 L550 216' stroke='#2C3346' strokeWidth='1.5' />
+
+        <rect x='110' y='216' width='160' height='52' rx='9' fill='#13161E' stroke='#2C3346' strokeWidth='1.5' />
+        <text x='190' y='238' fill='#A4ABBD' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>来源 S1 · 原始文档</text>
+        <text x='190' y='256' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>段落 12 · 09:41</text>
+        <rect x='290' y='216' width='160' height='52' rx='9' fill='#13161E' stroke='#2C3346' strokeWidth='1.5' />
+        <text x='370' y='238' fill='#A4ABBD' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>来源 S2 · 转述报道</text>
+        <text x='370' y='256' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>段落 3 · 14:07</text>
+        <rect x='470' y='216' width='160' height='52' rx='9' fill='#13161E' stroke='#2C3346' strokeWidth='1.5' />
+        <text x='550' y='238' fill='#A4ABBD' fontSize='13' textAnchor='middle' fontFamily='Microsoft YaHei'>来源 S3 · 数据接口</text>
+        <text x='550' y='256' fill='#666D80' fontSize='11' textAnchor='middle' fontFamily='Microsoft YaHei'>原始记录 · 09:12</text>
+
+        <rect x='110' y='300' width='520' height='82' rx='10' fill='#13161E' stroke='#2C3346' strokeWidth='1' strokeDasharray='5 4' />
+        <text x='130' y='326' fill='#EEF1F6' fontSize='14' fontWeight='bold' fontFamily='Microsoft YaHei'>下钻到底：命中片段高亮 + 保留原文上下文 + 标注抓取时间</text>
+        <text x='130' y='350' fill='#A4ABBD' fontSize='13' fontFamily='Microsoft YaHei'>证据图谱关系：支持 / 反驳 / 已排除（软标记，不删除原始证据）</text>
+        <text x='130' y='371' fill='#666D80' fontSize='12' fontFamily='Microsoft YaHei'>同一证据可同时挂在多条结论下，修改一处即可看到影响面</text>
+      </svg>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', gap: 13 }}>
+      <Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold', letterSpacing: 2 }}>因果校验三关</Text>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #22D3EE', padding: 16 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>① 时序优先</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 7 }}>
+          因必须先于果发生。时序关系不成立，无论共现多强，一律降级为相关。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #FBBF24', padding: 16 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>② 反事实检验</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 7 }}>
+          假定该因不发生，果是否依然成立。若依然成立，说明据此判因证据不足。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #34D399', padding: 16 }}>
+        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>③ 混杂因素排查</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 7 }}>
+          是否存在共同前因同时解释两者。存在则标注为共因，不判为因果。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 14 }}>
+        <Text style={{ fontSize: 14, color: '#A4ABBD', lineHeight: 1.7 }}>
+          铁律：<b style={{ color: '#EEF1F6' }}>相关性只作线索，不作结论</b>；因果证据不足时，结论保持"待验证"，不升格、不隐藏。
+        </Text>
+      </Box>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>09 / 14</Text>
+  </Box>
+
+</Slide>

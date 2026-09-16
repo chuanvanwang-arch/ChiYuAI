@@ -1,0 +1,91 @@
+<Slide style={{ background: '#0C0E14', paddingTop: 40, paddingBottom: 20, paddingLeft: 64, paddingRight: 64, fontFamily: 'Microsoft YaHei', flexDirection: 'column' }}>
+
+  <Box style={{ height: 76, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <Box style={{ width: 36, height: 3, background: '#22D3EE' }} />
+      <Text style={{ fontSize: 15, color: '#22D3EE', letterSpacing: 2, fontWeight: 'bold' }}>TEAM &amp; IP</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#EEF1F6' }}>团队、知识产权与主动声明的边界</Text>
+  </Box>
+
+  <Box style={{ flex: 1, marginTop: 14, flexDirection: 'row', gap: 22 }}>
+
+    <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', gap: 14 }}>
+      <Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold', letterSpacing: 2 }}>团队构成</Text>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', padding: 18 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>平台与架构</Text>
+          <Box style={{ paddingTop: 3, paddingBottom: 3, paddingLeft: 10, paddingRight: 10, borderRadius: 5, background: 'rgba(251,191,36,.14)' }}>
+            <Text style={{ fontSize: 12.5, color: '#FBBF24', fontWeight: 'bold' }}>[待补充]</Text>
+          </Box>
+        </Box>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          负责整体架构、多智能体编排、决策管道与冲突消解机制的设计与实现。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', padding: 18 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>算法与可信度量</Text>
+          <Box style={{ paddingTop: 3, paddingBottom: 3, paddingLeft: 10, paddingRight: 10, borderRadius: 5, background: 'rgba(251,191,36,.14)' }}>
+            <Text style={{ fontSize: 12.5, color: '#FBBF24', fontWeight: 'bold' }}>[待补充]</Text>
+          </Box>
+        </Box>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          负责三维置信度模型、证据强度算法、因果校验与九尺子评分的实现与校验。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', padding: 18 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#EEF1F6' }}>行业与合规</Text>
+          <Box style={{ paddingTop: 3, paddingBottom: 3, paddingLeft: 10, paddingRight: 10, borderRadius: 5, background: 'rgba(251,191,36,.14)' }}>
+            <Text style={{ fontSize: 12.5, color: '#FBBF24', fontWeight: 'bold' }}>[待补充]</Text>
+          </Box>
+        </Box>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 8 }}>
+          负责研判场景定义、行业判据编制、数据合规与人工复核流程设计。
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ width: 520, flexDirection: 'column', justifyContent: 'center', gap: 14 }}>
+      <Text style={{ fontSize: 15, color: '#666D80', fontWeight: 'bold', letterSpacing: 2 }}>知识产权</Text>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #34D399', padding: 16 }}>
+        <Text style={{ fontSize: 16.5, fontWeight: 'bold', color: '#EEF1F6' }}>软件著作权 · V1.0</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 7 }}>
+          ChiYu AI 平台 V1.0 已申请软件著作权，源程序 60,290 行，含决策管道与冲突消解模块。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #FBBF24', padding: 16 }}>
+        <Text style={{ fontSize: 16.5, fontWeight: 'bold', color: '#EEF1F6' }}>发明专利 · 5 件交底</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 7 }}>
+          围绕记忆治理、认知决策、冲突消解、写库即构建等平台通用能力形成交底材料，分批递交中。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#161A24', borderRadius: 12, border: '1px solid #232838', borderLeft: '3px solid #60A5FA', padding: 16 }}>
+        <Text style={{ fontSize: 16.5, fontWeight: 'bold', color: '#EEF1F6' }}>商标 · 状态待核实</Text>
+        <Text style={{ fontSize: 14.5, color: '#A4ABBD', lineHeight: 1.7, marginTop: 7 }}>
+          "ChiYu AI" 商标注册状态以商标局查询结果为准；未核准前一律表述为"申请中"。
+        </Text>
+      </Box>
+
+      <Box style={{ background: '#13161E', borderRadius: 12, border: '1px dashed #2C3346', padding: 14 }}>
+        <Text style={{ fontSize: 14, color: '#A4ABBD', lineHeight: 1.75 }}>
+          边界声明：<b style={{ color: '#EEF1F6' }}>不自动处置</b>（结论经人工复核闸）、<b style={{ color: '#EEF1F6' }}>不覆盖分歧</b>（少数意见留档）、<b style={{ color: '#EEF1F6' }}>不虚构实测</b>（指标待实测公布）。
+        </Text>
+      </Box>
+    </Box>
+
+  </Box>
+
+  <Box style={{ height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #232838' }}>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>ChiYu AI · 多智能体可信研判与证据链溯源系统</Text>
+    <Text style={{ fontSize: 14, color: '#666D80' }}>13 / 14</Text>
+  </Box>
+
+</Slide>
