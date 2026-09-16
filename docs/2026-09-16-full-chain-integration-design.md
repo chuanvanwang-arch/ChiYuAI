@@ -572,6 +572,9 @@ SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NO
 ```
 **成立条件**：两数均 ≥ 1。
 
+> **适用范围（E1 修正，2026-09-16 取证新增）**：成立条件须再补一条 —— 该行**不得**来自 smoke/测试租户，且 `provider` **不得**为 `mock`。
+> 理由：Q4-1 取证实测，全域 `crm.sync_cursor` 的 11 行与 `crm.external_ref` 的 26 行**全部**归属 `smoke-*` 租户，唯一 `last_status='ok'` 行的 `provider='mock'`。若不加此限定，**smoke 脚本会自己把判据 ② 刷绿**——「判据由被测方提供证据」的变体。详见 §7.1.1 与 §5.2 **N10**。
+
 ### 5.2 负向判据（防假绿，**任一不成立即验收失败**）
 
 | # | 负向判据 | 判定方式 |
@@ -585,6 +588,7 @@ SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NO
 | N7 | 跨租户可见 | 两租户并行，断言 A 租户查不到 B 租户的 signal / delivery / sync_cursor 行 |
 | N8 | **平台租户被静默排除**（D1） | 造一条 `tenant_id='system'` 的 open signal，跑 `pumpAllTenants`，断言其出现在泵候选集内且最终落 `sent`/`skipped` 行；**候选集不含 `system` 即失败** |
 | N9 | **无界候选集**（D2） | 造一条 `created_at` 早于窗口的 open signal，断言其**不在泵候选集**且**行仍存在**（窗口只收窄候选集，绝不删除留痕） |
+| N10 | **判据② 自证**（E1，2026-09-16 取证新增） | 判据 ② 的「成立行」若来自 `smoke*/测试` 租户或 `provider='mock'`，**即视为验收失败**——防 smoke 脚本把自己的测试数据当作生产证据（「判据由被测方提供证据」的变体） |
 
 ### 5.3 回归与纪律
 
@@ -619,6 +623,44 @@ SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NO
 **监控口径（workbench 侧）**：逐个 `contract-yaml` 块跟踪三件事——① 是否调用了声明的 `skills`；② 是否读取了声明的 `memory` / 知识层；③ `success` 是否通过。任一缺失按 `{task, agent, gap_type, observed, expected, ts, severity}` 追加到 `*.feedback.json`（按 `task+gap_type` 幂等 upsert），并镜像到本表。
 
 **吸收与建议（下一轮 P0）**：同一 `(task, gap_type)` 复现 ≥ 2 次 → 产出 SKILL 改进建议（如补 `agentSpec.skillCalls`、强化某 SKILL 调用指令、新增记忆读取约定），**仅作提案，须用户显式批准后方可改动 SKILL 文件**。
+
+### 7.1 Q4-1 端到端取证结果（2026-09-16 20:46 · `scripts/smoke-full-chain-e2e.mjs`）
+
+运行：`node scripts/smoke-full-chain-e2e.mjs system` 与 `... acme-demo`（库 = `crm_native`；脚本**只读 + 只跑闸门判定**，不写配置、不迁移状态）。
+
+| 判据 | system | acme-demo | 观测 |
+| ---- | ------ | --------- | ---- |
+| ① 存在 `status='sent'` 且 `delivered_at` 非空的投递行 | 🔴 FAIL | 🔴 FAIL | `sent=0`；全域 `crm.signal_delivery` = **0 行** |
+| ① 配置为 `off` 的渠道零投递行 | 🟢 PASS | 🟢 PASS | 配置为空 → 无越界渠道。⚠ 这是**「空」通过**，不是「正确」通过 |
+| ② `crm.sync_cursor` 存在 `last_status='ok'` 行 | 🔴 FAIL | 🔴 FAIL | 两租户均 0 行 |
+| ② `crm.external_ref` 存在真实外部 ID 行 | 🔴 FAIL | 🔴 FAIL | 两租户均 0 行 |
+| N1 无 `delivery_silent` | 🟢 PASS | 🟢 PASS | `[]` |
+| N2/N3 `failed`/`skipped` 必带 `last_error`，`sent` 不带 error | 🟢 PASS | 🟢 PASS | `no_reason=0 sent_with_error=0` |
+| N4 `exportGate` 与判据①一致 | 🟢 PASS | 🟢 PASS | `healthy=false reason=sent_exists,channels_from_config` |
+| N10 判据② 不得由 smoke/mock 自证 | 🟢 PASS | 🟢 PASS | `mock_ok=0`（反例：以 `smoke-sync` 运行 → **N10 FAIL**，其判据② 却"通过"，正是该条要防的自证） |
+
+**汇总：5/8（两租户同形），exit 1** —— 与 §1.4「Q3 回写与自治【存在但关闭】」的预期状态一致，**不是缺陷**。
+
+#### 7.1.1 取证暴露的一条新事实（超出设计预期，必须记录）
+
+判据② 的全域取证（`crm_native`）显示：`crm.sync_cursor` 共 **11 行**、`crm.external_ref` 共 **26 行**，但**全部归属 smoke 测试租户**：
+
+| 租户 | sync_cursor | external_ref |
+| ---- | ----------- | ------------ |
+| `smoke-line-a-13fsmu3t1exh` | 2 | 4 |
+| `smoke-line-a-103omu3ulpzo` | 2 | 5 |
+| `smoke-line-a` | 2 | 4 |
+| `smoke-line-a-1148mu3tkr4t` | 2 | 5 |
+| `smoke-line-a-j34mu3t4gko` | 2 | 5 |
+| `smoke-sync` | 1 | 2 |
+| `smoke-followup` | 0 | 1 |
+
+- `last_status` 分布：`idle:10`、`ok:1`；**唯一 `ok` 行** = `smoke-sync` / `provider='mock'`。
+- `config_store['integration-providers']` 仅 **1 行且 tenant=`system`**（播种模板本身）→ **无任何租户级集成实例**。
+
+**结论**：线 A（Q2-1 / Q2-2）的接线是**真的**（代码路径存在、smoke 可跑通），但**从未有真实租户产生过同步数据** —— 判据② 目前在「smoke 口径」下成立、在「**真实租户口径**」下**不成立**。这是 §0.2 元缺陷「交付 ≠ 可触发」的**第三次发作**，且形态再进一步：*挂载点有了、泵也有了，但没有任何租户被「接通」* —— 缺的不是代码，是**启用**（与 §2.2「播种 ≠ 接通」同源）。
+
+> **对验收口径的正式修正**：§5.1 判据② 的成立条件须补一句「且该行**不得**来自 smoke/测试租户、**不得** `provider='mock'`」。否则 smoke 脚本会自己把判据②「刷绿」——这属 N 族（自证/恒真）的变体，登记为 **N10**。
 
 ---
 
@@ -658,6 +700,18 @@ SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NO
 5. §5.1 判据 ① 增「适用范围：`system` 与业务租户各验一次」；§5.2 增 N8（平台租户被静默排除）/ N9（无界候选集）。
 
 **红线不变**：窗口只收窄泵的候选集，**绝不允许删除或迁移 `crm.signal` 行**；`system` 不享有投递豁免。
+
+### 8.3.1 修正记录 v1.2（2026-09-16，Q3 执行期）
+
+| 编号 | 事项 | 裁决 / 实测 | 落点 |
+| --- | --- | --- | --- |
+| **D3** | §1.3 Q3-4 行写 `require_export_healthy: true`（示意值），而 §4 Q3-4 契约的 `success` 写「置 false 时与既有 S6 一致」——**二者张力**：若默认 true，Q3 上线当日因出口判据①不成立 → 全部自治归零（"上线即停摆"，且直接违反自身 success） | **取 `false`**：契约（可机检）优先于示意值。闸门**代码就位但默认关闭**，与 §1.4 图逐字一致；启用须运营显式改配置（继承 §2.2「播种 ≠ 接通」） | `standingAuthorization.js:16` + `db/migration-standing-grant.sql`（幂等 `jsonb \|\|` 补键，不覆盖既有键）；实测 `has_key=t val=false default_tier=T1` |
+| **E1** | **新增事实（取证发现）**：判据② 在全域仅有 smoke 租户数据，唯一 `ok` 行 `provider='mock'` → 真实租户从未被「接通」 | 属「交付 ≠ 可触发」第三次发作；**处置 = 补口径 + 上报**，不在本批写业务配置（第 0 闸） | §7.1.1；新增负向判据 **N10**（判据② 不得由 smoke/mock 自证） |
+| **P-1** | Q3-3a 测试把 `emit` 注入在 **guard 调用处**，而实现从**工厂**读取 → 3 条 trace 断言将永远拿不到 trace（`toMatchObject` on `undefined`） | 实现侧接受 **guard 级 `emit` 覆盖**（缺省回落工厂注入），两种调用形状同时成立；工厂级 `emit` 契约不变 | `src/sync/exportGate.js` `guard({..., emit: emitOverride})` |
+| **P-2** | 计划 Q3-3a Step 4 写「Expected 13 个用例」，实际文件为 **11 例**（7 + 4） | 期望值即为错，改记实测 11 | 本表 |
+| **P-3** | 计划 Q3-3b 测试引 `__resetRegistry`，而 `src/action/registry.js` 实际导出 **`resetRegistry`**（计划已预告此不确定点并给了两条路径） | 走"用既有导出"路径，**不为测试改生产接口** | `test/connectors/writebackGateWiring.test.js` |
+| **P-4** | Q4-1 脚本原 N2/N3 条目为 `check(..., true, ...)`（**恒真锚点**，永远 PASS） | 改为**真实不变量**：`failed/skipped` 行 `last_error` 非空数 = 0 且 `sent` 行带 error 数 = 0 | `scripts/smoke-full-chain-e2e.mjs` |
+| **P-5** | 计划 Q3-4 Step 6 期望 migrate 第二次输出「新增 0 条」；`db/migrate.js` **无此输出**（无迁移账本，增量 SQL 每次重跑，靠语句自身幂等） | 改以**直查结果**为判据：`has_key=t val=false` 且既有键 `default_tier` 未被覆盖 | 本表 |
 
 ### 8.4 移交
 
