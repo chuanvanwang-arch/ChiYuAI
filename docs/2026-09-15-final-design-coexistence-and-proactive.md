@@ -77,14 +77,13 @@
 | # | 改动 | 位置 | 收益 | 状态 |
 | - | --- | --- | --- | --- |
 | **1** | 分级配置纳入 `POLICY_KEYS` | `policyVersion.js:29-34` | 分级变更 → 新版本；历史决策依据**永久可复现**（修 D3，最严重的一条） | ✅ **已实施**（2026-09-16，方案 i，含镜像机制） |
-| **2** | 把 `decision_id` 写进分级行 | `businessTier.js:143`（新增列 + 入参） | "这条分级是谁批的"**可反查**（修 D2 溯源断链） | ⏳ 待批（属 A1/A2，需先加 5 列元数据） |
+| **2** | 把 `decision_id` 写进分级行 | `businessTier.js` `upsertTier`（A1 加列 + A2 落库） | "这条分级是谁批的"**可反查**（修 D2 溯源断链） | ✅ **已实施**（2026-09-16，A1 6 列 + A2 落库） |
 | **3** | `autonomous_allowed` 接入判定，或从配置面移除 | `autonomyEngine.js:274`（或 `decisionScenario.js:126`） | 消除"配了⛔人工却仍自动放行"的**假绿**（修 E1） | ✅ **已实施**（2026-09-16，方案 a） |
 
-> **进度**：3 项中 **2 项已落地并验证**（§11.1.2 证据表）。**剩余第 2 项**（A1 元数据列 + A2 `decision_id` 落库）尚未实施——它需要先 `ALTER TABLE` 加 5 列，属独立改动，**待你确认**。
-> 注意：**第 2 项不做，第 1 项的收益只兑现一半**——现在能回答"当时分级是什么"（版本冻结），但仍答不出"谁批准了这个分级"（无授权人字段）。
+> **进度**：3 项 **全部落地并验证**（证据表见 §11.1.2 / §11.1.3），A 轴 D1–D4 四个断点全部闭合。
 
-> **判据（批准前请核对）**：改完这三处后，对任一历史决策应能回答两个问题——**"当时的分级是什么"**（可复现）与**"谁批准了这个分级"**（可反查）。
-> 这两问答不出来时，任何"事后审计 + 可撤回"的承诺都是**空头**。**先补这两问，再谈扩大自治范围。**
+> **判据（现已可核对）**：对任一历史决策，现在能回答三个问题——**"当时的分级是什么"**（A3 版本冻结，可复现）、**"谁批准了这个分级"**（A2 `approved_by` + `decision_id`，可反查）、**"它还有效吗 / 什么时候失效的"**（A4 `revoked_at`/`expires_at`，可撤回且撤回真的生效）。
+> 三者齐备之前，任何"事后审计 + 可撤回"的承诺都是**空头**。**现在这三问都答得出来，才谈得上扩大自治范围（T19）。**
 
 
 
@@ -727,14 +726,24 @@ signal 落库(crm.signal)
 
 **对 A 轴的 4 项补全（§2.4 的 D1–D4，与 B/C 轴同批实施）**：
 
-| 补全项 | 修什么 | 落地方式 | 优先级 |
-| --- | --- | --- | --- |
-| **A1** 授权元数据列 | D1：表仅 4 列 | `ALTER TABLE crm.business_tier_config ADD COLUMN IF NOT EXISTS` × 5（`approved_by` / `approved_at` / `decision_id` / `expires_at` / `revoked_at`） | P0 |
-| **A2** `decision_id` 落库 | D2：决策产生了但不存 | `businessTier.js:143` 把 `produceDecision` 的返回写入行内（新增 `upsertTier` 参数） | P0 |
-| **A3** 分级配置纳入版本冻结 | **D3：审计断链（最严重）** | `policyVersion.js:29-34` 的 `POLICY_KEYS` 增加分级项；**按该文件 :27 既定语义，增键后所有后续决策解析出新版本——此为期望行为** | **P0** |
-| **A4** 撤回 / 暂停语义 | D4：改值即撤回，无操作面 | 复用 `status` 语义（`active`/`paused`/`revoked`）；撤回 = 状态变更，**零 DELETE** | P1 |
+| 补全项 | 修什么 | 落地方式 | 优先级 | 状态 |
+| --- | --- | --- | --- | --- |
+| **A1** 授权元数据列 | D1：表仅 4 列 | `db/2026-09-16-business-tier-grant-meta.sql` **6 列**（`approved_by`/`approved_at`/`decision_id`/`expires_at`/`revoked_at`/`revoked_reason`）+ `schema.sql` 同步 + 迁移清单登记 | P0 | **✅ 已实施已验证** |
+| **A2** `decision_id` 落库 | D2：决策产生了但不存 | `upsertTier` 把 `produceDecision` 的返回**写入行内**（`decision_id`），同时落 `approved_by`/`approved_at` | P0 | **✅ 已实施已验证** |
+| **A3** 分级配置纳入版本冻结 | **D3：审计断链（最严重）** | `policyVersion.js:29-34` 的 `POLICY_KEYS` 增加分级项；**按该文件 :27 既定语义，增键后所有后续决策解析出新版本——此为期望行为** | **P0** | **✅ 已实施已验证** |
+| **A4** 撤回 / 到期语义 | D4：改值即撤回，无操作面 | 状态**派生**（不设 `status` 列）；撤回 = 状态变更，**零 DELETE**；**必须同时接执行面消费**（见下） | P1 | **✅ 已实施已验证** |
 
 > **A3 已裁决（2026-09-16，用户批准）→ 采用方案 i（键镜像）**。
+
+**A1/A2/A4 的三处设计裁决（2026-09-16，实施时定，均已说明理由）**：
+
+| 裁决 | 选择 | 理由 |
+| --- | --- | --- |
+| 列数 5 → **6** | 增加 `revoked_reason` | §11.4 早已声明撤回需要 `revoked_at` + `revoked_reason`；只存时间不存原因，撤回在审计上等于"有人撤了什么"但"不知道为什么"——而这恰恰是事后复盘最需要的字段 |
+| **不引入 `status` 列** | 状态由 `revoked_at`/`expires_at` **派生** | `status` 与 `revoked_at` 双写必然漂移，且漂移方向恰好是"显示生效但实际失效"的**不安全侧**。单一事实源 = 物理上不可能不一致 |
+| `decision_id` **不加 FK** | TEXT，无外键 | 与 `config_store.decision_id`（`migrate-config.sql:13`）同构；保持 `migration-business-tier-tenant.sql:4` 声明的「纯配置叶表」定性不被破坏 |
+
+> **⚠ A4 是本批唯一必须"同时改执行面"的项**：A1 只加列不消费，就等于复制 E1 的错（配置面有字段、执行面不读）。撤回若不接入 `computeBusinessTier`，就是"看起来具备了撤回能力、撤销后照旧生效"——**假绿里最危险的一种**（它消耗的是对人的安全承诺）。故 A4 的验收判据不是"字段写进去了"，而是"**撤回后该取值真的回退 `scenario.default_tier`**"。
 
 **A3 实施方案 i 的具体设计（已批准，可实施）**：
 
@@ -772,6 +781,63 @@ signal 落库(crm.signal)
 
 `policyVersion.js:27` 已明示「增键即改版本语义：加一个键会让所有后续决策解析出新版本——这是**期望行为**」。因此本次上线后，**分级相关的首次解析必然产生一个新版本**，此后进入稳态。
 **对历史决策无影响**：旧决策已冻结在旧版本上，新版本只影响此后产生的决策。**取基线时必须先让镜像进入稳态**，否则会误判成"幂等失效"（本次验证脚本初版即踩此坑）。
+
+#### 11.1.3 A1/A2/A4 实施结果与实证（2026-09-16，已实施并验证）
+
+**改动 14 个文件**（2 新建 + 8 业务/前端 + 1 发布脚本 + 3 测试）：
+
+| 文件 | 改动 |
+| --- | --- |
+| `db/2026-09-16-business-tier-grant-meta.sql`（新建） | 6 列幂等 `ADD COLUMN IF NOT EXISTS` + 存量 `approved_by='system-seed'` 回填 + 部分索引 |
+| `db/schema.sql` | `business_tier_config` 建表语句同步 6 列（新库直接建全；旧库靠上面迁移，**两处列集必须一致**） |
+| `db/migrate.js` | 迁移清单登记；**镜像回填形状同步**（见下"陷阱 ②"） |
+| `src/portal/businessTier.js` | A2 落库（`decision_id`/`approved_by`/`approved_at`）+ 复活语义 + `revokeTier` + 撤回端点 + 读侧返回元数据 + 渲染单一实现（消除与 Render 子模块的双实现漂移） |
+| `src/decision/decisionRepo.js` | **判定面消费**：`ACTIVE_TIER_WHERE` 常量 + `computeBusinessTier` 过滤 |
+| `src/context/assembler.js` | **L4 上下文消费**：`retrieveL4` 同一谓词过滤（防"依据分裂"，见下"陷阱 ③"） |
+| `src/http/controlledConfigPages.js` + `src/pages/S23.schema.js` | **配置面**：刻意不过滤，但带出 `tier_status`/`approved_by` 列 |
+| `src/portal/businessTierRender.js` + `src/web/business-tier.html` | 状态徽章 / 批准人列 / 撤回按钮（含二次确认与可选原因）+ XSS 转义 |
+| `scripts/tencent-lighthouse-deploy/deploy.sh` | **修复既存缺陷**：`else` 分支原先只打印"仅建表"却不执行迁移；现执行 `node db/migrate.js`（不注入 seed 业务数据）——否则本次新列在生产永不创建 → 决策链报 `column does not exist` |
+| `test/web/businessTier.test.js` | +5：状态派生 / 撤回渲染 / XSS 转义 / `expires_at` 非法 400 / 撤回 404 |
+| `test/business-tier-tenant.integration.test.js` | +6：A4 负向哨兵组（生效→撤回→溯源不被洗→幂等→复活→到期对照） |
+| `test/tier-predicate-parity.test.js`（新建） | 3 项静态守卫：谓词两处同步 + 配置面不得过滤 + 渲染派生与 SQL 谓词语义一致 |
+
+**验证证据（全部实跑）**：
+
+| 证据 | 结果 |
+| --- | --- |
+| 迁移实跑（`crm_native_test`） | 列集 11 列到位，54 行存量回填 `approved_by='system-seed'` ✅ |
+| `test/business-tier-tenant.integration.test.js` | 14/14 ✅（含 A4 六项：生效→撤回→溯源不被洗→重复撤回幂等→复活→到期对照） |
+| `test/web/businessTier.test.js` | 13/13 ✅（含状态派生、XSS 转义、撤回 404、`expires_at` 非法 400） |
+| `test/tier-predicate-parity.test.js`（新增守卫） | 3/3 ✅（谓词两处同步 / 配置面不得过滤 / 渲染派生与 SQL 谓词语义一致） |
+| A4 镜像闭环（临时脚本，已删） | **5/5** ✅：幂等复用 / **撤回→新版本** / 镜像一致 / 复原→复用原版本 / `expires_at` 变化→新版本 |
+| **自证鉴别力（负向对照 ×3）** | ① 移除 `computeBusinessTier` 的 revoked 过滤 → 集成 ②⑤ 变红（`expected 'HIGH' to be null`，即"撤回了却照旧生效"）② 让镜像忽略 `revoked` → 闭环 ② 变红（撤回不产生新版本）③ 移除 `assembler` 谓词 → 守卫测试变红（`assembler 的 L4 分级读取缺少同一谓词`）✅ |
+| 回归（context + http + decision + web 四域，2844 项） | 22 项失败**全部既存**，无一与本次改动相关。归因：`.release-wt/` 副本（不含本次改动）同样失败；失败文件零引用本次改动的模块；`nav-path` 指向 `signal-center.html`（其他会话 WIP）、`auditability-sla-history` 为库残留数据（期望空窗口得 1 行）✅ |
+
+**实施期捕获的两个真陷阱**：
+
+**陷阱 ①（安全侧）：撤回不得覆盖批准溯源**
+`revokeTier` 最初写成 `SET revoked_at=now(), decision_id=$new`。这会用"撤回的凭据"覆盖"批准的凭据"——**用次要溯源换掉主要溯源**。修法：撤回**不写** `decision_id`（保留"谁批准的"），撤回动作自身的凭据留在 `crm.decision`（`config-change` 场景，`trigger_context` 含 `dimension`/`dimension_value`/`reason`）。已加断言 `②b` 锁死该行为。
+
+**陷阱 ③（覆盖不全）：分级配置有 3 个读取点，只改判定函数 = 部分假绿**
+
+首轮只改了 `computeBusinessTier`（判定面），盘点后发现分级配置还有两个读取点，各自需要**不同处理**：
+
+| 读取点 | 性质 | 处理 | 不处理的后果 |
+| --- | --- | --- | --- |
+| `decisionRepo.computeBusinessTier` | **判定面** | **过滤**撤回/到期 | 撤回只是写字段，判定照旧生效（最严重） |
+| `context/assembler.js` `retrieveL4` | **判定依据供给**（注入 L4 上下文给模型） | **过滤**（同一谓词） | 模型看到"该项目=LEAD 低风险"而系统按"无此规则"回退 HIGH → **依据分裂**：模型凭作废依据给理由、系统按新依据拦截 |
+| `http/controlledConfigPages.js`（S23 受控页） | **配置面展示** | **刻意不过滤**，但必须带出 `tier_status`/`approved_by` | 页面把已撤回规则照旧显示成分级 = 配置面与执行面不一致（E1 类假绿）。反过来若过滤掉，撤回行从配置面消失 → "撤回"变成不可核查的操作 |
+
+> **可迁移判据**：给一张配置表加"生效/失效"语义时，**先枚举它的全部读取点**（`grep` 表名即可），再逐个决定"过滤 / 不过滤但标注"。
+> 只改"我以为的那个判定点"是最常见的部分假绿——它比完全没做更危险，因为验收时会通过（判定点确实生效了）。
+> 由于三处分属 `/decision`、`/context`、`/http` 三层且语言不同（SQL 片段 / JS 派生函数），**无法共享实现**，
+> 故新增 `test/tier-predicate-parity.test.js` 静态守卫：谓词必须同时在 decisionRepo 与 assembler 中出现，
+> 且受控页**不得**含该谓词（防止有人"顺手"加上导致审计证据从配置面消失）。
+
+**陷阱 ②（幂等侧）：镜像形状必须在"运行时"与"迁移回填"两处逐字一致**
+A4 把镜像规则形状从 `{dimension, dimension_value, tier}` 扩为 `+{revoked, expires_at}`。若只改运行时、不改 `db/migrate.js` 的回填，则**每次跑迁移都会把镜像改回旧形状 → 解析成"另一个版本" → 版本表爆炸**（与实证发现 ① 同族的又一起事故，且这次触发者是迁移而非时间戳）。两处必须同改，已互加注释互指。
+
+**遗留限制（诚实标注，非缺陷）**：`expires_at` 到期是**时间语义**而非配置变更，故到期本身不产生新版本。这不是断链——镜像里存了 `expires_at` 的确定值，事后可用"决策时刻 + 该值"**精确复算**当时是否已过期。已在 `decisionRepo.js` 注释中写明。
 
 ### 11.1.1 附带缺陷修法（E1 / E2）
 
@@ -1172,18 +1238,21 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 
 > **实施优先级：本任务应先于 T19 执行。** T19 是新增 B/C 轴（动作边界 + 授权凭证）；本任务是**把已在运行的 A 轴（对象风险分级）先变成可审计、可撤回的授权对象**。先修既有轴的审计断链，再叠加新轴——否则新凭证的溯源会挂在一条本就断链的依据上。
 
+> **实施状态（2026-09-16）：契约 5 项判据全部实跑通过**（证据见 §11.1.2 / §11.1.3）。实施期捕获 2 个真陷阱（撤回覆盖批准溯源、镜像形状双处不一致），均已修复并加断言锁死。
+
 ```contract-yaml
-- task: "T21 分级授权对象化：business_tier_config 补授权元数据列（approved_by/approved_at/decision_id/expires_at/revoked_at）、写入时落 decision_id、分级配置纳入 POLICY_KEYS 内容冻结、补 paused/revoked 语义、修 autonomous_allowed 配置面与执行面不一致"
+- task: "T21 分级授权对象化：business_tier_config 补授权元数据列（approved_by/approved_at/decision_id/expires_at/revoked_at/revoked_reason）、写入时落 decision_id、分级配置纳入 POLICY_KEYS 内容冻结、补撤回/到期语义并接入执行面消费、修 autonomous_allowed 配置面与执行面不一致"
   agent: review-gate
   contract_task_id: ct-review-gate
   skills: [method-review-gate, data-particle-read]
   memory: [review-gate, decision-retro]
   knowledge_scope: { layers: [L1, L2], max_hops: 4 }
-  success: "① 表结构与 schema.sql 一致（5 个新列幂等可重跑）；② 任一次 PUT /api/business-tier-config 后，该行 decision_id 非空且可在 crm.decision 反查到（溯源不断链）；③ 改一次分级配置后 resolvePolicyVersion 解析出新的 policy_version_id，且改回旧值时能复用原版本（幂等不破）；④ 一条 pause 后该分级不再产生 AUTONOMOUS 决策，且历史决策的 effective_policy_version 不变（历史依据不被洗掉）；⑤ autonomous_allowed=false 的场景在 tier!=HIGH 且 conf 达标时不再自主放行（配置面承诺与执行面一致，假绿消除）"
+  success: "① 表结构与 schema.sql 一致（6 个新列幂等可重跑）；② 任一次 PUT /api/business-tier-config 后，该行 decision_id 非空且可在 crm.decision 反查到（溯源不断链）；③ 改一次分级配置后 resolvePolicyVersion 解析出新的 policy_version_id，且改回旧值时能复用原版本（幂等不破）；④ 一条撤回后该分级不再参与 computeBusinessTier 判定（该取值回退 scenario.default_tier），且历史决策的 effective_policy_version 不变（历史依据不被洗掉）；⑤ autonomous_allowed=false 的场景在 tier!=HIGH 且 conf 达标时不再自主放行（配置面承诺与执行面一致，假绿消除）"
 ```
 
-**契约说明：** 本任务由 `review-gate` 承接（授权面的配置闸门职责），调用 `method-review-gate`/`data-particle-read`、读 `review-gate`/`decision-retro` 记忆（L1–L2，≤4 跳）；成功标准为**元数据落库 + 溯源可反查 + 版本冻结生效（含幂等回滚）+ 撤回语义生效 + 配置面与执行面一致**。
-**五项验收判据中 ③⑤ 为负向/边界判据**（改回旧值 / 关闭开关），**缺一即视为假绿**——正向写通不代表冻结与闸门生效。
+**契约说明：** 本任务由 `review-gate` 承接（授权面的配置闸门职责），调用 `method-review-gate`/`data-particle-read`、读 `review-gate`/`decision-retro` 记忆（L1–L2，≤4 跳）；成功标准为**元数据落库 + 溯源可反查 + 版本冻结生效（含幂等回滚）+ 撤回语义接入执行面 + 配置面与执行面一致**。
+**五项验收判据中 ③④⑤ 为负向/边界判据**（改回旧值 / 撤回 / 关闭开关），**缺一即视为假绿**——正向写通不代表冻结、撤回与闸门真的生效。
+> **④ 的措辞在本轮被刻意收紧**：从"pause 后不再产生 AUTONOMOUS 决策"改为"撤回后**不再参与 `computeBusinessTier` 判定**"。理由：前者可以用"改配置值"糊弄过去（看起来满足了），而后者唯一地指向"过滤真的接在判定函数里"——**A1 只加列不消费就是复制 E1 的错**。
 
 ---
 
@@ -1225,7 +1294,7 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 | **S3** | **判断有据**（L2 批量入库）    | **T06** 事件订阅+重评 · **T07** 同步可观测 · **T08** 报价基线 · **T09** 拓客去重                         | S2 | 排名 **4、5**（不再重复录入；判断有据、评分不再恒 0）         |
 | **S4** | **结论回去**（L3 回写）      | **T04** 回写 Action + A-B4 字段级 CAS                                                      | S3 | 排名 **2**（客户感知最强的一项）                     |
 | **S5** | **不用去查**             | **T12** 三源触发器 · **T15** 报价/阶段节律 · **T16** 拓客信号 · **T17** 主动研究 · **T18** 采纳回路          | S4 | 排名 **3、6、7**                            |
-| **S6** | **让它自己动手**（自治）       | **T21** 分级授权对象化（A 轴补全，**先做**；**A3+E1 已落地已验证**，A1/A2/A4 待批）· **T19** 常驻授权 T1（B/C 轴） | S5 | 排名 **8** |
+| **S6** | **让它自己动手**（自治）       | **T21** 分级授权对象化（A 轴补全，**先做**；**A1–A4 + E1 全部已落地已验证**）· **T19** 常驻授权 T1（B/C 轴） | S5 | 排名 **8** |
 | **S7** | **可校准**              | **T20** 链路观测 + 信任校准                                                                   | S6 | 排名 **10**                               |
 
 > **建议合并交付**：S2+S3 可合并为一个批次（此时客户已能感知排名 4、5、9），**S4 紧随其后**交付排名 2 的强感知价值。
@@ -1349,6 +1418,33 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 ### 18.1 移交
 
 **本设计经用户批准（P8）后，唯一入口为 `writing-plans`。** §14.3 的 S1–S7 转可执行任务清单；**每任务继承 §13 同名契约**（不新增、不弱化 `agent`/`skills`/`memory`/`knowledge_scope`/`success`/`contract_task_id`）。
+
+#### 18.1.1 发布顺序强制项（2026-09-16 本次改动引入，**不可跳过**）
+
+本次改动让 `computeBusinessTier`（决策热路径）与 `assembler.retrieveL4` 引用 `business_tier_config` 的两个新列（`revoked_at` / `expires_at`）。因此发布顺序是**硬约束**：
+
+| 顺序 | 动作 | 违反后果 |
+| - | - | - |
+| 1 | **先跑迁移**：`node db/migrate.js`（或发布时带 `--seed`） | 旧库缺列 → 每次决策报 `column "revoked_at" does not exist` → **决策链整体停摆**（不是样式问题、也不是可降级的服务） |
+| 2 | 再重建/重启 app、mcp 容器 | — |
+
+**已在 `deploy.sh` 修复配套缺陷（既存）**：原 `else` 分支（不带 `--seed`）**只打印"仅建表"却不执行任何迁移** —— 注释与实现不一致。后果是"不带 seed 发布"这条最常用路径**从来不创建新列/新表**；此前多数改动只表现为"新功能不可用"（如新页面因缺表报错），本次则升级为**决策链停摆**。现该分支执行 `node db/migrate.js`（无 `--seed` 时只跑 schema + config + 增量迁移 + 分级出厂种子与 A3 镜像回填，**不注入 `seed.sql` 业务数据**，与文件内红线注释一致）。
+
+**发布后自检三条（缺一不可）**：
+
+```bash
+# ① A1：授权元数据列已创建（期望 6）
+docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
+  psql -U agent2b -d crm_native -c "SET search_path TO crm,public;
+    SELECT count(*) FROM information_schema.columns
+     WHERE table_schema='crm' AND table_name='business_tier_config'
+       AND column_name IN ('approved_by','approved_at','decision_id','expires_at','revoked_at','revoked_reason');"
+
+# ② A3：镜像条数 == 表行数（不等 = 冻结的是过期依据，比不冻结更危险）
+#    完整 SQL 见 §18.3 探针 ⑤ 第 ③ 段
+
+# ③ 端到端：跑一次真实商机推进，确认决策未因缺列而报错（决策链活性）
+```
 
 ### 18.2 前置动作核验结果（2026-09-15 已执行，**本节数据已实测，不再是待办**）
 
@@ -1475,15 +1571,28 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 # ④ 生效环境变量
 docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T app printenv EMBEDDING_PROVIDER
 
-# ⑤ 分级授权现状（A 轴｜§2.4）：配置内容 + 授权元数据是否已存在
+# ⑤ 分级授权现状（A 轴｜§2.4 / §11.1 A1–A4）：配置 + 授权元数据 + 撤回状态 + 镜像一致性
 docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
   psql -U agent2b -d crm_native -c "
     SET search_path TO crm,public;
-    SELECT tenant_id, dimension, dimension_value, tier FROM business_tier_config
-    ORDER BY tenant_id, dimension, dimension_value;
+    -- ① 行内容 + 授权溯源 + 生效状态（A2/A4：现在能答'谁批的'与'还有效吗'）
+    SELECT tenant_id, dimension, dimension_value, tier,
+           approved_by, decision_id,
+           (revoked_at IS NOT NULL) AS revoked, expires_at
+      FROM business_tier_config ORDER BY tenant_id, dimension, dimension_value;
+    -- ② 授权元数据列是否已由迁移补齐。**缺列 = 迁移未跑**，则新版 computeBusinessTier
+    --    会因引用 revoked_at 直接报 column does not exist → 决策链整体失败（发布顺序强制项）
     SELECT column_name FROM information_schema.columns
-    WHERE table_schema='crm' AND table_name='business_tier_config'
-    ORDER BY ordinal_position;"
+     WHERE table_schema='crm' AND table_name='business_tier_config'
+       AND column_name IN ('approved_by','approved_at','decision_id','expires_at','revoked_at','revoked_reason')
+     ORDER BY column_name;
+    -- ③ A3 镜像一致性：mirror_rules 必须等于 table_rows。
+    --    不等 = 冻结的是过期依据，比不冻结更危险（表面全绿：版本照常解析、决策照常落库）
+    SELECT c.tenant_id,
+           jsonb_array_length(c.value->'rules') AS mirror_rules,
+           (SELECT count(*) FROM business_tier_config b WHERE b.tenant_id = c.tenant_id) AS table_rows
+      FROM config_store c WHERE c.key='business-tier-config'
+     ORDER BY c.tenant_id;"
 
 # ⑥ 自主放行真实产出（A 轴是否真在驱动）：按 tier 统计自主 vs 升级
 docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
