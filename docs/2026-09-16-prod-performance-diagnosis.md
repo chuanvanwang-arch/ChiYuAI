@@ -360,6 +360,24 @@ docker logs --tail 40 crm-pg
 
 数据安全：db 数据在 named volume `pgdata` 内，重建容器**不丢数据**（`up -d db` 不改动卷）。
 
+**验收（脚本已入库，逐项 fail-closed）**：
+
+```bash
+bash /opt/crm-ai-native/scripts/tencent-lighthouse-deploy/verify-pg-stats.sh
+```
+
+五项判据：
+
+| # | 判据 | 说明 |
+|---|---|---|
+| ① | 镜像内 `pg_stat_statements.so` 存在 | 缺失则容器起不来，脚本会直接给出回滚命令 |
+| ② | `show shared_preload_libraries` 含 `pg_stat_statements` **且** `pg_settings.source='command line'` | **决定性**——只看值不看 source 会误判（曾被 `postgresql.auto.conf` 静默覆盖） |
+| ③ | `age` **未丢失** | 丢失则 AGE 图谱功能失效，属高危回归 |
+| ④ | `pg_extension` 含 `pg_stat_statements` | 未建扩展则视图不存在 |
+| ⑤ | `pg_stat_statements` 视图可查 | 采样表可用 |
+
+脚本 ⑥⑦ 另出两份慢 SQL 清单：**按总耗时 TOP20**（找总体负担最大者）与**按单次均值 TOP15（`calls>=5`）**（剔低频噪声，找单次最慢者）。两者需配合看——前者是「谁的累计成本高」，后者才是「用户单次等多久」。
+
 ## 6.6 回滚方式（nginx）
 
 补丁脚本每次执行前把三个文件备份到 `/tmp/nginx-perf-backup-<时间戳>/`，回滚：
