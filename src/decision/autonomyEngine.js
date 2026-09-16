@@ -279,7 +279,24 @@ export async function requireDecision(scenario_id, trigger_context = {}, involve
   //   ★ 2026-09-16 补：!sceneAllowsAuto —— 场景未声明允许自主（FALSE/未设）一律升级。
   //     这是 2026-08-28 裁定的**同向补完**（裁定只禁 TRUE 侧无条件放行，未规定 FALSE 侧行为；
   //     :251 原 highNoAuto 是 dead variable，证明原意图本就含此判断）。语义为 fail-closed。
-  const escalated = forceException || tier === 'HIGH' || !sceneAllowsAuto || (tier !== 'HIGH' && conf < effectiveThreshold);
+  let escalated = forceException || tier === 'HIGH' || !sceneAllowsAuto || (tier !== 'HIGH' && conf < effectiveThreshold);
+
+  // S6 T19 B/C 轴（常驻授权）：在 A 轴放行结果上叠加动作边界 + 凭证状态。
+  // opt-in：仅当调用方显式传 opts.standingAction 时介入；既有调用方不传 → 行为不变。fail-closed。
+  //   A 轴已升级（tier=HIGH / 置信度不足 / 场景未授权）→ 保持升级；
+  //   A 轴放行但动作无活跃 T1 凭证 / 字段越界 / T3 对外动作 → 升级 HITL（白名单外字段写入被拒）。
+  if (!escalated && opts.standingAction) {
+    try {
+      const { consultStandingGate } = await import('../authorization/standingAuthorization.js');
+      escalated = await consultStandingGate(false, {
+        tenantId: tenant, standingAction: opts.standingAction, standingFields: opts.standingFields || [],
+      });
+    } catch (err) {
+      emit('trace', 'standing-auth-gate-failed', { scenario_id, tenantId: tenant, error: String(err?.message || err) });
+      recordFailure('standing-auth-gate-failed', err);
+      escalated = true; // fail-closed
+    }
+  }
 
   // 方案C：决策落库前 fire-forget 派发 decision-enrich（并行装配 L1-L4 + 富集先例，不阻塞判定）
   //   放在分支外——富集适用于所有决策（自主/升级），决策前上下文装配与判定结果无关，非仅自主分支。

@@ -52,6 +52,18 @@ export async function isActionAuthorized({ tenantId, action, fields = [], q = qu
   return { authorized: true, grant };
 }
 
+// 在既有 A 轴放行结果上叠加 B/C 轴（常驻授权）。opt-in：仅当 standingAction 提供时介入（既有调用方不传 → 行为不变）。
+// fail-closed：未提供动作 / 鉴权抛错 / 无凭证 / 字段越界 / T3 → 一律升级 HITL。
+export async function consultStandingGate(escalated, { tenantId, standingAction, standingFields = [] } = {}) {
+  if (escalated || !standingAction) return escalated; // A 轴已升级 或 未声明动作 → 保持不变
+  try {
+    const az = await isActionAuthorized({ tenantId, action: standingAction, fields: standingFields });
+    return !az.authorized; // 无凭证/越界/T3 → 升级
+  } catch {
+    return true; // fail-closed：鉴权不可用则升级
+  }
+}
+
 // 在常驻授权凭证下执行一个动作（收敛点）：
 //   ① 执行仍 mint 决策（actor='standing-auth' + grant_ref，过第0闸、可溯源）
 //   ② 执行前/后快照落 grant_execution
