@@ -1158,3 +1158,59 @@ CREATE INDEX IF NOT EXISTS idx_advice_record_scenario
   ON crm.advice_record(tenant_id, scenario_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_advice_record_unlinked
   ON crm.advice_record(tenant_id, created_at DESC) WHERE linked_decision_id IS NULL;
+
+-- ============================================================================
+-- 主动运行时 S6 · 常驻授权（线 B｜B-N8）：运行态表，非粒子域
+-- 设计：docs/2026-09-15-final-design-coexistence-and-proactive.md §8.5/§8.6/§11
+-- 与 migration-standing-grant.sql 同构（建表单一事实源：新库走此处，旧库走迁移）
+-- ============================================================================
+
+-- B/C 轴：动作边界（risk_tier T0–T3）+ 授权凭证（status active/paused/revoked/expired）
+CREATE TABLE IF NOT EXISTS crm.standing_grant (
+  grant_id        TEXT PRIMARY KEY,
+  tenant_id       TEXT NOT NULL DEFAULT 'system',
+  title           TEXT NOT NULL,
+  scope_actions   TEXT[] NOT NULL,                  -- 可自动执行的 Action 白名单
+  scope_objects   TEXT[] NULL,                      -- 限定对象类型
+  field_whitelist TEXT[] NULL,                      -- 允许自动写入的字段（T1 内部字段）
+  risk_tier       TEXT NOT NULL DEFAULT 'T1',       -- T0 | T1 | T2 | T3
+  max_uses        INT NULL,
+  used_count      INT NOT NULL DEFAULT 0,
+  period          TEXT NULL,                        -- day | week
+  limit_payload   JSONB NOT NULL DEFAULT '{}'::jsonb, -- 业务约束（金额上限等）
+  status          TEXT NOT NULL DEFAULT 'active',   -- active | paused | revoked | expired
+  approved_by     TEXT NOT NULL,
+  approved_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decision_id     TEXT NULL,                        -- 授权动作自身的决策凭证（溯源铁律）
+  expires_at      TIMESTAMPTZ NULL,
+  revoked_at      TIMESTAMPTZ NULL,
+  revoked_reason  TEXT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_grant_active
+  ON crm.standing_grant(tenant_id, status, risk_tier);
+
+-- 自主执行流水（前后快照 + 决策凭证 + HITL 判定）
+CREATE TABLE IF NOT EXISTS crm.grant_execution (
+  execution_id TEXT PRIMARY KEY,
+  tenant_id    TEXT NOT NULL DEFAULT 'system',
+  grant_id     TEXT NOT NULL,
+  signal_id    TEXT NULL,                           -- 由哪条信号触发
+  action_name  TEXT NOT NULL,
+  target_id    TEXT NULL,
+  before_state JSONB NOT NULL DEFAULT '{}'::jsonb,  -- 执行前快照（对照/回滚参照）
+  after_state  JSONB NOT NULL DEFAULT '{}'::jsonb,
+  decision_id  TEXT NULL,                           -- 执行决策（actor='standing-auth'）
+  actor        TEXT NOT NULL DEFAULT 'standing-auth',
+  hitl_verdict TEXT NULL,                           -- adopted | rejected | pending
+  rejected_at  TIMESTAMPTZ NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_exec_grant ON crm.grant_execution(grant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_exec_verdict
+  ON crm.grant_execution(tenant_id, hitl_verdict, created_at DESC);
+
+-- 决策表补列：常驻授权执行凭据（§11.2 闭环三要素·执行仍 mint 决策）
+ALTER TABLE crm.decision
+  ADD COLUMN IF NOT EXISTS grant_ref        TEXT,
+  ADD COLUMN IF NOT EXISTS autonomy_level   TEXT;

@@ -153,6 +153,8 @@ export async function createDecision(input = {}) {
     // 【B2 2026-09-02】八要素物化入参（fail-open：未传则诚实留 null，由 Pre 草稿 / 评分计 0，不假填充 BG-04）
     intent = null, assumptions = null, inference = null, viewpoints = null,
     implications = null, risk_register = null, stop_loss = null, concept_refs = null,
+    // 【S6 常驻授权 2026-09-16】执行凭据：standing-auth 执行经此落 decision（actor='standing-auth' + grant_ref），可溯源
+    grant_ref = null, autonomy_level = null,
     // 【P2 补齐】七类因果边中其余 4 类的写时触发入口（设计 §4.1：CAUSED/INFLUENCED/ESTABLISHES_FRAME/DERIVED_FROM_EXCEPTION）
     caused_by = null, influenced_by = null, establishes_frame_for = null, triggered_by_exception = null,
     tenantId = 'system', // T5 多租户：决策归属租户（默认 system=平台级问责层；用户态调用传入自身租户）
@@ -266,9 +268,10 @@ export async function createDecision(input = {}) {
         effective_policy_version, disposition, decider_type, decider_id, decider_role,
         rationale, display_name, referenced_precedents, business_tier, state, outcome, embedding, attribution, decided_at,
         confidence, confidence_source, confidence_at, outcome_verified, feedback, feedback_link, root_cause, tenant_id,
-        intent, assumptions, inference, viewpoints, implications, risk_register, stop_loss, concept_refs)
+        intent, assumptions, inference, viewpoints, implications, risk_register, stop_loss, concept_refs,
+        grant_ref, autonomy_level)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now(),
-        $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
+        $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
      RETURNING *`;
   const insertParams = [scenario_id, JSON.stringify(trigger_context), JSON.stringify(involved_entities),
      JSON.stringify(conditions_evaluated), effective_policy_version, disposition, decider_type,
@@ -279,7 +282,8 @@ export async function createDecision(input = {}) {
      JSON.stringify(eightElements.intent), JSON.stringify(eightElements.assumptions),
      JSON.stringify(eightElements.inference), JSON.stringify(eightElements.viewpoints),
      JSON.stringify(eightElements.implications), JSON.stringify(eightElements.risk_register),
-     JSON.stringify(eightElements.stop_loss), JSON.stringify(eightElements.concept_refs)];
+     JSON.stringify(eightElements.stop_loss), JSON.stringify(eightElements.concept_refs),
+     grant_ref, autonomy_level];
   const r = await insertDecisionFailOpen(insertSql, insertParams, 15); // $16 = embedding（display_name 插入后 embedding 顺移一位）
   const decision = r.rows[0];
 

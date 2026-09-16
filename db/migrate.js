@@ -45,6 +45,7 @@ export const INCREMENTAL_SQL = [
   'migration-signal-dedup-index.sql',   // 2026-09-16 S1 修复：idx_signal_dedup 谓词与 findOpenByDedup 对齐（全状态唯一→仅未关闭唯一；不修则 closed 后同类信号 INSERT 抛异常且静默丢失）
   'migration-external-sync-tables.sql', // 2026-09-16 S2 入口：crm.external_ref + crm.sync_cursor 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
   'migration-advice-record.sql',        // 2026-09-16 E3 建议落库：crm.advice_record 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
+  'migration-standing-grant.sql',        // 2026-09-16 S6 常驻授权：crm.standing_grant + crm.grant_execution + decision.grant_ref/autonomy_level + policy 系统模板
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
@@ -283,6 +284,36 @@ async function main() {
     }
   } catch (e) {
     console.log('[migrate] 线索池模板播种跳过：', String(e.message || e).slice(0, 100));
+  }
+  // ─── S5 T15 时间型信号默认规则（signal-schedule 平台模板）───
+  try {
+    const hasSched = await pool.query(
+      `SELECT 1 FROM crm.config_store WHERE tenant_id='system' AND key='signal-schedule' LIMIT 1`
+    );
+    if (!hasSched.rowCount) {
+      const schedSql = readFileSync(new URL('./migration-signal-schedule-config.sql', import.meta.url), 'utf8');
+      await pool.query(schedSql);
+      console.log('[migrate] 时间型信号默认规则已播种（signal-schedule）');
+    } else {
+      console.log('[migrate] signal-schedule 已存在，跳过');
+    }
+  } catch (e) {
+    console.log('[migrate] signal-schedule 播种跳过：', String(e.message || e).slice(0, 100));
+  }
+  // ─── S5 T17 L3 主动研究默认调度（agent-research-schedule 平台模板）───
+  try {
+    const hasResearch = await pool.query(
+      `SELECT 1 FROM crm.config_store WHERE tenant_id='system' AND key='agent-research-schedule' LIMIT 1`
+    );
+    if (!hasResearch.rowCount) {
+      const researchSql = readFileSync(new URL('./migration-agent-research-schedule-config.sql', import.meta.url), 'utf8');
+      await pool.query(researchSql);
+      console.log('[migrate] L3 主动研究默认调度已播种（agent-research-schedule）');
+    } else {
+      console.log('[migrate] agent-research-schedule 已存在，跳过');
+    }
+  } catch (e) {
+    console.log('[migrate] agent-research-schedule 播种跳过：', String(e.message || e).slice(0, 100));
   }
   // ─── T4 存量公海（S0）线索补 pooled_at（幂等回填，migrate 幂等执行）───
   try {
