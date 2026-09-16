@@ -20,7 +20,12 @@ export function createAdoption({ signalStore, writeOutcome = defaultWriteOutcome
   // 否决：回写决策结果（可观测），signal 关闭
   async function reject({ signal_id, tenant_id = 'system', actor, decision_id, reason = null } = {}) {
     if (!decision_id) return { ok: false, error: 'decision_required' };
-    const r = await signalStore.setStatus(tenant_id, signal_id, 'closed', { rejected_by: actor, reason }).catch(() => ({ ok: false }));
+    // 只传 reason（→ signal.closed_reason）。
+    //   「谁否决的」不落 signal：设计 §8.3 的 signal 无该列，且 actor 已由下面的
+    //   writeOutcome.payload.rejected_by + decision_id 指向的决策行共同承载——同义双写会
+    //   造出「同义两处、口径可能漂移」的第二个事实源。setStatus 对未识别键会回显 ignored_extra，
+    //   不会静默吞掉（见 test/signal/store.test.js 静态守卫）。
+    const r = await signalStore.setStatus(tenant_id, signal_id, 'closed', { reason }).catch(() => ({ ok: false }));
     if (r?.ok) {
       await writeOutcome(decision_id, {
         outcome_type: 'other', source: 'suggestion-reject',

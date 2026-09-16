@@ -57,7 +57,17 @@ export function createSignalStore(pool) {
 
   // list：tenant_id='*' 为平台管理员全量视界（读作用域通配，对齐 tenantScope.scopeTenant
   //   与 routes.js 既有 `$2='*'` 先例）；缺省/普通值按租户精确过滤。
-  async function list({ tenant_id = 'system', status, kind, severity = null } = {}) {
+  //
+  // ownerScope（T21 个人隔离，2026-09-16，用户指令「除管理外，需要进行个人隔离！」）：
+  //   传 { username, role } → 追加「我负责的 或 无主同角色广播」谓词；传 null/缺省 → 不追加（管理全量视界）。
+  //   语义：owner_id = 责任人；无主（NULL）信号是「待认领/广播」，其可见面由 target_role 承担
+  //   （公海 s0_stale 本就该人人可见，屏蔽反而是信息丢失）。
+  //   ⚠ 服务端强制：对普通用户，调用方（HTTP / 工作台视角）必须传 ownerScope——
+  //     不信任任何请求参数（`?mine=0` 之类的伪造不能放宽收窄）。
+  //   判断用 `typeof username === 'string'`（类型闸）而非真值判断：username 为空串时仍追加谓词
+  //   （`owner_id='' AND target_role=$role`）→ 匹配不到任何行 = **fail-closed**；若用真值判断，
+  //   空串会被当成"未传"从而退化为全量视界——这正是最危险的假绿方向。
+  async function list({ tenant_id = 'system', status, kind, severity = null, ownerScope = null } = {}) {
     const conds = [];
     const params = [];
     let i = 1;
@@ -65,6 +75,10 @@ export function createSignalStore(pool) {
     if (status) { conds.push(`status=$${i++}`); params.push(status); }
     if (kind) { conds.push(`kind=$${i++}`); params.push(kind); }
     if (severity) { conds.push(`severity=$${i++}`); params.push(severity); }
+    if (ownerScope && typeof ownerScope.username === 'string') {
+      conds.push(`(owner_id=$${i++} OR (owner_id IS NULL AND target_role=$${i++}))`);
+      params.push(ownerScope.username, ownerScope.role ?? null);
+    }
     const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
     const { rows } = await pool.query(
       `SELECT * FROM crm.signal ${where} ORDER BY created_at DESC`,
@@ -74,14 +88,38 @@ export function createSignalStore(pool) {
   }
 
   // setStatus：open/acked/closed/acted 状态机（acked_at/closed_at/acted_at 时间戳 COALESCE 幂等）
+  //
+  // 处置血缘落库（2026-09-16 补，对齐设计 §8.3）：
+  //   白名单 EXTRA_COLUMNS 与 crm.signal 的列一一对应，未列入的键**有意不落库**（设计无该列），
+  //   但会在返回值里以 `ignored_extra` 回显——不静默吞掉（对齐「不静默失败」铁律）。
+  //   别名映射：关闭路径历来传的是 { reason }，落到 closed_reason 列。
+  //   ⚠ 本函数此前完全忽略 extra 形参，导致三处生产调用点静默丢字段：
+  //     adoption.js:11 {action_ref, decision_id}、adoption.js:23 {rejected_by, reason}、routes.js:390 {reason}。
+  const EXTRA_COLUMNS = ['decision_id', 'action_ref', 'closed_reason'];
+  const EXTRA_ALIAS = { reason: 'closed_reason' };
   async function setStatus(tenant_id, signal_id, status, extra = {}) {
     const col = status === 'acked' ? 'acked_at' : status === 'closed' ? 'closed_at' : status === 'acted' ? 'acted_at' : null;
+    const sets = ['status=$3'];
+    const params = [tenant_id, signal_id, status];
+    // 归一化：显式列名优先，其次别名（reason → closed_reason）
+    const normalized = {};
+    for (const [k, v] of Object.entries(extra || {})) {
+      const target = EXTRA_COLUMNS.includes(k) ? k : EXTRA_ALIAS[k];
+      if (target && v !== undefined && v !== null) normalized[target] = v;
+    }
+    for (const k of EXTRA_COLUMNS) {
+      if (normalized[k] === undefined) continue;
+      params.push(normalized[k]);
+      sets.push(`${k} = $${params.length}`);
+    }
+    if (col) sets.push(`${col} = COALESCE(${col}, now())`);
     const { rows } = await pool.query(
-      `UPDATE crm.signal SET status=$3, ${col} = COALESCE(${col}, now()) WHERE tenant_id=$1 AND signal_id=$2 RETURNING *`,
-      [tenant_id, signal_id, status],
+      `UPDATE crm.signal SET ${sets.join(', ')} WHERE tenant_id=$1 AND signal_id=$2 RETURNING *`,
+      params,
     );
     if (rows.length === 0) return { ok: false, error: 'signal_not_found' };
-    return { ok: true, alert: rows[0] };
+    const ignored = Object.keys(extra || {}).filter((k) => !EXTRA_COLUMNS.includes(k) && !EXTRA_ALIAS[k]);
+    return ignored.length ? { ok: true, alert: rows[0], ignored_extra: ignored } : { ok: true, alert: rows[0] };
   }
 
   async function stats({ tenant_id = 'system' } = {}) {

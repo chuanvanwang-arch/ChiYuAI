@@ -1038,17 +1038,30 @@ CREATE TABLE IF NOT EXISTS crm.signal (
   payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
   evidence      JSONB NOT NULL DEFAULT '{}'::jsonb,
   suggestion    JSONB NOT NULL DEFAULT '{}'::jsonb,
-  status        TEXT NOT NULL DEFAULT 'open',       -- open | acked | closed | acted
+  status        TEXT NOT NULL DEFAULT 'open',       -- open | acked | closed | acted【取值域以 §8.3 为准】
   dedup_key     TEXT NULL,
+  -- 处置血缘三列（2026-09-16 补，对齐设计 §8.3）
+  --   背景：adoption.js:11 一直在传 {action_ref, decision_id}、routes.js:390 与 adoption.js:23 一直在传
+  --   {reason}，但 store.setStatus 的 extra 形参从未被读、表也无对应列 → 三处生产调用点**静默丢字段**
+  --   （测试用假 store 故不可见）。后果：采纳回路丢失「哪个决策批准的、采纳后触发了哪个 Action」，
+  --   关闭信号丢失「为什么关闭」——血缘分片恰好落在最需要审计的一环。
+  decision_id   TEXT NULL,                          -- 本信号处置所依据的决策凭证（采纳必带，第 0 闸）
+  action_ref    TEXT NULL,                          -- 采纳后触发的 Action 名
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   acked_at      TIMESTAMPTZ NULL,
   closed_at     TIMESTAMPTZ NULL,
-  acted_at      TIMESTAMPTZ NULL
+  acted_at      TIMESTAMPTZ NULL,                   -- 采纳执行完成时间戳（setStatus 'acted'）
+  closed_reason TEXT NULL                           -- 关闭原因（routes/adoption 关闭路径均必填）
 );
 CREATE INDEX IF NOT EXISTS idx_signal_open
   ON crm.signal(tenant_id, status, severity, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signal_kind
   ON crm.signal(tenant_id, kind, created_at DESC);
+-- 个人隔离（T21，2026-09-16）：owner_id 是读路径过滤列（普通用户只取自己负责的 + 无主同角色广播），
+--   原先 owner_id 从未被写入（三处扫描器 create 丢参）→ 无索引；现补上，避免按人取待办全表扫描。
+--   幂等叠加见 db/migration-signal-owner-index.sql（旧库经 migrate 补齐）。
+CREATE INDEX IF NOT EXISTS idx_signal_owner
+  ON crm.signal(tenant_id, owner_id, created_at DESC);
 -- 去重索引（2026-09-16 修正）：谓词必须与 store.findOpenByDedup 的查询谓词**逐字一致**（status IN ('open','acked')）。
 --   原为全状态唯一 → 信号被 closed 后 dedup_key 仍占位 → 同类告警再产生时 INSERT 撞索引抛异常
 --   （经 persister 时静默丢失）。已存在库的修正见 db/migration-signal-dedup-index.sql（需 DROP+CREATE）。
