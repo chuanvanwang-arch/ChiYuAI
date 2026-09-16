@@ -9,6 +9,7 @@ import { resolveOfferPolicy, resolveRequestedDiscount } from './offerPolicyFacts
 import { actorRole } from '../context/scope.js';
 import { readConfig } from '../config/configStore.js';
 import { buildRequirementConditions } from './requirementConditions.js';
+import { recordAdvice } from './adviceRecord.js';
 
 export function buildAdvisorConfig(cfg) {
   return { ...DEFAULT_ADVISOR_CONFIG, ...(cfg || {}) };
@@ -85,7 +86,17 @@ export async function advise({ utterance = '', ctx = {}, scenario = null, deal =
     });
 
     const hits = coordinate.candidates?.[0]?.hits || [];
-    return { ok: true, advice: { ...card, hits } };
+    const advice = { ...card, hits };
+    // E3（2026-09-16）建议落库：补上「AI 曾建议过什么」的可观测回路。
+    //   位置选在此处（adviseService 为唯一收敛点，6 处生产调用全部经它）而非各调用点，
+    //   避免遗漏与重复写。recordAdvice 内部 fail-open（异常只 trace，不抛），
+    //   故不阻断建议主链路；未定位到 scenario_id 时不落库（见 adviceRecord.js）。
+    await recordAdvice(advice, {
+      tenantId,
+      stage: stage || coordinate?.stage || null,
+      actor: { username: ctx?.username || ctx?.actor || null, role },
+    });
+    return { ok: true, advice };
   } catch (e) {
     return {
       ok: true,
