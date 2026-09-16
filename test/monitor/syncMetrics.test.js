@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { getSyncMetrics } from 'file:///D:/system/CRM-ai-native/src/monitor/syncMetrics.js';
+// 2026-09-16 修正：原为**绝对 file:// 导入**（写死了本机盘符与工作树路径）——①不可移植；
+//   ②会加载**本机工作树**而非被测树（CI / 干净 clone / 发布工作树里可能加载到别的副本 = 假绿）。
+//   已统一为相对路径。判据：test/ 下**零处**指向本机盘符的 file 协议导入。
+//   ⚠ 本注释刻意不写出被禁的完整字面量——否则判据会命中注释产生**假红**（本仓已知变体：
+//     禁词断言未剥离注释 → 代码越"守法"越红）。
+import { getSyncMetrics } from '../../src/monitor/syncMetrics.js';
 
 function fakePool() {
   const rows = [
