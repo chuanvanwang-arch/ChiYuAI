@@ -14,6 +14,7 @@ import { recordFailure } from '../monitor/monitorStore.js';
 import { query, pool } from '../db.js';
 import { readConfig } from '../config/configStore.js';
 import { setSignalStore } from '../agent/eventTrigger.js';
+import { createGrantSweeper } from '../authorization/grantSweeper.js';
 import { saveNightlyReport } from '../report/nightlyReport.js';
 import { recordTokens as realRecordTokens } from '../alerts/tokenAccounting.js';
 import { scanEscalations } from '../calibration/store.js';
@@ -535,6 +536,18 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   };
   const researchTimer = setInterval(runResearch, researchIntervalMs);
   timers.set('research-scheduler', { handle: researchTimer, intervalMs: researchIntervalMs, kind: 'rule', registeredAt: now });
+
+  // ⑮ S6 T19 常驻授权凭证巡检（过期→expired；连续否决→paused）；每 1h，受 VITEST 护栏
+  const grantSweepIntervalMs = Number(process.env.GRANT_SWEEP_MS || 3600000);
+  const runGrantSweep = () => {
+    if (process.env.VITEST) return; // 测试隔离护栏
+    const sweeper = createGrantSweeper();
+    sweeper.sweepOnce()
+      .then((r) => { if (r.expired || r.paused) emit('trace', 'grant-sweep', r); })
+      .catch((err) => { emit('trace', 'grant-sweep-failed', { error: String(err?.message || err) }); recordFailure('grant-sweep-failed', err); });
+  };
+  const grantSweepTimer = setInterval(runGrantSweep, grantSweepIntervalMs);
+  timers.set('grant-sweep', { handle: grantSweepTimer, intervalMs: grantSweepIntervalMs, kind: 'rule', registeredAt: now });
 
   return timers.size;
 }
