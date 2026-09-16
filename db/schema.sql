@@ -1049,8 +1049,11 @@ CREATE INDEX IF NOT EXISTS idx_signal_open
   ON crm.signal(tenant_id, status, severity, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signal_kind
   ON crm.signal(tenant_id, kind, created_at DESC);
+-- 去重索引（2026-09-16 修正）：谓词必须与 store.findOpenByDedup 的查询谓词**逐字一致**（status IN ('open','acked')）。
+--   原为全状态唯一 → 信号被 closed 后 dedup_key 仍占位 → 同类告警再产生时 INSERT 撞索引抛异常
+--   （经 persister 时静默丢失）。已存在库的修正见 db/migration-signal-dedup-index.sql（需 DROP+CREATE）。
 CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_dedup
-  ON crm.signal(tenant_id, dedup_key) WHERE dedup_key IS NOT NULL;
+  ON crm.signal(tenant_id, dedup_key) WHERE dedup_key IS NOT NULL AND status IN ('open','acked');
 
 -- 投递流水（防假绿核心：send 被调用 ≠ 已送达）
 CREATE TABLE IF NOT EXISTS crm.signal_delivery (

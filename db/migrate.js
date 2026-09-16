@@ -42,6 +42,7 @@ export const INCREMENTAL_SQL = [
   'migration-calibration-sla.sql',        // 2026-09-14 D6 SLA 列 + 超时升级日志表 + 存量回填（幂等）
   '2026-09-16-business-tier-grant-meta.sql', // 2026-09-16 T21 A1：business_tier_config 授权元数据列（approved_by/approved_at/decision_id/expires_at/revoked_at/revoked_reason）+ 存量 approved_by 回填
   'migration-signal-tables.sql',        // 2026-09-16 主动运行时 S1：crm.signal + crm.signal_delivery 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
+  'migration-signal-dedup-index.sql',   // 2026-09-16 S1 修复：idx_signal_dedup 谓词与 findOpenByDedup 对齐（全状态唯一→仅未关闭唯一；不修则 closed 后同类信号 INSERT 抛异常且静默丢失）
   'migration-external-sync-tables.sql', // 2026-09-16 S2 入口：crm.external_ref + crm.sync_cursor 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
   'migration-advice-record.sql',        // 2026-09-16 E3 建议落库：crm.advice_record 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
 ];
