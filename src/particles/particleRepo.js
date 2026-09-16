@@ -200,7 +200,7 @@ export async function queryParticles({ type, tenantId = 'system', limit = 100, e
   return r.rows;
 }
 
-export async function updateParticle(id, { state, patch = {}, event, requireDecisionId = null, systemBypass = false, tenantId = null, casExpectStage = null, casExpectOwnerEmpty = false } = {}) {
+export async function updateParticle(id, { state, patch = {}, event, requireDecisionId = null, systemBypass = false, tenantId = null, casExpectStage = null, casExpectOwnerEmpty = false, casExpectField = null } = {}) {
   const cur = await getParticle(id);
   if (!cur) throw new Error(`粒子不存在: ${id}`);
   // F1 防御层（defense-in-depth）：当调用方显式传入真实租户且与该粒子归属租户不符 → 拒绝跨租户写。
@@ -231,15 +231,30 @@ export async function updateParticle(id, { state, patch = {}, event, requireDeci
   }
   // T3（2026-09-14）：CAS 原子认领——消除原 read-modify-write 竞态窗口。
   // 命中 casExpectStage 时在 WHERE 追加阶段/owner 校验；$1 须显式 ::jsonb（PG 无法从 JSON 字符串参数推断 jsonb）。
-  const casCond = casExpectStage !== null ? ` AND payload->>'stage'=$5 AND coalesce(payload->>'owner_id','')=$6` : '';
-  const casParams = casExpectStage !== null
-    ? [JSON.stringify(newPayload), state || cur.state, decisionId, id, casExpectStage, casExpectOwnerEmpty ? '' : (cur.payload.owner_id || '')]
-    : [JSON.stringify(newPayload), state || cur.state, decisionId, id];
+  // A-B4（2026-09-16 S4）：字段级 CAS 扩展——casExpectField {path,value} 命中时校验 payload->>path=value；
+  //   不匹配（外部已被他人修改）→ WHERE 不命中 → rowCount=0 → throw 并回传最新值（不静默覆盖）。
+  let casCond = '';
+  let casParams = [JSON.stringify(newPayload), state || cur.state, decisionId, id];
+  const casFieldPath = casExpectField?.path || null;
+  const casFieldValue = casExpectField?.value ?? null;
+  if (casExpectStage !== null) {
+    casCond += ` AND payload->>'stage'=$${casParams.length + 1} AND coalesce(payload->>'owner_id','')=$${casParams.length + 2}`;
+    casParams.push(casExpectStage, casExpectOwnerEmpty ? '' : (cur.payload.owner_id || ''));
+  }
+  if (casFieldPath !== null) {
+    casCond += ` AND payload->>$${casParams.length + 1}=$${casParams.length + 2}`;
+    casParams.push(casFieldPath, casFieldValue == null ? '' : String(casFieldValue));
+  }
   const r = await queryWrite(
     `UPDATE particles SET payload=$1::jsonb, state=$2, decision_id=$3, updated_at=now() WHERE id=$4${casCond} RETURNING *`,
     casParams
   );
-  if (casExpectStage !== null && r.rowCount === 0) throw new Error('已被他人领取或已不在公海，请刷新后重试');
+  if (r.rowCount === 0 && (casExpectStage !== null || casFieldPath !== null)) {
+    // CAS 拒绝：回传最新值（外部已被他人修改，不静默覆盖）
+    const latest = await getParticle(id).catch(() => null);
+    const latestField = casFieldPath !== null && latest ? latest.payload?.[casFieldPath] : undefined;
+    throw new Error(`cas_mismatch: ${casFieldPath !== null ? `字段 ${casFieldPath} 已被外部修改为 ${JSON.stringify(latestField)}` : '已被他人领取或已不在公海'}，请刷新后重试`);
+  }
   const p = r.rows[0];
   // 写时自适应：patch 新键自动登记元模型（在 AI 求值前）
   await ensureAdaptiveRegistration(p.type, patch, cur.tenant_id || 'system', 'system').catch((e) => {
