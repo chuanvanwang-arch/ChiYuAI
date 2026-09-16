@@ -31,7 +31,7 @@ export function createFollowupRouter({ engine } = {}) {
     return r;
   }
 
-  // 重评完成 → 广播结果（供 digest/信号中心消费）
+  // 重评完成 → 广播结果（供 digest/销售自动化页消费）
   function emitResult(result) {
     emit('external', 'reeval_done', result);
   }

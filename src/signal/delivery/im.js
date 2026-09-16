@@ -22,15 +22,20 @@ export function createImProvider({ webhookUrl } = {}) {
         });
         return { ok: false, error: v.error };
       }
-      // 真实推送在此接入（钉钉/企微/飞书签名）；当前占位：落 sent 流水标记意图
+      // ⚠ 去假绿（2026-09-16 P0-5）：占位分支**禁止**写 status:'sent'
+      //   本渠道此刻不发起任何 HTTP（未接入钉钉/企微/飞书签名推送）。写 sent 会让
+      //   crm.signal_delivery（专门用于防「投递即已完成」假绿）沉淀假账，一旦接线将掩盖未送达事实。
+      //   契约：未实现 → skipped + last_error='im_not_implemented'（可被 failures() 检出 + 可重投）。
+      //   真实推送接入时替换本段：签名请求 → 成功写 sent / 失败写 failed。
       await deliveryStore.record({
         signal_id: signal.signal_id,
         tenant_id: signal.tenant_id,
         channel: 'im',
         provider: 'custom',
-        status: 'sent',
+        status: 'skipped',
+        last_error: 'im_not_implemented',
       });
-      return { ok: true };
+      return { ok: false, error: 'im_not_implemented' };
     },
   };
 }
