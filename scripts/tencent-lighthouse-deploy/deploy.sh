@@ -160,10 +160,18 @@ done
 # 红线：迁移（migrate）只建表结构，不含业务数据；seed 会写入租户/用户/商机等初始数据。
 # 生产库执行 seed 前务必确认种子内容是否为真实数据，勿把本地 demo 数据当生产数据。
 if [ "$WANT_SEED" = true ]; then
-  echo "==> 执行种子数据（node db/migrate.js --seed）"
+  echo "==> 执行结构迁移 + 种子数据（node db/migrate.js --seed）"
   docker compose $COMPOSE_FILES exec -T app node db/migrate.js --seed
 else
-  echo "· 跳过种子数据（仅建表）。如需初始数据请执行：bash $0 --seed"
+  # 2026-09-16 修复：本分支原先只打印"仅建表"却**没有执行任何迁移**——注释与实现不一致（既存缺陷）。
+  # 后果：不带 --seed 发布时，新增列/新增表永不创建。此前多数改动只是"新功能不可用"，
+  #   而 2026-09-16 起 computeBusinessTier 引用 business_tier_config.revoked_at/expires_at，
+  #   旧库缺列 → 决策链整体报 "column does not exist"，属**业务停摆**级故障。
+  # 安全依据（已核 migrate.js 执行边界）：无 --seed 时只跑 schema.sql + migrate-config.sql
+  #   + 增量迁移 + 分级出厂种子与 A3 镜像回填（全幂等），**不注入 seed.sql 业务数据**，
+  #   与上方"迁移只建表结构，不含业务数据"的红线一致。
+  echo "==> 执行结构迁移（node db/migrate.js，不注入 seed.sql 业务数据）"
+  docker compose $COMPOSE_FILES exec -T app node db/migrate.js
 fi
 
 # ---------- 6. 就绪与自测 ----------
