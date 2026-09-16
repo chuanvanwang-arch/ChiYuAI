@@ -468,5 +468,24 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   }, 1800000);
   timers.set('calibration-sla-scan', { handle: slaScan, intervalMs: 1800000, kind: 'rule', registeredAt: now });
 
+  // ⑫ S5 T15 时间型信号扫描（signal-schedule 配置驱动）：每 30min 逐租户扫描，命中落 crm.signal
+  const schedIntervalMs = Number(process.env.SIGNAL_SCHEDULE_MS || 1800000);
+  const runSchedule = () => {
+    if (process.env.VITEST) return; // 测试隔离护栏：避免后台写与断言竞态
+    import('../signal/scheduleScanner.js').then(async (m) => {
+      const { listActiveTenants } = await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }));
+      const tenants = listActiveTenants ? (await listActiveTenants().catch(() => [{ tenant_id: 'system' }])) : [{ tenant_id: 'system' }];
+      const { createSignalStore } = await import('../signal/store.js');
+      for (const t of tenants) {
+        await m.createScheduleScanner({ query, signalStore: createSignalStore(pool), readConfig })
+          .scanOnce({ tenantId: t.tenant_id })
+          .then((r) => { if (r.signals) emit('trace', 'signal-schedule-scan', { tenant_id: t.tenant_id, ...r }); })
+          .catch((err) => { emit('trace', 'signal-schedule-failed', { error: String(err?.message || err) }); recordFailure('signal-schedule-failed', err); });
+      }
+    }).catch((err) => { emit('trace', 'signal-schedule-load-failed', { error: String(err?.message || err) }); });
+  };
+  const schedTimer = setInterval(runSchedule, schedIntervalMs);
+  timers.set('signal-schedule-scan', { handle: schedTimer, intervalMs: schedIntervalMs, kind: 'rule', registeredAt: now });
+
   return timers.size;
 }
