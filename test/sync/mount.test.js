@@ -267,3 +267,56 @@ describe('handleObjectChanged（A-B5 单记录事件路由）', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 });
+
+// ─── A-B1（2026-09-16）：描述符单一事实源接线——objects[]/token_mode/trust_level ───
+// 设计 §6.1 A-B1 + §9.3；归一化实现见 src/connectors/discovery/providerDescriptor.js
+// 红线：非法方向/非法 trust_level 不得被"猜"成合法值；issues 必须留痕（不静默）
+describe('A-B1 · loadTenantSyncTargets 走统一描述符归一化', () => {
+  const mkRead = (value) => async (key) => (key === 'integration-providers' ? { value } : { value: { default_level: 'L2' } });
+
+  it('合法入向对象进入目标；出向与未知方向被剔除并 emit issues', async () => {
+    const issues = [];
+    const seen = [];
+    const targets = await loadTenantSyncTargets({
+      tenantId: 't1',
+      readConfig: mkRead([
+        { id: 'fx', kind: 'fxiaoke', enabled: true, token_mode: 'corp-access-token', trust_level: 'L2',
+          objects: [{ name: 'AccountObj' }, { name: 'BadObj', direction: 'up' }, { name: 'OutObj', direction: 'out' }] },
+      ]),
+      factories: { fxiaoke: (cfg) => { seen.push(cfg); return { kind: 'fxiaoke' }; } },
+      emit: (lvl, name, p) => issues.push({ name, p }),
+    });
+    expect(targets).toHaveLength(1);
+    expect(targets[0].objects.map((o) => o.name)).toEqual(['AccountObj']);
+    expect(targets[0].trustLevel).toBe('L2');
+    expect(issues.some((x) => x.name === 'integration-providers-invalid' && x.p.issues.some((s) => s.includes('unknown_direction:up')))).toBe(true);
+    // token_mode 与**完整归一化 objects**（含出向：回写侧需要；仅非法项被剔除）一并交给工厂
+    expect(seen[0].token_mode).toBe('corp-access-token');
+    expect(seen[0].objects.map((o) => `${o.name}:${o.direction}`)).toEqual(['AccountObj:in', 'OutObj:out']);
+  });
+
+  it('非法 trust_level → 回落 global（取最严），不静默当合法', async () => {
+    const issues = [];
+    const targets = await loadTenantSyncTargets({
+      tenantId: 't1',
+      readConfig: mkRead([
+        { id: 'fx', kind: 'fxiaoke', enabled: true, trust_level: 'L9', objects: [{ name: 'AccountObj' }] },
+      ]),
+      factories: { fxiaoke: () => ({ kind: 'fxiaoke' }) },
+      emit: (lvl, name, p) => issues.push({ name, p }),
+    });
+    expect(targets[0].descriptorLevel).toBeNull();          // 非法值不得被当成声明值留痕
+    expect(targets[0].trustLevel).toBe('L2');               // 回落 global
+    expect(issues.some((x) => x.p.issues.some((s) => s.includes('unknown_trust_level:L9')))).toBe(true);
+  });
+
+  it('缺 id/kind 的描述符整条拒绝（不实例化、不进目标）', async () => {
+    const targets = await loadTenantSyncTargets({
+      tenantId: 't1',
+      readConfig: mkRead([{ kind: 'fxiaoke', enabled: true, objects: [{ name: 'A' }] }]),
+      factories: { fxiaoke: () => ({ kind: 'fxiaoke' }) },
+      emit: () => {},
+    });
+    expect(targets).toHaveLength(0);
+  });
+});

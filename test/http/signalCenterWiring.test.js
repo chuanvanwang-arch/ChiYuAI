@@ -19,13 +19,16 @@ const routesSrc = read('src/http/routes.js');
 const menuSrc = read('src/portal/layoutMenu.js');
 const pageSrc = read('src/web/signal-center.html');
 
-describe('信号中心：菜单 ↔ 路由 ↔ 页面文件 三向一致', () => {
-  it('菜单含「信号中心」入口', () => {
-    expect(menuSrc).toMatch(/label:\s*'信号中心'/);
+// 2026-09-16 更名：菜单显示名「信号中心」→「销售自动化」，并入「协同」分组。
+//   本探针改为按 label 定位菜单项，故同步更新；href/路由/页面文件标识不变，接线契约不变。
+describe('销售自动化：菜单 ↔ 路由 ↔ 页面文件 三向一致', () => {
+  it('菜单含「销售自动化」入口，且旧名「信号中心」已无残留', () => {
+    expect(menuSrc).toMatch(/label:\s*'销售自动化'/);
+    expect(menuSrc).not.toMatch(/label:\s*'信号中心'/);
   });
 
   it('菜单 href 指向 /signal-center.html，且该路径在 routes.js 有 sendFile 注册（防 404）', () => {
-    const m = menuSrc.match(/\{[^}]*label:\s*'信号中心'[^}]*\}/);
+    const m = menuSrc.match(/\{[^}]*label:\s*'销售自动化'[^}]*\}/);
     expect(m).not.toBeNull();
     const href = m[0].match(/href:\s*'([^']+)'/)?.[1];
     expect(href).toBe('/signal-center.html');

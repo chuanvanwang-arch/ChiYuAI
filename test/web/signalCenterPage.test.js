@@ -82,4 +82,25 @@ describe('signal-center 展示层可读性守门', () => {
     expect(page).toContain('<th>租户</th>');
     expect(page).toMatch(/s\.tenant_id/);
   });
+
+  // ===== T21 个人隔离（2026-09-16 用户指令「除管理外，需要进行个人隔离！」）=====
+  // 页面侧只负责「表达意图 + 呈现作用域」，真正的收窄在服务端强制（tenantScope.signalOwnerScope）。
+  it('请求声明窄意图（mine=1），不依赖前端过滤', () => {
+    expect(page).toContain("q.set('mine', '1')");
+  });
+
+  it('依服务端 meta.enforced 呈现作用域：普通用户只给提示、管理员才给切换', () => {
+    expect(page).toContain('function applyScopeUi');
+    expect(page).toMatch(/meta\.enforced\s*===\s*true/);
+    expect(page).toContain('filter-scope');
+    expect(page).toContain('scope-lock');
+    // 提示带视图者，便于排查「为什么看不到某条」
+    expect(page).toMatch(/meta\.viewer/);
+    // 负向对照：不得把 enforced 恒判为假（那会让每个销售员都拿到「全租户」选项）
+    expect(page).not.toMatch(/const enforced = false/);
+  });
+
+  it('切换范围会重新拉取（否则选项点了没反应）', () => {
+    expect(page).toMatch(/filter-scope'\)?\?\.addEventListener\('change', load\)/);
+  });
 });

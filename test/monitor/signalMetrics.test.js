@@ -109,3 +109,62 @@ describe('getDowngradeEvents（T20-3）', () => {
     expect(d.rejected_executions.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ── 全链集成 Q1-4（2026-09-16）：消除 detectNegativePredicates 的 enabledChannels 假前提 ──
+// 修正前：enabledChannels 缺省 = DEFAULT_CHANNELS（四渠道硬编码全开），而定时器⑯ 调用时不传参
+//   → 面板「渠道『email』已开启」是判据自己注入的假前提（防假绿的判据自己制造假绿）。
+// 修正后：渠道集合从 config_store['signal-delivery'].channels 读取；读不到 → 判据 A 不触发并留痕。
+// 边界：**判据 A 的解析限定在自身内部**，绝不因配置缺失而提前 return（否则判据 B 被连带跳过）。
+describe('detectNegativePredicates 配置驱动（Q1-4：消除 enabledChannels 假前提）', () => {
+  it('租户无 signal-delivery 配置 → 不产生 delivery_silent（且不回退为「全开」）', async () => {
+    const H = `q14-${randomUUID()}`;
+    // 造一条信号，使判据 A 的前置（signalCount>0）成立
+    await query(
+      `INSERT INTO crm.signal (signal_id, tenant_id, source, kind, severity, target_role, status, created_at)
+       VALUES ($1,$2,'rule-scan','q14-probe','medium','sales','open',now())`,
+      [`sig-${randomUUID()}`, H],
+    );
+    const alerts = await detectNegativePredicates({ tenantId: H, since: new Date(Date.now() - 3600 * 1000) });
+    const silent = alerts.filter((a) => a.type === 'delivery_silent');
+    expect(silent).toEqual([]);   // 配置缺失 → 判据 A 不触发（而非按 DEFAULT_CHANNELS 全开误报）
+    await query(`DELETE FROM crm.signal WHERE tenant_id=$1`, [H]);
+  });
+
+  it('配置只开 inbox → 只对 inbox 判 delivery_silent', async () => {
+    const H2 = `q14b-${randomUUID()}`;
+    await query(
+      `INSERT INTO crm.signal (signal_id, tenant_id, source, kind, severity, target_role, status, created_at)
+       VALUES ($1,$2,'rule-scan','q14-probe','medium','sales','open',now())`,
+      [`sig-${randomUUID()}`, H2],
+    );
+    await query(
+      `INSERT INTO crm.config_store (tenant_id, key, value, updated_by, updated_at)
+       VALUES ($1,'signal-delivery',$2::jsonb,'test',now())
+       ON CONFLICT (tenant_id, key) DO UPDATE SET value=$2::jsonb, updated_at=now()`,
+      [H2, JSON.stringify({ channels: { inbox: 'on', email: 'off', im: 'off', webhook: 'off' } })],
+    );
+    const alerts = await detectNegativePredicates({ tenantId: H2, since: new Date(Date.now() - 3600 * 1000) });
+    const silent = alerts.filter((a) => a.type === 'delivery_silent');
+    expect(silent.map((a) => a.channel)).toEqual(['inbox']);
+    await query(`DELETE FROM crm.signal WHERE tenant_id=$1`, [H2]);
+    await query(`DELETE FROM crm.config_store WHERE tenant_id=$1 AND key='signal-delivery'`, [H2]);
+  });
+
+  it('配置读取抛错 → 不产生 delivery_silent 且不抛出（「读取失败」与「配置缺失」分别留痕）', async () => {
+    const H3 = `q14c-${randomUUID()}`;
+    await query(
+      `INSERT INTO crm.signal (signal_id, tenant_id, source, kind, severity, target_role, status, created_at)
+       VALUES ($1,$2,'rule-scan','q14-probe','medium','sales','open',now())`,
+      [`sig-${randomUUID()}`, H3],
+    );
+    const alerts = await detectNegativePredicates({
+      tenantId: H3,
+      since: new Date(Date.now() - 3600 * 1000),
+      readConfigFn: async () => { throw new Error('db down'); },
+    });
+    // 读取失败 → 判据 A 不触发（不得伪报渠道沉默），但**不得把异常吞成「配置缺失」**：
+    //   两者 trace 名不同（read-failed / config-missing），由代码断言 + 巡检核对。
+    expect(alerts.filter((a) => a.type === 'delivery_silent')).toEqual([]);
+    await query(`DELETE FROM crm.signal WHERE tenant_id=$1`, [H3]);
+  });
+});

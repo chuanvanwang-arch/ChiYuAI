@@ -49,6 +49,11 @@ function makeDeps(over = {}) {
     queryKanbanTasks: async () => rows['kanban-tasks'],
     // 参数调优数据源（P1）：默认空（注入式不依赖真实 PG；tuning 用例以 makeTuneDeps 覆盖）
     queryPatches: async () => [],
+    // 信号视角数据源（S1 2026-09-16 加入 VIEWS）：**必须显式置空**。
+    //   本文件声明「注入式：不依赖真实 PG」，但 signals 视角默认走 defaultDeps.querySignals（真库 crm.signal）
+    //   → badge ⑧c「零数据时返回全 0」随共享测试库残留时红时绿（2026-09-16 实测：期望 0，实得 4/5/6 波动；
+    //   切回 HEAD 版本同样红 = pre-existing，非 T21 引入）。补此占位以对齐本文件的注入式契约。
+    querySignals: async () => [],
     // 渲染器（复用 renderPage，不改）
     render: (schema, data) => renderPage(schema, data),
     ...over,

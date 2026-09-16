@@ -27,6 +27,26 @@ describe('tokens.css 全站 Token', () => {
       expect(css).toContain(k);
     }
   });
+
+  // 2026-09-16 用户截图实证：下拉展开后的 option 列表白底浅字、几乎不可读。
+  // 根因 = 只给 select 设了 background，未给 option 设 background；color 却被 option 继承（浅色）。
+  // 故守卫「弹层必须成对声明 background + color」，且只用令牌（禁硬编码色值）。
+  it('原生下拉弹层（option/optgroup）必须成对声明 background + color（防「白底浅字」回归）', () => {
+    const rule = css.match(/select\s+option[^{]*\{[^}]*\}/);
+    expect(rule, 'tokens.css 缺少 select option 弹层着色规则').not.toBeNull();
+    const body = rule[0];
+    expect(body, '弹层缺 background（会回落系统白底）').toMatch(/background\s*:\s*var\(--panel\)/);
+    expect(body, '弹层缺 color（会继承浅色 select 字色）').toMatch(/color\s*:\s*var\(--ink\)/);
+    // 鉴别力：整条规则内不得出现硬编码色值（浅色 fallback 是本仓明令禁止的历史事故源）
+    expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+
+  // 2026-09-16 补充：警示底必须从 token 取（此前页面自带 rgba(220,38,38,.08) 硬编码，违背「页面禁自带色值」铁律）。
+  // 注意：token 本身允许 rgba（--accent-soft 即 rgba），禁令针对的是页面层。
+  it('警示底有语义 token（--err-soft）', () => {
+    expect(css).toMatch(/--err-soft\s*:/);
+    expect(css).toContain('--accent-soft'); // 对照：同范式已有软底 token 存在，说明 --err-soft 是补齐而非新增异类
+  });
 });
 
 describe('common.css 存在', () => {

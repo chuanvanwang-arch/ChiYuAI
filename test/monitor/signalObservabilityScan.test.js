@@ -9,7 +9,15 @@ const T = `t20s-${randomUUID()}`;
 
 beforeAll(async () => {
   resetAlertStore();
-  // 有信号但零投递行 → delivery_silent（enabled 默认四渠道全报）
+  // 有信号但零投递行 → delivery_silent
+  // Q1-4（2026-09-16）：判据 A 改为「渠道集合来自 config_store」后，必须显式声明渠道开关
+  //   （修正前用硬编码 DEFAULT_CHANNELS 四渠道恒全开）。**只补前置条件，断言未改**。
+  await query(
+    `INSERT INTO crm.config_store (tenant_id, key, value, updated_by, updated_at)
+     VALUES ($1,'signal-delivery',$2::jsonb,'test',now())
+     ON CONFLICT (tenant_id, key) DO UPDATE SET value=$2::jsonb, updated_at=now()`,
+    [T, JSON.stringify({ channels: { inbox: 'on', email: 'on', im: 'on', webhook: 'on' } })]
+  );
   await query(
     `INSERT INTO crm.signal (signal_id, tenant_id, source, kind, severity, target_role, status, created_at)
      VALUES ($1,$2,'rule-scan','budget-drift','high','sales','open',now())`,
@@ -19,6 +27,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await query(`DELETE FROM crm.signal WHERE tenant_id=$1`, [T]).catch(() => {});
+  await query(`DELETE FROM crm.config_store WHERE tenant_id=$1 AND key='signal-delivery'`, [T]).catch(() => {});
   resetAlertStore();
 });
 
