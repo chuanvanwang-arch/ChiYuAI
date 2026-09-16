@@ -245,11 +245,21 @@ CREATE TABLE IF NOT EXISTS crm.decision_precedent_rel (
 
 -- 业务分级配置（DEAL = 客户维 × 项目维，配置定义非硬编码）
 -- 2026-09-06 Phase 1 #1：tenant_id 列 + 复合 PK（system=平台模板，租户经 ensureTenantBusinessTiers 懒克隆覆盖）
+-- 2026-09-16 T21 A1：补授权元数据列（谁批的/何时批的/是否已撤回/何时到期）——
+--   此前只能答"分级是什么"，答不出"谁批的"，"事后审计 + 可撤回"缺载体（设计 §2.4 D1/D2/D4）。
+--   旧库由 db/2026-09-16-business-tier-grant-meta.sql 幂等 ADD COLUMN 补齐，两处列集必须一致。
+--   状态（active/revoked/expired）由 revoked_at/expires_at **派生**，不设 status 列（防双源漂移）。
 CREATE TABLE IF NOT EXISTS crm.business_tier_config (
   tenant_id       TEXT NOT NULL DEFAULT 'system',
   dimension       TEXT NOT NULL,
   dimension_value TEXT NOT NULL,
   tier            TEXT NOT NULL,
+  approved_by     TEXT,
+  approved_at     TIMESTAMPTZ,
+  decision_id     TEXT,
+  expires_at      TIMESTAMPTZ,
+  revoked_at      TIMESTAMPTZ,
+  revoked_reason  TEXT,
   PRIMARY KEY (tenant_id, dimension, dimension_value)
 );
 
@@ -1008,3 +1018,103 @@ CREATE TABLE IF NOT EXISTS crm.oauth_refresh (
 CREATE INDEX IF NOT EXISTS idx_oauth_refresh_chain ON crm.oauth_refresh(chain_id);
 CREATE INDEX IF NOT EXISTS idx_oauth_refresh_active
   ON crm.oauth_refresh(client_id, actor) WHERE revoked_at IS NULL;
+
+-- ============================================================
+-- 主动运行时（Proactive Runtime）· 运行态表（非粒子域）
+-- 版本：2026-09-16 设计 docs/2026-09-15-final-design-coexistence-and-proactive.md §8.3/§8.4
+-- ============================================================
+
+-- 信号统一收口（替换 src/alerts/alertStore.js 内存 Map 为 DB 持久化）
+CREATE TABLE IF NOT EXISTS crm.signal (
+  signal_id     TEXT PRIMARY KEY,
+  tenant_id     TEXT NOT NULL DEFAULT 'system',
+  source        TEXT NOT NULL,                      -- rule-scan | event-trigger | agent-research | external
+  kind          TEXT NOT NULL,                      -- 告警 kind + 新增 kind
+  severity      TEXT NOT NULL,                      -- low | medium | high
+  target_role   TEXT NOT NULL,                      -- sales | finance | exec | ops
+  owner_id      TEXT NULL,
+  l2c_stage     TEXT NULL,
+  particle_id   TEXT NULL,
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  evidence      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  suggestion    JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status        TEXT NOT NULL DEFAULT 'open',       -- open | acked | closed | acted
+  dedup_key     TEXT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  acked_at      TIMESTAMPTZ NULL,
+  closed_at     TIMESTAMPTZ NULL,
+  acted_at      TIMESTAMPTZ NULL
+);
+CREATE INDEX IF NOT EXISTS idx_signal_open
+  ON crm.signal(tenant_id, status, severity, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_kind
+  ON crm.signal(tenant_id, kind, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_dedup
+  ON crm.signal(tenant_id, dedup_key) WHERE dedup_key IS NOT NULL;
+
+-- 投递流水（防假绿核心：send 被调用 ≠ 已送达）
+CREATE TABLE IF NOT EXISTS crm.signal_delivery (
+  delivery_id     TEXT PRIMARY KEY,
+  signal_id       TEXT NOT NULL,
+  tenant_id       TEXT NOT NULL DEFAULT 'system',
+  channel         TEXT NOT NULL,                    -- inbox | email | im | webhook
+  provider        TEXT NULL,                        -- smtp | dingtalk | wecom | feishu | custom
+  recipient       TEXT NULL,
+  status          TEXT NOT NULL DEFAULT 'pending',  -- pending | sent | failed | skipped
+  attempts        INT NOT NULL DEFAULT 0,
+  last_error      TEXT NULL,
+  provider_msg_id TEXT NULL,
+  delivered_at    TIMESTAMPTZ NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_delivery_signal ON crm.signal_delivery(signal_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_fail
+  ON crm.signal_delivery(tenant_id, status, created_at DESC);
+
+-- ============================================================
+-- 外部数据接入（S2 入口）· 运行态表（非粒子域）
+-- 版本：2026-09-16 设计 docs/2026-09-15-final-design-coexistence-and-proactive.md §8.1/§8.2
+-- ============================================================
+
+-- 外部引用映射（客户 CRM 记录 ↔ 我方粒子 稳定对应；去重/幂等/回写定位共同前提）
+CREATE TABLE IF NOT EXISTS crm.external_ref (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id             TEXT NOT NULL DEFAULT 'system',
+  provider              TEXT NOT NULL,              -- fxiaoke | neocrm | generic-rest | ...
+  external_object       TEXT NOT NULL,              -- 客户 CRM 侧对象 API 名（如 AccountObj / account）
+  external_id           TEXT NOT NULL,              -- 客户 CRM 侧记录主键
+  particle_type         TEXT NOT NULL,              -- 我方粒子类型（既有类型，禁新增）
+  particle_id           UUID NOT NULL,
+  external_updated_at   TIMESTAMPTZ,                -- 客户侧最后修改时间（增量游标依据）
+  last_synced_at        TIMESTAMPTZ,
+  last_direction        TEXT,                       -- in | out（最近一次同步方向，供冲突定位）
+  last_hash             TEXT,                       -- 上次同步内容哈希（变更检测 / 冲突比对）
+  external_deleted_at   TIMESTAMPTZ,                -- 软态：客户侧已删除（绝不物理删我方粒子）
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, provider, external_object, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_external_ref_particle
+  ON crm.external_ref(tenant_id, particle_type, particle_id);
+CREATE INDEX IF NOT EXISTS idx_external_ref_cursor
+  ON crm.external_ref(tenant_id, provider, external_object, external_updated_at);
+
+-- 同步运行留痕（每租户 × provider × object 一行；禁删：upsert 更新）
+CREATE TABLE IF NOT EXISTS crm.sync_cursor (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id          TEXT NOT NULL DEFAULT 'system',
+  provider           TEXT NOT NULL,
+  external_object    TEXT NOT NULL,
+  cursor_value       TEXT,                          -- 增量游标（last_modified 时间戳 / 自增水位）
+  last_run_at        TIMESTAMPTZ,
+  last_status        TEXT NOT NULL DEFAULT 'idle'
+                     CHECK (last_status IN ('idle','running','ok','degraded','failed')),
+  last_error         TEXT,
+  last_counts        JSONB NOT NULL DEFAULT '{}'::jsonb,  -- { read, created, updated, skipped, conflicted }
+  token_cost         NUMERIC NOT NULL DEFAULT 0,
+  decision_id        UUID,                          -- 本批同步所挂决策锚点（写侧第 0 闸）
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, provider, external_object)
+);
+CREATE INDEX IF NOT EXISTS idx_sync_cursor_health
+  ON crm.sync_cursor(tenant_id, last_status, last_run_at);

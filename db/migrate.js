@@ -40,6 +40,9 @@ export const INCREMENTAL_SQL = [
   '2026-09-10-memory-entity-type.sql',   // 2026-09-10 客户记忆写回 C1/C2：memory_log 补 entity_type（锚点类型，与 entity_id 成对解释语义）
   'migrate-knowledge-kind-backfill.sql',  // 2026-09-10 知识 kind 枚举补齐：CRM_KNOWLEDGE 缺 payload.kind 的按形态回填 vocabulary/transition（用户裁决：先补齐存量）
   'migration-calibration-sla.sql',        // 2026-09-14 D6 SLA 列 + 超时升级日志表 + 存量回填（幂等）
+  '2026-09-16-business-tier-grant-meta.sql', // 2026-09-16 T21 A1：business_tier_config 授权元数据列（approved_by/approved_at/decision_id/expires_at/revoked_at/revoked_reason）+ 存量 approved_by 回填
+  'migration-signal-tables.sql',        // 2026-09-16 主动运行时 S1：crm.signal + crm.signal_delivery 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
+  'migration-external-sync-tables.sql', // 2026-09-16 S2 入口：crm.external_ref + crm.sync_cursor 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
@@ -407,11 +410,21 @@ async function main() {
     const tenants = await pool.query(`SELECT DISTINCT tenant_id FROM crm.business_tier_config ORDER BY tenant_id`);
     for (const row of tenants.rows) {
       const tid = row.tenant_id;
+      // ⚠ 镜像形状必须与运行时 mirrorBusinessTierConfig（businessTier.js）**逐字一致**：
+      //   两处不一致 → 同一配置在迁移后被解析成"另一个版本" → 版本表爆炸（与 mirrored_at 同族事故）。
+      //   revoked 取派生布尔（撤回时刻不影响判定结果）；expires_at 用 SQL 侧固定 UTC 文本输出，
+      //   避免 pg 驱动 Date 解析丢微秒导致序列化不稳。
       const r = await pool.query(
-        `SELECT dimension, dimension_value, tier FROM crm.business_tier_config
-         WHERE tenant_id=$1 ORDER BY dimension, dimension_value`, [tid]
+        `SELECT dimension, dimension_value, tier,
+                (revoked_at IS NOT NULL) AS revoked,
+                to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS expires_at
+           FROM crm.business_tier_config
+          WHERE tenant_id=$1 ORDER BY dimension, dimension_value`, [tid]
       );
-      const rules = r.rows.map((x) => ({ dimension: x.dimension, dimension_value: x.dimension_value, tier: x.tier }));
+      const rules = r.rows.map((x) => ({
+        dimension: x.dimension, dimension_value: x.dimension_value, tier: x.tier,
+        revoked: x.revoked === true, expires_at: x.expires_at || null,
+      }));
       await pool.query(
         `INSERT INTO crm.config_store (tenant_id, key, value, decision_id, updated_by, updated_at)
          VALUES ($1, 'business-tier-config', $2::jsonb, NULL, 'migrate-mirror', now())
