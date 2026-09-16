@@ -20,12 +20,13 @@ afterEach(() => { clearTimers(); slaMock.mockClear(); });
 //   / signal-schedule-scan（S5 T15 时间型信号扫描，2026-09-16）/ prospect-scan（S5 T16 拓客信号扫描，2026-09-16）
 //   / research-scheduler（S5 T17 L3 主动研究调度，2026-09-16）
 //   / grant-sweep（S6 T19 常驻授权凭证巡检，2026-09-16）
+//   / signal-observability-scan（S7 T20 信号链路观测巡检，2026-09-16）
 // 注：decision-retro 与 decision-retro-boot 互斥——boot 是次日志对齐的 setTimeout，
-//     触发后才注册 decision-retro 常驻 interval，故启动瞬间为 15（11 基线 + S5 三定时器 + S6 一定时器）。
-const EXPECTED_TIMERS = 15;
+//     触发后才注册 decision-retro 常驻 interval，故启动瞬间为 16（11 基线 + S5 三定时器 + S6 一定时器 + S7 一定时器）。
+const EXPECTED_TIMERS = 16;
 
 describe('定时器（③ 规则驱动）', () => {
-  it('ensureTimers 返回注册数量（15 个：含 ready-queue-pump、C2 审计链巡检、integration-poll、calibration-sla-scan、S5 signal/prospect/research 三定时器、S6 grant-sweep）', async () => {
+  it('ensureTimers 返回注册数量（16 个：含 ready-queue-pump、C2 审计链巡检、integration-poll、calibration-sla-scan、S5 signal/prospect/research 三定时器、S6 grant-sweep、S7 signal-observability-scan）', async () => {
     const n = await ensureTimers({ now: '2026-08-25T00:00:00Z' });
     expect(n).toBe(EXPECTED_TIMERS);
   });

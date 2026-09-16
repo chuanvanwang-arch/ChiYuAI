@@ -15,6 +15,7 @@ import { query, pool } from '../db.js';
 import { readConfig } from '../config/configStore.js';
 import { setSignalStore } from '../agent/eventTrigger.js';
 import { createGrantSweeper } from '../authorization/grantSweeper.js';
+import { createSignalObservabilitySweep } from '../monitor/signalMetrics.js';
 import { saveNightlyReport } from '../report/nightlyReport.js';
 import { recordTokens as realRecordTokens } from '../alerts/tokenAccounting.js';
 import { scanEscalations } from '../calibration/store.js';
@@ -548,6 +549,18 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   };
   const grantSweepTimer = setInterval(runGrantSweep, grantSweepIntervalMs);
   timers.set('grant-sweep', { handle: grantSweepTimer, intervalMs: grantSweepIntervalMs, kind: 'rule', registeredAt: now });
+
+  // ⑯ S7 T20 信号链路观测巡检（逐租户负向判据 delivery_silent/gen_silent → 报警）；每 1h，受 VITEST 护栏
+  const signalObsIntervalMs = Number(process.env.SIGNAL_OBS_MS || 3600000);
+  const runSignalObs = () => {
+    if (process.env.VITEST) return; // 测试隔离护栏
+    const sweep = createSignalObservabilitySweep();
+    sweep.sweepOnce()
+      .then((r) => { if (r.fired) emit('trace', 'signal-observability-sweep', r); })
+      .catch((err) => { emit('trace', 'signal-observability-sweep-failed', { error: String(err?.message || err) }); recordFailure('signal-observability-sweep-failed', err); });
+  };
+  const signalObsTimer = setInterval(runSignalObs, signalObsIntervalMs);
+  timers.set('signal-observability-scan', { handle: signalObsTimer, intervalMs: signalObsIntervalMs, kind: 'rule', registeredAt: now });
 
   return timers.size;
 }
