@@ -314,17 +314,51 @@ TDD 红灯已复现（4 例失败于调用计数），实现后 **6/6 通过**�
   教训：**"浪费比例大" ≠ "用户感知强"**，排序必须用「浪费 × 频率」而非单看浪费倍数。
 - **P0-4（限流）属卫生项**，服务器 CPU 仅 0.16%，对用户延迟无贡献。
 
-## 6.5 如需启用 `pg_stat_statements`（后续可选）
+## 6.5 `pg_stat_statements` 启用方案（已定稿，生产待执行）
 
-需要改**容器启动命令**（命令行 `-c` 优先于配置文件）：
+**为何必须改启动命令**：`crm-pg` 以命令行 `postgres -c shared_preload_libraries=age` 启动，
+**命令行优先级高于 `postgresql.auto.conf`** → `ALTER SYSTEM SET shared_preload_libraries` 被静默覆盖
+（决定性判据：`pg_settings.source = 'command line'`）。故只能改容器启动命令。
+已 `ALTER SYSTEM RESET shared_preload_libraries` 收回那条无效行，避免留下误导性配置。
+
+**改哪里**：`scripts/tencent-lighthouse-deploy/docker-compose.age.yml` 的 db 服务，**不是主文件**——
+主文件默认镜像是纯 `pgvector/pgvector:pg16`（不含 `age.so`）；把 `age` 写进主文件会让
+「不叠加 AGE override」的环境**启动失败**。放 age.yml 才语义自洽（只有 AGE 环境需要）。
+
+**前置校验（缺 .so 则容器起不来 → 生产库不可用，务必先跑）**：
 
 ```bash
-# /opt/crm-ai-native/scripts/tencent-lighthouse-deploy/docker-compose.age.yml 的 db 服务加：
-command: ["postgres", "-c", "shared_preload_libraries=age,pg_stat_statements"]
-# 然后（必须叠加 age override，否则 AGE 丢失）
-docker compose -f docker-compose.yml -f docker-compose.age.yml --env-file .env up -d db
-# 起来后：CREATE EXTENSION IF NOT EXISTS pg_stat_statements
+docker exec crm-pg ls -l /usr/lib/postgresql/16/lib/pg_stat_statements.so
 ```
+
+**已落地到仓库**（本文件提交时一并带出）：
+
+```yaml
+    command: postgres -c shared_preload_libraries=age,pg_stat_statements
+```
+
+**生产执行（建议低峰期；db 容器会重建，重启约 10~30s）**：
+
+```bash
+cd /opt/crm-ai-native/scripts/tencent-lighthouse-deploy
+cp docker-compose.age.yml docker-compose.age.yml.bak.20260916
+sed -i '/^    image: crm-pg-age:pg16/a\    command: postgres -c shared_preload_libraries=age,pg_stat_statements' docker-compose.age.yml
+docker compose -f docker-compose.yml -f docker-compose.age.yml --env-file .env up -d db
+docker exec crm-pg psql -U agent2b -d crm_native -c "show shared_preload_libraries"   # 期望: age,pg_stat_statements
+docker exec crm-pg psql -U agent2b -d crm_native -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements"
+docker compose -f docker-compose.yml -f docker-compose.age.yml --env-file .env restart app mcp
+```
+
+**回滚（db 起不来时）**：
+
+```bash
+cd /opt/crm-ai-native/scripts/tencent-lighthouse-deploy
+cp docker-compose.age.yml.bak.20260916 docker-compose.age.yml
+docker compose -f docker-compose.yml -f docker-compose.age.yml --env-file .env up -d db
+docker logs --tail 40 crm-pg
+```
+
+数据安全：db 数据在 named volume `pgdata` 内，重建容器**不丢数据**（`up -d db` 不改动卷）。
 
 ## 6.6 回滚方式（nginx）
 
