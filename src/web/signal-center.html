@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"><title>信号中心 · 主动运行时</title>
+<meta charset="utf-8"><title>销售自动化 · 主动运行时</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="/portal/tokens.css">
 <link rel="stylesheet" href="/portal/common.css">
@@ -28,6 +28,8 @@
  .sc-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
  .sc-card .k{font-size:12px;color:var(--mut);margin-bottom:6px}
  .sc-card .v{font-size:20px;font-weight:600}
+ .sc-card .hint{font-size:11px;color:var(--mut);margin-top:3px}
+ .sc-code{color:var(--mut);font-size:11px}
  .sc-block{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px}
  .sc-block h3{font-size:13px;margin:0 0 8px;color:var(--mut);font-weight:500}
  .sc-alert{border:1px solid #dc2626;background:rgba(220,38,38,.08);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px}
@@ -39,10 +41,11 @@
 <body>
 <div class="sc-wrap" id="signal-center-root">
   <div class="sc-head">
-    <h2>信号中心</h2>
+    <!-- 显示名对齐左侧菜单「销售自动化」（2026-09-16 更名，原「信号中心」）；文件/路由/端点标识保持 signal-center 不变 -->
+    <h2>销售自动化</h2>
     <span class="muted" id="scCount"></span>
   </div>
-  <p class="sc-sub">统一信号收口（crm.signal）——巡检/事件/研究产出的信号在此确认或否决。</p>
+  <p class="sc-sub">系统替你盯出来的事都收在这张表里——日常巡检（拜访/信息/商机）、事件触发（客户资料变动）、情报研究。点「确认」＝我知道了，点「否决」＝这件事不用跟。</p>
 
   <section class="sc-toolbar">
     <label>状态
@@ -72,24 +75,24 @@
 
   <section id="signal-metrics" data-signal-metrics>
     <div class="sc-metrics">
-      <div class="sc-card"><div class="k">投递成功率</div><div class="v" id="m-success">—</div></div>
-      <div class="sc-card"><div class="k">平均延迟</div><div class="v" id="m-latency">—</div></div>
-      <div class="sc-card"><div class="k">冲突/损失</div><div class="v" id="m-conflict">—</div></div>
-      <div class="sc-card"><div class="k">自治执行量</div><div class="v" id="m-exec">—</div></div>
+      <div class="sc-card"><div class="k">提醒送达率</div><div class="v" id="m-success">—</div><div class="hint">提醒有没有真的送到人</div></div>
+      <div class="sc-card"><div class="k">平均延迟</div><div class="v" id="m-latency">—</div><div class="hint">从产生到送达花了多久</div></div>
+      <div class="sc-card"><div class="k">冲突/损失</div><div class="v" id="m-conflict">—</div><div class="hint">没送成功的条数</div></div>
+      <div class="sc-card"><div class="k">自治执行量</div><div class="v" id="m-exec">—</div><div class="hint">系统自己动手做了几件</div></div>
     </div>
     <div class="sc-block">
-      <h3>链路负向判据（静默断链报警）</h3>
+      <h3>链路健康告警（该发的提醒却没发出去 · 正常时为空）</h3>
       <div id="neg-alerts"><p class="sc-ok">暂无</p></div>
     </div>
     <div class="sc-block">
-      <h3>信任降级事件（追溯链）</h3>
+      <h3>自动动作被叫停记录（连续被否决后系统收回放权）</h3>
       <div id="down-list"><p class="sc-ok">暂无</p></div>
     </div>
   </section>
 
   <table class="sc-table" id="signal-table" data-signal-table>
     <thead>
-      <tr><th>类型</th><th>严重度</th><th>对象</th><th>摘要</th><th>时间</th><th>动作</th></tr>
+      <tr><th>事项</th><th>紧急度</th><th>对象</th><th>说明</th><th>时间</th><th>动作</th></tr>
     </thead>
     <tbody></tbody>
   </table>
@@ -112,6 +115,49 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const authHeaders = () => ({ Authorization: `Bearer ${token}` });
 
 const STATUS_TEXT = { open: '待处理', acked: '已确认', closed: '已否决', acted: '已成单' };
+
+// 展示层中文化（2026-09-16）：页面是给人看的，不再直出后端代码。
+// 鉴别力：kind 未登记时回落原文——宁可见代码，也不静默显示空白（防「看起来都对」的假绿）。
+const SEV_TEXT = { high: '高', medium: '中', low: '低' };
+const KIND_TEXT = {
+  // src/alerts/alertRegistry.js 的 13 个登记 kind（守门断言见 test/web/signalCenterPage.test.js）
+  deal_stuck: '商机停滞',
+  lead_overdue: '线索跟进逾期',
+  forecast_breach: '预测缺口',
+  approval_bottleneck: '审批积压',
+  payment_due: '回款到期',
+  payment_gap: '应收差额超限',
+  payment_due_plan: '回款计划逾期',
+  coverage_gap: '目标客户覆盖缺口',
+  lost_contact: '客户接触流失警戒',
+  funnel_unhealthy: '漏斗不健康',
+  commit_red: '承诺准确率红带',
+  funnel_jitter: '漏斗抖动超标',
+  named_visit_overdue: '指名拜访逾期',
+  // 扫描器/事件源产出的 kind
+  s0_stale: '公海线索滞留',
+  visit_shortfall: '拜访量不达标',
+  info_collect_lag: '客户信息缺失',
+  object_changed: '客户资料变动',
+  suggestion_card: '研究建议卡',
+  'signal-observability': '链路断链告警',
+};
+const REASON_TEXT = { 'consecutive-rejects': '连续被人否决', 'usage-limit': '用量超限' };
+const shortId = (v) => (typeof v === 'string' && v.length > 12 ? v.slice(0, 8) : v);
+// payload 里常带长 UUID（如 suggestion_card 的 subject），展示时截断，避免一屏全是乱码
+const tidy = (t) => String(t || '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, (m) => m.slice(0, 8));
+
+// 说明列：优先用 payload 里的业务量（滞留天数/逾期天数/拜访缺口），
+// 退回到 subject——否则只会显示「s0_stale 预警」这类零信息量的句子。
+function summaryOf(s) {
+  const p = s.payload || {};
+  if (p.ageDays != null) return `公海已滞留 ${p.ageDays} 天，仍无人认领`;
+  if (p.overdueDays != null) return `逾期 ${p.overdueDays} 天${p.named_owner ? `（责任人 ${p.named_owner}）` : ''}`;
+  if (p.dailyVisits != null && p.dailyTarget != null) return `今日拜访 ${p.dailyVisits} 次 / 目标 ${p.dailyTarget} 次`;
+  if (p.weekNew != null && p.weeklyMin != null) return `本周新增 ${p.weekNew} 条 / 目标 ${p.weeklyMin} 条`;
+  const sub = tidy(p.subject || s.suggestion || '');
+  return sub || KIND_TEXT[s.kind] || s.kind || '';
+}
 
 async function load() {
   const status = $('filter-status').value;
@@ -137,15 +183,18 @@ async function load() {
   const tbody = document.querySelector('#signal-table tbody');
   tbody.innerHTML = '';
   for (const s of items) {
+    const p = s.payload || {};
     const tr = document.createElement('tr');
     const actBtn = s.status === 'open'
       ? `<button data-ack="${esc(s.signal_id)}">确认</button> <button data-close="${esc(s.signal_id)}">否决</button>`
       : `<span class="muted">${STATUS_TEXT[s.status] || s.status}</span>`;
+    // 对象列优先显示业务可读标识（external_id），退化到 ID 前 8 位，鼠标悬停可见完整 ID
+    const objText = p.external_id || shortId(s.particle_id) || '—';
     tr.innerHTML = `
-      <td>${esc(s.kind || '')}</td>
-      <td class="sev-${esc(s.severity || 'low')}">${esc(s.severity || '')}</td>
-      <td>${esc(s.particle_id || '—')}</td>
-      <td title="${esc(JSON.stringify(s.payload || {}))}">${esc((s.payload?.subject || s.kind || '').slice(0, 40))}</td>
+      <td>${esc(KIND_TEXT[s.kind] || s.kind || '')}<div class="sc-code">${esc(s.kind || '')}</div></td>
+      <td class="sev-${esc(s.severity || 'low')}">${esc(SEV_TEXT[s.severity] || s.severity || '')}</td>
+      <td title="${esc(s.particle_id || '')}">${esc(objText)}</td>
+      <td title="${esc(JSON.stringify(s.payload || {}))}">${esc(summaryOf(s).slice(0, 48))}</td>
       <td>${s.created_at ? esc(new Date(s.created_at).toLocaleString()) : ''}</td>
       <td>${actBtn}</td>`;
     tbody.appendChild(tr);
@@ -161,7 +210,7 @@ function fillKindFilter(items) {
   for (const k of kinds) {
     const o = document.createElement('option');
     o.value = k;
-    o.textContent = k;
+    o.textContent = KIND_TEXT[k] || k;
     sel.appendChild(o);
   }
   sel.dataset.filled = '1';
@@ -193,14 +242,14 @@ async function loadMetrics() {
   const neg = Array.isArray(d.negative_predicates) ? d.negative_predicates : [];
   $('neg-alerts').innerHTML = neg.length ? neg.map((a) => {
     const label = a.type === 'delivery_silent'
-      ? `投递静默：渠道「${esc(a.channel)}」已启用但窗口内零投递行`
-      : `信号生成静默：外部事件命中 ${esc(a.fired)} 次但无内部信号生成`;
+      ? `提醒没送出去：渠道「${esc(a.channel)}」已开启，但窗口内一条都没发出去`
+      : `外部事件命中 ${esc(a.fired)} 次，系统却一条提醒都没生成`;
     return `<div class="sc-alert">${label}</div>`;
   }).join('') : '<p class="sc-ok">暂无</p>';
 
   const paused = d.downgrades?.paused_grants || [];
   $('down-list').innerHTML = paused.length ? paused.map((g) =>
-    `<div class="sc-down">凭证「${esc(g.title || g.grant_id)}」已降级暂停（${esc(g.paused_reason || '—')}）· ${g.paused_at ? esc(new Date(g.paused_at).toLocaleString()) : ''}</div>`
+    `<div class="sc-down">自动执行凭证「${esc(g.title || shortId(g.grant_id) || '—')}」已被暂停（原因：${esc(REASON_TEXT[g.paused_reason] || g.paused_reason || '—')}）· ${g.paused_at ? esc(new Date(g.paused_at).toLocaleString()) : ''}</div>`
   ).join('') : '<p class="sc-ok">暂无</p>';
 }
 
