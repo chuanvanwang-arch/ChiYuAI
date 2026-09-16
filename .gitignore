@@ -137,3 +137,20 @@ outputs/
 doc/*.pptx
 doc/*.pdf
 doc/event/
+
+# ===== 2026-09-16 清理盘点：会话临时产物/敏感备份/调试脚本（不入库） =====
+# 环境变量备份（含数据库密码等凭据，绝不入库）
+.env.bak.*
+# 一次性输出 dump（探活/验证命令 stdout 落盘）
+out.json
+# 发布工作树（release 打包中间产物，非源码）
+.release-wt/
+# diff 补丁/验证产物（含 .git-verify-seed-actions.diff 空壳）
+*.diff
+# 调试脚本（dbg-* / tmp-* 连字符形式，ad-hoc 一次性）
+scripts/dbg-*.mjs
+scripts/tmp-*.mjs
+# Python 字节码缓存（全仓）
+__pycache__/
+# 会话运行态输出（一次性 JSON 探针结果）
+*.tmp.json
