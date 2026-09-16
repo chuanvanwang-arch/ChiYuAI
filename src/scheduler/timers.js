@@ -11,7 +11,7 @@ import { runIcpEvolutionPass } from '../evolution/icpSelfEvolution.js';
 import { createIcpStore } from '../evolution/icpStore.js';
 import { emit } from '../events/bus.js';
 import { recordFailure } from '../monitor/monitorStore.js';
-import { query } from '../db.js';
+import { query, pool } from '../db.js';
 import { readConfig } from '../config/configStore.js';
 import { saveNightlyReport } from '../report/nightlyReport.js';
 import { recordTokens as realRecordTokens } from '../alerts/tokenAccounting.js';
@@ -243,7 +243,7 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
     (async () => {
       const { salesDailyScan } = await import('./salesDailyScan.js');
       const { mergedThresholds } = await import('../sales/salesThresholds.js');
-      const { createAlert } = await import('../alerts/alertStore.js');
+      const { createAlertWithDb } = await import('../alerts/alertStore.js');
       // 多租户（T3，P0，设计 §3.3.1）：平台巡检器做租户循环——每租户读自身配置 + 扫描自身粒子。
       //   listActiveTenants 由 T9 提供（crm.tenants status='active'）；缺失时回退单租户 [{tenant_id:'system'}]（存量兼容）
       const { listActiveTenants } = await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }));
@@ -273,10 +273,12 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         totalScanned += accRes.rows.length + dealRes.rows.length;
         totalHits += hits.length;
         for (const h of hits) {
-          const a = createAlert({
+          // B-B3（2026-09-16 主动运行时 S1）：createAlertWithDb 双写（内存 + crm.signal DB），
+          //   巡检命中「落库」而非仅内存——信号中心/工作台第7视角/首页卡才能看到
+          const a = await createAlertWithDb(pool, {
             kind: h.kind, severity: h.severity,
             target_role: h.severity === 'high' ? 'exec' : 'sales',
-            particle_id: h.particle_id, payload: h.metric,
+            tenant_id: t.tenant_id, particle_id: h.particle_id, payload: h.metric,
           });
           if (a.ok) emit('alert', h.kind, { alert_id: a.alert.alert_id, kind: h.kind, metric: h.metric, tenant_id: t.tenant_id });
         }

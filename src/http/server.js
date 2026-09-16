@@ -13,6 +13,12 @@ import { seedSkillRegistry, applySkillRegistryToMemory } from '../skills/skillRe
 import { seedSkills } from '../skills/seed.js';
 // S05 T6：财务逾期告警 hook（订阅 payment 域 payment_overdue_plan → payment_due_plan 告警）
 import { registerFinanceAlertHook } from '../alerts/financeAlertHook.js';
+// 主动运行时 S1（2026-09-16）：告警 → crm.signal 落库单一收敛点（挂 createAlert 的 persister）。
+//   ⚠ 同 registerOutcomeIngester 教训（line 24）：此处 import 与调用必须同时到位——
+//   只有调用没有 import 时，下方 try/catch 会静默吞掉 "is not defined"，信号落库静默失效（假绿）。
+//   测试 test/signal/alertPersistWiring.test.js 对此有专门断言（含静态守卫）。
+import { registerAlertSignalPersister } from '../alerts/alertSignalHook.js';
+import { pool } from '../db.js';
 // ③ 事件触发式复盘：订阅 decision 域 confirmed → 按 business_tier + 冷却窗自动建复盘任务
 // 设计 docs/2026-09-01-event-triggered-retro-design.md；阈值走 config_store['event-retro']
 import { registerRetroTrigger } from '../decision/retroTrigger.js';
@@ -72,6 +78,10 @@ export function createApp() {
   try { seedSkills(); } catch (e) { console.log(`[skill-registry] seedSkills fail: ${e.message}`); }
   // S05 T6：财务逾期告警 hook 注册（订阅 payment 域；subscribe 同步幂等，不阻塞启动）
   try { registerFinanceAlertHook(); } catch (e) { console.log(`[finance-alert-hook] register fail: ${e.message}`); }
+  // 主动运行时 S1（2026-09-16）：信号落库收敛点注册——此后**任何** createAlert 产生的告警
+  //   都会映射为 crm.signal（信号中心/工作台第7视角/首页卡的数据源）。同步注册（pool 已具）避免
+  //   动态 import 造成的启动竞态（早于注册的告警会漏落库）。
+  try { registerAlertSignalPersister({ pool }); } catch (e) { console.log(`[signal-persist] register fail: ${e.message}`); }
   // ③ 事件触发式复盘注册（订阅 decision 域 confirmed；幂等，异常仅日志不阻断启动）
   try { registerRetroTrigger(); } catch (e) { console.log(`[retro-trigger] register fail: ${e.message}`); }
   // T21 J3 自动建议注册：监听 decision 域（新决策/结果回写/反馈回写）→ 偏差触达时经 SSE 推浮卡

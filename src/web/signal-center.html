@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>信号中心 · 主动运行时</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<link rel="stylesheet" href="/portal/page.css">
+<style>
+ .sc-wrap{max-width:1120px}
+ .sc-head{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
+ .sc-head h2{font-size:18px;margin:0}
+ .sc-sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+ .sc-toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+ .sc-toolbar label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+ .sc-toolbar select,.sc-toolbar button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13px}
+ .sc-table{width:100%;border-collapse:collapse;font-size:13px}
+ .sc-table th,.sc-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+ .sc-table th{color:var(--mut);font-weight:500;font-size:12px}
+ .sc-table button{padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px;cursor:pointer}
+ .sc-table button:hover{border-color:var(--acc)}
+ .sev-high{color:#dc2626;font-weight:600}
+ .sev-medium{color:#d97706}
+ .sev-low{color:var(--mut)}
+ .muted{color:var(--mut)}
+ .sc-empty{padding:22px;text-align:center;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="sc-wrap" id="signal-center-root">
+  <div class="sc-head">
+    <h2>信号中心</h2>
+    <span class="muted" id="scCount"></span>
+  </div>
+  <p class="sc-sub">统一信号收口（crm.signal）——巡检/事件/研究产出的信号在此确认或否决。</p>
+
+  <section class="sc-toolbar">
+    <label>状态
+      <select id="filter-status" data-signal-status>
+        <option value="">全部</option>
+        <option value="open">待处理</option>
+        <option value="acked">已确认</option>
+        <option value="closed">已否决</option>
+        <option value="acted">已成单</option>
+      </select>
+    </label>
+    <label>严重度
+      <select id="filter-severity" data-severity>
+        <option value="">全部</option>
+        <option value="high">高</option>
+        <option value="medium">中</option>
+        <option value="low">低</option>
+      </select>
+    </label>
+    <label>类型
+      <select id="filter-kind" data-signal-kind>
+        <option value="">全部</option>
+      </select>
+    </label>
+    <button id="refresh" data-refresh>刷新</button>
+  </section>
+
+  <table class="sc-table" id="signal-table" data-signal-table>
+    <thead>
+      <tr><th>类型</th><th>严重度</th><th>对象</th><th>摘要</th><th>时间</th><th>动作</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p class="sc-empty" id="scEmpty" hidden>当前筛选条件下没有信号。</p>
+  <p class="sc-sub">「采纳（转成单行动）」在 S3 建议卡回路交付后启用，当前置灰不造假绿。</p>
+</div>
+
+<script type="module">
+import { injectLayout } from '/portal/layout.js';
+
+// 鉴权对齐既有页面范式（lead-pool / today-priority）：Bearer token 走 Authorization 头。
+// ⚠ 不再使用 x-tenant-id 头——resolveMe 只认 token（src/http/auth.js:57），该头从不被读取，
+//    曾导致全部请求回落 system 租户（登录用户看不到本租户信号 = 假象）。
+const token = localStorage.getItem('crm_token');
+if (!token) location.href = '/home.html';
+injectLayout();
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const authHeaders = () => ({ Authorization: `Bearer ${token}` });
+
+const STATUS_TEXT = { open: '待处理', acked: '已确认', closed: '已否决', acted: '已成单' };
+
+async function load() {
+  const status = $('filter-status').value;
+  const severity = $('filter-severity').value;
+  const kind = $('filter-kind').value;
+  const q = new URLSearchParams();
+  if (status) q.set('status', status);
+  if (severity) q.set('severity', severity);
+  if (kind) q.set('kind', kind);
+
+  const res = await fetch(`/api/signals?${q}`, { headers: authHeaders() });
+  if (!res.ok) {
+    document.querySelector('#signal-table tbody').innerHTML =
+      `<tr><td colspan="6" class="muted">加载失败：HTTP ${res.status}</td></tr>`;
+    return;
+  }
+  const data = await res.json().catch(() => ({ items: [] }));
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  $('scCount').textContent = `${items.length} 条`;
+  $('scEmpty').hidden = items.length > 0;
+
+  const tbody = document.querySelector('#signal-table tbody');
+  tbody.innerHTML = '';
+  for (const s of items) {
+    const tr = document.createElement('tr');
+    const actBtn = s.status === 'open'
+      ? `<button data-ack="${esc(s.signal_id)}">确认</button> <button data-close="${esc(s.signal_id)}">否决</button>`
+      : `<span class="muted">${STATUS_TEXT[s.status] || s.status}</span>`;
+    tr.innerHTML = `
+      <td>${esc(s.kind || '')}</td>
+      <td class="sev-${esc(s.severity || 'low')}">${esc(s.severity || '')}</td>
+      <td>${esc(s.particle_id || '—')}</td>
+      <td title="${esc(JSON.stringify(s.payload || {}))}">${esc((s.payload?.subject || s.kind || '').slice(0, 40))}</td>
+      <td>${s.created_at ? esc(new Date(s.created_at).toLocaleString()) : ''}</td>
+      <td>${actBtn}</td>`;
+    tbody.appendChild(tr);
+  }
+  fillKindFilter(items);
+}
+
+// 类型下拉按当前结果集动态填充（避免硬编码 kind 清单与后端漂移）
+function fillKindFilter(items) {
+  const sel = $('filter-kind');
+  if (sel.dataset.filled === '1') return;
+  const kinds = [...new Set(items.map((s) => s.kind).filter(Boolean))].sort();
+  for (const k of kinds) {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = k;
+    sel.appendChild(o);
+  }
+  sel.dataset.filled = '1';
+}
+
+// 确认/否决：POST 状态变更端点（写 crm.signal，租户取自身——写不跨租户）
+async function act(signalId, action) {
+  const path = `/api/signals/${signalId}/${action === 'ack' ? 'ack' : 'close'}`;
+  const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    alert(`操作失败：${data.error || res.status}`);
+    return;
+  }
+  load();
+}
+
+$('refresh').addEventListener('click', load);
+$('filter-status').addEventListener('change', load);
+$('filter-severity').addEventListener('change', load);
+$('filter-kind').addEventListener('change', load);
+$('signal-table').addEventListener('click', (e) => {
+  const ack = e.target.closest('[data-ack]');
+  const close = e.target.closest('[data-close]');
+  if (ack) act(ack.dataset.ack, 'ack');
+  else if (close) act(close.dataset.close, 'close');
+});
+load();
+</script>
+</body>
+</html>

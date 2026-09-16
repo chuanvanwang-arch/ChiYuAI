@@ -106,6 +106,10 @@ import { reconcilePlan } from '../sales/paymentService.js';
 // S05 T4：差额超阈值预警写回（createAlert 落库 + bus 'alert' 域转播，与 alertHook 同链路）
 import { createAlert } from '../alerts/alertStore.js';
 import { emit } from '../events/bus.js';
+// B-B1（2026-09-16 主动运行时 S1）：alertEndpoints 8 端点挂载（此前清单在、处理器在、挂载方没来）
+import { buildAlertHandlers, ALERT_ENDPOINTS } from '../alerts/alertEndpoints.js';
+// 信号端点（2026-09-16 主动运行时 S1）：crm.signal 统一收口列表/确认/否决
+import { createSignalStore } from '../signal/store.js';
 // 门户真实登录认证（v2 双页：Home.html → token → index.html）
 import { login, resolveMe } from './auth.js';
 import { handleRegister } from './selfRegister.js'; // 自助注册（公开，免 admin 闸；按公司名自动判定租户）
@@ -328,6 +332,60 @@ export function createRoutes(app, hub) {
   // S05 T2/T5：财务应收看板页 + 财务应收配置页路由（sendFile 实时读 src/web，重启非必需）
   app.get('/receivables.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/receivables.html', import.meta.url))));
+  // B-B1（2026-09-16 主动运行时 S1）：挂载 alertEndpoints 8 端点（ALERT_ENDPOINTS 权威清单）
+  {
+    const alertHandlers = buildAlertHandlers();
+    app.get('/api/alerts', (req, res) => res.json(alertHandlers.list({ kind: req.query.kind, status: req.query.status })));
+    app.post('/api/alerts/:id/ack', (req, res) => res.json(alertHandlers.ack(req.params.id)));
+    app.post('/api/alerts/:id/close', (req, res) => res.json(alertHandlers.close(req.params.id, { reason: req.body?.reason })));
+    app.get('/api/alerts/rules', (req, res) => res.json(alertHandlers.rules()));
+    app.post('/api/alerts/rules/:kind/enable', (req, res) => res.json(alertHandlers.setRule(req.params.kind, 'enable')));
+    app.post('/api/alerts/rules/:kind/disable', (req, res) => res.json(alertHandlers.setRule(req.params.kind, 'disable')));
+    app.post('/api/alerts/evaluate', (req, res) => res.json(alertHandlers.evaluate({ rule: req.body?.rule, event: req.body?.event })));
+    app.get('/api/feedback/metrics', (req, res) => res.json(alertHandlers.feedbackMetrics()));
+  }
+  // 信号端点（2026-09-16 主动运行时 S1）：列表/确认（ack=acked）/否决（close=closed）——写 crm.signal，经 scopeTenant 隔离
+  //   ⚠ 2026-09-16 修正：原实现把 {id:...} 传给 scopeTenant（其读 me.tenantId）→ 恒回落 'system'（登录用户看不到本租户信号）；
+  //     且未鉴权（未登录可读写 system）、severity 筛选未接（页面筛选项点了无反应）。此处对齐 /api/lead-pool 范式。
+  {
+    const signalStore = createSignalStore(pool);
+    const requireMe = (req, res) => {
+      const me = resolveMe(req);
+      if (!me?.ok) { res.status(401).json({ error: '未登录' }); return null; }
+      return me;
+    };
+    // 读：admin/sysadmin 通配 '*'（全量，store.list 显式处理）或 ?tenant 显式收窄；普通用户自身租户
+    app.get('/api/signals', async (req, res) => {
+      const me = requireMe(req, res);
+      if (!me) return;
+      try {
+        const items = await signalStore.list({
+          tenant_id: applyTenantOverride(req, me),
+          status: req.query.status,
+          kind: req.query.kind,
+          severity: req.query.severity,
+        });
+        res.json({ items });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // 写：scopeOf（永不通配——写不跨租户铁律；admin 也写自身所属租户）
+    app.post('/api/signals/:id/ack', async (req, res) => {
+      const me = requireMe(req, res);
+      if (!me) return;
+      try {
+        const r = await signalStore.setStatus(scopeOf(me), req.params.id, 'acked');
+        res.json(r.ok ? { ok: true, signal: r.alert } : { ok: false, error: r.error });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.post('/api/signals/:id/close', async (req, res) => {
+      const me = requireMe(req, res);
+      if (!me) return;
+      try {
+        const r = await signalStore.setStatus(scopeOf(me), req.params.id, 'closed', { reason: req.body?.reason });
+        res.json(r.ok ? { ok: true, signal: r.alert } : { ok: false, error: r.error });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+  }
   app.get('/finance-receivables.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/finance-receivables.html', import.meta.url))));
   // 多租户计费看板页（T6）：全员可见；租户隔离在 API 层（applyTenantOverride/scopeTenant）强制本租户
@@ -366,6 +424,11 @@ export function createRoutes(app, hub) {
   // 公海池明细页（T5）：S0 待领取线索列表 + 认领闭环；页面 JS 负责拉 /api/lead-pool 与 /api/lead-pool/:id/pick
   app.get('/lead-pool.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/lead-pool.html', import.meta.url))));
+  // 信号中心页（主动运行时 S1，2026-09-16）：统一信号收口 crm.signal 明细 + 确认/否决
+  //   ⚠ 本仓页面**无通配 html 路由**，逐条显式注册；漏注册 = 菜单点开 404（单测只读文件内容，测不出）
+  app.get('/signal-center.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/signal-center.html', import.meta.url))));
+  app.get('/signal-center', (req, res) => res.redirect('/signal-center.html'));
   // 租户管理页（T8：crm.tenants 列表含创建者列 + 按创建者筛选；经 /api/tenants?createdBy= 读写，角色闸在 tenantRouter.js）
   app.get('/tenant-management.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/tenant-management.html', import.meta.url))));

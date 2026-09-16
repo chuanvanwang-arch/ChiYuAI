@@ -24,6 +24,7 @@ import { schema as WORKBENCH_SCHEMA } from '../pages/S33-workbench.schema.js';
 import { toStageCode, isOpenStage, isPoolStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）+ 公海排除（2026-09-11 T9）
 import { advanceTask } from '../approval/engine.js';
 import { query } from '../db.js';
+import { buildSignalView } from '../signal/workbenchView.js'; // 第7视角（信号）处理器（2026-09-16 主动运行时 S1）
 
 // 六视角别名（VIEW_ALIASES 供成品页切换 tab 文案；映射到 schema 组件 view）
 export const VIEW_ALIASES = {
@@ -33,6 +34,7 @@ export const VIEW_ALIASES = {
   cc: '抄送我的',
   follow: '待跟进',
   tuning: '参数调优',
+  signals: '信号',
 };
 export const VIEWS = Object.keys(VIEW_ALIASES);
 
@@ -77,6 +79,13 @@ const defaultDeps = {
     }
     return out;
   },
+  // 信号数据源（第7视角 2026-09-16 主动运行时 S1）：crm.signal 统一收口（buildSignalView 消费）
+  querySignals: async (actor, { status, kind } = {}) => {
+    const { createSignalStore } = await import('../signal/store.js');
+    const { pool } = await import('../db.js');
+    const store = createSignalStore(pool);
+    return store.list({ tenant_id: scopeTenant(actor), status, kind }).catch(() => []);
+  },
   render: (schema, data) => renderPage(schema, data),
 };
 
@@ -89,14 +98,37 @@ function matchApprover(approver, actor) {
   return approver === actor?.username;
 }
 
-// 视角 → 行组装（服务端按当前人过滤；payload 承载字段）
-async function buildViewRows(view, actor, deps) {
+// 视角 → 所需数据源（2026-09-16 性能 P0）
+//   原实现：buildViewRows 无条件 Promise.all 拉取全部 4 个源，而 badge 对 7 个视角各调一次
+//   → 4×7 = 28 次依赖调用；其中 queryFollowSource 自身串行 7 条 SQL → 合计约 72 条 SQL/次。
+//   现按视角声明依赖：单视角只拉自己需要的源；badge 走 '__all__' 一次性装载、全视角共用。
+const VIEW_SOURCES = {
+  approval: ['approvalTasks'],
+  processing: ['kanbanTasks'],
+  initiated: ['instances'],
+  cc: ['instances'],
+  follow: ['followSource'],
+  tuning: [],   // 只走 deps.queryPatches（校准表），不消费粒子源
+  signals: [],  // 只走 deps.querySignals（信号 store），不消费粒子源
+  __all__: ['approvalTasks', 'instances', 'kanbanTasks', 'followSource'], // badge 全视角共用
+};
+
+// 按视角装载所需源（未声明的源直接以 [] 占位，零查询）
+async function loadSources(view, actor, deps) {
+  const need = new Set(VIEW_SOURCES[view] || []);
   const [approvalTasks, instances, kanbanTasks, followSource] = await Promise.all([
-    deps.queryApprovalTasks(actor),
-    deps.queryApprovalInstances(actor),
-    deps.queryKanbanTasks(actor),
-    deps.queryFollowSource(actor),
+    need.has('approvalTasks') ? deps.queryApprovalTasks(actor) : [],
+    need.has('instances') ? deps.queryApprovalInstances(actor) : [],
+    need.has('kanbanTasks') ? deps.queryKanbanTasks(actor) : [],
+    need.has('followSource') ? deps.queryFollowSource(actor) : [],
   ]);
+  return { approvalTasks, instances, kanbanTasks, followSource };
+}
+
+// 视角 → 行组装（服务端按当前人过滤；payload 承载字段）
+//   纯计算：只消费传入的 sources，不自行取数（取数由 loadSources 负责，便于复用同一批数据）。
+async function rowsFrom(view, sources, actor, deps) {
+  const { approvalTasks, instances, kanbanTasks, followSource } = sources;
   switch (view) {
     case 'approval': {
       // 待我审批：task.status='todo'（兼容 TODO/todo 大小写）+ approver 匹配当前人/角色
@@ -196,9 +228,29 @@ async function buildViewRows(view, actor, deps) {
       }
       return todos;
     }
+    case 'signals': {
+      // 第7视角：信号（2026-09-16 主动运行时 S1）—— crm.signal 统一收口（open 优先）
+      const view = buildSignalView({ store: { list: (o) => deps.querySignals(actor, o) } });
+      const r = await view.list({ tenant_id: scopeTenant(actor), status: undefined, kind: undefined });
+      return r.items.map((s) => ({
+        id: s.signal_id,
+        title: s.payload?.subject || s.kind,
+        kind: s.kind,
+        severity: s.severity,
+        status: s.status,
+        target_role: s.target_role,
+        particle_id: s.particle_id || '',
+        created_at: s.created_at || '',
+      }));
+    }
     default:
       return [];
   }
+}
+
+// 单视角入口：只装载该视角需要的源（语义等价，单视角依赖调用数由 4 降为 0~1）
+async function buildViewRows(view, actor, deps) {
+  return rowsFrom(view, await loadSources(view, actor, deps), actor, deps);
 }
 
 export function createWorkbenchRouter({ deps = {} } = {}) {
@@ -242,15 +294,18 @@ export function createWorkbenchRouter({ deps = {} } = {}) {
   router.get('/api/my-todo', handlers.get);
 
   // 轻量角标端点（侧栏数字提醒；对齐 /api/board/named-account-manage 的 followReminders 模式）
-  // 返回各视角待处理计数（仅 number[]，不含行明细；轮询 60s 消耗极低）
+  // 返回各视角待处理计数（仅 number[]，不含行明细）。
+  // 2026-09-16 性能 P0：本端点由 layout.js 以 60s 周期在全部页面轮询，
+  //   原实现对 7 个视角各调一次 buildViewRows → 每视角重复拉取全部 4 个源
+  //   （28 次依赖调用 / 约 72 条 SQL）。改为一次性装载共用源后逐视角计算计数。
   router.get('/api/my-todo/badge', async (req, res) => {
     try {
       const actor = await D.currentActor(req);
-      const rows = await Promise.all(
-        VIEWS.map((v) => buildViewRows(v, actor, D))
-      );
+      const sources = await loadSources('__all__', actor, D);
       const counts = {};
-      VIEWS.forEach((v, i) => { counts[v] = rows[i].length; });
+      for (const v of VIEWS) {
+        counts[v] = (await rowsFrom(v, sources, actor, D)).length;
+      }
       // approval 视角为主角标（"我的待办"菜单项显示的数字 = 待我审批数）
       counts.total = counts.approval || 0;
       res.json(counts);

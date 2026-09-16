@@ -57,7 +57,10 @@ export const ACTION_WHITELIST = {
   write: ['crm-deal-advance', 'data-particle-create', 'data-particle-update', 'crm-lead-pick', 'crm-lead-recycle', 'crm-lead-return', 'crm-lead-move', 'crm-payment-plan-create', 'crm-payment-record-create', 'crm-invoice-reconcile', 'crm-order-advance', 'crm-approval-approve', 'crm-approval-reject',
     // 参数调优签批（P1 2026-09-05 设计 §2.4）：my-todo「参数调优」视角行内按钮 →
     //   /api/my-todo/tune-approve|tune-reject（内部复用 approvePatch/rejectPatch，第0闸透传）
-    'crm-tune-approve', 'crm-tune-reject'],
+    'crm-tune-approve', 'crm-tune-reject',
+    // 信号处置（2026-09-16 主动运行时 S1）：工作台第7视角「信号」行内按钮 →
+    //   crm-signal-ack（确认=status→acked）/ crm-signal-close（否决=status→closed），写 crm.signal，经第0闸
+    'crm-signal-ack', 'crm-signal-close'],
 };
 
 // 权威导航枚举（navigation.to 必须 ∈ 此集，否则拒绝渲染）

@@ -79,6 +79,20 @@ const viewTables = [
       ],
     },
   },
+  {
+    kind: 'table',          // 受控组件（COMPONENT_KINDS 护栏）
+    view: 'signals',        // 第7视角：信号（2026-09-16 主动运行时 S1）：crm.signal 统一收口（服务端注入行）
+    title: '信号',
+    dataBinding: {
+      source: 'particle', particleType: 'CRM_KNOWLEDGE',  // 占位粒子：真实数据源为 crm.signal（服务端注入），仅过值域护栏
+      filters: [],
+      columns: ['title', 'kind', 'severity', 'status', 'target_role', 'created_at'], metrics: [],
+      rowActions: [
+        { action: 'crm-signal-ack', label: '确认', confirm: '确认该信号已处置？' },
+        { action: 'crm-signal-close', label: '否决', confirm: '确认否决该信号？' },
+      ],
+    },
+  },
 ];
 
 export const schema = {

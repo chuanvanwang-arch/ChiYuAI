@@ -2,9 +2,21 @@
 // 设计输入：docs/2026-08-25-alert-feedback-loop-design.md §C（crm.alert 表）+ §D（处置状态机）
 // 状态机：open ──ack──> acked ──close(原因必填)──> closed；open ──close──> closed；closed 不可再 ack/close（幂等拒绝）
 import { randomUUID } from 'node:crypto';
+import { emit } from '../events/bus.js';
 
 // 告警实例内存存储（DB crm.alert 镜像；DB 落库留 PG 验收）
 const alerts = new Map();
+
+// ===== 落库单一收敛点（B-B3，2026-09-16 主动运行时 S1）=====
+// 为什么在 createAlert 内挂 sink、而非逐点调 createAlertWithDb：
+//   实测告警产生点共 5 处（alertHook / financeAlertHook / routes 差额预警 / timers 日报扫描 /
+//   timers 到访逾期）——逐点改只覆盖 1/N，其余告警永远进不了 crm.signal（信号中心看不到 = 部分假绿）；
+//   bus 'alert' 域亦不可靠（timers 逾期点只发 alert_id 无 alert 对象、alertEndpoints.create 不发事件）。
+//   createAlert 是全部产生点的**唯一**收口 → 一处注册覆盖全部，含将来新增点。
+// 纪律：fire-and-forget 不阻塞告警主流程；失败留 trace 不静默（禁裸 catch 铁律）。
+let persister = null;
+export function setAlertPersister(fn) { persister = typeof fn === 'function' ? fn : null; }
+export function getAlertPersister() { return persister; }
 
 // createAlert({kind, severity, l2c_stage, target_role, tenant_id, particle_id, payload, decision_id}) → {ok, alert}
 // kind/severity/target_role 必填非法拒绝
@@ -29,6 +41,12 @@ export function createAlert({ kind, severity, l2c_stage, target_role, tenant_id,
     closedReason: null,
   };
   alerts.set(alert.alert_id, alert);
+  // 落库（可用时）：同步 API 不变，DB 写异步进行 —— 调用方零改动即获得持久化
+  if (persister) {
+    Promise.resolve()
+      .then(() => persister(alert))
+      .catch((e) => emit('trace', 'alert-persist-failed', { alert_id: alert.alert_id, kind: alert.kind, error: String(e?.message || e) }));
+  }
   return { ok: true, alert };
 }
 
@@ -78,4 +96,28 @@ export function findOpenAlertByParticle(particleId, kind) {
 // 测试/重建用清空
 export function resetAlertStore() {
   alerts.clear();
+}
+
+// ============ B-B3（2026-09-16 主动运行时 S1）：内存 Map → DB 双写 ============
+// 保留既有 createAlert/listAlerts/ackAlert/closeAlert 导出（兼容既有调用方），新增注入版：
+//   createAlertWithDb(pool, params) —— 内存落 alert + DB 落 crm.signal（source=rule-scan）
+// 防假绿核心：createAlert 返回 ok ≠ 已送达；DB 落库由 crm.signal_delivery 流水验证（见 signal/delivery/）
+// ON CONFLICT DO NOTHING：同 alert_id 幂等（巡检重复触发不叠加）
+export async function createAlertWithDb(pool, params = {}) {
+  const mem = createAlert(params);
+  if (!mem.ok) return mem;
+  const { rows } = await pool.query(
+    `INSERT INTO crm.signal
+      (signal_id, tenant_id, source, kind, severity, target_role, owner_id, l2c_stage, particle_id, payload, evidence, dedup_key)
+     VALUES ($1,$2,'rule-scan',$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     ON CONFLICT DO NOTHING RETURNING *`,
+    [
+      mem.alert.alert_id, params.tenant_id || 'system', params.kind, params.severity,
+      params.target_role, params.owner_id || null, params.l2c_stage || null,
+      params.particle_id || null, JSON.stringify(params.payload || {}),
+      JSON.stringify({ rule_kind: params.kind, decision_id: params.decision_id || null }),
+      params.particle_id ? `${params.kind}:${params.particle_id}:hour` : null,
+    ],
+  );
+  return { ok: true, alert: mem.alert, db: rows[0] || null };
 }

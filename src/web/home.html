@@ -34,6 +34,7 @@
     <div class="card"><b>看板状态</b><div id="kanban">—</div></div>
     <div class="card"><b>最新粒子（10）</b><div id="particles">—</div></div>
     <div class="card"><b>审批概览</b><div id="approval">—</div></div>
+    <div class="card"><b>今日信号</b><div id="signals">—</div></div>
   </div>
 </div>
 <footer class="app-footer">
@@ -44,11 +45,12 @@
 <script>
 async function wall(){
   try{
-    const [a,t,p,b]=await Promise.all([
+    const [a,t,p,b,sg]=await Promise.all([
       fetch('/api/agents').then(r=>r.json()),
       fetch('/api/kanban/tasks').then(r=>r.json()),
       fetch('/api/particles').then(r=>r.json()),
-      fetch('/api/business/board').then(r=>r.json())
+      fetch('/api/business/board').then(r=>r.json()),
+      fetch('/api/workbench?view=signals').then(r=>r.json()).catch(()=>({data:{components:{table:{rows:[]}}}}))
     ]);
     document.getElementById('assembly').innerHTML=
       `<span style="color:${a.assembly.ok?'#4ade80':'#f87171'}">${a.assembly.ok?'通过':'失败'}</span> · ${a.agents.join(', ')}`;
@@ -57,6 +59,11 @@ async function wall(){
     document.getElementById('particles').innerHTML=p.items.slice(0,10).map(x=>`<span class="badge">${x.type}·${x.payload?.name||x.title||''}</span>`).join('');
     const g=b.grouped||{};const sub=Object.entries(g).filter(([,a])=>a.some(x=>x.status==='submitted')).length;
     document.getElementById('approval').textContent=`${sub} 类业务粒子存在待审提交`;
+    const sigRows=sg?.data?.components?.table?.rows||[];
+    const openCount=sigRows.filter(x=>x.status==='open').length;
+    const highCount=sigRows.filter(x=>x.status==='open'&&x.severity==='high').length;
+    document.getElementById('signals').textContent=
+      openCount?`${highCount} 高优先 · ${openCount} 待处理`:'暂无待处理信号 · 全绿';
   }catch(e){}
 }
 document.getElementById('go').onclick=async()=>{
