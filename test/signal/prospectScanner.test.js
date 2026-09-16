@@ -1,7 +1,7 @@
 // test/signal/prospectScanner.test.js — T16 拓客信号（lead-pool-config 驱动）
 import { describe, it, expect } from 'vitest';
-import { createProspectScanner } from 'file:///D:/system/CRM-ai-native/src/signal/prospectScanner.js';
-import { POOL_CONFIG_KEY } from 'file:///D:/system/CRM-ai-native/src/sales/pool.js';
+import { createProspectScanner } from '../../src/signal/prospectScanner.js';
+import { POOL_CONFIG_KEY } from '../../src/sales/pool.js';
 
 function makeCtx(rows = []) {
   const SQL = `SELECT id, tenant_id, payload FROM crm.particles WHERE type='CRM_DEAL' AND tenant_id=$1`;

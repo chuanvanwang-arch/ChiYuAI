@@ -1,6 +1,6 @@
 // test/signal/scheduleScanner.test.js — T15 时间型信号（signal-schedule 配置驱动）
 import { describe, it, expect } from 'vitest';
-import { createScheduleScanner } from 'file:///D:/system/CRM-ai-native/src/signal/scheduleScanner.js';
+import { createScheduleScanner } from '../../src/signal/scheduleScanner.js';
 
 function makeCtx({ rows = [], signals = [], readConfigValue } = {}) {
   const q = async () => ({ rows });
