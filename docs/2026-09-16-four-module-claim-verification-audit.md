@@ -221,6 +221,12 @@
 
 P0 实施后跑「`test/sync` + `test/signal` + `test/mcp` + `test/connectors` + `test/scheduler` + `external-integration`」共 **91 文件 / 613 用例**，结果 **4 文件 3 用例红**。**逐条归因后确认均与本次 P0 改动无关**（证据如下），但属真实缺陷，需另立任务。
 
+> ⚠ **本节表格的归因已被 §8.1 的后续实测部分推翻，保留原文以存证。**
+> 差异要点：`graph-query` 实为**并发伪失败**（单跑 3/3 绿）；`confirm-params-merge` 实为**测试期望过期**
+> （生产早在 `7f3bea4` 已修，测试停在 `17c8faf`）；`anysiteRest` 实为**测试未隔离环境变量**
+> （适配器守卫本身正确）；`route.test.js` 已被并行会话补齐。
+> 以 §8.1 为准。
+
 | 红 | 症状 | 归因证据 | 结论 |
 |---|---|---|---|
 | `test/signal/route.test.js` | 文件级 FAIL：`Cannot find module '../../src/signal/route.js'` | 该测试为 **untracked(`??`)**，引用不存在的 `route.js`（实际文件是 `router.js`）；`verify-release-source.mjs` 亦报同一缺失 | **他人未完成的新测试**，非本会话产物 |
@@ -233,4 +239,50 @@ P0 实施后跑「`test/sync` + `test/signal` + `test/mcp` + `test/connectors` +
 **另发现（非本次范围，建议 P1/P2）**：
 - `verify-release-source.mjs` 报 **2 处 `file:///D:/...` 绝对路径**（`scripts/tmp-debug-engine.mjs`、`test/monitor/syncMetrics.test.js`）——指向本仓工作树，干净树/CI 上会「测本机树」造成假绿（与本仓既有 18 处同族，此脚本已能报出）。
 - `test/signal/followupRouter.js` 处于 `M`（未提交改动），与 `route.test.js` 同族，**属并行会话在途工作**——本次提交已刻意规避，不得混入。
+
+### 8.1 L1（出口播种 / R-A）关闭证据与既存红重分类（2026-09-16 23:2x 实测）
+
+#### 8.1.1 R-A 已关闭（由并行会话交付）
+
+R-A「全库零租户配置过 `signal-delivery` → 泵上线即零投递空转」**已关闭**。交付面：
+`db/migration-signal-config.sql`（登记于 `db/migrate.js` 的 `INCREMENTAL_SQL:52`）+ `readConfig` autoSeed 克隆到全部租户。
+
+| 判据 | 实测读数（本地 `crm_native`） |
+|---|---|
+| `config_store['signal-delivery']` | **15 行**（`system` + 14 个业务租户，随新租户出现持续增长） |
+| `config_store['signal-dispatch']` | 1 行（`system`，`max_age_days:7`） |
+| `crm.signal_delivery` | **1051 行，全部 `inbox/sent`**（此前恒 0 行） |
+| `createExportGate().isExportHealthy({tenantId:'system'})` | `healthy:true`，三项 checks 全 `true` |
+
+复现命令见实施计划 `docs/superpowers/plans/2026-09-16-signal-calendar-ics-and-date-rules.md` Task 1 Step 1。
+⇒ 本报告 §8 中「投递分发器生产接线（`signal_delivery` 仍 0 行）」一项**状态由「未闭合」改为「已闭合」**。
+
+**唯一遗留裁决（非缺陷）**：`email` 渠道出厂默认值。交付面按 `email:'off'` 播种；审计过程中用户另作
+「`email:'on'` 且写收件人」裁决（较交付面更宽）。**落地前实测其外发量级**：
+
+| 实测项 | 读数 |
+|---|---|
+| 有邮箱的用户 | 仅 **1** 个：`tenant=system` / `username=admin` / `role=admin` |
+| open 信号 `target_role` 分布 | `sales` 1011、`ops` 39、`finance` 1 |
+| 面向 `admin` 的信号数 | **0** |
+
+⇒ 按 role 聚合真邮箱所得 `role_recipients` 只含键 `admin`，与全部信号角色不匹配 →
+**实际外发量 = 0**（全部落 `skipped/no_recipient`，属真实读数）。
+另注：判据 A 谓词为 `COUNT(*) GROUP BY channel`（**零行**才告警），故 `email` 全落 skipped 仍不触发；
+该渠道开关**不会**锁死 `exportGate`（判据① 只要求窗口内存在 `sent`，由 `inbox` 提供）。
+
+#### 8.1.2 既存红重分类（取代 §8 表格的归因）
+
+| 项 | §8 原归因 | **§8.1 实测归因** | 处置 |
+|---|---|---|---|
+| `test/signal/route.test.js` | 他人未完成的测试 | 已被并行会话补齐（`route.js` 已存在并绿） | **非我方项，不碰** |
+| `test/mcp/graph-query.test.js` | 决策场景 `required_dims` 缺失 | **单独跑 3/3 绿**；两次批量失败的**文件集合不同** | **并发伪失败**（共享测试库竞态）→ 按 `shared-db-test-hygiene` 取批内稳定证据 |
+| `test/mcp/confirm-params-merge.test.js` | 清单驱动遗漏嫌疑 | 生产已在 `7f3bea4` 把 `force` 移出协议位（`gateway.js:22-24` 有决策注释），测试期望停在 `17c8faf` | **测试期望过期**，改测试、零生产改动 |
+| `test/connectors/discovery/anysiteRest.test.js` | 适配器内建样例数据未收口 | `anysite.js:101` 的 `if (!key) return []` **正确**；根因是 `src/db.js:8 dotenv.config()` 把 `.env` 真 `ANY_SITE_KEY` 注入测试进程（探针实测 `envKey:true`） | **测试未隔离环境变量** → `vi.stubEnv` + 零 fetch 断言 + 变异验证 |
+| `test/mcp-tenant.test.js` M1 | 未提及 | **新发现**：单跑即红、**15,016ms** 打满超时（`1e8bb9a` 已放宽至 15s 仍无效） | **真实缺陷** → 归因阻塞点（禁以放宽阈值了结） |
+
+**新增判据（已入长期记忆）**：`src/db.js:8` 的 `dotenv.config()` 会把 `.env` 真键注入测试进程，
+使「无凭据 / fail-closed 返回空」类测试**假红或假绿不可信**；**同一根因也会骗过诊断**——
+用 `node -e` 探 `process.env.SMTP_*` 得 false，而实际 `.env` 持有真实 SMTP 凭据（本报告上一轮据此得出的
+「SMTP 未配置」结论即为该误判，已更正）。
 
