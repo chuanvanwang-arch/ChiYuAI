@@ -1118,3 +1118,40 @@ CREATE TABLE IF NOT EXISTS crm.sync_cursor (
 );
 CREATE INDEX IF NOT EXISTS idx_sync_cursor_health
   ON crm.sync_cursor(tenant_id, last_status, last_run_at);
+
+-- ── 建议运行态（2026-09-16 E3）──────────────────────────────────────────────
+-- 「AI 曾建议过什么」的可观测留痕。**刻意不落 crm.decision**：该表读取点众多（含日报/复盘/
+-- 校准样本/可审计性抽检等聚合面），写入非决策行会永久污染统计；且 createDecision 的
+-- decided_at 硬写 now() 无 NULL 免疫、证据不足时会被 sevenDimensionsCheck 拦下——
+-- 而建议恰产生于证据不足时。故独立成表，与 signal / external_ref 同属运行态表族。
+-- 铁律：不落对话原文（只存结构化摘要 + 关键词）；禁删（观测留痕）。
+CREATE TABLE IF NOT EXISTS crm.advice_record (
+  advice_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        TEXT NOT NULL DEFAULT 'system',
+  scenario_id      TEXT,
+  stage            TEXT,
+  advice_tier      TEXT,                            -- 建议档（ADVICE_MATURITY, A/B/C），非业务分级
+  disposition      TEXT,
+  coverage         NUMERIC(6,4),
+  card_confidence  TEXT,                            -- 建议卡置信档位（'high'/'medium'/'low'，字符串非数值）
+  headline         TEXT,
+  summary          TEXT,                            -- 结构化摘要（禁对话原文，≤120）
+  hits             JSONB NOT NULL DEFAULT '[]'::jsonb,
+  conditions       JSONB NOT NULL DEFAULT '[]'::jsonb,
+  risk_flags       JSONB NOT NULL DEFAULT '[]'::jsonb,
+  actor_id         TEXT,
+  actor_role       TEXT,
+  source           TEXT NOT NULL DEFAULT 'dialog-advisor',
+  linked_decision_id TEXT,                          -- 采纳配对（后置回填）
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- 轴约束（E2/E3）：建议档只能是 ADVICE_MATURITY 轴的 A/B/C。
+  -- 本表**刻意不含**任何业务分级列（business_tier / LEAD|NORMAL|HIGH）——两轴枚举同名反向，
+  -- 同表出现即会诱发"按字面同值搬运"的语义反转（见 test/advice-tier-axis.test.js）。
+  CONSTRAINT ck_advice_record_tier_axis CHECK (advice_tier IS NULL OR advice_tier IN ('A','B','C'))
+);
+CREATE INDEX IF NOT EXISTS idx_advice_record_tenant_time
+  ON crm.advice_record(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_advice_record_scenario
+  ON crm.advice_record(tenant_id, scenario_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_advice_record_unlinked
+  ON crm.advice_record(tenant_id, created_at DESC) WHERE linked_decision_id IS NULL;
