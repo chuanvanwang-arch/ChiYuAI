@@ -24,6 +24,16 @@
  .sev-low{color:var(--mut)}
  .muted{color:var(--mut)}
  .sc-empty{padding:22px;text-align:center;color:var(--mut)}
+ .sc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+ .sc-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
+ .sc-card .k{font-size:12px;color:var(--mut);margin-bottom:6px}
+ .sc-card .v{font-size:20px;font-weight:600}
+ .sc-block{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+ .sc-block h3{font-size:13px;margin:0 0 8px;color:var(--mut);font-weight:500}
+ .sc-alert{border:1px solid #dc2626;background:rgba(220,38,38,.08);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px}
+ .sc-down{font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
+ .sc-down:last-child{border-bottom:0}
+ .sc-ok{color:var(--mut);font-size:13px}
 </style>
 </head>
 <body>
@@ -58,6 +68,23 @@
       </select>
     </label>
     <button id="refresh" data-refresh>刷新</button>
+  </section>
+
+  <section id="signal-metrics" data-signal-metrics>
+    <div class="sc-metrics">
+      <div class="sc-card"><div class="k">投递成功率</div><div class="v" id="m-success">—</div></div>
+      <div class="sc-card"><div class="k">平均延迟</div><div class="v" id="m-latency">—</div></div>
+      <div class="sc-card"><div class="k">冲突/损失</div><div class="v" id="m-conflict">—</div></div>
+      <div class="sc-card"><div class="k">自治执行量</div><div class="v" id="m-exec">—</div></div>
+    </div>
+    <div class="sc-block">
+      <h3>链路负向判据（静默断链报警）</h3>
+      <div id="neg-alerts"><p class="sc-ok">暂无</p></div>
+    </div>
+    <div class="sc-block">
+      <h3>信任降级事件（追溯链）</h3>
+      <div id="down-list"><p class="sc-ok">暂无</p></div>
+    </div>
   </section>
 
   <table class="sc-table" id="signal-table" data-signal-table>
@@ -152,7 +179,32 @@ async function act(signalId, action) {
   load();
 }
 
-$('refresh').addEventListener('click', load);
+// T20 链路观测上墙：指标卡 + 负向判据 + 降级事件（per-tenant，取自身 token 租户）
+async function loadMetrics() {
+  const res = await fetch('/api/monitor/signal-link', { headers: authHeaders() });
+  if (!res.ok) return;
+  const d = await res.json().catch(() => ({}));
+  const m = d.metrics || {};
+  $('m-success').textContent = m.delivery_success_rate == null ? '无投递' : `${Math.round(m.delivery_success_rate * 100)}%`;
+  $('m-latency').textContent = m.avg_latency_ms == null ? '—' : `${Math.round(m.avg_latency_ms)} ms`;
+  $('m-conflict').textContent = String(m.conflict ?? 0);
+  $('m-exec').textContent = String(m.execution_volume ?? 0);
+
+  const neg = Array.isArray(d.negative_predicates) ? d.negative_predicates : [];
+  $('neg-alerts').innerHTML = neg.length ? neg.map((a) => {
+    const label = a.type === 'delivery_silent'
+      ? `投递静默：渠道「${esc(a.channel)}」已启用但窗口内零投递行`
+      : `信号生成静默：外部事件命中 ${esc(a.fired)} 次但无内部信号生成`;
+    return `<div class="sc-alert">${label}</div>`;
+  }).join('') : '<p class="sc-ok">暂无</p>';
+
+  const paused = d.downgrades?.paused_grants || [];
+  $('down-list').innerHTML = paused.length ? paused.map((g) =>
+    `<div class="sc-down">凭证「${esc(g.title || g.grant_id)}」已降级暂停（${esc(g.paused_reason || '—')}）· ${g.paused_at ? esc(new Date(g.paused_at).toLocaleString()) : ''}</div>`
+  ).join('') : '<p class="sc-ok">暂无</p>';
+}
+
+$('refresh').addEventListener('click', () => { load(); loadMetrics(); });
 $('filter-status').addEventListener('change', load);
 $('filter-severity').addEventListener('change', load);
 $('filter-kind').addEventListener('change', load);
@@ -163,6 +215,7 @@ $('signal-table').addEventListener('click', (e) => {
   else if (close) act(close.dataset.close, 'close');
 });
 load();
+loadMetrics();
 </script>
 </body>
 </html>
