@@ -222,7 +222,7 @@
 | --- | --- | --- | --- |
 | **E1** | `autonomous_allowed` **配置面 ≠ 执行面（假绿）** | 前端显示 `✅自主/⛔人工`、配置页映射 `auto_decision`，但 `requireDecision` 主路径**完全不读该字段** → 配了不生效 | 配置面 `decisionScenario.js:126` / `controlledConfigPages.js:84`；执行面 `autonomyEngine.js:274` 未引用。`:251` 的 `highNoAuto` 为 dead variable |
 | **E2** | **`A/B/C` 术语碰撞（且方向相反）** | `advice.tier` 的 A/B/C（对话建议档：C = 证据不足**禁止处置**）与项目维取值 A/B/C（C = 低风险**可自治**）**同名而语义相反**；且跨轴投影 `business_tier` 把建议 C 档标成 `NORMAL`（可自主）= **语义反转** | `adviceStore.js:46`（旧：`'B'`→`HIGH`，其余→`NORMAL`）vs `migrate.js:398`（`'C'`→`LEAD`）。**✅ 2026-09-16 已修**（见 §11.1.1） |
-| **E3** | **建议链路断链（新识别）** | `buildAdviceAnchor()` 是孤儿导出（`src/` 零调用），`ADVISED` 是死状态 → **"AI 曾建议过什么"从未落库** → 无法度量建议准确率/采纳率（第 9 大能力缺一条回路） | `adviceStore.js` 全仓唯一引用 = 其测试；`advise()` 8 处生产调用（`gateway.js:213/238/343` 等）**只即时回显**。**⏳ 待裁决**（三方案见 §11.1.1） |
+| **E3** | **建议链路断链** | `buildAdviceAnchor()` 是孤儿导出（`src/` 零调用），`ADVISED` 是死状态 → **"AI 曾建议过什么"从未落库** → 无法度量建议准确率/采纳率（第 9 大能力缺一条回路） | `adviceStore.js` 全仓唯一引用 = 其测试；`advise()` 6 处生产调用（`gateway.js:213/238/343` 等）**只即时回显**。**✅ 2026-09-16 已修**——**方案修正为 (iv) 独立运行态表 `crm.advice_record`**（原推荐 (i) 落 `crm.decision` 经消费面盘点被否决：8 个统计面会被污染 + 证据不足时被 interception 拦下，见 §11.1.1） |
 
 **结论（本设计 §11 的修正立场）**：
 
@@ -916,28 +916,66 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 
 **零运行时影响声明**：`adviceStore.js` 当前**无生产调用者**（唯一引用者是 `test/decision/advice-store.test.js`），故投影纠错不改变任何线上行为——它的价值在于**接线前把方向摆正**。
 
-#### E3 建议链路断链（**新识别，待裁决，本设计不擅自实施**）
+#### E3 建议链路断链（**新识别 → 已裁决 → 已实施**，2026-09-16）
 
 核验 E2 时连带查出：**「建议」这条链路从未接线**。
 
 | 项 | 证据 |
 | --- | --- |
 | `buildAdviceAnchor()` 是**孤儿导出** | 全仓唯一引用者 = `test/decision/advice-store.test.js`；`src/` 内零调用 |
-| `ADVISED` 是**死状态** | 全仓仅出现在 `adviceStore.js` 自身（`:3/:8/:34`）→ `crm.decision` 中**永远不会**有 `state='ADVISED'` 的行 |
-| 但 `advise()` **有 8 处生产调用** | `executor.js:57` · `seed-actions.js:2216` · `routes.js:2393` · `gateway.js:213/238/343` —— 返回值**一律只做即时回显**（`a.advice` 直接透传 HTTP/MCP 响应） |
+| `ADVISED` 是**死状态** | 全仓仅出现在 `adviceStore.js` 自身 → `crm.decision` 中**永远不会**有 `state='ADVISED'` 的行 |
+| 但 `advise()` **有 6 处生产调用** | `executor.js:57` · `seed-actions.js:2216` · `routes.js:2393` · `gateway.js:213/238/343` —— 返回值**一律只做即时回显** |
 
-**后果**：**"AI 曾经建议过什么"从未落库** → 无法度量建议的准确率与采纳率；也无法回答"这次决策是采纳了 AI 建议，还是人自己想出来的"。
-这正是第 9 大能力（反馈闭环）缺的那一条回路，也是 T20（观测校准）的前置数据源。
+**后果**：**"AI 曾经建议过什么"从未落库** → 无法度量建议的准确率与采纳率；也无法回答"这次决策是采纳了 AI 建议，还是人自己想出来的"。这正是第 9 大能力（反馈闭环）缺的那一条回路，也是 T20（观测校准）的前置数据源。
 
-**三条可选路径（须用户裁决）**：
+##### ⚠ 裁决过程修正：方案 (i) 的成本被严重低估
 
-| 方案 | 做法 | 代价 / 风险 |
-| --- | --- | --- |
-| **(i) 接线落库**（推荐，但需评估） | 在调用点之后把建议落成 `state='ADVISED'` 的 decision 锚点 | **必须同步改先例检索**：`decisionRepo` 的先例查询须显式排除 `ADVISED`，否则"AI 的推测"会混进"人的决策先例"→ `autonomyEngine` 依据被污染（**这是接线前的硬前置，不是可选项**） |
-| **(ii) 删除该链路** | 承认建议卡只做即时回显，删 `adviceStore.js` + 其测试 | 丧失建议可观测性；但消除"看起来有建议落库"的假象 |
-| **(iii) 维持现状 + 标注** | 仅在文档标注"未接线" | 零成本；但设计文档 §5 与其实现形成长期"承诺≠实现"落差（与 `deploy.sh` 同族缺陷） |
+初轮三方案（(i) 落 `crm.decision`+`ADVISED` / (ii) 删除链路 / (iii) 维持现状标注）中，(i) 被推荐，且当时陈述的硬前置只有一条：「先例检索须排除 `ADVISED`」。
 
-> **不擅自实施的理由**：(i) 会新增 decision 行并触及先例检索的判定语义（属决策内核），按 HARD-GATE 须先获批准；且它是 T20 的前置，应在 S3/S4 阶段与观测校准一并设计。
+**实施前做消费面盘点（同 A4 教训：先 grep 表名枚举全部读取点），该前提被推翻**——`crm.decision` 有 **15 个读取点**，其中 **8 个是聚合/统计面**，写入非决策行会污染它们：
+
+| # | 污染点 | 后果 |
+| - | --- | --- |
+| 1 | `decision/dailyOps.js:37` | 日报 `total` 虚增、`escalated` 误计（`decider_type='AGENT_ADVICE' ≠ 'AUTONOMOUS_AGENT'`）、`avg_confidence` 被拉低 |
+| 2 | `decision/retro.js:101` | 每日复盘把建议当决策做复盘 |
+| 3 | `calibration/sampleLoader.js:14` | 校准样本被污染 → P1/P2 指标失真 |
+| 4 | `calibration/autoSuggest.js:78` | 调参建议基于被污染样本 |
+| 5 | `calibration/paramInspector.js:91` | 巡检样本同上 |
+| 6 | `decision/auditability.js:168` | 可审计性 Q1–Q4 抽检把建议纳入评分（C3 指标失真） |
+| 7 | `context/assembler.js:108`（`retrieveL2`） | **建议被当成"过去决策"注入上下文** |
+| 8 | `http/controlledConfigPages.js:311`（`state <> 'APPROVED'`） | 计数虚增 |
+
+另有两条**更硬**的否决证据（非"污染"，而是"根本写不进去 / 记不住"）：
+
+- **`decided_at` 无 NULL 免疫**：`createDecision` 的 INSERT 硬写 `decided_at = now()`（`decisionRepo.js:270`）→ 时间窗聚合**不会**因 NULL 自动排除 `ADVISED` 行；
+- **证据不足时被拦下**：`createDecision` 内 `sevenDimensionsCheck` + `decideInterception` 在 required_dims 缺失时**直接抛错**（`decisionRepo.js:200-203`）——而建议**恰恰产生于证据不足时**。即：最该记录的场景，反而落不了库。
+
+##### 最终裁决：方案 (iv) 独立运行态表 `crm.advice_record`（已实施）
+
+**做法**：新增 `crm.advice_record`（与同日落地的 proactive `signal` / `external_ref` **同属运行态表族**，不新增粒子类型），`adviseService.advise()` 作为**唯一收敛点**在返回前落库。
+
+**为什么这是正确取舍**：
+
+| 维度 | 说明 |
+| --- | --- |
+| 零污染 | 既有 15 个决策读取点**一行不改**；未来新增查询也不会踩坑 |
+| 零内核改动 | 不碰 `createDecision` / `sevenDimensionsCheck` / `searchPrecedents` |
+| **硬前置结构性消解** | 「先例检索须排除 `ADVISED`」不再靠人工清单——`crm.decision` 里**永不出现** `ADVISED`，并由 `test/decision/advice-precedent-guard.test.js` **机械化锁死**（白名单断言 + 运行态零行断言 + 源码黑白名单形态断言） |
+| 可写性 | 绕开 interception 拦截，证据不足的建议也能落库（这正是最有观测价值的一档） |
+| 配对可行 | `linked_decision_id` 后置回填即可算采纳率——**同表并不省这一步**，故此维度两方案等价 |
+
+**落地物**：
+
+| 文件 | 内容 |
+| --- | --- |
+| `db/migration-advice-record.sql`（新）+ `db/schema.sql` 尾部 | 18 列 + 3 索引；**含轴约束** `ck_advice_record_tier_axis CHECK (advice_tier IN ('A','B','C'))` —— 把业务分级值写进建议档会被**数据库直接拒绝** |
+| `src/decision/adviceRecord.js`（新） | `buildAdviceRecord`（纯）/ `recordAdvice`（fail-open）/ `linkAdviceToDecision` / `listAdvice`（租户隔离） |
+| `src/decision/adviseService.js` | 单一收敛点接线（6 处调用一改全覆盖），`recordAdvice` 失败只 trace 不阻断 |
+| `src/decision/adviceStore.js` | **退役** `ADVISED_STATE` / `buildAdviceAnchor`（地雷：其目的就是往 `crm.decision` 写 `ADVISED`），仅保留摘要口径单一事实源 `buildStructuredSummary` |
+
+> **E2 的连带收益**：E2 的修法是给跨轴投影加"保守映射"（治伤）；E3 改用独立表后，建议记录里**根本没有业务分级字段**（`business_tier`），跨轴投影面**整体消失**（除根）。故 `test/advice-tier-axis.test.js` 的 ③④ 节由「投影保守单调」升级为**结构性断言**：不是把映射改对，而是让映射无处可写。
+
+**验证**（详见 §18.2 ⑦）：`26/26` 全绿 + **自证鉴别力 ×3**（把 `ADVISED` 混入白名单 → 守卫红；移除轴约束 → DDL/拦截断言红；塞回 `business_tier` → 3 条结构断言红，含"建议档被改写成 `NORMAL`"）。
 
 
 ### 11.2 闭环三要素
@@ -1648,6 +1686,17 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 
 # ④ 生效环境变量
 docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T app printenv EMBEDDING_PROVIDER
+
+# ⑥ 建议落库表（E3，2026-09-16）：应存在且有行；若表不存在 → 迁移未执行（新版 advise 会静默 trace 而不阻断）
+docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
+  psql -U agent2b -d crm_native -c "
+    SET search_path TO crm,public;
+    SELECT to_regclass('crm.advice_record') AS advice_table;
+    SELECT count(*) total, count(linked_decision_id) linked,
+           count(*) FILTER (WHERE created_at > now() - interval '1 day') last24h
+    FROM crm.advice_record;
+    -- 硬前置机械化核对：决策表里必须零 ADVISED 行（否则 AI 推测会混进人的决策先例）
+    SELECT count(*) AS advised_in_decision FROM crm.decision WHERE state='ADVISED';"
 
 # ⑤ 分级授权现状（A 轴｜§2.4 / §11.1 A1–A4）：配置 + 授权元数据 + 撤回状态 + 镜像一致性
 docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
