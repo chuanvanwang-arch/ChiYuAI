@@ -120,11 +120,39 @@ export async function catchUpRetro({ run = runRetroOnce, nowMs = Date.now() } = 
 // —— 外部数据接入：integration-poll（混合模式·定时拉取）——
 // 纯函数（可单测，零 IO）：逐租户对启用 provider 拉取 → runWaterfall → monitorAccount（C3 闭环）
 // recordTokens（可注入；缺省接真 tokenAccounting）按租户聚合本轮 cost 落账（零新表，fail-open 不阻断主流程）
-export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, emit, recordTokens } = {}) {
+// 2026-09-16 A-B6（T06）增量分支：同循环内对「同步 descriptor（objects[]）」拉增量 → 同步内核 upsert。
+//   零新增定时器、零调度框架改动；未注入 loadSyncTargets 或租户无 objects[] → no-op（既有行为零变化）。
+export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, emit, recordTokens, loadSyncTargets, runSync } = {}) {
   const recTok = recordTokens || realRecordTokens;
   const tenants = listActiveTenants ? await listActiveTenants().catch(() => [{ tenant_id: 'system' }]) : [{ tenant_id: 'system' }];
   for (const t of tenants) {
     const tid = t.tenant_id;
+
+    // A-B6 同步增量分支：**独立于富化适配器存在性**（租户可能只接同步、不接富化富集）
+    if (loadSyncTargets && runSync) {
+      try {
+        let targets = [];
+        try {
+          targets = await loadSyncTargets({ tenantId: tid });
+        } catch (err) {
+          // 目标装配失败须留痕（不静默）：本租户跳过同步，富化主流程不受影响
+          emit && emit('trace', 'integration-poll-sync-targets-failed', { tenant_id: tid, error: String(err?.message || err) });
+          recordFailure('sync-targets-failed', err);
+        }
+        if (targets.length) {
+          const r = await runSync({ tenantId: tid, targets });
+          emit && emit('trace', 'integration-poll-sync', {
+            tenant_id: tid, runs: r?.runs || 0, errors: r?.errors || 0,
+            created: r?.created || 0, updated: r?.updated || 0,
+          });
+        }
+      } catch (err) {
+        // G3 不静默：同步分支失败不得拖垮富化主流程
+        emit && emit('trace', 'integration-poll-sync-failed', { tenant_id: tid, error: String(err?.message || err) });
+        recordFailure('integration-poll-sync-failed', err);
+      }
+    }
+
     let adapters = [];
     try { adapters = (await loadAdapters({ tenantId: tid })) || []; } catch { continue; }
     if (!adapters.length) continue;
@@ -278,7 +306,7 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         totalHits += hits.length;
         for (const h of hits) {
           // B-B3（2026-09-16 主动运行时 S1）：createAlertWithDb 双写（内存 + crm.signal DB），
-          //   巡检命中「落库」而非仅内存——信号中心/工作台第7视角/首页卡才能看到
+          //   巡检命中「落库」而非仅内存——销售自动化/工作台第7视角/首页卡才能看到
           const a = await createAlertWithDb(pool, {
             kind: h.kind, severity: h.severity,
             target_role: h.severity === 'high' ? 'exec' : 'sales',
@@ -446,6 +474,11 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   const runPoll = () => {
     if (process.env.VITEST) return; // 测试隔离护栏：避免后台真实拉取与断言竞态
     import('../connectors/discovery/tenantInstances.js').then(async (m) => {
+      // A-B6 同步分支的真实装配（2026-09-16）：descriptor → 同步 provider → 同步内核
+      const mount = await import('../sync/mount.js').catch(() => null);
+      const syncFactories = (await import('../sync/factory.js').catch(() => null))?.SYNC_PROVIDER_FACTORY || {};
+      const vault = await import('../connectors/discovery/credentialVault.js').catch(() => null);
+      const autonomy = await import('../decision/autonomyEngine.js').catch(() => null);
       await runIntegrationPollOnce({
         listActiveTenants: (await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }))).listActiveTenants,
         loadAdapters: (await import('../connectors/discovery/providerRegistry.js')).loadAdapters,
@@ -454,6 +487,22 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         monitorAccount: (await import('../connectors/discovery/monitorAccount.js')).monitorAccount,
         emit,
         resolveCredentials: (await import('../connectors/discovery/credentialVault.js')).resolveCredentials,
+        // —— A-B6：租户同步目标装配（无 objects[] → 空目标 → no-op）——
+        loadSyncTargets: mount ? ({ tenantId }) => mount.loadTenantSyncTargets({
+          tenantId, readConfig, resolveCredentials: vault?.resolveCredentials, factories: syncFactories,
+        }) : undefined,
+        runSync: mount ? async ({ tenantId, targets }) => mount.runTenantSyncOnce({
+          tenantId, targets,
+          deps: {
+            pool, emit, recordFailure,
+            mappings: await mount.loadSyncMappings({ tenantId, readConfig }),
+            // 第 0 闸：L2/L3 每 run 铸一枚决策；铸不出 → decisionId=null → 内核侧拒写（fail-closed）
+            mintDecision: async (scene, ctx) => {
+              const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
+              return { decisionId: r?.decision_id || null };
+            },
+          },
+        }) : undefined,
       }).catch((err) => {
         emit('trace', 'integration-poll-failed', { error: String(err?.message || err) });
         recordFailure('integration-poll-failed', err);

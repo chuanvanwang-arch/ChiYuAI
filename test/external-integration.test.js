@@ -386,3 +386,173 @@ describe('T14 · 可观测接线', () => {
 });
 
 
+
+// ─── A-B6（T06）：integration-poll 同步增量分支——线A 挂载点（2026-09-16）───
+// 设计：docs/2026-09-15-final-design-coexistence-and-proactive.md §6.1 A-B6 + §13 T06
+// 计划：docs/superpowers/plans/2026-09-16-line-a-mount-points.md
+// 红线：零新增定时器；未注入 loadSyncTargets → no-op（既有行为零变化）；无 objects[] → 不调 runSync
+describe('A-B6 · integration-poll 同步增量分支（线A 挂载点）', () => {
+  const baseDeps = () => ({
+    listActiveTenants: async () => [{ tenant_id: 't1' }],
+    loadAdapters: async () => [],
+    query: async () => ({ rows: [] }),
+    runWaterfall: async () => ({ values: {}, cost: 0 }),
+    monitorAccount: async () => {},
+    recordTokens: async () => ({ ok: true }),
+  });
+
+  it('注入 loadSyncTargets + runSync → 每租户调用一次并 emit integration-poll-sync', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const traces = [];
+    let syncArgs = null;
+    await runIntegrationPollOnce({
+      ...baseDeps(),
+      emit: (k, name, p) => traces.push({ name, p }),
+      loadSyncTargets: async ({ tenantId }) => [{ id: 'fx-1', kind: 'fxiaoke', objects: [{ name: 'AccountObj', direction: 'in' }], trustLevel: 'L1' }],
+      runSync: async (a) => { syncArgs = a; return { runs: 1, errors: 0, created: 0, updated: 0 }; },
+    });
+    expect(syncArgs.tenantId).toBe('t1');
+    expect(syncArgs.targets).toHaveLength(1);
+    expect(traces.find((x) => x.name === 'integration-poll-sync')?.p).toMatchObject({ tenant_id: 't1', runs: 1 });
+  });
+
+  it('租户无同步目标 → runSync 不被调用（no-op，零回归）', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    let called = false;
+    await runIntegrationPollOnce({
+      ...baseDeps(),
+      emit: () => {},
+      loadSyncTargets: async () => [],
+      runSync: async () => { called = true; return {}; },
+    });
+    expect(called).toBe(false);
+  });
+
+  it('未注入 loadSyncTargets → 分支完全跳过（既有调用方零变化）', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const traces = [];
+    await runIntegrationPollOnce({ ...baseDeps(), emit: (k, name) => traces.push(name) });
+    expect(traces).not.toContain('integration-poll-sync');
+  });
+
+  it('同步分支独立于富化适配器存在性：adapters 为空仍跑同步', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    let syncRuns = 0;
+    await runIntegrationPollOnce({
+      ...baseDeps(),
+      loadAdapters: async () => [], // 无富化适配器（既有实现会 continue 跳过整租户）
+      emit: () => {},
+      loadSyncTargets: async () => [{ id: 'fx-1', kind: 'fxiaoke', objects: [{ name: 'AccountObj', direction: 'in' }], trustLevel: 'L1' }],
+      runSync: async () => { syncRuns++; return { runs: 1 }; },
+    });
+    expect(syncRuns).toBe(1);
+  });
+
+  it('同步目标装配失败 → emit trace 留痕（不静默）且富化主流程继续', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const traces = [];
+    let enrichRan = false;
+    await runIntegrationPollOnce({
+      ...baseDeps(),
+      loadAdapters: async () => [{ id: 'qixin', coverageFields: ['legal_person'] }],
+      query: async () => ({ rows: [{ id: 'acc1', payload: {} }] }),
+      runWaterfall: async () => { enrichRan = true; return { values: {}, cost: 0 }; },
+      monitorAccount: async () => {},
+      emit: (k, name) => traces.push(name),
+      loadSyncTargets: async () => { throw new Error('sync boom'); },
+      runSync: async () => ({ runs: 1 }),
+    });
+    expect(traces).toContain('integration-poll-sync-targets-failed');
+    expect(enrichRan).toBe(true); // 富化主流程不受影响
+  });
+
+  it('runSync 抛错 → emit integration-poll-sync-failed（不静默、不拖垮富化）', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const traces = [];
+    let enrichRan = false;
+    await runIntegrationPollOnce({
+      ...baseDeps(),
+      loadAdapters: async () => [{ id: 'qixin', coverageFields: ['legal_person'] }],
+      query: async () => ({ rows: [{ id: 'acc1', payload: {} }] }),
+      runWaterfall: async () => { enrichRan = true; return { values: {}, cost: 0 }; },
+      monitorAccount: async () => {},
+      emit: (k, name) => traces.push(name),
+      loadSyncTargets: async () => [{ id: 'fx-1', kind: 'fxiaoke', objects: [{ name: 'AccountObj', direction: 'in' }], trustLevel: 'L1' }],
+      runSync: async () => { throw new Error('inner boom'); },
+    });
+    expect(traces).toContain('integration-poll-sync-failed');
+    expect(enrichRan).toBe(true);
+  });
+});
+
+// ─── A-B5（T06）：webhook 对象变化事件路由——线A 第二挂载点（2026-09-16）───
+// 设计 §6.1 A-B5 + §13 T06；计划 docs/superpowers/plans/2026-09-16-line-a-mount-points.md §Task 5
+// 红线：两路共用同一 admin/sysadmin 闸；无 event.object → 既有线索派发行为不变（零回归）
+describe('A-B5 · webhook 对象变化事件路由（线A 挂载点）', () => {
+  it('body.event.object 存在 → 路由到同步内核 upsert（不经线索派发）', async () => {
+    const { handleSignalWebhook } = await import('../src/http/connectorRouter.js');
+    const dispatched = [];
+    const syncCalls = [];
+    const r = await handleSignalWebhook({
+      me: { ok: true, role: 'admin', username: 'a', tenantId: 't1' },
+      body: { event: { object: 'AccountObj', record: { id: 'a1', name: '客户A' } } },
+      provider: 'fxiaoke',
+      exec: async (name) => { dispatched.push(name); return { ok: true, data: {} }; },
+      runSyncEvent: async (args) => { syncCalls.push(args); return { ok: true, created: true, externalId: 'a1' }; },
+    });
+    expect(r.status).toBe(200);
+    expect(r.json.route).toBe('sync-upsert');
+    expect(syncCalls[0]).toMatchObject({ tenantId: 't1', provider: 'fxiaoke', object: 'AccountObj' });
+    expect(dispatched).toEqual([]); // 不派发线索动作
+  });
+
+  it('body.event.object 存在但未接线 → 501（不静默降级为线索派发，避免写错对象）', async () => {
+    const { handleSignalWebhook } = await import('../src/http/connectorRouter.js');
+    const r = await handleSignalWebhook({
+      me: { ok: true, role: 'admin', username: 'a', tenantId: 't1' },
+      body: { event: { object: 'AccountObj' } }, provider: 'fxiaoke',
+      exec: async () => ({ ok: true }),
+    });
+    expect(r.status).toBe(501);
+    expect(r.json.error).toBe('sync_route_not_mounted');
+  });
+
+  it('同步路由失败（未声明映射）→ 400 带 error 与 result（不静默成 200）', async () => {
+    const { handleSignalWebhook } = await import('../src/http/connectorRouter.js');
+    const r = await handleSignalWebhook({
+      me: { ok: true, role: 'admin', username: 'a', tenantId: 't1' },
+      body: { event: { object: 'UnknownObj', record: { id: 'x' } } }, provider: 'fxiaoke',
+      exec: async () => ({ ok: true }),
+      runSyncEvent: async () => ({ ok: false, error: 'object_not_mapped' }),
+    });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe('object_not_mapped');
+  });
+
+  it('不带 event.object → 保持既有线索派发（零回归）', async () => {
+    const { handleSignalWebhook } = await import('../src/http/connectorRouter.js');
+    const dispatched = [];
+    const r = await handleSignalWebhook({
+      me: { ok: true, role: 'admin', username: 'a', tenantId: 't1' },
+      body: { signal_type: 'funding_round', account_id: 'acc1', match: { value: 'B轮' } },
+      provider: 'qixin',
+      exec: async (name, params) => { dispatched.push({ name, params }); return { ok: true, data: { deal_id: 'd1' } }; },
+    });
+    expect(r.status).toBe(200);
+    expect(dispatched[0].name).toBe('conn-signal-lead-gen');
+    expect(r.json.decision_id).toBe('d1');
+  });
+
+  it('sales 角色走事件路由 → 403（两路共用同一闸，不因新分支放宽）', async () => {
+    const { handleSignalWebhook } = await import('../src/http/connectorRouter.js');
+    let synced = false;
+    const r = await handleSignalWebhook({
+      me: { ok: true, role: 'sales', username: 's', tenantId: 't1' },
+      body: { event: { object: 'AccountObj', record: { id: 'a1' } } }, provider: 'fxiaoke',
+      exec: async () => ({}),
+      runSyncEvent: async () => { synced = true; return { ok: true }; },
+    });
+    expect(r.status).toBe(403);
+    expect(synced).toBe(false);
+  });
+});
