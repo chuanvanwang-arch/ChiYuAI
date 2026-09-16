@@ -68,4 +68,18 @@ describe('signal-center 展示层可读性守门', () => {
     expect(page).toMatch(/p\.ageDays/);
     expect(page).not.toMatch(/esc\(\(s\.payload\?\.subject \|\| s\.kind/);
   });
+
+  // 2026-09-16 截图实证：payload.suggestion 是 JSONB 且实测值为 {}（truthy），
+  //   String({}) 把 "[object Object]" 直接渲染到说明列 → 必须有字符串类型闸。
+  it('说明列不产出 [object Object]（JSONB 对象须被 asText 挡掉）', () => {
+    expect(page).toContain('const asText');
+    expect(page).toMatch(/typeof v === 'string'/);
+    expect(page).toMatch(/asText\(s\.suggestion/);
+    expect(page).not.toMatch(/\|\|\s*s\.suggestion\s*\|\|/); // 反向：裸接对象 → 红
+  });
+
+  it('列表含租户列（跨租户巡检时才分得清这行是谁的）', () => {
+    expect(page).toContain('<th>租户</th>');
+    expect(page).toMatch(/s\.tenant_id/);
+  });
 });

@@ -92,7 +92,7 @@
 
   <table class="sc-table" id="signal-table" data-signal-table>
     <thead>
-      <tr><th>事项</th><th>紧急度</th><th>对象</th><th>说明</th><th>时间</th><th>动作</th></tr>
+      <tr><th>事项</th><th>紧急度</th><th>对象</th><th>说明</th><th>时间</th><th>租户</th><th>动作</th></tr>
     </thead>
     <tbody></tbody>
   </table>
@@ -147,15 +147,20 @@ const shortId = (v) => (typeof v === 'string' && v.length > 12 ? v.slice(0, 8) :
 // payload 里常带长 UUID（如 suggestion_card 的 subject），展示时截断，避免一屏全是乱码
 const tidy = (t) => String(t || '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, (m) => m.slice(0, 8));
 
+// ⚠ 只认字符串：payload/suggestion 是 JSONB（实测常为 {}），
+//   空对象是 truthy → String({}) 会把 "[object Object]" 直上页面（2026-09-16 截图实证）。
+const asText = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+
 // 说明列：优先用 payload 里的业务量（滞留天数/逾期天数/拜访缺口），
-// 退回到 subject——否则只会显示「s0_stale 预警」这类零信息量的句子。
+// 退回到字符串 subject——否则只会显示「s0_stale 预警」这类零信息量的句子。
 function summaryOf(s) {
   const p = s.payload || {};
   if (p.ageDays != null) return `公海已滞留 ${p.ageDays} 天，仍无人认领`;
   if (p.overdueDays != null) return `逾期 ${p.overdueDays} 天${p.named_owner ? `（责任人 ${p.named_owner}）` : ''}`;
   if (p.dailyVisits != null && p.dailyTarget != null) return `今日拜访 ${p.dailyVisits} 次 / 目标 ${p.dailyTarget} 次`;
+  if (p.weeklyVisits != null && p.weeklyTarget != null) return `本周拜访 ${p.weeklyVisits} 次 / 目标 ${p.weeklyTarget} 次`;
   if (p.weekNew != null && p.weeklyMin != null) return `本周新增 ${p.weekNew} 条 / 目标 ${p.weeklyMin} 条`;
-  const sub = tidy(p.subject || s.suggestion || '');
+  const sub = tidy(asText(p.subject) || asText(s.suggestion?.text) || asText(s.suggestion));
   return sub || KIND_TEXT[s.kind] || s.kind || '';
 }
 
@@ -171,7 +176,7 @@ async function load() {
   const res = await fetch(`/api/signals?${q}`, { headers: authHeaders() });
   if (!res.ok) {
     document.querySelector('#signal-table tbody').innerHTML =
-      `<tr><td colspan="6" class="muted">加载失败：HTTP ${res.status}</td></tr>`;
+      `<tr><td colspan="7" class="muted">加载失败：HTTP ${res.status}</td></tr>`;
     return;
   }
   const data = await res.json().catch(() => ({ items: [] }));
@@ -196,6 +201,7 @@ async function load() {
       <td title="${esc(s.particle_id || '')}">${esc(objText)}</td>
       <td title="${esc(JSON.stringify(s.payload || {}))}">${esc(summaryOf(s).slice(0, 48))}</td>
       <td>${s.created_at ? esc(new Date(s.created_at).toLocaleString()) : ''}</td>
+      <td class="sc-code">${esc(s.tenant_id || '—')}</td>
       <td>${actBtn}</td>`;
     tbody.appendChild(tr);
   }
