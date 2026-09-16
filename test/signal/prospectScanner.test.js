@@ -28,6 +28,13 @@ describe('T16 拓客信号', () => {
     expect(kinds).toEqual(['candidate_touch_window', 's0_stale', 's0p_recycle_warn'].sort());
     // 写入为零：扫描器只 create signal，不调用任何写粒子 SQL
     expect(signals.every((s) => s.source === 'rule-scan')).toBe(true);
+    // T21 个人隔离：S0P 预警属该负责人的私人事务 → 必须带 owner_id；
+    //   公海/候选池类无主信号 → owner_id 显式 null（按 target_role 广播）。
+    //   鉴别力：实现里丢掉 emitSignal 的 ownerId 实参 → 此断言红（原实现正是如此，204 行全 NULL）。
+    const byKind = Object.fromEntries(signals.map((s) => [s.kind, s]));
+    expect(byKind.s0p_recycle_warn.owner_id).toBe('u1');
+    expect(byKind.s0_stale.owner_id).toBeNull();
+    expect(byKind.candidate_touch_window.owner_id).toBeNull();
   });
   it('dedup_key 用 prospect: 前缀，不与 lead-pool-recycle 撞键', async () => {
     const now = Date.now();

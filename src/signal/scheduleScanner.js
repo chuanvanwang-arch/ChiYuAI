@@ -39,6 +39,10 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
         const r = await signalStore.create({
           tenant_id: tenantId, source: 'rule-scan', kind: rule.kind,
           severity: rule.severity || 'medium', target_role: rule.target_role || 'sales',
+          // T21 个人隔离：时间型信号的负责人取粒子 payload.owner_id（商机的跟进责任人是私人事务）。
+          //   ⚠ 原实现**丢弃了**该键（entity.payload.owner_id 一直可读却从未传）→ 204 行 owner_id 全 NULL 的成因之一。
+          //   无主的（如公海/未分配）落 NULL → 按 target_role 广播，符合语义。
+          owner_id: entity.payload?.owner_id || null,
           particle_id: entity.id,
           payload: { subject: `${rule.kind} 命中`, rule_id: rule.id },
           evidence: { rule_id: rule.id, threshold_days: rule.threshold_days },

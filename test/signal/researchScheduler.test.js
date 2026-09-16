@@ -19,6 +19,20 @@ describe('T17 L3 主动研究', () => {
     expect(r.researched).toBe(3);                       // 限额生效
     expect(r.cards).toBe(3);
     expect(signals.every((c) => c.source === 'agent-research' && c.suggestion.reasoning && c.suggestion.evidence_refs.length)).toBe(true);
+    // T21 个人隔离：对象无 owner → 建议卡落无主（按 target_role 广播），不得臆造责任人
+    expect(signals.every((c) => c.owner_id === null)).toBe(true);
+  });
+
+  // T21：对象有 owner → 建议卡归属该责任人（只有他能看到）
+  it('owner_id 透传：对象 payload.owner_id 落到建议卡', async () => {
+    const objects = [{ id: 'acc-own', tenant_id: 't1', payload: { owner_id: 'alice' } }];
+    const q = async () => ({ rows: objects });
+    const signals = [];
+    const signalStore = { create(o) { signals.push(o); return Promise.resolve({ ok: true }); } };
+    const readConfig = async () => ({ value: { enabled: true, max_objects_per_run: 5, daily_llm_budget: 50, select_rule: { type: 'CRM_ACCOUNT' } } });
+    const sc = createResearchScheduler({ query: q, signalStore, readConfig });
+    await sc.runOnce({ tenantId: 't1' });
+    expect(signals[0].owner_id).toBe('alice');
   });
   it('超预算降级不抛错（daily_llm_budget 耗尽后停止）', async () => {
     const objects = Array.from({ length: 5 }, (_, i) => ({ id: 'acc' + i, tenant_id: 't1', payload: {} }));

@@ -33,6 +33,8 @@ export function createResearchScheduler({ query, signalStore, runSkill, readConf
       const r = await signalStore.create({
         tenant_id: tenantId, source: 'agent-research', kind: 'suggestion_card',
         severity: 'low', target_role: 'sales', particle_id: obj.id,
+        // T21 个人隔离：建议卡归属该对象的负责人（有主则只有他能看到；无主 → 按角色广播）
+        owner_id: obj.payload?.owner_id || null,
         payload: { subject: `${sel.type} ${obj.id} 主动研究建议` },
         suggestion: { reasoning, evidence_refs, recommended_action: card?.recommended_action || null, degraded: card?.degraded || null },
         evidence: { research_schedule: true, budget_used: budget.used },

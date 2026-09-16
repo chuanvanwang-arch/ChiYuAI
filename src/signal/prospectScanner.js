@@ -24,8 +24,10 @@ export function createProspectScanner({ query, signalStore, readConfig = default
         signals += 1;
       }
       // ② S0P 回收前 T-3 天预警（有归属 + 跟进达 recycleDays-3 即预警，含边界日，符合"提前 3 天"语义）
+      //    ⚠ T21：这是**该负责人的私人预警**，必须带 owner_id——否则同租户全部销售员都会看到
+      //    「吕某某的线索快被回收了」（2026-09-16 个人隔离交付前实测 owner_id 全 NULL 的成因之一）。
       if (p.stage === 'S0P' && p.owner_id && followAge != null && followAge >= (recycleDays - 3)) {
-        await emitSignal(signalStore, tenantId, e.id, 's0p_recycle_warn', 'medium', 'sales', `prospect:s0p_recycle_warn:${e.id}:day`, { followAgeDays: Math.floor(followAge) });
+        await emitSignal(signalStore, tenantId, e.id, 's0p_recycle_warn', 'medium', 'sales', `prospect:s0p_recycle_warn:${e.id}:day`, { followAgeDays: Math.floor(followAge) }, p.owner_id);
         signals += 1;
       }
       // ③ 候选池触达窗口（candidate 标记 + 入池超触达窗口 5 天）
@@ -39,9 +41,11 @@ export function createProspectScanner({ query, signalStore, readConfig = default
   return { scanOnce };
 }
 
-async function emitSignal(signalStore, tenantId, particleId, kind, severity, targetRole, dedupKey, payload) {
+// ownerId（T21 个人隔离）：责任人 username；无主信号传 null（= 公海/广播，按 target_role 可见）
+async function emitSignal(signalStore, tenantId, particleId, kind, severity, targetRole, dedupKey, payload, ownerId = null) {
   await signalStore.create({
     tenant_id: tenantId, source: 'rule-scan', kind, severity, target_role: targetRole,
+    owner_id: ownerId || null,
     particle_id: particleId, payload: { subject: `${kind} 预警`, ...payload },
     evidence: { scanner: 'prospect' }, dedup_key: dedupKey,
   });

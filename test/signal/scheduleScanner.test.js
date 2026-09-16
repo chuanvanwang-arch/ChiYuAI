@@ -25,6 +25,20 @@ describe('T15 时间型信号', () => {
     expect(r.signals).toBe(1);
     expect(signalStore.created[0].kind).toBe('quote_approval_timeout');
   });
+
+  // T21 个人隔离：时间型信号须带上粒子 payload 里的责任人
+  //   鉴别力：原实现**读得到 entity.payload.owner_id 却从不传** → 此断言红（204 行 owner_id 全 NULL 的成因之一）
+  it('owner_id 透传：粒子 payload.owner_id 落到信号（无主则显式 null）', async () => {
+    const withOwner = { id: 'd-own', tenant_id: 't1', payload: { quote_status: 'pending_approval', approval_requested_at: new Date(Date.now() - 5 * 86400000).toISOString(), owner_id: 'alice' } };
+    const ctx1 = makeCtx({ rows: [withOwner], readConfigValue: { enabled: true, rules: [RULE] } });
+    await createScheduleScanner({ query: ctx1.q, signalStore: ctx1.signalStore, readConfig: ctx1.readConfig }).scanOnce({ tenantId: 't1' });
+    expect(ctx1.signalStore.created[0].owner_id).toBe('alice');
+
+    const noOwner = { id: 'd-no', tenant_id: 't1', payload: { quote_status: 'pending_approval', approval_requested_at: new Date(Date.now() - 5 * 86400000).toISOString() } };
+    const ctx2 = makeCtx({ rows: [noOwner], readConfigValue: { enabled: true, rules: [RULE] } });
+    await createScheduleScanner({ query: ctx2.q, signalStore: ctx2.signalStore, readConfig: ctx2.readConfig }).scanOnce({ tenantId: 't1' });
+    expect(ctx2.signalStore.created[0].owner_id).toBeNull();
+  });
   it('阈值调大后同数据不再命中（可证配置生效）', async () => {
     const deal = { id: 'd1', tenant_id: 't1', payload: { quote_status: 'pending_approval', approval_requested_at: new Date(Date.now() - 5 * 86400000).toISOString() } };
     const bigRule = { ...RULE, threshold_days: 10 };
