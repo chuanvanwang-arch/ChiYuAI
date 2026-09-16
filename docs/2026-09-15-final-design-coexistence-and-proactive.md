@@ -221,7 +221,8 @@
 | # | 缺陷 | 说明 | 证据 |
 | --- | --- | --- | --- |
 | **E1** | `autonomous_allowed` **配置面 ≠ 执行面（假绿）** | 前端显示 `✅自主/⛔人工`、配置页映射 `auto_decision`，但 `requireDecision` 主路径**完全不读该字段** → 配了不生效 | 配置面 `decisionScenario.js:126` / `controlledConfigPages.js:84`；执行面 `autonomyEngine.js:274` 未引用。`:251` 的 `highNoAuto` 为 dead variable |
-| **E2** | **`A/B/C` 术语碰撞** | `advice.tier` 的 A/B/C（对话建议档位，默认 C）与 `project_tier` 的 A/B/C（项目分级）**同名不同义**，且默认值语义相反 | `adviceStore.js:32-33`（`'C'` → `NORMAL`）vs `migrate.js:398`（`'C'` → `LEAD`） |
+| **E2** | **`A/B/C` 术语碰撞（且方向相反）** | `advice.tier` 的 A/B/C（对话建议档：C = 证据不足**禁止处置**）与项目维取值 A/B/C（C = 低风险**可自治**）**同名而语义相反**；且跨轴投影 `business_tier` 把建议 C 档标成 `NORMAL`（可自主）= **语义反转** | `adviceStore.js:46`（旧：`'B'`→`HIGH`，其余→`NORMAL`）vs `migrate.js:398`（`'C'`→`LEAD`）。**✅ 2026-09-16 已修**（见 §11.1.1） |
+| **E3** | **建议链路断链（新识别）** | `buildAdviceAnchor()` 是孤儿导出（`src/` 零调用），`ADVISED` 是死状态 → **"AI 曾建议过什么"从未落库** → 无法度量建议准确率/采纳率（第 9 大能力缺一条回路） | `adviceStore.js` 全仓唯一引用 = 其测试；`advise()` 8 处生产调用（`gateway.js:213/238/343` 等）**只即时回显**。**⏳ 待裁决**（三方案见 §11.1.1） |
 
 **结论（本设计 §11 的修正立场）**：
 
@@ -877,7 +878,66 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 | 缺陷 | 修法 | 不做会怎样 |
 | --- | --- | --- |
 | **E1** `autonomous_allowed` 假绿 | ✅ **已裁决 = 方案 a**（见上） | 管理员配了"⛔人工"却仍被自动放行，是**安全承诺失效** |
-| **E2** `A/B/C` 术语碰撞 | 配置面与文档统一区分命名：项目分级写 **`项目分级(A/B/C)`**，对话建议档写 **`建议档位`**；`adviceStore.js:33` 增加注释锚定语义 | 读代码/看配置时把两个 C 当成一回事，造成误判 |
+| **E2** `A/B/C` 术语碰撞 | ✅ **已实施**（2026-09-16，见下方"E2 实施明细"）——原修法只要求"改名+注释"，实测后发现**不只是命名问题**，按"缺陷直接修"升级为**投影纠错 + 守卫** | 读代码/看配置时把两个 C 当成一回事 → **真正接线时把"禁止处置"变成"允许自治"**（安全方向反转，且无任何正向用例会变红） |
+
+#### E2 实施明细（2026-09-16，已实施并验证）
+
+**核验结论：两套 A/B/C 不只是"同名不同义"，而是方向完全相反**，且 `adviceStore` 的跨轴投影存在**语义反转**：
+
+| 值 | ① 对话建议档（`adviceCard.js`，轴 `ADVICE_MATURITY`） | ② 项目维**取值**（`business_tier_config.dimension='project'`） |
+| --- | --- | --- |
+| A | 证据齐备 → `APPROVE`（**可放手**） | → `HIGH`（**最高风险**，一律升级） |
+| B | 红线命中 / HIGH 级场景 → `ESCALATE` | → `NORMAL` |
+| C | 证据不足 → 只补信息（**禁止处置**） | → `LEAD`（**最低风险**，可自治） |
+
+> 即「建议档 A」的风险方向 ≈「项目分级 C」。**两轴字母同名而语义相反**，任何按字面同值搬运的代码都会静默反转安全方向。
+> 原实现 `business_tier: advice.tier === 'B' ? 'HIGH' : 'NORMAL'` 把**建议档 C（禁止处置）投影成 `NORMAL`（可自主放行）**——恰好把最不该自主的一档标成可自主。
+> 该错误**不会报错、不会破任何正向用例**，只在真正接线时把"禁止处置"变成"允许自治"。
+
+**四项改动**：
+
+| # | 改动 | 位置 |
+| --- | --- | --- |
+| 1 | **轴显式声明**：新增 `ADVICE_TIER_AXIS='ADVICE_MATURITY'` + `ADVICE_TIERS`，并在文件头给出两轴反向对照表 | `adviceCard.js` |
+| 2 | **投影纠错**：`advice.tier === 'A' ? 'NORMAL' : 'HIGH'`（**仅 A 档可自主**；B 待审批 / C 禁止处置一律升级） | `adviceStore.js:46` |
+| 3 | **命名区分**：配置面 `分级` → **`自主分级`**、`取值` 列注明项目维 A/B/C、下拉选项标注 `LEAD（可自主）/HIGH（一律升级）`；「术语边界」声明进两个配置面文件 | `businessTierRender.js` · `business-tier.html` · `S23.schema.js` |
+| 4 | **跨轴守卫测试**（7 项） | 新建 `test/advice-tier-axis.test.js` |
+
+**守卫测试的四层判据**（`test/advice-tier-axis.test.js`）：
+① **两轴枚举不相交**（机械证明"按字面映射"必错）② **建议档 C → `disposition=null`**（禁止处置，非"可放手"）③ **投影保守单调**——仅 A 可投影 `NORMAL`，**B/C 一律 `HIGH``（关键负向哨兵）** ④ **源码级禁字面映射**（正则只匹配代码行，注释中的历史记录不误伤）。
+
+**验证证据**：
+
+| 证据 | 结果 |
+| --- | --- |
+| `test/advice-tier-axis.test.js` + 相关 6 域 | **101/101 全绿**（守卫 7 项） |
+| **自证鉴别力** | 把投影改回旧写法 → ③④ **同时变红**，报错 `expected 'NORMAL' to be 'HIGH'`（语义）与源码断言（形态）✅ 归因准确；已恢复 |
+| 一次批量运行的 1 项红（`decision_event` FK 违反） | **已实证为并发共享库伪失败，非本次引入**：① 本轮改动文件与 decision 链路**零 import 引用** ② 两次重跑失败的**用例不同**（`createDecision` / `reverseDecision`）→ 非确定性 ③ 随后连续 2 次 **16/16 全绿** ④ 库上存在 1 个并发连接（`crm.mcp_identity` 查询）。**判据范式同 §11.1.3 的 54 分钟超时伪失败** |
+
+**零运行时影响声明**：`adviceStore.js` 当前**无生产调用者**（唯一引用者是 `test/decision/advice-store.test.js`），故投影纠错不改变任何线上行为——它的价值在于**接线前把方向摆正**。
+
+#### E3 建议链路断链（**新识别，待裁决，本设计不擅自实施**）
+
+核验 E2 时连带查出：**「建议」这条链路从未接线**。
+
+| 项 | 证据 |
+| --- | --- |
+| `buildAdviceAnchor()` 是**孤儿导出** | 全仓唯一引用者 = `test/decision/advice-store.test.js`；`src/` 内零调用 |
+| `ADVISED` 是**死状态** | 全仓仅出现在 `adviceStore.js` 自身（`:3/:8/:34`）→ `crm.decision` 中**永远不会**有 `state='ADVISED'` 的行 |
+| 但 `advise()` **有 8 处生产调用** | `executor.js:57` · `seed-actions.js:2216` · `routes.js:2393` · `gateway.js:213/238/343` —— 返回值**一律只做即时回显**（`a.advice` 直接透传 HTTP/MCP 响应） |
+
+**后果**：**"AI 曾经建议过什么"从未落库** → 无法度量建议的准确率与采纳率；也无法回答"这次决策是采纳了 AI 建议，还是人自己想出来的"。
+这正是第 9 大能力（反馈闭环）缺的那一条回路，也是 T20（观测校准）的前置数据源。
+
+**三条可选路径（须用户裁决）**：
+
+| 方案 | 做法 | 代价 / 风险 |
+| --- | --- | --- |
+| **(i) 接线落库**（推荐，但需评估） | 在调用点之后把建议落成 `state='ADVISED'` 的 decision 锚点 | **必须同步改先例检索**：`decisionRepo` 的先例查询须显式排除 `ADVISED`，否则"AI 的推测"会混进"人的决策先例"→ `autonomyEngine` 依据被污染（**这是接线前的硬前置，不是可选项**） |
+| **(ii) 删除该链路** | 承认建议卡只做即时回显，删 `adviceStore.js` + 其测试 | 丧失建议可观测性；但消除"看起来有建议落库"的假象 |
+| **(iii) 维持现状 + 标注** | 仅在文档标注"未接线" | 零成本；但设计文档 §5 与其实现形成长期"承诺≠实现"落差（与 `deploy.sh` 同族缺陷） |
+
+> **不擅自实施的理由**：(i) 会新增 decision 行并触及先例检索的判定语义（属决策内核），按 HARD-GATE 须先获批准；且它是 T20 的前置，应在 S3/S4 阶段与观测校准一并设计。
 
 
 ### 11.2 闭环三要素
@@ -1238,16 +1298,16 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 
 > **实施优先级：本任务应先于 T19 执行。** T19 是新增 B/C 轴（动作边界 + 授权凭证）；本任务是**把已在运行的 A 轴（对象风险分级）先变成可审计、可撤回的授权对象**。先修既有轴的审计断链，再叠加新轴——否则新凭证的溯源会挂在一条本就断链的依据上。
 
-> **实施状态（2026-09-16）：契约 5 项判据全部实跑通过**（证据见 §11.1.2 / §11.1.3）。实施期捕获 2 个真陷阱（撤回覆盖批准溯源、镜像形状双处不一致），均已修复并加断言锁死。
+> **实施状态（2026-09-16）：契约判据全部实跑通过**（证据见 §11.1.2 / §11.1.3 / §11.1.1 的 E2 实施明细）。实施期捕获 2 个真陷阱（撤回覆盖批准溯源、镜像形状双处不一致），均已修复并加断言锁死；另修 E2 跨轴语义反转并加守卫测试。
 
 ```contract-yaml
-- task: "T21 分级授权对象化：business_tier_config 补授权元数据列（approved_by/approved_at/decision_id/expires_at/revoked_at/revoked_reason）、写入时落 decision_id、分级配置纳入 POLICY_KEYS 内容冻结、补撤回/到期语义并接入执行面消费、修 autonomous_allowed 配置面与执行面不一致"
+- task: "T21 分级授权对象化：business_tier_config 补授权元数据列（approved_by/approved_at/decision_id/expires_at/revoked_at/revoked_reason）、写入时落 decision_id、分级配置纳入 POLICY_KEYS 内容冻结、补撤回/到期语义并接入执行面消费、修 autonomous_allowed 配置面与执行面不一致、修 advice 建议档与项目分级两套 A/B/C 的跨轴投影反转（E2）"
   agent: review-gate
   contract_task_id: ct-review-gate
   skills: [method-review-gate, data-particle-read]
   memory: [review-gate, decision-retro]
   knowledge_scope: { layers: [L1, L2], max_hops: 4 }
-  success: "① 表结构与 schema.sql 一致（6 个新列幂等可重跑）；② 任一次 PUT /api/business-tier-config 后，该行 decision_id 非空且可在 crm.decision 反查到（溯源不断链）；③ 改一次分级配置后 resolvePolicyVersion 解析出新的 policy_version_id，且改回旧值时能复用原版本（幂等不破）；④ 一条撤回后该分级不再参与 computeBusinessTier 判定（该取值回退 scenario.default_tier），且历史决策的 effective_policy_version 不变（历史依据不被洗掉）；⑤ autonomous_allowed=false 的场景在 tier!=HIGH 且 conf 达标时不再自主放行（配置面承诺与执行面一致，假绿消除）"
+  success: "① 表结构与 schema.sql 一致（6 个新列幂等可重跑）；② 任一次 PUT /api/business-tier-config 后，该行 decision_id 非空且可在 crm.decision 反查到（溯源不断链）；③ 改一次分级配置后 resolvePolicyVersion 解析出新的 policy_version_id，且改回旧值时能复用原版本（幂等不破）；④ 一条撤回后该分级不再参与 computeBusinessTier 判定（该取值回退 scenario.default_tier），且历史决策的 effective_policy_version 不变（历史依据不被洗掉）；⑤ autonomous_allowed=false 的场景在 tier!=HIGH 且 conf 达标时不再自主放行（配置面承诺与执行面一致，假绿消除）；⑥ 跨轴投影不反转：建议档 C（证据不足、禁止处置）经 buildAdviceAnchor 投影后不得落入可自主分级（必为 HIGH），且 test/advice-tier-axis.test.js 守卫通过（防两套同名反向的 A/B/C 再被按字面搬运）"
 ```
 
 **契约说明：** 本任务由 `review-gate` 承接（授权面的配置闸门职责），调用 `method-review-gate`/`data-particle-read`、读 `review-gate`/`decision-retro` 记忆（L1–L2，≤4 跳）；成功标准为**元数据落库 + 溯源可反查 + 版本冻结生效（含幂等回滚）+ 撤回语义接入执行面 + 配置面与执行面一致**。
@@ -1539,7 +1599,25 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 | 分级可撤回 | ❌ **不成立** | `businessTier.js:92-98` 仅 `ON CONFLICT DO UPDATE SET tier=$4`，无 `paused/revoked` 语义 |
 | `autonomous_allowed` 生效 | ❌ **不成立（假绿）** | 配置面 `decisionScenario.js:126`／执行面 `autonomyEngine.js:274` 未引用；`:251` `highNoAuto` 为 dead variable |
 
+**上表为 2026-09-15 的核验快照。其中 4 项"不成立"已于 2026-09-16 全部修复并验证**：
+`未落库` → ✅ A2（`upsertTier` 落 `decision_id`/`approved_by`/`approved_at`）｜`审计断链` → ✅ A3（`POLICY_KEYS` 第 10 键 `business-tier-config` + 镜像冻结）｜`不可撤回` → ✅ A4（`revoked_at`/`expires_at` 派生状态 + 撤回端点，零 DELETE）｜`autonomous_allowed 假绿` → ✅ E1 方案 a（`!sceneAllowsAuto` 接入 `escalated`）。
+证据：§11.1.2 / §11.1.3 / §11.1.1（E2 明细）；契约 ⑥ 项判据见 §13 T21。
+
 **本项产出的修正**：§2.4 新增；§11.0 三轴模型新增；§11.1 增加 A1–A4 补全项；§13 新增 **T21**；§12 增加 2 条铁律映射。
+
+#### ⑥ 建议链路核验（2026-09-16 追加，配合 E2 顺带查出）
+
+核验 E2（两套 A/B/C）时连带核实"建议是否落库"，结论见 §11.1.1 的 **E3**：
+
+| 待核验主张 | 核验结果 | 源码锚点 |
+| --- | --- | --- |
+| 建议结果会落库为 decision | ❌ **不成立（链路未接线）** | `buildAdviceAnchor()` 全仓唯一引用 = `test/decision/advice-store.test.js`；`src/` 零调用 |
+| `ADVISED` 是真实存在的决策状态 | ❌ **不成立（死状态）** | 全仓仅 `adviceStore.js:3/:8/:34`；`crm.decision` 中永无 `state='ADVISED'` 行 |
+| 建议会被消费 | ⚠️ **仅即时回显，不落库** | `advise()` 8 处生产调用（`executor.js:57`、`seed-actions.js:2216`、`routes.js:2393`、`gateway.js:213/238/343`）→ 一律 `a.advice` 透传响应 |
+
+**判定方法有效性说明**（防假红）：本次用"唯一引用者即测试文件"作为否定断言依据，已先用**已知存在样本**（`advise()` 的 8 处调用）对照同一套 grep 口径——同一口径能找出 8 处，故"零命中"可信。
+
+**本项产出的修正**：§11.1.1 新增 **E3**（含三条待裁决路径）；§2.4 缺陷表新增 E3 行。**本项不擅自实施**——方案 (i) 会触及先例检索的判定语义（决策内核），按 HARD-GATE 须先获批准。
 
 
 
