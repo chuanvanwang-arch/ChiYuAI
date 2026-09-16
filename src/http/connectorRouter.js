@@ -51,9 +51,10 @@ export function createConnectorRouter({ resolveMe, dispatch, runDiscovery, runSy
   const doDiscovery = runDiscovery || ((...a) => import('../agent/discoveryOrchestrator.js').then((m) => m.runDiscovery(...a)));
   // A-B5：缺省装配 = 同步挂载层（config_store 映射 + 真库 pool + 第 0 闸铸决策 + 留痕）；测试可注入替身
   const doSyncEvent = runSyncEvent || (async (args) => {
-    const [mount, cfg, db, bus, autonomy] = await Promise.all([
+    const [mount, cfg, db, bus, autonomy, wbMod] = await Promise.all([
       import('../sync/mount.js'), import('../config/configStore.js'), import('../db.js'),
       import('../events/bus.js').catch(() => null), import('../decision/autonomyEngine.js').catch(() => null),
+      import('../sync/writeback.js').catch(() => null),
     ]);
     return mount.handleObjectChanged({
       ...args,
@@ -62,6 +63,11 @@ export function createConnectorRouter({ resolveMe, dispatch, runDiscovery, runSy
         pool: db.pool,
         mappings: await mount.loadSyncMappings({ tenantId: args.tenantId, readConfig: cfg.readConfig }),
         emit: bus?.emit,
+        // P0-1（2026-09-16）：L3 回写接线（与 timers.js 集成轮询同源装配）。
+        //   默认不传 approvalPassed → 回写被 executor 第 3 闸拦，计入 writeback_error（可观测、不静默越权）。
+        callWriteback: wbMod?.createWritebackDispatcher
+          ? wbMod.createWritebackDispatcher({ dispatch: actionExecutor.dispatch, readConfig: cfg.readConfig })
+          : undefined,
         // 第 0 闸：L2/L3 写路径须铸决策；铸不出 → 内核拒写（fail-closed，与 timers.js 集成轮询同源装配）
         mintDecision: async (scene, ctx) => {
           const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;

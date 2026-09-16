@@ -11,10 +11,14 @@ export function genericRestAdapter(cfg = {}) {
       const { endpoint, field_map: fm, signal_map: sm, credentials } = this.config;
       if (!endpoint || !fm) return {};
       const auth = (ctx.credentials && ctx.credentials[this.id]) || credentials || null;
+      // A-B2：凭据可为结构化对象（同步侧用 appId/appSecret 等）；本适配器只吃**单串 token**。
+      // 非字符串一律不带 Authorization —— 否则会发出 `Bearer [object Object]`，请求必败却被外层
+      // catch 成 `{}` 空结果，表现为"没有数据"而非"凭据形状不对"（典型假绿）。
+      const bearer = typeof auth === 'string' ? auth : null;
       const doFetch = ctx.__fetch || this.config.__fetch || ((url, opts) => fetch(url, opts));
       let data;
       try {
-        const headers = auth ? { Authorization: `Bearer ${auth}` } : {};
+        const headers = bearer ? { Authorization: `Bearer ${bearer}` } : {};
         const r = await doFetch(`${endpoint}?q=${encodeURIComponent(entity?.name || '')}`, { headers });
         if (!r.ok) return {};
         data = await r.json();
