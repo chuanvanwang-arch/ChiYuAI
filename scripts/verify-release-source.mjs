@@ -11,9 +11,16 @@
 //       （已跟踪文件的配套改动未一起提交）
 //   Node 的模块解析失败是「第一个错即停」，逐个试错要发布 4 次才发现全部问题。
 //
-// 本脚本在发布前一次性静态穷尽两类不自洽：
+// 本脚本在发布前一次性静态穷尽三类不自洽：
 //   ① 依赖缺失：import/require 的相对目标文件不存在
 //   ② 导出错配：具名 import 的符号在目标模块中不存在（含 export * 递归）
+//   ③ 绝对 file:// 引用：硬编码本机绝对路径（2026-09-16 新增）
+//      双重危害：换机/CI 必红（不可移植）+ 测试加载的是「本机工作树」而非被测树 → 假绿。
+//      实坑：全仓 18 处，14 处在 test/（test/sync 8 + test/signal 5 + test/alerts 1）。
+//
+// 扫描范围（2026-09-16 起含 test/）：加 test/ 后实测 HEAD 树告警 1 → 12 处，
+//   暴露了 7 个长期红的测试（*_TENANT 常量的消费方未随 2388361 重构同步）。
+//   注意 test/ 属「非启动链路」→ 只告警不阻断（test/ 不进 release 包）。
 //
 // 用法:
 //   node scripts/verify-release-source.mjs [root]      # 默认仓库根（脚本上两级）
@@ -28,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(process.argv[2] || path.join(HERE, '..'));
 
-const SCAN_TOPS = ['src', 'db', 'scripts'];
+const SCAN_TOPS = ['src', 'db', 'scripts', 'test'];
 const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'uploads', 'docs', 'dist']);
 
 // ───────────────────────── 收集文件 ─────────────────────────
@@ -137,6 +144,28 @@ for (const file of files) {
   }
 }
 
+// ───────────────────────── ③ 绝对 file:// 引用（不可移植 + 假绿）─────────────────────────
+const absRefs = [];
+const seenAbs = new Set();
+for (const file of files) {
+  const src = read(file);
+  const re = /['"]file:\/\/\/([^'"]+)['"]/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const raw = decodeURIComponent(m[1]);
+    const p = raw.replace(/\//g, path.sep);
+    const key = `${rel(file)}|${raw}`;
+    if (seenAbs.has(key)) continue;
+    seenAbs.add(key);
+    absRefs.push({
+      from: rel(file),
+      target: raw,
+      // 指向本仓 = 最危险的一种：测试跑的是「本机工作树」而非「被测树」
+      selfRef: p.toLowerCase().startsWith(ROOT.toLowerCase()),
+    });
+  }
+}
+
 // ───────────────────────── 分级：是否在 app 启动链路上 ─────────────────────────
 // 只有启动链路的不自洽才会让生产容器崩溃循环（实测三次崩溃均来自 src/ 与 db/migrate.js）；
 // scripts/ 下的独立脚本、db/seed/ 下的种子脚本坏引用属既有技术债，不阻断发布，
@@ -168,11 +197,23 @@ printBlock(`⚠️  ① 依赖缺失 ${wMissing.length} 处【告警·非启动�
 printBlock(`⚠️  ② 导出错配 ${wMis.length} 处【告警·非启动链路】`, wMis,
   (d) => `   ${d.file}  import { ${d.name} } from '${d.target}'`);
 
-if (cMissing.length === 0 && cMis.length === 0) {
-  const warnN = wMissing.length + wMis.length;
+const cAbs = absRefs.filter((d) => isCritical(d.from));
+const wAbs = absRefs.filter((d) => !isCritical(d.from));
+printBlock(`❌ ③ 绝对 file:// 引用 ${cAbs.length} 处【阻断·启动链路】`, cAbs,
+  (d) => `   ${d.from}\n       -> ${d.target}\n       ⚠ 硬编码绝对路径，生产环境不存在该路径`);
+printBlock(`⚠️  ③ 绝对 file:// 引用 ${wAbs.length} 处【告警·不可移植】`, wAbs,
+  (d) => `   ${d.from}  ->  ${d.target}${d.selfRef ? '  ⚠指向本仓工作树' : ''}`);
+
+if (cMissing.length === 0 && cMis.length === 0 && cAbs.length === 0) {
+  const warnN = wMissing.length + wMis.length + wAbs.length;
   console.log(warnN === 0
-    ? '✅ 发布源自洽：依赖完整、导出符号匹配'
+    ? '✅ 发布源自洽：依赖完整、导出符号匹配、无绝对路径引用'
     : `✅ 启动链路自洽，可发布（另有 ${warnN} 处非启动链路告警，见上）`);
+  const selfN = wAbs.filter((d) => d.selfRef).length;
+  if (selfN > 0) {
+    console.log(`⚠️  其中 ${selfN} 处绝对路径指向本仓工作树：这些测试在干净树/CI 上会连回`);
+    console.log(`   本机工作树（而非被测树）→ 不可移植且可能「假绿」。建议改为相对路径。`);
+  }
   process.exit(0);
 }
 console.log('⛔ 结论：启动链路不自洽，当前树不可发布。请补齐缺失文件 / 一并提交配套改动后重跑。');
