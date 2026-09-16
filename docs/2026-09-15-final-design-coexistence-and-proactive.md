@@ -85,7 +85,63 @@
 > **判据（现已可核对）**：对任一历史决策，现在能回答三个问题——**"当时的分级是什么"**（A3 版本冻结，可复现）、**"谁批准了这个分级"**（A2 `approved_by` + `decision_id`，可反查）、**"它还有效吗 / 什么时候失效的"**（A4 `revoked_at`/`expires_at`，可撤回且撤回真的生效）。
 > 三者齐备之前，任何"事后审计 + 可撤回"的承诺都是**空头**。**现在这三问都答得出来，才谈得上扩大自治范围（T19）。**
 
+### 0.5 ⚠ 交付状态与接线实况（2026-09-16 15:57 复核，**对外表述前必读**）
 
+> **一句话**：S1–S7 的**代码模块已交付**；线 A（共生同步）**已接线并通过真库端到端实测**（两触发点 + 冒烟 5/5）；
+> **但** `crm_native` 的同步三键（`integration-providers` / `sync-mappings` / `sync-trust`）**均未配置 → 两触发点当前均为 no-op**。
+> 本节给**可复跑判据 + 实测记录**，不给一次性结论。
+
+| 线 | 交付状态 | 生产可触发 | 证据 |
+| -- | ------- | ---------- | ---- |
+| **线 B（主动运行时）** | ✅ S1 / S5 / S6 / S7 已交付 | ✅ 有（timers 注册、`routes.js` 端点、菜单入口、工作台第 7 视角） | §10.1 / §10.2 交付记录 |
+| **线 A（共生同步）** | ✅ **已接线**（`src/sync/` 10 文件 + 挂载层 `mount.js`） | ✅ **有**：A-B6 `timers.js:478` 集成轮询增量分支；A-B5 `connectorRouter.js:53` webhook 对象变化路由 | 冒烟 `scripts/smoke-line-a-mount.mjs` **5/5**；计划 §4.3/§4.5 |
+
+**线 A 触发性判据（可直接复跑，任一为 0 即"尚未挂载"）**：
+
+```bash
+# ① 挂载层是否已被生产触发点引用（期望 ≥1；=0 表示 mount.js 自身也是"挂载方没来"）
+grep -rn "sync/mount\|runTenantSyncOnce\|handleObjectChanged" src/scheduler/timers.js src/http/connectorRouter.js
+# ② 内核是否被生产引用（期望仅挂载层命中；其它 src/ 命中=越层调用）
+grep -rn "createSyncEngine\|engine.runOnce" src/ | grep -v "^src/sync/"
+# ③ 回写 Action 是否有生产调用者
+grep -rn "sync-writeback-fields" src/ | grep -v "seed-actions\|action/"
+# ④ sync 是否已有 HTTP 端点
+grep -rn "sync" src/http/routes.js
+```
+
+**2026-09-16 实测记录（可复跑）**：
+
+```bash
+node scripts/smoke-line-a-mount.mjs   # 真库 crm_native；唯一租户；5/5 OK
+```
+
+| 断言 | 实测 |
+| ---- | ---- |
+| ① L1 只读（有效档 = min(声明 L3, global L1) = L1） | `external_ref` 0→0、`particles` 0→0，cursor 留痕 `read=2`、`decision_id=null` |
+| ② L2 写入 + 第 0 闸锚点 | `created=4`、`external_ref` 0→4、两对象 `sync_cursor.decision_id` 均落锚点 |
+| ③ 二次同游标幂等 | `created=0`、0 新粒子 |
+| ④ 轮询侧 fail-closed（铸不出决策） | `errors=2`、零写入、emit `sync-run-failed` |
+| ⑤ **A-B5 事件路由**（另一挂载点） | L1 只读不写 / L2 无决策 `decision_required` 拒写 / L2 有决策 `created=true` |
+
+> **⚠ 接线期另发现并修复 3 处"接线才暴露"的潜伏缺口**（全部通过既有单测，仅真库接线后暴露）：
+> **G1** `engine.runOnce` 调 `readIncremental` 未传 `object` → 按对象拉取的 provider 永远 0 行且 `last_status='ok'`（假绿）；
+> **G2** `engine` 硬编码 `row.id`、忽略映射声明的 `identity.external_id_field` → 设计形状的行被全量 `skipped`；
+> **G3** A-B5 缺省装配**未注入 `mintDecision`**，且 `handleObjectChanged` 用可选形态（`if (mintDecision)`）而非 fail-closed
+> → **L2/L3 写路径可无决策落库**（呼应 §15 第 0 闸铁律）。G1/G2 见计划 §4.3；G3 为并行会话未覆盖项，见计划 §4.3 补记。
+> **G3 的隐蔽性**：`test/external-integration.test.js` 三条 A-B5 用例**全部注入 `runSyncEvent` 替身** → 缺省装配路径**零覆盖**，
+> 缺口对 102 例全绿的测试套件完全不可见（同族：`adoption.test.js` 用假 store 掩盖静默丢字段）。
+
+> **⛔ 由此产生的表述红线（适用范围同 §15 / 附录 D.2）**：
+> 在 ① 命中且跑出真实同步行（`crm.sync_cursor` 有 `last_status='ok'` 的行、`crm.external_ref` 有真实外部 ID）之前，
+> **任何"已接入客户 CRM" / "能为客户回写 CRM" / "双向同步已上线"的表述都不成立**。
+> 允许的表述是：**「同步已接入生产触发点（集成轮询 + webhook 事件路由），待租户配置描述符后生效」**。
+> （**2026-09-16 15:57 更正**：原允许表述「同步内核与挂载层已就绪，**等待接入方**」已随接线完成而**过期**——
+> 两触发点已于本日接线并通过真库冒烟 5/5。仍不成立的只有"已有客户数据在同步"，因 `crm_native` 三键未配置。）
+>
+> **⚠ 为什么本节给判据而不给结论**：本设计 §0.2 点破的病灶正是「文件头自述'等挂载方统一 add'——**挂载方一直没来**」。
+> 同类缺陷的特征是**结论会随时间失效**（模块先到、接线后到），因此本节以**可复跑判据**代替一次性结论——
+> 这也是 `2026-09-16-design-merge-audit.md` §11 判据 ④「**交付 ≠ 可触发**」的落地形式。
+> 待闭环项登记见**附录 E**。
 
 ---
 
@@ -398,11 +454,12 @@
 
 ---
 
-## §8 数据模型（6 张新表；另有 1 张见 §11.1.1）
+## §8 数据模型（7 张新表：§8.1–§8.6 共 6 张 + §8.7 第 7 张）
 
 > 遵循项目约定：`CREATE TABLE IF NOT EXISTS`；`tenant_id` 默认 `'system'`；**不物理 DELETE**（软态翻转）；DDL 追加 `db/schema.sql`（单一事实源）。  
-> **本节 6 张表全部为运行态表，非粒子域**，与 `crm.tasks` 同类——**不触碰 §10「不新增粒子类型、不改业务域模型」**。  
-> **⚠ 本设计新增表合计 7 张**：本节展开线 A / 线 B 的 6 张；第 7 张为 `crm.advice_record`（E3 建议落库，18 列，裁决过程见 §11.1.1，DDL 已在 `db/schema.sql:1131`）。凡下文称"7 张新表"者即指此 7 张。
+> **本节 7 张表全部为运行态表，非粒子域**，与 `crm.tasks` 同类——**不触碰 §10「不新增粒子类型、不改业务域模型」**。  
+> **表清单**：§8.1 `external_ref`（14 列）· §8.2 `sync_cursor`（13 列）· §8.3 `signal`（20 列）· §8.4 `signal_delivery`（12 列）· §8.5 `standing_grant`（21 列）· §8.6 `grant_execution`（13 列）· **§8.7 `advice_record`（18 列，E3 建议落库·A 轴）**。
+> 凡下文称"7 张新表"者即指此 7 张。**2026-09-16 已做 DDL 三向对账**（废弃草案 / 本设计 / 实际 `db/schema.sql`），差异全部闭合，逐项处置见各小节内的「📌 2026-09-16 回填」块。
 
 
 ### 8.1 `crm.external_ref` —— 外部引用映射（线 A｜A-N3）
@@ -479,22 +536,38 @@ CREATE TABLE IF NOT EXISTS crm.signal (
   suggestion    JSONB NOT NULL DEFAULT '{}'::jsonb, -- 建议卡（L3）：{headline, reasoning, evidence_refs, action_name, action_params}
   status        TEXT NOT NULL DEFAULT 'open',       -- open | acked | closed | acted
   dedup_key     TEXT NULL,                          -- 幂等去重键：kind:particle_id:bucket
-  decision_id   TEXT NULL,
+  decision_id   TEXT NULL,                          -- 本信号处置所依据的决策凭证（采纳必带，第 0 闸）
   action_ref    TEXT NULL,                          -- 采纳后触发的 Action 名
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   acked_at      TIMESTAMPTZ NULL,
   closed_at     TIMESTAMPTZ NULL,
-  closed_reason TEXT NULL
+  acted_at      TIMESTAMPTZ NULL,                   -- 采纳执行完成时间戳（setStatus 'acted'）
+  closed_reason TEXT NULL                           -- 关闭原因（关闭路径必填）
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_signal_dedup
-  ON crm.signal(tenant_id, dedup_key) WHERE dedup_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_signal_inbox
-  ON crm.signal(tenant_id, owner_id, status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_signal_open_kind
-  ON crm.signal(tenant_id, kind, status);
+-- 去重索引：谓词必须与 src/signal/store.js 的 findOpenByDedup 查询谓词**逐字一致**
+CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_dedup
+  ON crm.signal(tenant_id, dedup_key) WHERE dedup_key IS NOT NULL AND status IN ('open','acked');
+CREATE INDEX IF NOT EXISTS idx_signal_open
+  ON crm.signal(tenant_id, status, severity, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_kind
+  ON crm.signal(tenant_id, kind, created_at DESC);
 ```
 
-**幂等写入语义**：`ON CONFLICT (tenant_id, dedup_key) DO UPDATE SET payload/severity/created_at`（**更新而非新建**），避免同一事实每 30 分钟刷一条。`bucket` 由 `config_store['signal-schedule'].bucket` 决定（默认按日）。
+**幂等写入语义**：`ON CONFLICT (signal_id) DO NOTHING` + 回查既有行（同一告警经多条落库路径只落一行且不报错）；`dedup_key` 命中**未关闭**信号时复用既有行（`findOpenByDedup`），避免同一事实每 30 分钟刷一条。`bucket` 由 `config_store['signal-schedule'].bucket` 决定（默认按日）。
+
+> **📌 2026-09-16 回填与修正（本表与实现的差异已闭合，见 `2026-09-16-design-merge-audit.md` §6.1）**
+>
+> | # | 项 | 本设计原状 | 处置 |
+> | - | -- | ---------- | ---- |
+> | ① | `acted_at` 列 | **设计缺失** | 回填：采纳置 `acted` 时写时间戳（与 `acked_at`/`closed_at` 同族的 COALESCE 幂等写法） |
+> | ② | 去重索引名与谓词 | 原为 `uq_signal_dedup`，谓词 `WHERE dedup_key IS NOT NULL`（**全状态唯一**） | **修正**：索引名对齐实现 `idx_signal_dedup`；谓词收窄为 `dedup_key IS NOT NULL AND status IN ('open','acked')`。原谓词是真实缺陷——信号 `closed` 后 `dedup_key` 仍占位，同类告警再产生时 `INSERT` 撞唯一索引抛 23505（经 persister 时静默丢失），表现为"该对象该小时永远沉默"。既有库修正迁移：`db/migration-signal-dedup-index.sql` |
+> | ③ | `idx_signal_inbox` / `idx_signal_open_kind` | 设计命名与列组合 | 对齐实现为 `idx_signal_open(tenant_id,status,severity,created_at DESC)` 与 `idx_signal_kind(tenant_id,kind,created_at DESC)`（`owner_id` 未进索引：收件箱查询已由 `idx_signal_open` 覆盖） |
+> | ④ | `decision_id` / `action_ref` | 设计有列、**实现无列且 `setStatus` 忽略 `extra`** | **已补实现**（2026-09-16）：`db/schema.sql` + `db/migration-signal-adoption-trail.sql` 加三列；`src/signal/store.js` `setStatus` 增列白名单落库。**缺陷实况**：`src/signal/adoption.js:11` 一直在传 `{action_ref, decision_id}`、`src/http/routes.js:390` 与 `adoption.js:23` 一直在传 `{reason}`，三处**静默丢字段**且测试不可见（`test/signal/adoption.test.js` 注入的是假 store）→ 采纳回路无法回答"哪个决策批准的 / 采纳后触发了哪个 Action" |
+> | ⑤ | `closed_reason` 落库通路 | 设计有列、实现无列 | 已补。落库白名单与别名：`{reason}` → `closed_reason`；未识别键（如调用方传的 `rejected_by`）**回显 `ignored_extra` 而非静默吞掉**。`rejected_by` 不再传向本表——"谁否决的"由 `crm.decision_outcome.payload` + `decision_id` 指向的决策行承载，**同义双写会造出第二个可能漂移的事实源** |
+>
+> **落库白名单（`setStatus` 的 `extra` 仅接受以下键）**：`decision_id` | `action_ref` | `closed_reason`（别名 `reason`）。
+> 防线：`test/signal/store.test.js` 含 ① 血缘落库断言 ②`ignored_extra` 回显断言 ③三列存在性真库守卫 ④**静态守卫**（扫描生产 `setStatus` 调用点载荷键 ⊆ 白名单∪别名，防"调用方传了、被调方没接"再次发生）。
+
 
 ### 8.4 `crm.signal_delivery` —— 投递流水（线 B｜B-N2，**防假绿核心表**）
 
@@ -531,7 +604,7 @@ CREATE TABLE IF NOT EXISTS crm.standing_grant (
   scope_actions   TEXT[] NOT NULL,                  -- 可自动执行的 Action 白名单
   scope_objects   TEXT[] NULL,                      -- 限定对象类型
   field_whitelist TEXT[] NULL,                      -- 允许自动写入的字段（T1 内部字段）
-  risk_tier       TEXT NOT NULL DEFAULT 'T1',       -- T1 | T2 | T3
+  risk_tier       TEXT NOT NULL DEFAULT 'T1',       -- T0 | T1 | T2 | T3（详见 §11.3）
   max_uses        INT NULL,
   used_count      INT NOT NULL DEFAULT 0,
   period          TEXT NULL,                        -- day | week
@@ -543,11 +616,20 @@ CREATE TABLE IF NOT EXISTS crm.standing_grant (
   expires_at      TIMESTAMPTZ NULL,
   revoked_at      TIMESTAMPTZ NULL,
   revoked_reason  TEXT NULL,
+  paused_at       TIMESTAMPTZ NULL,                 -- T20：信任降级 / 熔断暂停时间戳（降级事件可追溯到）
+  paused_reason   TEXT NULL,                        -- T20：暂停原因（consecutive-rejects | usage-limit | ...）
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_grant_active
   ON crm.standing_grant(tenant_id, status, risk_tier);
 ```
+
+> **📌 2026-09-16 回填**（原设计遗漏，见 `2026-09-16-design-merge-audit.md` §6.2）：
+> `paused_at` / `paused_reason` 两列由 **T20-3「降级事件可追溯」** 引入，实现已随迁移
+> `db/migration-standing-grant-paused.sql` 落地（`db/schema.sql` 同构），本设计此前未回填。
+> 语义：`status='paused'` 是**状态**，`paused_at`/`paused_reason` 是**该状态的证据**——少后者则"为什么被暂停"不可追溯，
+> 与 §11.4「熔断 / 降级 / 撤回全部为状态变更、零 DELETE」配套（撤回走 `revoked_at`/`revoked_reason`，暂停走 `paused_at`/`paused_reason`）。
+> 另：本行 `risk_tier` 注释原写 `T1 | T2 | T3`，与 §11.3 的 **T0–T3 四档**不一致，已修正为 `T0 | T1 | T2 | T3`。
 
 > **与既有分级表的分工（§11.0 三轴模型）**：本表是 **B/C 轴**（动作边界 + 授权凭证），承载"**这类动作能否自动做**"；
 > `crm.business_tier_config` 是 **A 轴**（对象风险），承载"**这个对象值不值得人管**"。两者**不合并、不互替**——一次自动执行的放行需要两轴同时满足。
@@ -575,6 +657,52 @@ CREATE INDEX IF NOT EXISTS idx_exec_grant ON crm.grant_execution(grant_id, creat
 CREATE INDEX IF NOT EXISTS idx_exec_verdict
   ON crm.grant_execution(tenant_id, hitl_verdict, created_at DESC);
 ```
+
+### 8.7 `crm.advice_record` —— 建议运行态留痕（A 轴｜E3，**本设计第 7 张新表**）
+
+> **📌 2026-09-16 回填**（原设计只在 §11.1.1 记录裁决过程、**未进 §8 数据模型**，见 `2026-09-16-design-merge-audit.md` §6.3）。
+> 裁决结论：**刻意不落 `crm.decision`**——该表读取点众多（日报 / 复盘 / 校准样本 / 可审计性抽检等聚合面），
+> 写入非决策行会**永久污染统计**；且 `createDecision` 的 `decided_at` 硬写 `now()` 无 NULL 免疫、
+> 证据不足时会被 `sevenDimensionsCheck` 拦下——而建议恰产生于**证据不足**时。故独立成表，
+> 与 `signal` / `external_ref` 同属**运行态表族**（非粒子域）。
+> 实现落点：`db/schema.sql:1131`、迁移 `db/migration-advice-record.sql`；服务侧单一收敛点 `adviseService.advise()`。
+
+```sql
+CREATE TABLE IF NOT EXISTS crm.advice_record (
+  advice_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id          TEXT NOT NULL DEFAULT 'system',
+  scenario_id        TEXT,
+  stage              TEXT,
+  advice_tier        TEXT,                          -- 建议档（ADVICE_MATURITY 轴，A/B/C），**非业务分级**
+  disposition        TEXT,
+  coverage           NUMERIC(6,4),
+  card_confidence    TEXT,                          -- 建议卡置信档位（'high'/'medium'/'low'，字符串非数值）
+  headline           TEXT,
+  summary            TEXT,                          -- 结构化摘要（禁对话原文，≤120）
+  hits               JSONB NOT NULL DEFAULT '[]'::jsonb,
+  conditions         JSONB NOT NULL DEFAULT '[]'::jsonb,
+  risk_flags         JSONB NOT NULL DEFAULT '[]'::jsonb,
+  actor_id           TEXT,
+  actor_role         TEXT,
+  source             TEXT NOT NULL DEFAULT 'dialog-advisor',
+  linked_decision_id TEXT,                          -- 采纳配对（后置回填）
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- 轴约束（E2/E3）：建议档只能是 ADVICE_MATURITY 轴的 A/B/C。
+  -- 本表**刻意不含**任何业务分级列（business_tier / LEAD|NORMAL|HIGH）——两轴枚举同名反向，
+  -- 同表出现即会诱发"按字面同值搬运"的语义反转（守卫 test/advice-tier-axis.test.js）。
+  CONSTRAINT ck_advice_record_tier_axis CHECK (advice_tier IS NULL OR advice_tier IN ('A','B','C'))
+);
+CREATE INDEX IF NOT EXISTS idx_advice_record_tenant_time
+  ON crm.advice_record(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_advice_record_scenario
+  ON crm.advice_record(tenant_id, scenario_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_advice_record_unlinked
+  ON crm.advice_record(tenant_id, created_at DESC) WHERE linked_decision_id IS NULL;
+```
+
+> **两条不可违反的语义约束**（与 §11.1.1 同源）：
+> ① `advice_tier` 的 `A/B/C` 属 **ADVICE_MATURITY 轴**（证据齐备度），与项目维取值 `A/B/C`（C → 可自治）**同名反向**，
+> 保守投影仅 `A → NORMAL`，`B/C` 一律 `HIGH`；② 本表**不落对话原文**，只留结构化摘要 + 关键词（禁删，观测留痕）。
 
 ---
 
@@ -1384,6 +1512,20 @@ escalated = forceExecution               // EXCEPTION 强制 HITL（不变）
 > - **没人看得见的"主动"**（先做 T12 感知而不做 T11/T13/T14 出口）；
 > - **挂在断链依据上的授权**（先做 T19 而不做 T21：新授权凭证的溯源会落在**本就无版本冻结、无授权元数据**的分级表上——`policyVersion.js:29-34` 的 `POLICY_KEYS` 不含分级项，届时"这条自动执行为什么被允许"仍答不出来）。**这是 §2.4 核验后新增的一条倒序风险。**
 
+> **📌 2026-09-16 修正（用户已批准，见 `2026-09-16-full-chain-integration-design.md` §0.4）：顺序纪律的载体由「排期」升级为「运行时闸门」。**
+>
+> 上述五条倒序风险的共同本质是「**危险动作在观测能力就绪之前被放行**」。原表述用**排期**（先 S1、后 S4/S6）实现该约束；经用户批准，**改用运行时闸门 `src/sync/exportGate.js`（fail-closed）实现同一约束**：
+>
+> - 危险动作（回写 / 自治）**代码可与出口同批交付**，但**默认关闭**；
+> - 放行条件为**显式判据**：出口判据①成立（`crm.signal_delivery` 窗口内存在真实 `sent` 行，且渠道集合来自 `config_store['signal-delivery']`，非硬编码默认值）；
+> - 判据不成立 → 回写 Action 返回 `blocked_by_export_gate` 并 emit trace；闸门自身查询抛错时**按 blocked 处理**（fail-closed）。
+>
+> **等价性论证（收紧而非放宽）**：本节要防的是「无投递观测就放开自动写」。排期只是达成它的手段之一，且**在交付完成后即失效**——交付完成后不再有人检查「S1 是否真的通了」；运行时闸门在生产环境**持续生效**。故该修正**不是放宽，是收紧**。
+>
+> **⚠ 表述红线**：闸门未投产前，**不得**对外表述「顺序纪律已由运行时保障」（继承 §0.5 与附录 D.2）。
+>
+> **落点**：`docs/2026-09-16-full-chain-integration-design.md` §3.4（机制本体）、§1.4（交付与闸门的关系）、Q3-3 / Q3-4（生命契约）。
+
 ### 14.3 统一实施分段
 
 | 段      | 主题                   | 任务                                                                                    | 依赖 | 交付后可验证的客户价值                             |
@@ -1834,6 +1976,7 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 | "Rox 的 Agent Action 计价单元（业务动作计价表）值得抄"（旧 P0） | 🔴 **未承接（追认为待重评估，非否决）**：该 P0 借鉴项在合并时**未被任何章节承接**，仅残留一条 URL（§附录 A.2）。若要做计价 / 结算形态，须先回捞重评 | 旧 `rox-benchmark` §5（**2026-09-16 补录**） |
 | "Attio / Lightfield 的路线是'取代现有系统'"    | 🟡 **保留**：判定仍成立，依据已并入 §1.2 定位象限；旧文档中该条的三方向量表述不再单独保留                          | 旧 `three-way-comparison` 附录 B（**2026-09-16 补录**） |
 | "深度合并 / Batch 通道接口预留"列为交付段（旧 `S5`） | 🔴 **范围反转（关键）**：终版明确**不做** → §15.2 #6「完整双向同步…不做」。旧文档把"增量字段更新不误伤同层其它字段"当可交付项；新设计判定 80% 价值已由"只读 + 单向回写"覆盖，复杂度集中在冲突治理 | 旧 `crm-coexistence` §7.2 → §15.2 #6（**2026-09-16 补录**） |
+| "顺序纪律靠排期实现"（§14.2 原文的隐含载体） | 🟡 **修正（载体升级，非放宽）**：安全初衷**不变**，改载体——由「排期」升级为「运行时闸门 `exportGate`（fail-closed）」。危险动作（回写/自治）代码可与出口**同批交付但默认关闭**，放行条件 = 出口判据①真实成立。**等价性论证：排期纪律在交付完成后即失效，闸门在生产环境持续生效 → 收紧而非放宽** | `docs/2026-09-16-full-chain-integration-design.md` §0.4（**2026-09-16 补录，用户已批准**） |
 
 ---
 
@@ -1885,6 +2028,69 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 
 - 凡申报 / 参赛 / 客户 / 投资人材料**引用叙事**，须回指本附录；**不得**改用废弃文档原句。
 - 表述若要突破 §15 红线（含 §15.5 #10 / #11）或本附录 D.2，**须先改设计并走 `brainstorming`**（HARD-GATE）。
+
+## 附录 E：未闭合缺口登记表（2026-09-16 复核 · **唯一未闭合清单**）
+
+> **本表是设计层"尚未闭合项"的单一出处**：任何一项闭合后必须回改本表对应行（禁止只改代码不改此表）。
+> 数据来源：`2026-09-16-design-merge-audit.md` §8；**本次为逐条复跑复核，非转录**（复核时点：2026-09-16 15:20，同日并行会话正在推进线 A 挂载层，故本表以**判据**而非快照结论登记）。
+
+> **📌 2026-09-16 补充（闭合路径已立项并批准）**：
+> - **E.1（线 A 接线四项）** 与 **E.2 的 A-B1 / A-B2** → 由 `docs/2026-09-16-full-chain-integration-design.md`（**已批准**）**Q2「入口接线」**承接。
+> - **⚠ 本表此前漏登记的第五项缺口**（本次新发现，已补入闭合设计）：**「投递编排层缺失」**——`createDeliveryRegistry` 在 `src/` 生产调用点 **= 0**（仅定义处 + 单元测试），且 S1 计划 `docs/superpowers/plans/2026-09-16-proactive-s1-delivery.md` 的 9 个 Task **无一个是编排/驱动**。这是 §0.2「挂载方一直没来」缺陷**下沉一层**的重演 → 由新设计 **Q1「出口接电」**承接。
+> - 另发现**判据自身假前提**：`src/monitor/signalMetrics.js:11,73` 的 `enabledChannels` 默认 `DEFAULT_CHANNELS`（四渠道全开），而 `src/scheduler/timers.js:604` 调用时未传参 → 面板「渠道已开启」为硬编码断言而非配置读取 → 由新设计 **Q1-4** 承接。
+> - 该设计 §4 含 **15 个生命契约块（覆盖全部 7 个名册 agent）**，§5 含 **两条正向判据 + 7 条防假绿负向判据**。
+> - **本表相应行在 Q1/Q2 交付并跑出真实行后回改**（依本表维护约定：更新状态须同时更新复核时点）。
+
+### E.1 🔴 线 A 接线（最高风险，对应 §0.5）
+
+> **复核时点更新：2026-09-16 16:05**（E1-1～E1-3 于 15:20 复核的 🟡/❌ 已在本轮闭合；E1-4 仍为 🟡）
+
+| # | 项 | 状态（16:05 复核） | 复跑判据 | 归属 |
+| - | -- | ----------------- | -------- | ---- |
+| E1-1 | 挂载层 `src/sync/mount.js` **已就绪且已接线**（A-B5 事件路由 + A-B6 定时增量分支体，含信任档取 min、L2/L3 每 run 铸决策、写无决策即拒、失败不静默） | ✅ **已闭合** | `grep -rn "runTenantSyncOnce\|sync/mount" src/scheduler/timers.js src/http/connectorRouter.js` → **2 命中** | 计划 `docs/superpowers/plans/2026-09-16-line-a-mount-points.md` |
+| E1-2 | A-B6 `integration-poll` 增量拉取分支 | ✅ **已闭合**（`timers.js` `runIntegrationPollOnce` 租户循环内增分支，**零新增定时器**：`git diff` 中 `timers.set(` 新增 0） | `grep -n "loadSyncTargets" src/scheduler/timers.js` → 非 0 | 同上 |
+| E1-3 | A-B5 对象变化事件路由 | ✅ **已闭合**（`connectorRouter.js` `handleSignalWebhook` 按 `body.event.object` 路由到 `handleObjectChanged`；两路共用 admin/sysadmin 闸；**未接线时返回 501，不静默降级为线索派发**） | `grep -n "handleObjectChanged\|runSyncEvent" src/http/connectorRouter.js` → 非 0 | 同上 |
+| E1-4 | 端到端证据 | 🟡 **冒烟已过，生产实况仍为 no-op** | ✅ `node scripts/smoke-line-a-mount.mjs` → **5/5 OK**：① L1 零写入（`external_ref` 0→0）② L2 `created=4` 且 `sync_cursor.decision_id` 落锚点 ③ 二次幂等 `created=0` ④ 轮询侧无决策 fail-closed（errors=2 且零写入）⑤ **A-B5 事件路由**（L1 只读 / L2 无决策 `decision_required` 拒写 / L2 有决策写入）。❌ **`crm.config_store` 三键（`integration-providers` / `sync-mappings` / `sync-trust`）均未配置** → 无 `objects[]` 描述符 → 生产两处触发点均为 no-op | — |
+
+> **⚠ E1-3 补记（G3 · 2026-09-16 复核发现并修复）**：E1-3 判"已闭合"仅指**路由存在**；本轮复跑发现**缺省装配路径**另有独立缺口——
+> `connectorRouter` 的 `doSyncEvent` 缺省装配**未注入 `mintDecision`**，且 `handleObjectChanged` 用可选形态 `if (mintDecision)` 而非 fail-closed
+> → **L2/L3 写路径可无决策落库**（第 0 闸被静默绕过，违背 §15）。已修：装配补 `mintDecision`（走 `autonomy.requireDecision`，与轮询同源）+ `emit`；内核补 fail-closed（缺注入视同"铸不出"）；`test/sync/mount.test.js` +2 例；冒烟 +⑤。
+> **隐蔽性**：`test/external-integration.test.js` 三条 A-B5 用例**全部注入 `runSyncEvent` 替身** → **缺省装配路径零覆盖**，102 例全绿的测试套件对此缺口完全不可见。详见计划 §4.3 G3。
+> **判据修正**：判"接线已闭合"不能只看"调用点存在"，须核**缺省装配分支是否有独立覆盖**（同族前例：`adoption.test.js` 用假 store 掩盖静默丢字段）。
+
+> **对外表述约束（2026-09-16 16:05 修订）**：接线已闭合，但**尚无任何租户配置 `objects[]` 描述符与同步映射**，且默认信任档为 L1（只读）。
+> 故「**已接入客户 CRM / 可回写 / 双向同步已上线**」**仍然禁用**（见 §0.5 红线与附录 D.2）——接线存在 ≠ 有客户在同步。
+> **解禁判据（可复跑，非日期）**：出现首个真实租户的 `crm.sync_cursor.last_status='ok'` 且 `decision_id` 非空的行（即 L≥2 的首次真实入库），方可在该租户口径下改称「已接入」；**跨租户泛化表述永远禁用**（见 §18.2 探针族）。
+
+### E.2 🟡 线 A 补齐项未落地（§6.1 A-B*）
+
+| # | 补齐项 | 状态（15:20 复核） | 复跑判据 |
+| - | ------ | ----------------- | -------- |
+| A-B1 | `integration-providers` 描述符扩 `objects[]`/`token_mode`/`trust_level` | ❌ **未实现** | `grep -n "objects\|token_mode\|trust_level" src/connectors/discovery/tenantInstances.js` → **0** |
+| A-B2 | `credentialVault` 支持结构化凭据 | ❌ **未实现** | `grep -n "JSON.parse\|appId\|permanentCode" src/connectors/discovery/credentialVault.js` → 0 |
+| A-B3 | `KIND_FACTORY` 加 `fxiaoke`/`neocrm` | 🟡 **已实现，落点漂移** | 实现落在 **`src/sync/factory.js`**（自带 `KIND_FACTORY`：`fxiaoke` / `neocrm` / `generic-rest`），与 `connectors/discovery/tenantInstances.js` 的 `KIND_FACTORY` **刻意分离**。**本设计 §6.1 的落点描述须按此更正**——沿用原落点会造成"两个同名工厂、两套 kind 语义"的事实源分裂 |
+| A-B5 | `connectorRouter` 增对象变化事件路由 | ✅ **已接线**（2026-09-16 16:05） | `grep -n "handleObjectChanged" src/http/connectorRouter.js` → 非 0；`test/external-integration.test.js` A-B5 段 5 用例 |
+| A-B6 | `integration-poll` 增对象增量拉取分支 | ✅ **已接线**（2026-09-16 16:05） | `grep -n "loadSyncTargets" src/scheduler/timers.js` → 非 0；`test/external-integration.test.js` A-B6 段 6 用例 |
+| A-B8 | `updateParticle` 增 `patchMode:'deep'` | ❌ **未实现**（且已由 §15.2 #6 红线明确"完整双向同步不做"→ **建议从补齐清单降级为"不做"**，见附录 B 第 15 行） | `grep -c "patchMode" src/particles/particleRepo.js` → 0 |
+
+> **A-B3 更正提示**：本设计 §6.1 A-B3 原文写「`KIND_FACTORY` 加 `fxiaoke`/`neocrm`」，未指明是 **connector 侧**还是 **sync 侧**的工厂。实现选择了 sync 侧独立工厂（理由见 `src/sync/factory.js:3` 注释）。**这是设计描述的精度不足，不是实现偏离**——本节即为更正记录。
+
+### E.3 🟡 线 B 补齐项未落地（§6.2 B-B*）
+
+| # | 补齐项 | 状态（15:20 复核） | 复跑判据 |
+| - | ------ | ----------------- | -------- |
+| B-B3 | `alertStore` 由内存 Map 迁 DB（建 `crm.alert` 表） | ⚠️ **偏离设计**：实现为**内存 Map + 写 `crm.signal`**，`crm.alert` **表未建**。功能等价且更简（`crm.signal` 即统一收口），但**属设计未同步的偏离**——本节即同步 | `grep -rn "CREATE TABLE IF NOT EXISTS crm.alert" db/` → 0；`information_schema` 无 `crm.alert` |
+| B-B7 | 抽公共 mailer `src/mail/` | ❌ **未实现** | `ls src/mail` → 不存在。投递现由 `src/signal/delivery/` 内的 provider 承担，**B-B7 建议按实际落点更正或作废** |
+
+### E.4 🟡 旁证与工具链
+
+| # | 项 | 状态 | 处置 |
+| - | -- | ---- | ---- |
+| E4-1 | `reports/nightly/20260915-audit.md` 含**失效红色断言**（把已完成的报成未完成） | ⚠️ 报告未随交付更新 | 已在报告头部加**失效横幅**（2026-09-16 加注），指向本设计与 `2026-09-16-design-merge-audit.md` |
+| E4-2 | `node scripts/validate-contract.mjs` 返回 `valid:false` | ⚠️ 既有缺口，与本次文档修正无关 | 报错项：T21 契约 `review-gate.memory.read` 缺 `decision-retro`（`src/agent/agentSpec.js:53`）；**属代码侧一行修复，须另行批准** |
+
+> **维护约定**：本表任一行的"状态"列更新，须同时更新其**复核时点**；禁止把"已实现"改成"✅"而不重跑判据。
+> 本表以**判据**表述（而非快照结论），是因为同一天内线 A 就发生过"模块已建但未接线"的状态迁移——**快照结论在并行开发下半衰期极短**。
 
 ---
 
