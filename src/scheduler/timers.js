@@ -13,6 +13,7 @@ import { emit } from '../events/bus.js';
 import { recordFailure } from '../monitor/monitorStore.js';
 import { query, pool } from '../db.js';
 import { readConfig } from '../config/configStore.js';
+import { setSignalStore } from '../agent/eventTrigger.js';
 import { saveNightlyReport } from '../report/nightlyReport.js';
 import { recordTokens as realRecordTokens } from '../alerts/tokenAccounting.js';
 import { scanEscalations } from '../calibration/store.js';
@@ -162,6 +163,7 @@ export const runCalibrationSlaScanOnce = async ({ scanFn, emit, recordFailure } 
 
 export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   if (timers.size > 0) return timers.size;   // 幂等单例：已注册则原样返回
+  setSignalStore(pool); // T12：注入感知信号 store（registerAgentEventTrigger 新域触发后落 crm.signal）
   // ① nightly 蒸馏：每 24h 蒸馏 30 天前的流水 → distilled，60 天 → archived（标 distilled 非删除）
   const nightly = setInterval(() => {
     distillMemory({ ttlDays: 30 }).catch((err) => {

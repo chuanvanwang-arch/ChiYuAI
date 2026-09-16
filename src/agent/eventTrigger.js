@@ -3,24 +3,41 @@
 // 设计：docs/2026-09-03-agent-event-trigger-design.md ｜ 不新增 agent / SKILL / 定时器
 import { on, emit } from '../events/bus.js';
 import { readConfig } from '../config/configStore.js';
-import { query, queryWrite } from '../db.js';
+import { query, queryWrite, pool } from '../db.js';
 import { recordFailure } from '../monitor/monitorStore.js';
+import { createSignalStore } from '../signal/store.js';
 
 const CONFIG_KEY = 'agent-event-trigger';
 
 // 出厂默认（唯一事实源；config_store 缺键时回退，保证触发器不抛错）
+// T12（2026-09-16）：矩阵扩三源——旧 3 行补 source:'event'（向后兼容），
+//   新增 particle/approval（变更型域）+ timer/external 源行；旧行语义不变。
 export const AGENT_EVENT_TRIGGER_DEFAULT = {
   enabled: true,
   cooldown_ms: 300000,
   matrix: [
-    { domain: 'ontology', type: 'ontology-sync', entity_type: 'CRM_DEAL',
+    { source: 'event', domain: 'ontology', type: 'ontology-sync', entity_type: 'CRM_DEAL',
       intent: 'stage-progression', agent: 'quote-engine',
       skill_slug: 'method-stage-progression', dedup_field: 'payload.stage' },
-    { domain: 'ontology', type: 'ontology-sync', entity_type: 'CRM_ACCOUNT',
+    { source: 'event', domain: 'ontology', type: 'ontology-sync', entity_type: 'CRM_ACCOUNT',
       intent: 'funnel-classification', agent: 'followup-agent',
       skill_slug: 'method-funnel-classification', dedup_field: 'payload.tier' },
-    { domain: 'ontology', type: 'ontology-sync', entity_type: 'CRM_KNOWLEDGE',
+    { source: 'event', domain: 'ontology', type: 'ontology-sync', entity_type: 'CRM_KNOWLEDGE',
       intent: 'decision-enrich', agent: 'decision-agent',
+      skill_slug: 'method-decision-enrich', dedup_field: null },
+    // T12 新增：变更型域（particle/approval/decision）向后兼容扩矩阵
+    { source: 'event', domain: 'particle', type: 'particle-change', entity_type: 'CRM_ACCOUNT',
+      intent: 'funnel-classification', agent: 'followup-agent',
+      skill_slug: 'method-funnel-classification', dedup_field: 'payload.tier' },
+    { source: 'event', domain: 'approval', type: 'approval-event', entity_type: 'CRM_DEAL',
+      intent: 'decision-enrich', agent: 'decision-agent',
+      skill_slug: 'method-decision-enrich', dedup_field: null },
+    // T12 新增：timer / external 源（由 timers.js / sync 引擎调用 dispatchFromTrigger）
+    { source: 'timer', domain: 'schedule', type: 'signal-schedule', entity_type: 'CRM_DEAL',
+      intent: 'quote-timeout', agent: 'quote-engine',
+      skill_slug: 'method-stage-progression', dedup_field: null },
+    { source: 'external', domain: 'external-sync', type: 'sync-new', entity_type: 'CRM_ACCOUNT',
+      intent: 'discovery-research', agent: 'decision-agent',
       skill_slug: 'method-decision-enrich', dedup_field: null },
   ],
 };
@@ -33,6 +50,12 @@ export const READ_ONLY_SKILLS = new Set([
 
 let unsubscribe = null;
 const cooldownMap = new Map(); // 内存冷却（辅助，进程重启即失效）
+// T12：感知落库信号 store（模块级，由 setSignalStore 在启动期注入；测试可注入替身）。
+//   不自动从 pool 创建，避免单测（registerAgentEventTrigger 集成测试）无谓落库污染。
+let signalStoreRef = null;
+export function setSignalStore(poolOrStore) {
+  signalStoreRef = poolOrStore && typeof poolOrStore.query === 'function' ? createSignalStore(poolOrStore) : poolOrStore;
+}
 
 // 读配置，缺键安全回退出厂默认
 export async function loadTriggerConfig({ tenantId = 'system' } = {}) {
@@ -61,11 +84,15 @@ async function resolveDedupValue(entityId, dedupField, tenantId) {
   }
 }
 
-// 纯函数：根据事件类型+实体类型匹配矩阵行；非只读 SKILL 直接拒（留痕）
-export function matchTrigger(evType, evPayload, config) {
+// 纯函数：三源统一匹配（source + domain + type + entity_type）；非只读 SKILL 直接拒（留痕）
+// T12：source 缺省视为 'event'（向后兼容旧矩阵行）；timer/external 源行由此可匹配。
+export function matchTriggerBySource(desc, config) {
   if (!config || !config.enabled) return null;
   const m = (config.matrix || []).find(
-    (x) => x.domain === 'ontology' && x.type === evType && x.entity_type === evPayload?.entity_type
+    (x) => (x.source || 'event') === desc.source
+      && x.domain === desc.domain
+      && x.type === desc.type
+      && x.entity_type === desc.entity_type
   );
   if (!m) return null;
   if (!READ_ONLY_SKILLS.has(m.skill_slug)) {
@@ -73,6 +100,14 @@ export function matchTrigger(evType, evPayload, config) {
     return null;
   }
   return m;
+}
+
+// 向后兼容旧签名：旧调用方仅匹配 ontology 域事件（source 恒 'event'）
+export function matchTrigger(evType, evPayload, config) {
+  return matchTriggerBySource(
+    { source: 'event', domain: 'ontology', type: evType, entity_type: evPayload?.entity_type },
+    config,
+  );
 }
 
 // 纯函数：构建去重键（单测用；值直接取 evPayload）
@@ -133,19 +168,50 @@ async function tryDispatch(match, evPayload, tenantId) {
   }
 }
 
+// T12：感知落库（三类源匹配即记一条 crm.signal；dedup 生效）。signalStoreRef 为 null 时跳过（测试/未注入）。
+async function recordPerception({ tenantId, m, evPayload }) {
+  if (!signalStoreRef) return null;
+  return signalStoreRef.create({
+    tenant_id: tenantId, source: 'event-trigger', kind: m.intent,
+    severity: 'medium', target_role: 'sales',
+    particle_id: evPayload?.entity_id || null,
+    payload: { subject: `${m.intent} 感知`, intent: m.intent },
+    evidence: { source: m.source, domain: m.domain },
+    dedup_key: `evt:${m.intent}:${evPayload?.entity_id || evPayload?.externalId || 'new'}`,
+  }).catch(() => null);
+}
+
+// T12：三源统一 dispatch（模块级，registerAgentEventTrigger 事件路径 + createEventTrigger 共用）
+async function dispatchFromTrigger(desc, evPayload, tenantId) {
+  const cfg = await loadTriggerConfig({ tenantId });
+  const m = matchTriggerBySource(desc, cfg);
+  if (!m) return null;
+  // 感知落库（统一；只读闸只约束任务派发，不约束感知信号）
+  await recordPerception({ tenantId, m, evPayload });
+  if (READ_ONLY_SKILLS.has(m.skill_slug)) {
+    await tryDispatch(m, evPayload, tenantId);
+  }
+  return m;
+}
+
+// T12：工厂（供 timers/sync 的 timer/external 路径注入 pool 取得 signalStore；事件路径用模块级 dispatchFromTrigger）
+export function createEventTrigger({ pool } = {}) {
+  const signalStore = pool ? createSignalStore(pool) : null;
+  return { dispatchFromTrigger, matchTriggerBySource, signalStore };
+}
+
 export function registerAgentEventTrigger() {
   if (unsubscribe) return; // 幂等
-  unsubscribe = on('ontology', (msg) => {
+  const domains = ['ontology', 'particle', 'approval', 'decision'];
+  const offs = domains.map((d) => on(d, (msg) => {
     const { type, payload, summary } = msg;
     const evt = payload || summary || {};
     const tenantId = evt.tenant_id || 'system';
-    loadTriggerConfig({ tenantId })
-      .then((cfg) => {
-        const m = matchTrigger(type, evt, cfg);
-        if (m) return tryDispatch(m, evt, tenantId);
-      })
+    // T12：扩域订阅；统一走 dispatchFromTrigger（感知落库 + 只读 SKILL 派发）
+    dispatchFromTrigger({ source: 'event', domain: d, type, entity_type: evt.entity_type }, evt, tenantId)
       .catch((e) => recordFailure('agent-event-trigger-load', e));
-  });
+  }));
+  unsubscribe = () => offs.forEach((f) => f());
 }
 
 export function unregisterAgentEventTrigger() {
