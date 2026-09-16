@@ -1,7 +1,8 @@
 # 设计：竞品学习清单（Competitive Learning Plan）——ROX / Attio / Lightfield 三家的「值得学 / 不学 / 怎么做」
 
-> 状态：**用户已确认（2026-09-16）**。本清单是对 `docs/2026-09-15-proactive-runtime-design.md`（Proactive Runtime，P8 待批准）的来源对照附录：每一条学习项明确「现状 = 学什么 = 落地到哪一层 = 对应哪个 S 段 / P 优先级」。
-> 关联文档：`docs/2026-09-15-proactive-runtime-design.md`（主动运行时设计）、`docs/2026-09-15-external-data-integration-*.md`（外部数据接入，P0/P1/P2）、`docs/2026-09-15-lightfield-attio-rox-*.md`（三方对照）。
+> 状态：**用户已确认（2026-09-16）**。本清单是 `docs/2026-09-15-final-design-coexistence-and-proactive.md`（**最终设计 v1.0，2026-09-16 已批准**）的来源对照附录：每一条学习项明确「现状 = 学什么 = 落地到哪一层 = 对应哪个 S 段 / P 优先级」。**S 段口径以最终设计 §14.3 的 `S1–S7` 为准**（旧文档的 `S1–S5` 两套编号均已作废）。
+> 关联文档（**有效**）：`docs/2026-09-15-final-design-coexistence-and-proactive.md`（唯一有效设计）、`docs/2026-09-14-external-data-integration-design.md`（外部数据接入，P0/P1/P2）。
+> 过程证据（**均已打废弃标记，不得作为实施、评审或对外表述的依据**）：`docs/2026-09-15-proactive-runtime-design.md`、`docs/2026-09-15-crm-coexistence-sync-design.md`、`docs/2026-09-15-rox-benchmark-differentiation-analysis.md`、`docs/2026-09-15-attio-lightfield-rox-three-way-comparison.md`。
 
 ---
 
@@ -79,6 +80,8 @@
 
 ## §4 行动优先级总表
 
+> ⚠ **本表"状态"列为 2026-09-16 上午快照，已过期**：P0-A / P0-B 的"待用户批准"**已不成立**——最终设计已于 2026-09-16 批准，且 **S1–S7 已交付**（交付与真库证据见 `docs/2026-09-16-proactive-s7-acceptance.md`）。本节仅保留**优先级依据**，**交付状态以验收报告为准**。
+
 | 优先级 | 学习项 | 现状 | 落地（对应设计） | 状态 |
 |---|---|---|---|---|
 | **P0-A** | 信号投递+行动中心（出口） | 感知在跑、投递断链 | proactive-runtime **S1**（signal+signal_delivery+四渠道+signal-center+8 挂载修复） | 设计已出，**待用户批准** |
@@ -93,6 +96,8 @@
 
 ## §5 与 proactive-runtime 设计的章节映射
 
+> ⚠ **本表的映射对象已废弃**（`docs/2026-09-15-proactive-runtime-design.md` 已于 2026-09-15 打废弃标记），其**章节号不再有效**。仍有效的映射只有编号层：**T 编号** 原 `T1–T10` → 最终设计 **`T11–T20`**（见最终设计首部）；**S 段** 旧 `S1–S5` → 最终设计 **`S1–S7`**（§14.3）。**本表待重映射**，暂保留仅作追溯。
+
 | 本清单条款 | 对应 proactive-runtime 章节 |
 |---|---|
 | §2 P0-A（信号投递/行动中心/先审后发/引用） | §1.1（Rox 一手证据）、§2.3（投递面断链）、§5（补齐清单）、§6（新增清单）、§8.1/§8.2（signal/signal_delivery DDL）、§10（投递 provider 契约）、§13 T1/T3/T4、§17.1 S1 |
@@ -100,5 +105,55 @@
 | §2 P1（禁删/权限预览） | §12 铁律映射（禁 DELETE）、§6 新增清单（权限增强） |
 | §3 红线清单 | §14（红线六条）+ 三方对照四红线 |
 | §4 实施顺序 | §17.1（S1→S5 渐进式）+ §7.1（价值排序≠实施顺序） |
+
+---
+
+## §6 待评估借鉴项（2026-09-16 回捞，**未立项**）
+
+> **来历**：本节条目**在 09-15 合并时未被转录**（源文档打废弃标记后一度无家可归）。经合并保真度审计（`docs/2026-09-16-design-merge-audit.md` §4）确认后回捞登记——**状态为"待评估"，不等于已批准**。原文挂载点按 `file:line` 级保留，供立项时直接复用。
+> **不重复的单源约定**：修正记录类内容已回捞至**最终设计附录 B**（4 条），本节不复制；叙事与对外口径已回捞至**最终设计附录 D**，本节仅设指针。
+
+### 6.1 五条 Rox 借鉴项（源：`rox-benchmark` §5，按 ROI 排序）
+
+| 优先级 | 借鉴项 | 为什么 ROI 高 | 挂载点 / 做法 | 边界 |
+| --- | --- | --- | --- | --- |
+| **P0** | **Agent Action 计价单元**（业务动作计价表） | Rox 把"效果"落成"按动作计量"（$100 套餐 = 10k actions、无限席位）；我方 `src/billing/metering.js` **已在计** `llm`/`embedding`/`evaluator`，`planSchema.js` + `entitlements.js` + `quotaGate.js` 三闸已就位 | 在 metering 之上加一层**业务动作计价表**（一次决策建议 / 一次报价生成 / 一次会议简报 = N 个动作），配置化于 `config_store` | **不改动现有三闸结构**；定价模型演进**须先 brainstorming** |
+| **P1** | **「为什么」一键产品化** | Rox 有 4 个面向用户的可解释入口（Show reasoning / Validate Insights / Research Insights 回溯 / Access Provenance）；我方 `provenance.js`(358 行) + `decisionTrace.js` + `rootCauseClassifier.js` + `auditability.js` **底子更厚**，缺的只是**前端一键入口** | `deal-detail.html` / `account-360.html` 挂"为什么这么判断"面板，消费既有 trace / provenance | 纯前端消费，零后端改动 |
+| **P1** | **反馈采集前端化** | 我方有 `src/feedback/` + `calibration/replay.js`，但**缺前端采集入口**——"反馈进不来，回路就断"（对应最终设计 §18.2 实测：`decision_outcome` 种子之外**零回填**） | 决策建议卡 / 洞察卡加**三态反馈**（采纳 / 不采纳 + 原因），写回 feedback 表并接入每日复盘 | 与既有"每日 review 报告"对齐；不新增粒子类型 |
+| **P1** | **Skills 自助化（受控版）** | Rox Skills = 客户在 Chat 里描述一次、全团队照此工作；我方 19 个 `method-*` 硬编码于 `src/skills/seed.js`，**客户改不了** | 允许租户提交"行为约定"，但**不直接生效**——走审批流 + `assertAgentAssembly` 校验（组装闭包必须过）后落 `config_store` | **严禁**做成任意 prompt 注入 |
+| **P2** | **富化供应链补齐** | Rox 用多供应商 + 瀑布算法；我方 `src/connectors/discovery/waterfall.js` **骨架已有**，只是 provider 少 | 接国内供应商（企查查 / 天眼查 / 探迹 / 招标网），复用 `ProviderAdapter` 契约 + `credentialVault` | 不新增连接器框架 |
+| ~~P2~~ | ~~事件触发矩阵扩展~~ | **已承接**：最终设计 §7.2 **T12** 感知三源触发器 | — | 无需重开 |
+
+### 6.2 补充发现（本次比对新识别，**超出原审计 §4 范围**）
+
+> 回捞过程中新识别出的未承接项，一并登记以免二次流失。
+
+| 优先级 | 项目 | 来源 | 现状（代码级） | 备注 |
+| --- | --- | --- | --- | --- |
+| P1 | **校准预演安全阀**（对齐 Rox Iteration Sandbox） | `rox-benchmark` §8.5 | `预演` 在最终设计 **0 命中**；`calibration/replay.js` 已有，只缺"补丁生成时自动出对比报告" | 不改 D 层结构 |
+| P1 | **`fit_reason` 结构化**（对齐 Good Fit / Bad Fit + reason） | `rox-benchmark` §8.5 | `fit_score` 已服务端强制计算；`fit_reason` **0 命中** | payload 加字段，不新增粒子类型 |
+| P1 | **拓客 Monitor 阶段 / 批量搜索** | `rox-benchmark` §8.5（P2 行） | `Monitor` / `批量搜索` 均 **0 命中** | 与 T16 拓客扫描器同族 |
+| P2 | **给 M 补角色 / 人变动信号**（对齐 Champion Tracking） | `rox-benchmark` §8.5 | 仅最终设计 §1.3 #8 列为"借"的叙事，**具体触发条目未落** | 走 `config_store['agent-event-trigger']` 扩条目 |
+| — | **两条可引用叙事结论**（对手方证词 / 同一根轴两端） | `rox-benchmark` §7 #2 / #3 | **已迁入最终设计附录 D.3** | 指针，不复制 |
+
+### 6.3 与红线的关系
+
+本节 6.1 五条借鉴项**不得**违反最终设计 §15 任意红线（含 2026-09-16 补录的 §15.5 #10 / #11）。特别是 **Skills 自助化**必须走审批流 + 装配闭包校验，**不得**退化为 schema-less 自由生长（§15.1 #2）或任意 prompt 注入。
+
+---
+
+## §7 回捞与迁移记录（2026-09-16）
+
+| 资产 | 原处（已废弃） | 新权威归属 |
+| --- | --- | --- |
+| 5 项 Rox 借鉴项 | `rox-benchmark` §5 | **本文件 §6.1** |
+| §8.5 未承接项（4 项） | `rox-benchmark` §8.5 | **本文件 §6.2** |
+| 修正记录 4 条 | 两份废弃文档附录 B | **最终设计附录 B** |
+| 叙事三句 + 对外表述红线 | `three-way` §9 / §8 #4 | **最终设计附录 D.1 / D.2** |
+| 两条可引用差异结论 | `rox-benchmark` §7 #2/#3 | **最终设计附录 D.3** |
+| 2 条红线（in-VPC 深部署 / Tether 替代 MCP） | `rox-benchmark` §6 | **最终设计 §15.5（#10/#11）** |
+
+> 单源原则：上表左侧的废弃文档**不再作为任何依据**；右侧为唯一可引用来源。审计证据：`docs/2026-09-16-design-merge-audit.md` §4。
+
 
 ---
