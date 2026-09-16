@@ -463,6 +463,36 @@
 
 ---
 
+### 10.5 执行记录（2026-09-16 17:10，用户批准"继续完成"：闭合 E.2/E.4 剩余项）
+
+> **范围发现（重要）**：本轮开工时发现并行会话已产出**已批准**的后续设计 `docs/2026-09-16-full-chain-integration-design.md`，
+> 其 **Q2-1～Q2-4 与本项范围重叠**（Q2-1/Q2-2 已于上一轮交付）。
+> 故本轮**先与已批准设计对齐**再实施，而非自行定义范围——本节四项即该设计的 **Q2-3 / Q2-4 + E.4-2**（Q2-5 归 `prospecting`，未动）。
+
+| # | 项 | 状态 | 实际改动 |
+| - | -- | ---- | -------- |
+| **E4-2** | T21 契约缺口（`validate-contract` `valid:false`） | ✅ **已闭合** | `src/agent/agentSpec.js:53` `review-gate.memory.read` 补 `decision-retro`（与 §13 T21 契约逐字对齐）。**复跑**：`node scripts/validate-contract.mjs … → {"valid": true, "errors": []}`；`test/agent-spec-4.test.js` 等 12 例全绿 |
+| **A-B1**（= **Q2-3**） | descriptor 扩 `objects[]`/`token_mode`/`trust_level` | ✅ **已实施** | 新建 **`src/connectors/discovery/providerDescriptor.js`**（归一化单一事实源：方向非法即丢弃并记 `issues`、`trust_level` 非法回落 `null` 而非静默改写、旧字段原样透传）；`tenantInstances.js` 与 `sync/mount.js` **两侧共用**同一判据。`providerDescriptor.test.js` 13 例 + 两侧接线用例（A-B1 段 3 + 2 例） |
+| **A-B2**（= **Q2-4**） | 结构化凭据 + token 加密落库 | ✅ **已实施** | `credentialVault.js`：新增 `parseCredentialPayload`（**只认 JSON 对象**，标量/数组不解析，解析失败原样返回明文）、`persistSecret` 接受对象、`persistToken`/`readToken`（槽位 `${providerId}:token`，`expired` 派生不删槽）、抽 `writeEncryptedSlot`（复用 fail-closed + upsert）。**消费面打通**：`fxiaoke` 接受 `credentials` 别名，`genericRest` 对非字符串凭据不带 `Authorization`（防 `Bearer [object Object]`）。`credentialVaultStructured.test.js` 15 例 + `credentialShapeConsumption.test.js` 10 例 |
+| **A-B8** | `patchMode:'deep'` | ⛔ **裁决不做** | 归入 §15.2 #6 红线；设计 §6.1 行已划除并附理由（`grep -c patchMode src/particles/particleRepo.js` → 0 保持不变） |
+| **A-B7** | `monitorAccount` 同步后重评 | ⚠ **分类更正（非补齐）** | 归入设计 §6.1 说明 + 附录 E.2；证据：`grep -rn "function rescore" src/` → **0**，`ctx.getAccount`/`ctx.rescore` 均无实现 → 属**新建能力** |
+| **B-B7** | 抽 `src/mail/` | ⛔ **落点更正** | 设计 §6.2 行与附录 E.3 已改：实际共用的是 **SMTP 配置契约**（`SMTP_USER`/`SMTP_PASS`，源自 `src/http/activation.js`），非代码；重启条件 = 三次法则 |
+
+#### 10.5.1 🔴 本轮新识别的真实缺陷（**未修，待批准**）
+
+`src/scheduler/timers.js:168`：`monitorAccount({ tenantId: tid }, acc.id, sigs).catch(() => {})`
+—— `monitorAccount(ctx, …)` 首参要求 `getAccount`/`rescore`/`appendMemory`/`updateParticle` 四件套，此处**只传 `{ tenantId }`** → 必抛 `TypeError` → 被 `.catch(() => {})` **空吞**。
+**双重问题**：① 富化路径的"C3 持续账户监控闭环"（`timers.js:121` 注释所承诺）**从未执行**（"注释承诺≠实现"家族）；② 静默吞错，违背 `G3 不静默`。
+**未暴露的原因**：仅当账户富化出非空 `values` 时命中，而生产无租户配置富化 provider。
+**处置建议**：① 零风险先改 `.catch(() => {})` → `emit('trace')` + `recordFailure`；② 根治须先实现 `ctx.rescore`（属**新建能力**，即 A-B7 的真实内容）。
+
+#### 10.5.2 判据纪律复用（本轮两次生效）
+
+1. **"替身形状掩盖缺陷"再获实证**：`A-B2` 若只测 `credentialVault` 自身，会漏掉**消费面**——`fxiaoke` 工厂历史签名收 `creds`，而挂载层注入键为 `credentials`，两者不通则结构化凭据**全部落空且静默**。故补 `credentialShapeConsumption.test.js` 专测"凭据真的到达 provider"。**结论：凡新增一类"数据形状"，必须断言其消费方，而非只测生产方。**
+2. **禁词断言须剥离注释 + 负向对照**（沿用）：A-B2 的"不得落内存全局"静态守卫，若直接匹配 `tokenCache` 会因**解释性注释**提及该词而假红 → 断言前剥离注释，并加"注入违规写法应被抓到"的负向对照，防守卫恒真。
+
+---
+
 ## §11 方法论备注（可复用）
 
 本次比对采用的四条判据，均可复用：

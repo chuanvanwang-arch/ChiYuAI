@@ -1,5 +1,10 @@
 # [全链集成 Q1：出口接电 —— 信号投递编排层] Implementation Plan
 
+> **执行状态（2026-09-16）：✅ 已执行完成** —— 5 个 Task 全部落地并实跑通过（route 16 / dispatcher 13 / timers 5 / signalMetrics 8 / e2e 6）。
+> 执行期发现 **6 处计划缺陷（P-1…P-6）**，均已修正并登记于文末「执行完成记录」。
+> ⚠ **验收口径警告**：本批交付的「泵」在真实库（`crm_native`）上**将以零投递空转** —— 因为**零租户配置过 `signal-delivery`**（419 条 open signal / `signal_delivery` 恒 0 行）。
+> 即：**面板四条红框消失 ≠ 链路已通**。详见 `docs/2026-09-16-q1-export-acceptance.md` §0 与 R-A（阻塞级）。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 补上「生产侧驱动投递的进程」——让每一条 `crm.signal` 都能被推送到渠道并落 `crm.signal_delivery` 流水，从而消灭面板上四条 `delivery_silent` 红色告警，并修正判据自身携带的假前提。
@@ -1335,3 +1340,47 @@ Expected: `{"valid": true, "errors": []}`（exit 0）。本计划的 5 个 Task 
 | --- | --- | --- |
 | `2026-09-16-full-chain-q2-ingress-wiring.md` | Q2-1…Q2-5（线 A 接线 + generic-rest） | 待编写 |
 | `2026-09-16-full-chain-q3-writeback-gate.md` | Q3-1…Q3-4 + Q4-1（回写 + `exportGate` + 端到端取证） | 待编写 |
+
+---
+
+## 执行完成记录（2026-09-16）
+
+**验收报告**：`docs/2026-09-16-q1-export-acceptance.md`（含真库受控探针原始输出）
+
+### 实跑结果（与计划预期对照）
+
+| Task | 计划预期 | 实跑 | 差异原因 |
+| --- | --- | --- | --- |
+| Q1-2 `route.js` | 15 passed | **16 passed** | +1：P-2「读取失败 ≠ 配置缺失」用例 |
+| Q1-1 `dispatcher.js` | 11 passed | **13 passed** | +2：P-5 空转可归因用例 |
+| Q1-3 定时器⑰ | 5 passed，`EXPECTED_TIMERS`=17 | **一致** | — |
+| Q1-4 判据修正 | 8 passed | **8 passed** | 与预期一致（既有 5 + 新增 3） |
+| Q1-1 Step 5 回归 | `test/signal/delivery.test.js` 7 passed | **5 passed** | 计划预期值失准（该文件实为 5 例），非缺陷 |
+| Q1-5 真库 e2e | 5 passed | **6 passed** | +1：P-5 真库空转归因用例 |
+
+### 执行期修正（P-1…P-6）
+
+| 编号 | 缺陷与处置 | 影响面 |
+| --- | --- | --- |
+| **P-1** | `import { readConfig, query } from '../config/configStore.js'` —— `configStore.js` **不导出 `query`**（仅从 `../db.js` 引入自用）。ESM 引用不存在的具名导出 = **链接期报错、整模块无法加载**。改为 `query` 自 `../db.js` 引入作默认值 | **阻断级**。另：原写法默认 `undefined` → `overRateLimit` 直接返回 false → **限速闸静默失效**（fail-open），修复后默认生效 |
+| **P-2** | `.catch(() => null)` 把「DB 读取失败」压成「配置缺失」（真故障降级成"待配置项"）。拆为 `delivery_config_read_failed` / `delivery_config_missing` | Q1-2 `loadPolicy`；+1 用例 |
+| **P-3** | 工厂名 `createSignalRouter` 与既有 `src/signal/router.js` 同名导出，路径仅差一字符（`router.js`/`route.js`）→ 同名漂移陷阱。更名 **`createDeliveryRouter`** | Q1-2 / Q1-3 / Q1-5 三处引用 |
+| **P-4** | 计划原文 import 的 `createDeliveryRegistry` / `createDeliveryStore` 在最终代码中**均未使用**（装配按计划下沉 `timers.js`）。删除 | `dispatcher.js`（保持零副作用导入） |
+| **P-5** | 泵空转**完全不可见**（`sent/failed/skipped` 全 0 → 不 emit 任何 trace）。`pumpOnce`/`pumpAllTenants` 增 `idle: {reason → 条数}`，定时器 emit `signal-dispatch-idle` | **真实库实测证明该风险已兑现**（配置 0 行）；+2 用例 |
+| **P-6** | e2e 导入 `'../src/db.js'`，而文件位于 `test/signal/`（应 `'../../src/db.js'`） | Q1-5 |
+
+### 计划步骤的盲点（已修正并暴露真实问题）
+
+**Q1-4 Step 6 的命令路径 `test/signalObservabilityScan.test.js` 不存在**（实际在 `test/monitor/`）→ 该命令实际**只跑了 1 个文件**，故"Expected: PASS"是假结论。按正确路径复跑后暴露 **2 处真实回归**：
+
+- `test/http/signalMetrics.test.js`（`src/http/signalMetricsRouter.js:17` 是**第三个生产调用点**，计划只盘点了 2 个测试调用点）
+- `test/monitor/signalObservabilityScan.test.js`
+
+二者**编码的正是被消除的假前提**（"无配置也按四渠道全开报警"）。处置：**只补前置条件（为测试租户写入渠道配置），断言一字未改**。
+
+### 阻塞级遗留（须用户决策，模型不得自行写业务配置）
+
+**R-A**：`crm_native` 中 `signal-delivery` 配置 **0 行** → Q1 上线后生产口径**判据①不成立**，面板转绿属"未开启渠道"而非"已送达"。配置写入属第 0 闸管辖，需显式决策（租户 / 渠道 / 收件人 / 静默时段 / 限速）。
+
+其余残留 **R-B ~ R-E** 见验收报告 §6（泵的配置读放大 419 次/周期；观测巡检仍排除 `system` 与 D1 不对称；`recipient` 未透传 provider；面板无"未配置"状态位）。
+

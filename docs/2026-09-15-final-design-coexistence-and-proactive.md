@@ -85,16 +85,81 @@
 > **判据（现已可核对）**：对任一历史决策，现在能回答三个问题——**"当时的分级是什么"**（A3 版本冻结，可复现）、**"谁批准了这个分级"**（A2 `approved_by` + `decision_id`，可反查）、**"它还有效吗 / 什么时候失效的"**（A4 `revoked_at`/`expires_at`，可撤回且撤回真的生效）。
 > 三者齐备之前，任何"事后审计 + 可撤回"的承诺都是**空头**。**现在这三问都答得出来，才谈得上扩大自治范围（T19）。**
 
-### 0.5 ⚠ 交付状态与接线实况（2026-09-16 15:57 复核，**对外表述前必读**）
+### 0.5 ⚠ 交付状态与接线实况（2026-09-16 17:00 复核，**对外表述前必读**）
 
-> **一句话**：S1–S7 的**代码模块已交付**；线 A（共生同步）**已接线并通过真库端到端实测**（两触发点 + 冒烟 5/5）；
-> **但** `crm_native` 的同步三键（`integration-providers` / `sync-mappings` / `sync-trust`）**均未配置 → 两触发点当前均为 no-op**。
-> 本节给**可复跑判据 + 实测记录**，不给一次性结论。
+> **一句话**：S1–S7 的**代码模块已交付**；线 A（共生同步）**已在本地库接线并通过真库端到端实测**（两触发点 + 冒烟 5/5）；
+> **但** ①本地 `crm_native` 的同步三键（`integration-providers` / `sync-mappings` / `sync-trust`）**均未配置 → 两触发点当前均为 no-op**；
+> ②**云上生产（81.70.184.198）根本未发布本设计任何成果**——见下方「生产发布实况」。本节给**可复跑判据 + 实测记录**，不给一次性结论。
 
-| 线 | 交付状态 | 生产可触发 | 证据 |
-| -- | ------- | ---------- | ---- |
-| **线 B（主动运行时）** | ✅ S1 / S5 / S6 / S7 已交付 | ✅ 有（timers 注册、`routes.js` 端点、菜单入口、工作台第 7 视角） | §10.1 / §10.2 交付记录 |
-| **线 A（共生同步）** | ✅ **已接线**（`src/sync/` 10 文件 + 挂载层 `mount.js`） | ✅ **有**：A-B6 `timers.js:478` 集成轮询增量分支；A-B5 `connectorRouter.js:53` webhook 对象变化路由 | 冒烟 `scripts/smoke-line-a-mount.mjs` **5/5**；计划 §4.3/§4.5 |
+| 线 | 代码侧交付 | 代码侧可触发 | **云上生产已发布** | 证据 |
+| -- | --------- | ------------ | ----------------- | ---- |
+| **线 B（主动运行时）** | ✅ S1 / S5 / S6 / S7 已交付 | ✅ 有（timers 注册、`routes.js` 端点、菜单入口、工作台第 7 视角） | 🔴 **否**（生产 `/api/signals` → **404**，容器内**无 `/app/src/signal`**） | §10.1 / §10.2；§0.5 生产实况 |
+| **线 A（共生同步）** | ✅ **已接线**（`src/sync/` 10 文件 + 挂载层 `mount.js`） | ✅ **有**：A-B6 `timers.js:478` 集成轮询增量分支；A-B5 `connectorRouter.js:53` webhook 对象变化路由 | 🔴 **否**（容器内**无 `/app/src/sync`**） | 冒烟 `scripts/smoke-line-a-mount.mjs` **5/5**；计划 §4.3/§4.5 |
+
+#### 0.5.1 生产发布实况（**2026-09-16 20:42 已发布**｜17:00 基线留存对照）
+
+> **✅ 更新（2026-09-16 20:42 实测）**：本设计已发布至云上生产（`deploy-remote.py release`，约 2 分钟）。
+> 下表 17:00 的"零落地"记录**保留作发布前基线**，仅用于对照；**当前状态以本小节末尾「发布后验证」为准**。
+
+> **🔴 发布前基线（2026-09-16 17:00 实测）**：当时云上生产运行的是 **≤2026-09-15 的镜像**（`crm-app` 镜像 created `2026-09-15T13:57:01Z`），
+> 本设计（S1/S5/S6/S7 + 线 A + 血缘三列）**全部未发布**。此处保留原文，作为"发布前/后"对照与判据样例。
+
+| 探测项（可复跑） | 实测 | 含义 |
+| ---------------- | ---- | ---- |
+| `docker exec crm-pg psql -U agent2b -d crm_native -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='crm'"` | **66** | 生产 schema 为 09-15 时点（本机已 65+ 新表） |
+| 生产 `crm.signal` 是否存在 | **relation does not exist** | ⇒ **`ALTER TABLE crm.signal ...` 在生产必然失败**，"单独跑血缘迁移"物理不可行 |
+| 生产是否存在 `signal_delivery` / `standing_grant` / `grant_execution` / `advice_record` / `external_ref` / `sync_cursor` | **全部不存在** | S1/S5/S6/S7/S2 表结构均未发布 |
+| 容器内 `ls -d /app/src/signal`、`/app/src/sync` | **NO_SIGNAL_DIR / NO_SYNC_DIR** | 生产镜像不含本设计任何源码 |
+| `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/signals` | **404** | 生产无信号端点 |
+| 生产 `crm.config_store` 键数 / 是否含 `signal-schedule`、`agent-research-schedule` | **46** / 仅 `lead-pool-config`、`prospecting-rules` | S5 各扫描器的**驱动配置在生产为空** → 即便发布代码亦全为 no-op |
+
+**发布后验证（2026-09-16 20:42，全部可复跑）**：
+
+| 验证项 | 发布前 | 发布后 | 判据 |
+| ------ | ------ | ------ | ---- |
+| 生产 crm schema 表数 | 66 | **73** | 差值 **7** = §8 声明的 7 张新表（signal / signal_delivery / standing_grant / grant_execution / advice_record / external_ref / sync_cursor）**逐一落地** |
+| `GET /api/signals` | 404 | **401** | 404→401 = 路由已存在、认证闸生效（S1 已发布） |
+| S5 驱动配置 | 无 `signal-schedule` | **已播种** | 迁移日志 `[migrate] 时间型信号默认规则已播种（signal-schedule）` |
+| S2 配置模板 | 无 | **新增 3 条** | 日志 `sync-mappings/sync-trust/integration-providers，本次新增 3 条` |
+| L3 研究调度 | 无 | **已播种** | 日志 `[migrate] L3 主动研究默认调度已播种（agent-research-schedule）` |
+| 容器健康 | — | **3/3 healthy** | crm-app / crm-mcp / crm-pg |
+| app 日志 ERROR | — | **0 条** | `docker logs crm-app --tail=200 \| grep -ci "error\|fatal"` → 0 |
+| **HTTPS（发布前修补项）** | 正常 | **正常** | `deploy.sh:192` 会用仓库模板覆盖线上 nginx；本次已把 certbot 的 443 块回填模板，故公网 `https://www.chiyuai.com` 仍 301、http→https 仍跳转 |
+
+> **⚠ 发布后发现的生产配置缺口（非代码缺陷，需人工补）**：
+> 生产 `.env` **不含 `PGCRYPTO_SYM_KEY`** → 容器内 `process.env.PGCRYPTO_SYM_KEY` 为空 →
+> `src/connectors/discovery/credentialVault.js:75-78` 走 **fail-closed 分支**（错误信息「PGCRYPTO_SYM_KEY 未配置：凭据加密不可用」）。
+> ⇒ **S2 的凭据保险库在生产不可写入**（保存 provider 凭据会被明确拒绝，属安全设计而非降级）。
+> 影响面：`integration-providers` 模板已播种，但**供应商密钥无法落库** → 外部数据接入仍停在"框架就绪、密钥待配"。
+> 处置：由人工在 `/opt/crm-ai-native/scripts/tencent-lighthouse-deploy/.env` 补 `PGCRYPTO_SYM_KEY=<强随机>` 后重启 `crm-app`。
+
+> **🔴 另发现一项「公网可达性」阻断**（非本次发布引入，但直接决定最终用户能否使用）：
+> 从本机**外网**实测（2026-09-16 20:55）：
+> - `http://www.chiyuai.com/` → **302 → `dnspod.qcloud.com/static/webblock.html?d=www.chiyuai.com`**（该页 `<title>备案</title>`）
+> - `https://www.chiyuai.com/` → **TLS 握手无响应**（`curl` exit 35；TCP 443 可连但无 TLS 应答）
+> - 而**服务器 IP 直连一切正常**：`http://81.70.184.198/` → **200**；`https://81.70.184.198/` → **301**
+> - DNS 解析正确（`www.chiyuai.com` → `81.70.184.198`）
+>
+> ⇒ 服务器与 nginx（含 443）**均健康**，**阻断发生在腾讯云接入层**（域名 ICP 备案未通过时的标准拦截行为）。
+> ⇒ **影响**：公网用户**无法通过域名访问**，当前仅 IP 可直达。
+> ⇒ **对本节结论的限定**：上表"发布后验证"全部是**服务器侧**结论（本地 `curl` / `--resolve` 绑定 IP），
+> **只证明"服务已就绪"，不证明"公网可访问"**。两者须分开表述，不得合并。
+
+> **⚠ 表述红线（2026-09-16 20:42 修订，取代此前三态版本）**：
+> 原三态已**全部转绿**——① **代码侧就绪**（✅）／② **本地库端到端实测通过**（✅）／③ **云上生产已发布**（✅ 本次实测）。
+>
+> **但新增第四态「已产出真实运行数据」仍为 🔴**，判据（生产实测）：
+> - `crm.signal` = **0 行**、`crm.standing_grant` / `grant_execution` / `advice_record` 均 **0 行** → 三张运行态表尚无业务行；
+> - 生产 `.env` 缺 `PGCRYPTO_SYM_KEY` → 凭据保险库 fail-closed（见上）；
+> - 故 S5 扫描器虽有驱动配置，**尚未产出任何信号**。
+>
+> ⇒ **允许表述**：「主动运行时与共生同步已完成开发验证并**发布至生产**，驱动配置已播种，待产出运行数据」。
+> ⇒ **仍不允许**：「AI 主动值守**已上线运行**」「双向同步**已为业务产出数据**」——这类表述需要运行态表出现真实业务行。
+> （沿袭 §15 / 附录 D.2 红线：**发布 ≠ 生效 ≠ 产出**，三者判据不同，不得合并表述。）
+> **⚠ 另需点破一处长期口径歧义**：`src/db.js:67-79` 把默认库 `crm_native` 称作"**生产库**"，
+> 但云上生产的同名库（Docker `crm-pg` 内）**与本地库内容完全不同**（本地 66 表中含 signal 系列、生产无）。
+> ⇒ 该告警措辞易被误读为"本地库即生产"；**本文档口径以"本地库 / 云上生产"二分，不使用 db.js 的措辞**。
+
 
 **线 A 触发性判据（可直接复跑，任一为 0 即"尚未挂载"）**：
 
@@ -405,7 +470,11 @@ node scripts/smoke-line-a-mount.mjs   # 真库 crm_native；唯一租户；5/5 O
 | **P1** | A-B5 | `connectorRouter` 增"对象变化事件"路由分支         | `connectorRouter.js:11-25` 现 webhook 只派发 `conn-signal-lead-gen`               | 按 `event.object` 路由到同步内核 upsert；沿用 admin/sysadmin 闸                                                                    | 从"每 6h 轮询"升级为"客户 CRM 一变我就知道" |
 | **P1** | A-B6 | `integration-poll` 增"对象增量拉取"分支          | `timers.js:120-143` 现仅逐条富化                                                    | 在既有租户循环内增分支：按 `objects[].cursor` 拉增量 → 内核 upsert；沿用 `recordTokens` 与 `emit('trace')`                                   | **不新增定时器、不改调度框架**，零调度层回归风险   |
 | **P1** | A-B7 | `monitorAccount` 复用为"同步后重评"             | `monitorAccount.js:10-30`                                                     | upsert 落地后调用，触发 rescore + appendMemory                                                                                 | 新数据立刻影响决策，无需新建重评链路           |
-| **P2** | A-B8 | `updateParticle` 增嵌套感知合并选项              | `particleRepo.js:211` 浅合并                                                     | 增 `patchMode: 'deep'`（仅同步路径启用；**默认保持浅合并不改既有语义**）                                                                       | 增量同步不误伤同层其它字段                |
+| ~~P2~~ | ~~A-B8~~ | ~~`updateParticle` 增嵌套感知合并选项~~（**2026-09-16 裁决：不做**）              | `particleRepo.js:211` 浅合并                                                     | **归入 §15.2 #6 红线**（"完整双向同步不做"）——`patchMode:'deep'` 只在"我方字段与外部字段同层共存且需部分回写"时才需要，而该场景已被 §15.2 #6 排除；**保留浅合并语义**，不预留未使用的开关                | —（原拟"增量同步不误伤同层其它字段"，随 §15.2 #6 一并作废）                |
+
+> **实施状态不在本表**：本表是"要做什么"的设计意图，**做到没做到**以 **附录 E.2** 为准（该表以**可复跑判据**逐条表述，避免快照结论在并行开发下半衰期过短）。
+> **A-B7 分类更正（2026-09-16）**：原列入"补齐清单"（= 复用既有机制），实际**依赖不存在的 `ctx.rescore` / `ctx.getAccount` 实现**（全仓 `grep -rn "function rescore" src/` → 0；`monitorAccount.js:10` 要求的 ctx 四件套中两件无实现）→ 属**新建能力**而非补齐。详见附录 E.2。
+> **A-B8 裁决依据**：§15.2 #6 已明示"完整双向同步不做"；A-B8 若无该场景则无消费方，保留即为"未使用的开关"（其风险大于收益）。**如需重启，须先推翻 §15.2 #6。**
 
 ### 6.2 线 B 补齐
 
@@ -413,13 +482,16 @@ node scripts/smoke-line-a-mount.mjs   # 真库 crm_native；唯一租户；5/5 O
 | -------- | ------------------------------------- | -------------------------------- | -------------------------------------------------------------------- |
 | **B-B1** | 挂载 `alertEndpoints` 的 8 个端点           | 清单存在、处理器存在、**零调用**               | `src/http/routes.js`                                                 |
 | **B-B2** | 注册 `registerAlertHook`                | 未注册（`server.js:74` 只有 finance 版） | `src/http/server.js`                                                 |
-| **B-B3** | `alertStore` 由内存 Map 迁 DB             | 内存 Map、表不存在                      | `src/alerts/alertStore.js`、`db/schema.sql`                           |
+| **B-B3** | ~~`alertStore` 由内存 Map 迁 DB~~ **（2026-09-16 更正）** | 内存 Map、表不存在                      | **不建 `crm.alert` 表**：实现为**内存 Map + 写 `crm.signal` 统一收口**——`crm.signal` 已是全告警的统一落点，另建表会造出第二个告警事实源。**落点=信号域**（判据与证据见附录 E.3）                           |
 | **B-B4** | 工作台增加信号视角（第 7 视角）                     | 六视角无信号                           | `src/http/workbenchRouter.js`（对齐 `:101-175` case 结构）                 |
 | **B-B5** | 首页信号卡（对齐 Rox Home）                    | 无                                | `src/web/home.html`                                                  |
 | **B-B6** | 事件触发从单域扩为三源                           | 仅 `ontology`                     | `src/agent/eventTrigger.js`（键名 `agent-event-trigger` 不变，**向后兼容扩矩阵**） |
-| **B-B7** | 复用 SMTP（抽公共 mailer）                   | SMTP 仅计费域在用                      | 抽 `src/mail/`，计费域与信号域共用                                              |
+| ~~**B-B7**~~ | ~~复用 SMTP（抽公共 mailer）~~ **（2026-09-16 落点更正）** | SMTP 仅计费域在用                      | **不抽 `src/mail/`**：实际共用的是**配置契约**而非代码——信号域 `src/signal/delivery/email.js` 直接复用计费域既有惯例（`SMTP_USER`/`SMTP_PASS` + Brevo，源自 `src/http/activation.js`）。抽中间层只会为两处调用造一个壳，且两域投递语义不同（交易通知 vs 业务提醒，模板与重试策略各异）。**重启条件（三次法则）**：出现第三处 SMTP 消费方时再抽                                              |
 | **B-B8** | 复用 13 类规则 + `salesDailyScan` 作为 L1 判断 | 已实现                              | 直接消费，**不重造**                                                         |
 | **B-B9** | 复用 `ready-queue-pump` 作为调度心跳          | 已实现（60s）                         | 直接复用，**不新增定时器**                                                      |
+
+> **实施状态不在本表**：同 §6.1——本表是设计意图，**做到没做到**以 **附录 E.3** 为准（逐条可复跑判据）。
+> **两项落点更正（2026-09-16）**：`B-B3` 不建 `crm.alert`（改由 `crm.signal` 统一收口）；`B-B7` 不抽 `src/mail/`（改复用 SMTP 配置契约，三次法则再抽）。**两处均为"实现先行、设计滞后"的追认**，非实现偏离。
 
 ---
 
@@ -2062,32 +2134,81 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 > 故「**已接入客户 CRM / 可回写 / 双向同步已上线**」**仍然禁用**（见 §0.5 红线与附录 D.2）——接线存在 ≠ 有客户在同步。
 > **解禁判据（可复跑，非日期）**：出现首个真实租户的 `crm.sync_cursor.last_status='ok'` 且 `decision_id` 非空的行（即 L≥2 的首次真实入库），方可在该租户口径下改称「已接入」；**跨租户泛化表述永远禁用**（见 §18.2 探针族）。
 
-### E.2 🟡 线 A 补齐项未落地（§6.1 A-B*）
+### E.2 🟢 线 A 补齐项（§6.1 A-B*）—— 2026-09-16 17:00 复核：**6/8 闭合 · 1 项裁决不做 · 1 项分类更正**
 
-| # | 补齐项 | 状态（15:20 复核） | 复跑判据 |
+| # | 补齐项 | 状态（17:00 复核） | 复跑判据 |
 | - | ------ | ----------------- | -------- |
-| A-B1 | `integration-providers` 描述符扩 `objects[]`/`token_mode`/`trust_level` | ❌ **未实现** | `grep -n "objects\|token_mode\|trust_level" src/connectors/discovery/tenantInstances.js` → **0** |
-| A-B2 | `credentialVault` 支持结构化凭据 | ❌ **未实现** | `grep -n "JSON.parse\|appId\|permanentCode" src/connectors/discovery/credentialVault.js` → 0 |
-| A-B3 | `KIND_FACTORY` 加 `fxiaoke`/`neocrm` | 🟡 **已实现，落点漂移** | 实现落在 **`src/sync/factory.js`**（自带 `KIND_FACTORY`：`fxiaoke` / `neocrm` / `generic-rest`），与 `connectors/discovery/tenantInstances.js` 的 `KIND_FACTORY` **刻意分离**。**本设计 §6.1 的落点描述须按此更正**——沿用原落点会造成"两个同名工厂、两套 kind 语义"的事实源分裂 |
+| A-B1 | `integration-providers` 描述符扩 `objects[]`/`token_mode`/`trust_level` | ✅ **已实施**（2026-09-16） | `grep -rln "providerDescriptor.js" src/` → 3（模块 + `connectors/discovery/tenantInstances.js` + `sync/mount.js` 两侧消费）；`test/connectors/discovery/providerDescriptor.test.js` 13 例 |
+| A-B2 | `credentialVault` 支持结构化凭据 + token 加密落库 | ✅ **已实施**（2026-09-16） | `grep -c "parseCredentialPayload\|persistToken" src/connectors/discovery/credentialVault.js` → 5；`credentialVaultStructured.test.js` 12 例 + `credentialShapeConsumption.test.js` 6 例（**消费面**） |
+| A-B3 | `KIND_FACTORY` 加 `fxiaoke`/`neocrm` | 🟡 **已实现，落点漂移** | 落在 `src/sync/factory.js` 的 `SYNC_PROVIDER_FACTORY`（`fxiaoke`/`neocrm`/`generic-rest`），与 enrich 侧 `KIND_FACTORY` **刻意分离**（两侧契约不同：`enrich` vs `readIncremental`）——**设计描述精度不足，非实现偏离** |
+| A-B4 | CAS 语义从"阶段/归属"扩到"字段值" | ✅ **已实施**（S4，2026-09-16） | `grep -c "casExpectField" src/particles/particleRepo.js` → 4 |
 | A-B5 | `connectorRouter` 增对象变化事件路由 | ✅ **已接线**（2026-09-16 16:05） | `grep -n "handleObjectChanged" src/http/connectorRouter.js` → 非 0；`test/external-integration.test.js` A-B5 段 5 用例 |
 | A-B6 | `integration-poll` 增对象增量拉取分支 | ✅ **已接线**（2026-09-16 16:05） | `grep -n "loadSyncTargets" src/scheduler/timers.js` → 非 0；`test/external-integration.test.js` A-B6 段 6 用例 |
-| A-B8 | `updateParticle` 增 `patchMode:'deep'` | ❌ **未实现**（且已由 §15.2 #6 红线明确"完整双向同步不做"→ **建议从补齐清单降级为"不做"**，见附录 B 第 15 行） | `grep -c "patchMode" src/particles/particleRepo.js` → 0 |
+| A-B7 | `monitorAccount` 复用为"同步后重评" | ⚠ **分类更正：非"补齐"，属新建能力（依赖缺失）** | `grep -rn "function rescore" src/` → **0**；`monitorAccount.js:10` 要求 ctx 提供 `getAccount`/`rescore`/`appendMemory`/`updateParticle` 四件，其中 **`getAccount`/`rescore` 全仓无实现**。①"补齐"的判据是**复用既有机制**，此处无机制可复用 → 应移入 §7 新增清单 |
+| A-B8 | `updateParticle` 增 `patchMode:'deep'` | ⛔ **裁决不做**（2026-09-16） | 已归入 §15.2 #6 红线（"完整双向同步不做"）；`grep -c "patchMode" src/particles/particleRepo.js` → 0（保持不变）。**重启须先推翻 §15.2 #6** |
+
+#### E.2.1 🔴 本轮新识别：`timers.js:168` 的 `monitorAccount` 调用**结构性不可能成功**（真实缺陷，**未修**）
+
+| 项 | 内容 |
+| -- | ---- |
+| 调用点 | `src/scheduler/timers.js:168` — `if (sigs.length) await monitorAccount({ tenantId: tid }, acc.id, sigs).catch(() => {});` |
+| 缺陷 | `monitorAccount(ctx, accountId, signals)` 首参要求 ctx 四件套（`getAccount`/`rescore`/`appendMemory`/`updateParticle`，见 `monitorAccount.js:10-32`），而此处只传 `{ tenantId }` → 第 12 行 `ctx.getAccount(...)` 必抛 `TypeError` |
+| 后果 | ① 富化路径的"C3 持续账户监控闭环"（`timers.js:121` 注释所承诺）**从未真正执行**——属"**注释承诺≠实现**"家族；② 错误被 `.catch(() => {})` **空吞**，无 trace、无账 → 与 `G3 不静默` 铁律冲突 |
+| 触发条件 | 仅当某账户富化出非空 `values`（`sigs.length > 0`）时命中；因当前生产无租户配置富化 provider，**未暴露** |
+| 处置（**待批准，本轮未动**） | ① 立即：把 `.catch(() => {})` 改为 `emit('trace')` + `recordFailure`（消除静默，零风险）；② 根治：实现 `ctx.rescore`（lead-fit 重评）与 `ctx.getAccount`，并按 A-B7 的**真实分类**（新建能力）立项 |
 
 > **A-B3 更正提示**：本设计 §6.1 A-B3 原文写「`KIND_FACTORY` 加 `fxiaoke`/`neocrm`」，未指明是 **connector 侧**还是 **sync 侧**的工厂。实现选择了 sync 侧独立工厂（理由见 `src/sync/factory.js:3` 注释）。**这是设计描述的精度不足，不是实现偏离**——本节即为更正记录。
+> **A-B1/A-B2 的落点纪律**：两者共用一条新纪律——**描述符的解释权只能有一处**（`providerDescriptor.js`）。此前 `tenantInstances.js` 与 `sync/mount.js` 各自解析 `objects[]`/`direction`，属"同名字段两套语义"的雏形；A-B3 的同名工厂问题即是同类风险的先例。
 
-### E.3 🟡 线 B 补齐项未落地（§6.2 B-B*）
+### E.3 🟢 线 B 补齐项（§6.2 B-B*）—— 2026-09-16 17:00 复核：**2/2 已裁决（均为"实现先行、设计滞后"的追认）**
 
-| # | 补齐项 | 状态（15:20 复核） | 复跑判据 |
+| # | 补齐项 | 状态（17:00 复核） | 复跑判据 |
 | - | ------ | ----------------- | -------- |
-| B-B3 | `alertStore` 由内存 Map 迁 DB（建 `crm.alert` 表） | ⚠️ **偏离设计**：实现为**内存 Map + 写 `crm.signal`**，`crm.alert` **表未建**。功能等价且更简（`crm.signal` 即统一收口），但**属设计未同步的偏离**——本节即同步 | `grep -rn "CREATE TABLE IF NOT EXISTS crm.alert" db/` → 0；`information_schema` 无 `crm.alert` |
-| B-B7 | 抽公共 mailer `src/mail/` | ❌ **未实现** | `ls src/mail` → 不存在。投递现由 `src/signal/delivery/` 内的 provider 承担，**B-B7 建议按实际落点更正或作废** |
+| B-B3 | `alertStore` 由内存 Map 迁 DB（建 `crm.alert` 表） | ⛔ **落点更正：不建 `crm.alert`**——实现为**内存 Map + 写 `crm.signal` 统一收口**。理由：`crm.signal` 已是全告警统一落点（S1 交付），另建表会造出**第二个告警事实源**。**设计 §6.2 已同步更正**（非实现偏离） | `grep -rn "CREATE TABLE IF NOT EXISTS crm.alert" db/` → 0；`information_schema` 无 `crm.alert`（**保持不变**） |
+| B-B7 | 抽公共 mailer `src/mail/` | ⛔ **落点更正：不抽模块**——实际共用的是**配置契约**：`src/signal/delivery/email.js` 直接复用计费域既有惯例（`SMTP_USER`/`SMTP_PASS` + Brevo，源自 `src/http/activation.js`）。抽中间层只会为两处调用造壳，且两域投递语义不同（交易通知 vs 业务提醒）。**重启条件（三次法则）**：出现第三处 SMTP 消费方时再抽 | `ls src/mail` → 不存在；`grep -rln "nodemailer\|SMTP" src/` → `http/activation.js` / `signal/delivery/email.js` / `signal/delivery/index.js` / `memory/memoryLog.js`（**各自持配，无中间层**） |
 
-### E.4 🟡 旁证与工具链
+> **线 B 补齐项的两条结论**：① **"复用"的对象可以是配置契约而非代码**——B-B7 是这一判据的首例，设计原文默认了"共用=抽模块"，实际共用点是 `SMTP_*` 环境契约；② **"统一收口"优先于"新建表"**——B-B3 若照原文建 `crm.alert`，会与 `crm.signal` 形成双事实源（与 §6.1 A-B1 的"描述符解释权只能有一处"同源）。
 
-| # | 项 | 状态 | 处置 |
+### E.4 🟢 旁证与工具链 —— 2026-09-16 17:00 复核
+
+| # | 项 | 状态（17:00 复核） | 处置 |
 | - | -- | ---- | ---- |
 | E4-1 | `reports/nightly/20260915-audit.md` 含**失效红色断言**（把已完成的报成未完成） | ⚠️ 报告未随交付更新 | 已在报告头部加**失效横幅**（2026-09-16 加注），指向本设计与 `2026-09-16-design-merge-audit.md` |
-| E4-2 | `node scripts/validate-contract.mjs` 返回 `valid:false` | ⚠️ 既有缺口，与本次文档修正无关 | 报错项：T21 契约 `review-gate.memory.read` 缺 `decision-retro`（`src/agent/agentSpec.js:53`）；**属代码侧一行修复，须另行批准** |
+| E4-2 | `node scripts/validate-contract.mjs` 返回 `valid:false` | ✅ **已闭合（2026-09-16 17:00）** | 已补 `review-gate.memory.read += 'decision-retro'`（`src/agent/agentSpec.js:53`，与 §13 T21 契约逐字对齐）。**复跑判据**：`node scripts/validate-contract.mjs docs/2026-09-15-final-design-coexistence-and-proactive.md --registry src/agent/agentSpec.js` → `{"valid": true, "errors": []}` |
+
+### E.5 🔴 2026-09-16 21:10–21:25 复核：**S7 观测面两处结构性缺口**（1 项已闭合 · 2 项登记未闭合）
+
+> 触发：E.2.1 同轮遗留的「D1 同族遗漏 P-2」从待办升级为**独立 P1**。复核范围刻意扩到**整个观测面**（不止修好那一行），
+> 结果在同一层又打出两条**未闭合**缺口——即"修一处、露出两处"。以下三条互为同族，判据均以**代码事实**表述。
+
+| # | 项 | 状态（21:25 复核） | 复跑判据 |
+| - | -- | ---------------- | -------- |
+| **E5-1** | **巡检候选租户集排除平台租户**（`createSignalObservabilitySweep().sweepOnce()` 的 `WHERE tenant_id <> 'system'`） | ✅ **已闭合**（2026-09-16 21:20） | `grep -n "SELECT DISTINCT tenant_id FROM crm.signal" src/monitor/signalMetrics.js` → **无 `WHERE`**；`test/monitor/signalObservabilitySystemScope.test.js` **5 例**；**变异验证**：注回 `<> 'system'` → 4 红；改 `NOT IN ('system')` → 仍 4 红 |
+| **E5-2** | **判据 B 的"命中"以桥自身输出测量**（自指仪器）：`detectNegativePredicates` 的 `gen_silent` 前提取 `crm.signal.source='event-trigger'` 行数，而这些行**正是感知桥 `recordPerception` 自己写的**（`eventTrigger.js:172-180`） | 🔴 **未闭合** | `grep -n "source: 'event-trigger'" src/agent/eventTrigger.js` → `:175`（在 `recordPerception` 内）；其写入失败为 **`.catch(() => null)` 静默吞**（违 §15「不静默」）⇒ **桥越坏、判据越安静** |
+| **E5-3** | **候选集来源即被判管道**：`sweepOnce` 从 `crm.signal` 取租户 ⇒ **零信号租户永不进扫描面**，与 E1「真实租户从未被接通」**正面冲突** | 🔴 **未闭合** | 造一个只配 `signal-delivery`、零 `crm.signal` 行的租户 → `sweepOnce()` 的 `tenants` 不含它、`fired=0`（**该场景下观测器与"一切正常"不可区分**） |
+
+**E5-1 的判定依据（为何算缺陷而非设计选择）**
+1. **同族断点已在泵侧按设计 §3.1.1 修正**：`src/signal/dispatcher.js` 的 `pumpAllTenants` 注释明写「D1：**不得排除 `system`** —— 平台级信号同样必须被泵（否则平台告警永久静默）」，且 `test/signal/dispatcher.test.js:151` 已留负向断言 ⇒ **项目自身已确立"排除 platform 租户 = 缺陷"的判据**。
+2. **修的是同一族、漏的是第二处**：泵侧保证平台信号**被投递**，观测侧却把平台租户剔出扫描面 ⇒ 平台信号**被投递但永不接受负向判据**（`delivery_silent`/`gen_silent` 对平台租户恒静默）。属"上一闸修了、下一闸没修"。
+3. **方向安全性**：平台租户零信号时该分支自然空转（零额外成本）；有信号而渠道已开却零投递，**正是必须报警的场景**。故不应保留任何形式的豁免。
+
+**⚠ 同族排查结论（防重复劳动，本轮已做全仓扫描）**：全仓另有 2 处 `tenant_id <> 'system'`，**经核实语义正确、非缺陷，不得误改**：
+- `src/config/broadcast.js:10` —— 广播**收件人**列表（源表 `crm.crm_users`）：平台租户无业务用户，不参与广播；
+- `src/http/propagationRoutes.js:98,333` —— 配置**传播源**列表（排除 `system` 与 `*`）：模板行是"被传播物"而非"传播者"。
+⇒ 二者与本处（`system` 作为**被监控租户**）语义不同。**判据：排除 `system` 是否正当，取决于该查询里 `system` 扮演"租户"还是"模板/平台身份"**——本处是前者（故为缺陷），上两处是后者（故正确）。
+
+**⚠ 本轮最重要的方法论（已回写 `anti-fake-green-probe` SKILL）**：护栏自身的**替身必须尊重被测 SQL 的语义**。
+本次第一版替身写成「看到 `SELECT DISTINCT tenant_id` 就固定返回 `[{tenant_id:'system'}]`」——**替身的缺省值反向定义了契约**（`mount.test.js` 假 deps 同族）。
+实测代价：把缺陷注回去后**三条"行为断言"全绿**，仅负向 SQL 断言变红 ⇒ 行为断言在该缺陷下**无鉴别力、是假绿载体**。
+第三版改为「候选 SQL 里出现 `'system'` 字面量即视为已过滤」并**为替身模型自身加自检条**（`test/monitor/signalObservabilitySystemScope.test.js` 的「替身模型自检」块）后，变异 M1/M2 均 4 红。
+⇒ **"我加了行为断言"不等于"行为断言有鉴别力"；行为断言必须与变异验证成对出现。**
+
+### E.6 待裁决（承 E5-2 / E5-3，均需设计决策，本轮**未动**）
+
+| 缺口 | 建议处置 | 为何不自行实施 |
+| --- | ---- | ------------ |
+| E5-2 | ① 判据 B 的"命中"改用**匹配点独立留痕**（`dispatchFromTrigger` 命中即 emit trace / 记与 signal 无关的计数），**不得**以 `crm.signal` 的 `event-trigger` 行为前提；② 移除 `recordPerception` 的 `.catch(() => null)`（改 emit trace + `recordFailure`） | 独立仪器需选型：`crm.tasks`（`step='agent-event-trigger'`）**只覆盖 `READ_ONLY_SKILLS` 的匹配**，非完备仪器；选谁属设计决策 |
+| E5-3 | `sweepOnce` 候选集改取**租户注册表 ∪ `crm.signal`**（`listActiveTenants`，`crm.tenants status='active'`，`timers.js:134` 已在用）；并新增「零信号租户」判据 | 仅改枚举源**不产生任何告警**（两条判据都以"有信号"为前提）⇒ 须同时**新增判据**，属设计增量 |
 
 > **维护约定**：本表任一行的"状态"列更新，须同时更新其**复核时点**；禁止把"已实现"改成"✅"而不重跑判据。
 > 本表以**判据**表述（而非快照结论），是因为同一天内线 A 就发生过"模块已建但未接线"的状态迁移——**快照结论在并行开发下半衰期极短**。
