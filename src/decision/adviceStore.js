@@ -30,7 +30,20 @@ export function buildAdviceAnchor({ advice = {}, summary = null, tenantId = 'sys
     disposition: advice.disposition || 'ESCALATE',
     decider_type: 'AGENT_ADVICE',
     rationale: `对话建议 ${advice.tier || 'C'} 档（覆盖率 ${advice.coverage ?? 0}）`,
-    business_tier: advice.tier === 'B' ? 'HIGH' : 'NORMAL',
+    // E2（2026-09-16）跨轴保守投影 —— 建议档(ADVICE_MATURITY, A/B/C) → 落库分级(LEAD/NORMAL/HIGH)。
+    //
+    // ⚠ 两轴方向相反（声明见 adviceCard.js 顶部）：建议档 A=证据齐备(可放手) ≈ 项目分级 C=低风险(可放手)。
+    //   故**不得按字面同值映射**。投影规则（保守优先）：
+    //     建议档 A（证据齐备且场景非 HIGH 级）→ NORMAL（唯一可自主放行的来源）
+    //     建议档 B（红线/HIGH 级场景，须审批）+ C（证据不足，禁止处置）→ **一律 HIGH**（升级给人）
+    //
+    // 修正记录：历史实现为 `advice.tier === 'B' ? 'HIGH' : 'NORMAL'`，把 **C 档投影成 NORMAL（=可自主）**，
+    //   而 C 档恰是"证据不足、只补信息"最不该自主的一档 —— 语义反转。本文件当前零生产调用
+    //   （唯一调用者是 test/decision/advice-store.test.js），故修正不改变任何运行时行为。
+    //
+    // ⚠ 接线前置（T19/建议落库任务须遵守）：锚点**不得**以建议档冒充业务分级。真正接线时应让调用方
+    //   用 computeBusinessTier(customer, project) 取真实 A 轴分级；本字段仅为建议落库时的兜底投影。
+    business_tier: advice.tier === 'A' ? 'NORMAL' : 'HIGH',
     state: ADVISED_STATE,
     tenantId,
   };

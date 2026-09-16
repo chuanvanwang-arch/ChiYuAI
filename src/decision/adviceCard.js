@@ -1,7 +1,23 @@
 // src/decision/adviceCard.js — 决策建议卡装配（条件体检 + A/B/C 三档）
 // 设计：docs/2026-09-08-dialog-driven-decision-advice-design.md §3
 // 铁律：纯函数、不碰 DB、不调用 LLM；红线判定由 scenarioAdvisors 传入（业务知识不在此层硬编码）
+//
+// ⚠ 轴声明（E2，2026-09-16）——本函数输出的 `tier` 是【建议档｜轴=ADVICE_MATURITY】，取值 A/B/C，
+//   与 crm.business_tier_config 的【项目分级｜轴=OBJECT_RISK】A/B/C 是**两条独立且方向相反**的轴：
+//
+//     | 值 | 建议档（本文件，证据成熟度）          | 项目分级（businessTier，对象风险）      |
+//     | -  | ------------------------------------ | --------------------------------------- |
+//     | A  | 证据齐备 → APPROVE（可自治处置）      | 高风险 → HIGH（一律升级）               |
+//     | B  | 红线命中 / HIGH 级场景 → ESCALATE     | NORMAL                                  |
+//     | C  | 证据不足 → 只补信息，**禁止处置**     | 低风险 → LEAD（可自治）                 |
+//
+//   即「建议档 A」的风险方向 ≈「项目分级 C」。**两轴禁止直接比较、禁止互相赋值**——
+//   跨轴投影的唯一合法路径是 decision/adviceStore.js 的保守投影（仅 A→NORMAL，其余→HIGH）。
+export const ADVICE_TIER_AXIS = 'ADVICE_MATURITY';
+export const ADVICE_TIERS = Object.freeze(['A', 'B', 'C']);
+
 import { buildApprovalPrefill } from './offerPolicyFacts.js';
+
 
 export function evaluateConditions(eval_dimensions = [], facts = {}) {
   const list = Array.isArray(eval_dimensions) ? eval_dimensions : [];
