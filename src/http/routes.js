@@ -110,6 +110,7 @@ import { emit } from '../events/bus.js';
 import { buildAlertHandlers, ALERT_ENDPOINTS } from '../alerts/alertEndpoints.js';
 // 信号端点（2026-09-16 主动运行时 S1）：crm.signal 统一收口列表/确认/否决
 import { createSignalStore } from '../signal/store.js';
+import { createAdoption } from '../signal/adoption.js'; // T18 建议卡采纳/否决（第 0 闸）
 // 门户真实登录认证（v2 双页：Home.html → token → index.html）
 import { login, resolveMe } from './auth.js';
 import { handleRegister } from './selfRegister.js'; // 自助注册（公开，免 admin 闸；按公司名自动判定租户）
@@ -349,6 +350,7 @@ export function createRoutes(app, hub) {
   //     且未鉴权（未登录可读写 system）、severity 筛选未接（页面筛选项点了无反应）。此处对齐 /api/lead-pool 范式。
   {
     const signalStore = createSignalStore(pool);
+    const adoption = createAdoption({ signalStore, writeOutcome }); // T18 采纳/否决（第 0 闸）
     const requireMe = (req, res) => {
       const me = resolveMe(req);
       if (!me?.ok) { res.status(401).json({ error: '未登录' }); return null; }
@@ -383,6 +385,28 @@ export function createRoutes(app, hub) {
       try {
         const r = await signalStore.setStatus(scopeOf(me), req.params.id, 'closed', { reason: req.body?.reason });
         res.json(r.ok ? { ok: true, signal: r.alert } : { ok: false, error: r.error });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // T18 采纳：必带 decision_id（第 0 闸）→ signal='acted' + 写 crm.decision_outcome；action 执行由调用方既有 Action 完成
+    app.post('/api/signals/:id/adopt', async (req, res) => {
+      const me = requireMe(req, res);
+      if (!me) return;
+      const { decision_id, suggested_action } = req.body || {};
+      if (!decision_id) return res.status(400).json({ ok: false, error: 'decision_required' });
+      try {
+        const r = await adoption.adopt({ signal_id: req.params.id, tenant_id: scopeOf(me), actor: me.username, decision_id, suggestedAction: suggested_action });
+        res.status(r.ok ? 200 : 400).json(r);
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // T18 否决：必带 decision_id → 写 crm.decision_outcome(source='suggestion-reject') + signal 关闭
+    app.post('/api/signals/:id/reject', async (req, res) => {
+      const me = requireMe(req, res);
+      if (!me) return;
+      const { decision_id, reason } = req.body || {};
+      if (!decision_id) return res.status(400).json({ ok: false, error: 'decision_required' });
+      try {
+        const r = await adoption.reject({ signal_id: req.params.id, tenant_id: scopeOf(me), actor: me.username, decision_id, reason });
+        res.status(r.ok ? 200 : 400).json(r);
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
   }
