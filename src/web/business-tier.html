@@ -49,23 +49,24 @@
 <header class="page-head"><div class="ph-main"><h1 class="page-title">业务分级配置</h1></div></header>
 <div class="wrap">
   <div class="card">
-    <strong>当前分级规则</strong>
-    <p class="sub">引擎 computeBusinessTier 按两维取高风险优先（HIGH &gt; NORMAL &gt; LEAD）；无配置回退 scenario.default_tier</p>
+    <strong>当前自主分级规则</strong>
+    <p class="sub">引擎 computeBusinessTier 按两维取高风险优先（HIGH &gt; NORMAL &gt; LEAD）；无配置回退 scenario.default_tier。
+      术语区分：「取值」列中项目维的 A/B/C 是<b>业务分类</b>；「自主分级」列的 LEAD/NORMAL/HIGH 才是<b>自主边界</b>（与对话建议档 A/B/C 方向相反，勿混读）。</p>
     <div id="tierList">加载中…</div>
   </div>
   <div class="card">
-    <strong>新增 / 修改分级</strong>
+    <strong>新增 / 修改自主分级</strong>
     <p class="sub">UPSERT：相同 维度+取值 将被更新。依据决策第0闸，保存将记录决策事件。</p>
     <div class="form-row">
       <div><label>维度</label><crm-select id="f-dimension">
         <option value="customer">customer（客户维）</option>
-        <option value="project">project（项目维）</option>
+        <option value="project">project（项目维：取值 A/B/C）</option>
       </crm-select></div>
-      <div><label>取值</label><crm-input id="f-value" placeholder="如：战略客户 / 百万级" style="min-width:180px" ></crm-input></div>
-      <div><label>分级</label><crm-select id="f-tier">
-        <option value="LEAD">LEAD（低）</option>
-        <option value="NORMAL">NORMAL（中）</option>
-        <option value="HIGH">HIGH（高）</option>
+      <div><label>取值</label><crm-input id="f-value" placeholder="如：战略客户 / A / B / C" style="min-width:180px" ></crm-input></div>
+      <div><label>自主分级</label><crm-select id="f-tier">
+        <option value="LEAD">LEAD（可自主）</option>
+        <option value="NORMAL">NORMAL（可自主）</option>
+        <option value="HIGH">HIGH（一律升级）</option>
       </crm-select></div>
       <crm-button id="btn-save">保存</crm-button>
     </div>

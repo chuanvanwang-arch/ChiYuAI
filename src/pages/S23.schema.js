@@ -5,6 +5,10 @@
 // 组件：table(分级矩阵) + attr-field(维度定义) + select(自主等级映射)
 // 权限：manager/sysadmin
 // 对齐：§6 业务分级驱动自主边界
+//
+// ⚠ 术语边界（E2，2026-09-16）：本页的 tier 列取值 LEAD/NORMAL/HIGH = **自主边界**（自主分级）。
+//   项目维的**取值** A/B/C 是业务分类，与本列无关；与对话建议档 A/B/C（adviceCard.js，轴 ADVICE_MATURITY）
+//   更是另一条**方向相反**的轴（建议档 C=禁止处置 vs 项目分级 C=低风险可自治）。读 schema/页面时勿混。
 import { validatePageSchema } from '../page/validator.js';
 
 export const schema = {
@@ -15,7 +19,7 @@ export const schema = {
   components: [
     {
       kind: 'table',
-      title: '分级矩阵（客户维 × 项目维）',
+      title: '自主分级矩阵（客户维 × 项目维）',
       // tier_status / approved_by（2026-09-16 A2/A4）：配置面必须能看出"这条还生效吗 / 谁批的"——
       //   否则页面把已撤回的规则照旧显示成分级 = 配置面与执行面不一致（E1 类假绿）。
       dataBinding: { source: 'particle', particleType: 'CRM_DEAL', filters: [], metrics: [], columns: ['tier', 'tier_status', 'approved_by', 'customer_dim', 'project_dim', 'autonomy_level'] },

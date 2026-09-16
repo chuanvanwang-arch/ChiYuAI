@@ -9,6 +9,13 @@
 // 渲染纯函数（浏览器 + vitest 共用） + 表驱动 GET/PUT 端点（决策第0闸）
 // 设计输入：docs/superpowers/plans/2026-08-27-business-tier-config.md
 // tier 取值：LEAD / NORMAL / HIGH；引擎 computeBusinessTier 按两维取高风险优先
+//
+// ⚠ 术语边界（E2，2026-09-16）——本文件出现的三组三值符号互不相同，禁止混读：
+//   ① 维度名          = customer | project                （VALID_DIMENSIONS）
+//   ② 维度取值        = 客户维 STRATEGIC/KEY/NORMAL；项目维 A/B/C   ← 「取值」列，业务分类
+//   ③ **自主分级(tier)** = LEAD | NORMAL | HIGH            ← 「自主分级」列，**自主边界**（本模块真正配置的东西）
+//   另有对话建议档 A/B/C（decision/adviceCard.js，轴 ADVICE_MATURITY），**方向与②相反**：建议档 C=禁止处置，
+//   而项目分级 C=低风险可自治。②③ 经 computeBusinessTier 关联；对话建议档与本模块无直接映射关系。
 
 export const TIER_RANK = { LEAD: 1, NORMAL: 2, HIGH: 3 };
 export const VALID_DIMENSIONS = ['customer', 'project'];
