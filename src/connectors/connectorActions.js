@@ -9,11 +9,22 @@ import { registerAction } from '../action/registry.js';
 import { updateParticle, createEdge } from '../particles/particleRepo.js';
 import { requireDecision } from '../decision/autonomyEngine.js';
 import { emit } from '../events/bus.js';
+import { readConfig } from '../config/configStore.js';
 
 const CONNECTOR_SCENARIO = 'EXTERNAL_ENRICHMENT'; // 决策场景：外部数据自动采集（写通道第 0 闸的决策载体）
 
 // 外部 enrichment 写客户：ATTIO 型（domains/employee_range/funding/社媒/logo）
-export function seedConnectorActions() {
+// deps 可选（缺省走真实实现）——为行为测试提供注入点；无参调用行为零变化（MCP/tools.js 无参调用）。
+// Q3-3b：exportGate 为运行时顺序闸门（src/sync/exportGate.js），缺省 `createExportGate()`。
+export function seedConnectorActions(deps = {}) {
+  const readCfg = deps.readConfig || readConfig;                 // 返回 Promise<{value}|null>，与既有调用形状一致
+  const upd = deps.updateParticle || updateParticle;
+  let gatePromise = null;
+  const getGate = () => {
+    if (deps.exportGate) return Promise.resolve(deps.exportGate);
+    if (!gatePromise) gatePromise = import('../sync/exportGate.js').then((m) => m.createExportGate());
+    return gatePromise;
+  };
   registerAction({
     name: 'conn-attio-enrich-account', kind: 'write', permission: 'auth',
     namespace: 'connector', agentTool: true, force: false, needsApproval: true,
@@ -164,8 +175,12 @@ export function seedConnectorActions() {
       // ① 白名单过滤：仅写 config_store['sync-trust']['writeback_fields_whitelist'] 内字段
       // ② 静态 Source 标记：写入内容恒带 Source='crm-ai-native'（对外身份，防冒充/可追溯）
       // ③ 字段级 CAS（A-B4）：cas_expect {path,value} → updateParticle casExpectField；外部已改 → 拒绝并回传最新值
-      const { readConfig } = await import('../config/configStore.js');
-      const trustCfg = await readConfig('sync-trust', { tenantId: ctx.tenantId }).catch(() => null);
+      // Q3-3b（设计 §3.4）：运行时顺序闸门 —— **必须在任何读写之前**判定。
+      //   出口判据①不成立（窗口内无 status='sent' 行）→ 阻断回写（fail-closed，R2）。
+      const gate = await getGate();
+      const g = await gate.guard({ tenantId: ctx.tenantId, action: 'sync-writeback-fields' });
+      if (!g.allowed) return { ok: false, error: g.error, reason: g.reason, denied: [] };
+      const trustCfg = await readCfg('sync-trust', { tenantId: ctx.tenantId }).catch(() => null);
       const whitelist = trustCfg?.value?.writeback_fields_whitelist || [];
       const allowed = {};
       let denied = [];
@@ -179,7 +194,7 @@ export function seedConnectorActions() {
       const casField = cas_expect?.path ? { path: cas_expect.path, value: cas_expect.value } : null;
       let r;
       try {
-        r = await updateParticle(account_id, {
+        r = await upd(account_id, {
           patch: payload,
           casExpectField: casField,
           systemBypass: false,
