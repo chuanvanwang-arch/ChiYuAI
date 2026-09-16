@@ -4,7 +4,7 @@
 //       L3 额外：writeback（callWriteback 注入的回写函数 → 白名单字段 → 字段级 CAS）
 // 幂等前提：resolver.upsert 按 external_id 对齐，二次同步不新建粒子
 export function createSyncEngine({ provider, mapping, resolver, cursor, trust = { level: () => 'L1' }, callWriteback } = {}) {
-  async function runOnce({ object, tenantId = 'system' } = {}) {
+  async function runOnce({ object, tenantId = 'system', decisionId = null } = {}) {
     if (!provider) return { ok: false, error: 'provider_missing' };
     const auth = await provider.verifyAuth().catch(() => ({ ok: false }));
     if (!auth?.ok) return { ok: false, error: `verifyAuth_failed: ${auth?.error || 'unknown'}` };
@@ -13,18 +13,20 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
     const allowWrite = level === 'L2' || level === 'L3';
     const allowWriteback = level === 'L3';
     const cur = await cursor.get({ tenantId, provider: provider.kind || 'mock', object }).catch(() => null);
-    const inc = await provider.readIncremental({ cursor: cur?.cursor_value || null }).catch(() => ({ rows: [], cursor: null }));
+    // ⚠ 必须传 object：描述符按对象声明（§9.3 objects[]），provider 需据此定位查询目标
+    const inc = await provider.readIncremental({ object, cursor: cur?.cursor_value || null }).catch(() => ({ rows: [], cursor: null }));
     const read = (inc.rows || []).length;
     const counts = { read, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
     if (!allowWrite) {
-      await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null });
+      await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null, decisionId });
       return { ok: true, ...counts, readOnly: true };
     }
     for (const row of inc.rows || []) {
-      const extId = row.id || row.external_id;
-      if (!extId) { counts.skipped++; continue; }
       const m = mapping.apply(object, row);
       if (!m.ok) { counts.skipped++; continue; } // 映射失败（未知对象/字段）计入 skipped
+      // 外部 id 优先取映射声明的 identity.external_id_field（§9.1；如纷享 _id），回退通用名（零回归）
+      const extId = m.external_id || row.id || row.external_id;
+      if (!extId) { counts.skipped++; continue; }
       const u = await resolver.upsert({
         tenantId, provider: provider.kind || 'mock', object,
         externalId: extId, particleType: m.particle_type, payload: m.payload,
@@ -42,7 +44,7 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
         else counts.conflicted++; // 回写失败（CAS 拒绝/外部已改）计入 conflicted，不静默
       }
     }
-    await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null, cursor: inc.cursor });
+    await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null, cursor: inc.cursor, decisionId });
     return { ok: true, ...counts, readOnly: false };
   }
   return { runOnce };

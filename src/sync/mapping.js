@@ -5,7 +5,8 @@ export function createMappingResolver({ mappings = {} } = {}) {
   function objectDef(objName) {
     return mappings[objName] || null;
   }
-  // apply(extObjectName, externalRow) → { ok, particle_type, payload, skippedFields }
+  // apply(extObjectName, externalRow) → { ok, particle_type, payload, skippedFields, external_id }
+  // external_id 由映射声明的 identity.external_id_field 解析（设计 §9.1）；缺声明时回退 row.id/external_id
   function apply(objName, row = {}) {
     const def = objectDef(objName);
     if (!def) return { ok: false, error: 'object_not_mapped' };
@@ -20,7 +21,9 @@ export function createMappingResolver({ mappings = {} } = {}) {
     for (const k of Object.keys(row)) {
       if (!(def.fields || []).some(f => f.ext === k)) skipped.push(k); // 未知字段拒绝
     }
-    return { ok: true, particle_type: def.particle_type, payload, skippedFields: skipped };
+    const idField = def.identity?.external_id_field || null;
+    const external_id = (idField ? row[idField] : null) ?? row.id ?? row.external_id ?? null;
+    return { ok: true, particle_type: def.particle_type, payload, skippedFields: skipped, external_id };
   }
   // 对象清单（供 discover 校验）
   function objects() { return Object.keys(mappings); }
