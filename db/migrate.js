@@ -46,6 +46,7 @@ export const INCREMENTAL_SQL = [
   'migration-external-sync-tables.sql', // 2026-09-16 S2 入口：crm.external_ref + crm.sync_cursor 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
   'migration-advice-record.sql',        // 2026-09-16 E3 建议落库：crm.advice_record 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
   'migration-standing-grant.sql',        // 2026-09-16 S6 常驻授权：crm.standing_grant + crm.grant_execution + decision.grant_ref/autonomy_level + policy 系统模板
+  'migration-standing-grant-paused.sql', // 2026-09-16 S7/T20 降级追溯：standing_grant 补 paused_at / paused_reason 两列（幂等）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')

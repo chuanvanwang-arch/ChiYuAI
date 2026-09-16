@@ -104,9 +104,9 @@ export async function recordExecution({
      WHERE tenant_id=$1 AND grant_id=$2`,
     [tenantId, grantId]
   );
-  // 用量熔断：达 max_uses（非 null）且仍 active → paused
+  // 用量熔断：达 max_uses（非 null）且仍 active → paused（T20：落 paused_at/reason 供降级追溯）
   await queryWrite(
-    `UPDATE crm.standing_grant SET status='paused'
+    `UPDATE crm.standing_grant SET status='paused', paused_at=now(), paused_reason='usage-limit'
      WHERE tenant_id=$1 AND grant_id=$2 AND status='active'
        AND max_uses IS NOT NULL AND used_count >= max_uses`,
     [tenantId, grantId]
@@ -134,8 +134,9 @@ export async function listExecutions(tenantId, { verdict = null } = {}) {
 // 暂停：状态变更（零 DELETE）。返回最新凭证。
 export async function pauseGrant(tenantId, grantId, reason = 'auto-pause') {
   await queryWrite(
-    `UPDATE crm.standing_grant SET status='paused' WHERE tenant_id=$1 AND grant_id=$2 AND status='active'`,
-    [tenantId, grantId]
+    `UPDATE crm.standing_grant SET status='paused', paused_at=now(), paused_reason=$3
+     WHERE tenant_id=$1 AND grant_id=$2 AND status='active'`,
+    [tenantId, grantId, reason]
   );
   return getGrant(tenantId, grantId);
 }

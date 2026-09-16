@@ -1185,6 +1185,8 @@ CREATE TABLE IF NOT EXISTS crm.standing_grant (
   expires_at      TIMESTAMPTZ NULL,
   revoked_at      TIMESTAMPTZ NULL,
   revoked_reason  TEXT NULL,
+  paused_at       TIMESTAMPTZ NULL,                 -- T20：信任降级/熔断暂停时间戳（降级事件可追溯到）
+  paused_reason   TEXT NULL,                        -- T20：暂停原因（consecutive-rejects | usage-limit | ...）
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_grant_active
