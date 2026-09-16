@@ -129,7 +129,7 @@ export async function catchUpRetro({ run = runRetroOnce, nowMs = Date.now() } = 
 // recordTokens（可注入；缺省接真 tokenAccounting）按租户聚合本轮 cost 落账（零新表，fail-open 不阻断主流程）
 // 2026-09-16 A-B6（T06）增量分支：同循环内对「同步 descriptor（objects[]）」拉增量 → 同步内核 upsert。
 //   零新增定时器、零调度框架改动；未注入 loadSyncTargets 或租户无 objects[] → no-op（既有行为零变化）。
-export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, emit, recordTokens, loadSyncTargets, runSync } = {}) {
+export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, emit, recordTokens, loadSyncTargets, runSync, resolveCredentials } = {}) {
   const recTok = recordTokens || realRecordTokens;
   const tenants = listActiveTenants ? await listActiveTenants().catch(() => [{ tenant_id: 'system' }]) : [{ tenant_id: 'system' }];
   for (const t of tenants) {
@@ -163,13 +163,32 @@ export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, 
     let adapters = [];
     try { adapters = (await loadAdapters({ tenantId: tid })) || []; } catch { continue; }
     if (!adapters.length) continue;
+
+    // A-B2 第二消费面（P-4 修复，2026-09-16）：凭据必须经 ctx.credentials 透传给 adapter。
+    //   旧实现两处断点：① 本函数签名不接收 resolveCredentials —— 调用方（:501 起）已注入却被**静默丢弃**；
+    //   ② runWaterfall 的 ctx 仅 `{ tenantId }` —— 四个消费 `ctx.credentials[pid]` 的 adapter
+    //   （anysite / qixin / genericRest / genericMcp）凭据恒空，退化为「无 Authorization 的请求」
+    //   → 表现为"没有数据"而非"凭据没送到"（典型假绿；与 §0.2 元缺陷「交付 ≠ 可触发」同族）。
+    //   范式对齐 discoveryOrchestrator.js:58-63 / prospectingActions.js:79-83：注入优先，缺省动态 import 回落
+    //   （回落使「未来调用方忘记注入」不再重演同一断点）。
+    //   解析失败**不静默**（trace + recordFailure）但**不阻断**富化：凭据缺失在 adapter 侧本就等价于
+    //   「不带 Authorization」，硬阻断会把「缺凭据」升级成「整轮富化归零」，超出本修复意图。
+    let credentials = {};
+    try {
+      const resolve = resolveCredentials || (await import('../connectors/discovery/credentialVault.js')).resolveCredentials;
+      credentials = (await resolve({ tenantId: tid, providerIds: adapters.map((a) => a.id) })) || {};
+    } catch (err) {
+      emit && emit('trace', 'integration-poll-credentials-failed', { tenant_id: tid, error: String(err?.message || err) });
+      recordFailure('integration-poll-credentials-failed', err);
+    }
+
     let tenantCost = 0;
     const { rows: accRows } = await query(
       `SELECT id, payload FROM crm.particles WHERE type='CRM_ACCOUNT' AND tenant_id=$1`, [tid]
     ).catch(() => ({ rows: [] }));
     for (const acc of accRows) {
       const fields = [...new Set(adapters.flatMap((a) => a.coverageFields || []))];
-      const { values, cost } = await runWaterfall(adapters, { ...acc.payload, id: acc.id }, fields, { tenantId: tid }).catch(() => ({ values: {}, cost: 0 }));
+      const { values, cost } = await runWaterfall(adapters, { ...acc.payload, id: acc.id }, fields, { tenantId: tid, credentials }).catch(() => ({ values: {}, cost: 0 }));
       tenantCost += Number(cost) || 0;
       const sigs = Object.entries(values).map(([f, v]) => ({ type: f, provider: v?.provider, ts: v?.ts }));
       if (sigs.length) {
@@ -656,6 +675,9 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
     dispatcher.pumpAllTenants()
       .then((r) => {
         if (r.sent || r.failed || r.skipped) emit('trace', 'signal-dispatch', r);
+        // 不静默（P-5）：零投递时必须能区分「渠道没配」与「没什么可做」——
+        //   否则面板无告警与链路已通将不可区分（真实库实测：signal-delivery 配置为零行）。
+        else if (Object.keys(r.idle || {}).length) emit('trace', 'signal-dispatch-idle', r);
         for (const f of r.failures) {
           emit('trace', 'signal-dispatch-tenant-failed', f);
           recordFailure('signal-dispatch-tenant-failed', new Error(f.error));

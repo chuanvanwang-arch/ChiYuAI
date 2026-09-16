@@ -7,8 +7,7 @@
 import { query } from '../db.js';
 import { createAlert } from '../alerts/alertStore.js';
 import { emit } from '../events/bus.js';
-
-const DEFAULT_CHANNELS = ['inbox', 'email', 'im', 'webhook'];
+import { readConfig } from '../config/configStore.js';
 
 // getSignalMetrics({ tenantId, since }) — 全部聚合带 tenant_id（租户隔离）
 export async function getSignalMetrics({ tenantId, since }) {
@@ -66,11 +65,21 @@ export async function getSignalMetrics({ tenantId, since }) {
   };
 }
 
-// detectNegativePredicates({ tenantId, since, enabledChannels=DEFAULT_CHANNELS })
+// detectNegativePredicates({ tenantId, since, enabledChannels })
 // → [{type:'delivery_silent',channel,tenant_id}] | [{type:'gen_silent',tenant_id,fired}]
-// 判据 A：无投递行但渠道为 on（enabledChannels 视为 on）
-// 判据 B：hits>0 而新增 signal=0（event-trigger 命中但无内部信号生成 = 摄取→信号桥静默）
-export async function detectNegativePredicates({ tenantId, since, enabledChannels = DEFAULT_CHANNELS }) {
+//
+// 判据 A（delivery_silent）：渠道配置为 on 但窗口内零投递行。
+//   ⚠ Q1-4 修正（2026-09-16，全链集成设计 v1.1 §3.3）：原实现 `enabledChannels = DEFAULT_CHANNELS`
+//   （四渠道硬编码全开）且定时器⑯ 调用时未传参 → **面板上「渠道『email』已开启」是判据自己
+//   注入的假前提**（一个防假绿的判据自己制造假绿）。现改为从 config_store['signal-delivery'].channels
+//   读取真实启用集合；**读不到配置 → 判据 A 不触发并 emit trace**（不退回「全开」）。
+//   显式传 enabledChannels 时仍按传入值工作（供纯逻辑单测，保持向后兼容）。
+//
+// 判据 B（gen_silent）：event-trigger 命中但无内部信号生成 = 摄取→信号桥静默。
+//   ⚠ 与渠道配置无关 —— 故本函数**绝不因配置缺失而提前 return**，否则判据 B 会被连带跳过
+//   （既有测试 test/monitor/signalMetrics.test.js 不传 enabledChannels 的用例会转红，
+//    且真实静默会被漏报）。
+export async function detectNegativePredicates({ tenantId, since, enabledChannels = null, readConfigFn = readConfig }) {
   const sinceTs = since instanceof Date ? since : new Date(since);
   const { rows: [sg] } = await query(
     `SELECT COUNT(*) AS c FROM crm.signal WHERE tenant_id=$1 AND created_at >= $2`,
@@ -78,17 +87,47 @@ export async function detectNegativePredicates({ tenantId, since, enabledChannel
   );
   const signalCount = Number(sg?.c || 0);
   const alerts = [];
-  if (signalCount > 0) {
+
+  // ── 判据 A：渠道集合解析（配置驱动优先，显式参数其次）──
+  let channels = enabledChannels;
+  if (channels === null) {
+    let cfg = null;
+    let readFailed = null;
+    try {
+      const row = await readConfigFn('signal-delivery', { tenantId });
+      cfg = row?.value || null;
+    } catch (e) {
+      readFailed = String(e?.message || e);
+    }
+    if (readFailed) {
+      // ① **读取失败 ≠ 配置缺失**：分别留痕。否则 DB 故障会被误读成「客户还没配」，
+      //    把一个真故障降级成一个"待配置项"（本项目最忌讳的误归因）。
+      emit('trace', 'signal-observability-config-read-failed', { tenant_id: tenantId, error: readFailed });
+      channels = [];
+    } else if (!cfg || !cfg.channels || typeof cfg.channels !== 'object') {
+      // ② 读到了但配置缺失 → 不判（留痕），**绝不**回退为默认全开（那正是本次修正消除的假前提）
+      emit('trace', 'signal-observability-config-missing', { tenant_id: tenantId });
+      channels = [];
+    } else {
+      channels = Object.entries(cfg.channels)
+        .filter(([, v]) => v === 'on' || v === true)
+        .map(([k]) => k);
+    }
+  }
+
+  if (signalCount > 0 && channels.length > 0) {
     const { rows: ch } = await query(
       `SELECT channel, COUNT(*) AS c FROM crm.signal_delivery
        WHERE tenant_id=$1 AND created_at >= $2 GROUP BY channel`,
       [tenantId, sinceTs]
     );
     const delivered = new Set((ch || []).map(r => r.channel));
-    for (const name of enabledChannels) {
+    for (const name of channels) {
       if (!delivered.has(name)) alerts.push({ type: 'delivery_silent', channel: name, tenant_id: tenantId });
     }
   }
+
+  // ── 判据 B：与渠道配置无关，始终执行 ──
   const { rows: [fired] } = await query(
     `SELECT COUNT(*) AS c FROM crm.signal
      WHERE tenant_id=$1 AND source='event-trigger' AND created_at >= $2`,
@@ -133,10 +172,18 @@ export async function getDowngradeEvents({ tenantId, since }) {
 
 // createSignalObservabilitySweep({ windowHours }) — 定时巡检：逐租户跑负向判据，命中即 createAlert + emit trace
 // 供 scheduler/timers.js 定时器⑯调用（VITEST 护栏由调用方负责）；单租户失败不静默（emit trace）
+//
+// ⚠ D1 同族遗漏 P-2 修正（2026-09-16）：候选租户集**不得排除平台租户 `system`**。
+//   同族断点在 pumpAllTenants（src/signal/dispatcher.js:139）已按设计 §3.1.1 修正，本处为**漏改的第二处**：
+//   泵侧已保证「平台级信号必须被泵」，但观测侧此前把平台租户从扫描面剔除 ⇒ 平台级信号被投递、
+//   却**永不接受负向判据检查**（delivery_silent / gen_silent 对平台租户恒静默）。
+//   即「上一闸修了、下一闸没修」——出口通了、观测瞎了，仍是同一类「平台告警永久静默」。
+//   方向说明：平台租户无信号时该分支自然空转（零额外成本）；有信号而渠道已开却零投递时，
+//   **正是必须报警的场景**（这正是本轮修复要恢复的可见性），故本处不应保留任何形式的豁免。
 export function createSignalObservabilitySweep({ windowHours = 24 } = {}) {
   return {
     async sweepOnce() {
-      const { rows } = await query(`SELECT DISTINCT tenant_id FROM crm.signal WHERE tenant_id <> 'system'`);
+      const { rows } = await query(`SELECT DISTINCT tenant_id FROM crm.signal`);
       const since = new Date(Date.now() - windowHours * 3600 * 1000);
       let fired = 0;
       for (const { tenant_id } of rows) {

@@ -10,7 +10,7 @@ const alerts = new Map();
 // ===== 落库单一收敛点（B-B3，2026-09-16 主动运行时 S1）=====
 // 为什么在 createAlert 内挂 sink、而非逐点调 createAlertWithDb：
 //   实测告警产生点共 5 处（alertHook / financeAlertHook / routes 差额预警 / timers 日报扫描 /
-//   timers 到访逾期）——逐点改只覆盖 1/N，其余告警永远进不了 crm.signal（信号中心看不到 = 部分假绿）；
+//   timers 到访逾期）——逐点改只覆盖 1/N，其余告警永远进不了 crm.signal（销售自动化页看不到 = 部分假绿）；
 //   bus 'alert' 域亦不可靠（timers 逾期点只发 alert_id 无 alert 对象、alertEndpoints.create 不发事件）。
 //   createAlert 是全部产生点的**唯一**收口 → 一处注册覆盖全部，含将来新增点。
 // 纪律：fire-and-forget 不阻塞告警主流程；失败留 trace 不静默（禁裸 catch 铁律）。

@@ -50,7 +50,9 @@ export const agentSpecs = {
       kgTarget: 'L3', // KG 就绪后升级到 L3 上下文（当前 KG 降级，见 agents.js l3DegradedGuard 守护）
     },
     context: { knowledgeLevel: 3, coverage: '>=80%', coldStart: 'adaptive' },
-    memory: { read: ['review-gate', 'quote-engine', 'intake-router'], write: ['review-gate'] }, // crm-copilot/deal-coach 已废弃；评审读报价+路由上下文
+    // 评审读报价+路由上下文；decision-retro 为设计 §13 T21 契约要求（评审需回溯本场景历史复盘结论，
+    // 与 T21「分级授权对象化」的 decision_id 溯源同轴）。缺此项 → validate-contract 报 memory 不在 read 内。
+    memory: { read: ['review-gate', 'quote-engine', 'intake-router', 'decision-retro'], write: ['review-gate'] }, // crm-copilot/deal-coach 已废弃
     evaluation: { metricTemplate: 'review_precision', evaluator: 'stage2' },
     governance: { approvals: ['critical'], concurrency: 3, profile: 'full' },
   },
