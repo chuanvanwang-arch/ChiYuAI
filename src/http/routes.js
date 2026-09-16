@@ -111,6 +111,10 @@ import { buildAlertHandlers, ALERT_ENDPOINTS } from '../alerts/alertEndpoints.js
 // 信号端点（2026-09-16 主动运行时 S1）：crm.signal 统一收口列表/确认/否决
 import { createSignalStore } from '../signal/store.js';
 import { createAdoption } from '../signal/adoption.js'; // T18 建议卡采纳/否决（第 0 闸）
+// S6 T19-7/T19-8：常驻授权凭证端点（线 B｜写须 decision_id 过第0闸 / 仅 T0/T1 / T3 永久不可 / 零 DELETE）
+import { createGrant, listGrants, revokeGrant, getExecution, recentVerdicts, pauseGrant } from '../authorization/grantStore.js';
+import { loadGrantsPolicy, T3_ACTIONS } from '../authorization/standingAuthorization.js';
+import { createSignalMetricsRouter } from './signalMetricsRouter.js';
 // 门户真实登录认证（v2 双页：Home.html → token → index.html）
 import { login, resolveMe } from './auth.js';
 import { handleRegister } from './selfRegister.js'; // 自助注册（公开，免 admin 闸；按公司名自动判定租户）
@@ -410,6 +414,13 @@ export function createRoutes(app, hub) {
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
   }
+
+  // ===== S6 T19 常驻授权凭证管理（凭证 CRUD 过第0闸 + 执行流水 HITL 回写；实现见 createStandingGrantRouter）=====
+  app.use(createStandingGrantRouter());
+
+  // ===== S7 T20 信号链路观测（指标 + 负向判据 + 降级追溯；per-tenant，见 createSignalMetricsRouter）=====
+  app.use('/api/monitor', createSignalMetricsRouter());
+
   app.get('/finance-receivables.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/finance-receivables.html', import.meta.url))));
   // 多租户计费看板页（T6）：全员可见；租户隔离在 API 层（applyTenantOverride/scopeTenant）强制本租户
@@ -3531,4 +3542,83 @@ export function createRoutes(app, hub) {
 
   // 参数传播中枢路由挂载（继承矩阵 / 已落地留痕 / 推广候选 / 强制下发；全经决策第0闸）
   registerPropagationRoutes(app, pool);
+}
+
+// ===== S6 T19-7/T19-8 常驻授权凭证 HTTP 端点（独立子路由，可单测；生产 createRoutes 内同源挂载）=====
+// 凭证须经审批流批准（decision_id 非空）方可 active；仅限 T0/T1（T2/T3 对外动作永久不可常驻授权）
+// 注：子路由内直调模块级 resolveMe（与 createRoutes 内 requireMe 语义等价，均为「未登录→401」）
+export function createStandingGrantRouter() {
+  const r = express.Router();
+  r.get('/api/standing-grants', async (req, res) => {
+    const me = resolveMe(req);
+    if (!me?.ok) return res.status(401).json({ error: me?.error || 'unauthorized' });
+    try {
+      const items = await listGrants(me.tenantId);
+      res.json({ items });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  r.post('/api/standing-grants', async (req, res) => {
+    const me = resolveMe(req);
+    if (!me?.ok) return res.status(401).json({ error: me?.error || 'unauthorized' });
+    const b = req.body || {};
+    if (!b.decision_id) return res.status(400).json({ ok: false, error: 'decision_required' }); // 溯源铁律：无审批决策不可发凭证
+    const riskTier = b.risk_tier || 'T1';
+    if (!['T0', 'T1'].includes(riskTier)) return res.status(400).json({ ok: false, error: 'only_t0_t1_allowed' });
+    const scopeActions = Array.isArray(b.scope_actions) ? b.scope_actions : [];
+    if (scopeActions.some((a) => T3_ACTIONS.includes(a))) return res.status(400).json({ ok: false, error: 't3_actions_not_standable' });
+    try {
+      const g = await createGrant({
+        tenantId: me.tenantId, title: b.title, scopeActions,
+        scopeObjects: b.scope_objects || null, fieldWhitelist: b.field_whitelist || null,
+        riskTier, maxUses: b.max_uses ?? null, period: b.period || null,
+        limitPayload: b.limit_payload || {}, approvedBy: me.username, decisionId: b.decision_id,
+        expiresAt: b.expires_at || null,
+      });
+      res.status(201).json({ ok: true, grant: g });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  r.post('/api/standing-grants/:id/revoke', async (req, res) => {
+    const me = resolveMe(req);
+    if (!me?.ok) return res.status(401).json({ error: me?.error || 'unauthorized' });
+    try {
+      const g = await revokeGrant(me.tenantId, req.params.id, (req.body || {}).reason || 'revoked');
+      res.json({ ok: true, grant: g });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  // S6 T19-8 执行流水 HITL 判定回写（J2 闭环）：写 decision_outcome + 连续否决自动暂停
+  r.post('/api/grant-executions/:id/verdict', async (req, res) => {
+    const me = resolveMe(req);
+    if (!me?.ok) return res.status(401).json({ error: me?.error || 'unauthorized' });
+    const { verdict } = req.body || {};
+    if (!['adopted', 'rejected'].includes(verdict)) return res.status(400).json({ ok: false, error: 'invalid_verdict' });
+    const exec = await getExecution(me.tenantId, req.params.id);
+    if (!exec) return res.status(404).json({ ok: false, error: 'not_found' });
+    try {
+      await queryWrite(
+        `UPDATE crm.grant_execution SET hitl_verdict=$3,
+           rejected_at = CASE WHEN $3='rejected' THEN now() ELSE rejected_at END
+         WHERE tenant_id=$1 AND execution_id=$2`,
+        [me.tenantId, req.params.id, verdict]
+      );
+      // J2：回写决策结果（outcome_type 受白名单约束，verdict 落 payload）
+      if (exec.decision_id) {
+        await writeOutcome(exec.decision_id, {
+          outcome_type: 'other',
+          source: 'standing-auth-verdict',
+          payload: { grant_id: exec.grant_id, execution_id: req.params.id, verdict, hitl_verdict: verdict },
+          created_by: me.username,
+        });
+      }
+      // 连续否决信任降级：最近 N 条全 rejected → 自动 paused
+      const policy = await loadGrantsPolicy(me.tenantId);
+      const N = policy.auto_pause_on_consecutive_rejects || 3;
+      const verdicts = await recentVerdicts(me.tenantId, exec.grant_id, N);
+      if (verdicts.length >= N && verdicts.every((x) => x === 'rejected')) {
+        await pauseGrant(me.tenantId, exec.grant_id, 'consecutive-rejects');
+        emit('trace', 'grant-auto-paused', { tenant_id: me.tenantId, grant_id: exec.grant_id, reason: 'consecutive-rejects' });
+      }
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  return r;
 }
