@@ -368,6 +368,27 @@ async function ensureLeadPoolConfig() {
   return run(sql);
 }
 
+// ⑰ 外部数据接入配置模板三键（2026-09-16 P0-3）：测试库需有 (system,'sync-mappings'/'sync-trust'/
+//   'integration-providers') 模板行。与 db/migration-sync-config.sql 同源（单一 JSON 事实源，幂等 WHERE NOT EXISTS）。
+//   缺行后果：loadSyncMappings 返 {} → mapping.apply 全 skipped；loadTenantSyncTargets 返 [] → 目标恒空（静默 no-op）。
+async function ensureSyncConfig() {
+  const sql = readFileSync(new URL('../db/migration-sync-config.sql', import.meta.url), 'utf8');
+  return run(sql);
+}
+
+// ⑱ 信号投递/泵窗口模板（signal-delivery / signal-dispatch）——**刻意不在测试库播种**。
+//   与 ⑯⑰ 的区别在于：lead-pool-config / sync-mappings 是**新键**，测试库无「该键缺失」为前提的用例；
+//   而 `signal-delivery` **有**——至少 3 个用例以「该键不存在」为断言前提：
+//     · test/monitor/signalMetrics.test.js:119「租户无 signal-delivery 配置 → 不产生 delivery_silent
+//       （且不回退为全开）」
+//     · test/signal/dispatch-e2e.test.js:166「P-5：未配置 signal-delivery 的租户 → 泵空转且回带 idle 原因」
+//     · test/connectors/writebackGateWiring.test.js:62「无 signal-delivery 配置 + 无 sent 行 → 闸门必关」
+//   一旦测试库存在 (system,'signal-delivery') 模板行，readConfig 的 autoSeed 会在这些租户**首次读取时
+//   自动补行**（并打 _seeded）⇒「无配置」这一状态在测试库**再也无法被构造**，三个用例的前提被摧毁
+//   （轻则断言理由失真、重则直接转红）——这与「.env 被 vitest 载入破坏『未配置』前提」同源。
+//   故该模板**只走业务库/生产通道**（db/migrate.js 的 INCREMENTAL_SQL，容器启动即跑）；
+//   测试如需 system 模板，由用例自身负责写入与清理（见 signalObservabilityScan.test.js beforeAll）。
+
 async function main() {
   console.log(`[seed-test-config] 前置执行 @ ${PGDATABASE}`);
   const steps = [
@@ -390,6 +411,7 @@ async function main() {
     ['套餐基线（billing-plans 5 档 + billing-settings）', ensureBillingPlans],
     ['线索发现场景（LEAD_FIT）', ensureDiscoveryScenario],
     ['线索池三池模板（lead-pool-config）', ensureLeadPoolConfig],
+    ['外部数据接入配置模板（sync-mappings/sync-trust/integration-providers）', ensureSyncConfig],
   ];
   let fail = 0;
   for (const [name, fn] of steps) {
