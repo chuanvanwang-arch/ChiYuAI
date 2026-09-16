@@ -7,11 +7,17 @@
 //   测试：PGDATABASE=crm_native_test node scripts/seed-tenant-demo-data.mjs
 import { pool, queryWrite, query } from '../src/db.js';
 import { ensureSystemTenant } from '../src/tenant/tenantRepo.js';
-import { seedDemoProfile, DEMO_TENANT } from '../db/seed/tenant-profile-demo.js';
+import { seedDemoProfile } from '../db/seed/tenant-profile-demo.js';
 import { seedDemoUsers } from '../db/seed/tenant-users-demo.js';
 import { seedTenantMasterData } from './seed-tenant-master-data.mjs';
 import { upsertParticleByStableKey } from '../src/particles/mintId.js';
 
+// DEMO 演示租户 id（与本文档 §3 注释、db/seed/tenant-users-demo.js 的 acme-demo 同源隔离）
+// ⚠ 2026-09-16 修复：db/seed/tenant-profile-demo.js 只导出 seedDemoDiscovery / seedDemoProfile，
+//   从未导出 DEMO_TENANT。原写法 `import { seedDemoProfile, DEMO_TENANT }` 在原生 ESM 下是
+//   加载期 SyntaxError（does not provide an export named 'DEMO_TENANT'）→ 本脚本从未能运行。
+//   此处本地定义常量；不改动已稳定的 seed 模块（保持其与 tenant-profile-training.js 的同构约定）。
+const DEMO_TENANT = 'acme-demo';
 const T = DEMO_TENANT;
 const SALES = 'acme_demo_sales01';
 
