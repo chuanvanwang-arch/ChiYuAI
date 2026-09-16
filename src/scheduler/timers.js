@@ -487,5 +487,23 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   const schedTimer = setInterval(runSchedule, schedIntervalMs);
   timers.set('signal-schedule-scan', { handle: schedTimer, intervalMs: schedIntervalMs, kind: 'rule', registeredAt: now });
 
+  // ⑬ S5 T16 拓客信号扫描（lead-pool-config 驱动）：每 30min 逐租户，只提醒不改归属
+  const runProspect = () => {
+    if (process.env.VITEST) return;
+    import('../signal/prospectScanner.js').then(async (m) => {
+      const { listActiveTenants } = await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }));
+      const tenants = listActiveTenants ? (await listActiveTenants().catch(() => [{ tenant_id: 'system' }])) : [{ tenant_id: 'system' }];
+      const { createSignalStore } = await import('../signal/store.js');
+      for (const t of tenants) {
+        await m.createProspectScanner({ query, signalStore: createSignalStore(pool), readConfig })
+          .scanOnce({ tenantId: t.tenant_id })
+          .then((r) => { if (r.signals) emit('trace', 'prospect-scan', { tenant_id: t.tenant_id, ...r }); })
+          .catch((err) => { emit('trace', 'prospect-scan-failed', { error: String(err?.message || err) }); recordFailure('prospect-scan-failed', err); });
+      }
+    }).catch((err) => { emit('trace', 'prospect-scan-load-failed', { error: String(err?.message || err) }); });
+  };
+  const prospectTimer = setInterval(runProspect, 1800000);
+  timers.set('prospect-scan', { handle: prospectTimer, intervalMs: 1800000, kind: 'rule', registeredAt: now });
+
   return timers.size;
 }
