@@ -14,7 +14,7 @@ import { test, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ADVICE_TIER_AXIS, ADVICE_TIERS, buildAdviceCard } from '../src/decision/adviceCard.js';
-import { buildAdviceAnchor } from '../src/decision/adviceStore.js';
+import { buildAdviceRecord } from '../src/decision/adviceRecord.js';
 import { VALID_TIERS } from '../src/portal/businessTierRender.js';
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
@@ -54,36 +54,49 @@ test('E2: 建议档 A = 证据齐备且场景非 HIGH 级 → APPROVE（唯一�
   expect(card.disposition).toBe('APPROVE');
 });
 
-// ---------- ③ 跨轴投影必须保守单调（核心负向哨兵） ----------
+// ---------- ③ E3 结构消除：建议记录不含业务分级字段（投影面已消失） ----------
 
-const anchorOf = (tier) => buildAdviceAnchor({
-  advice: { tier, scenario_id: 'OPP_QUALIFY', stage: 'S2', coverage: 0.8 },
-  tenantId: 'system',
+const recOf = (tier) => buildAdviceRecord(
+  { tier, scenario_id: 'OPP_QUALIFY', stage: 'S2', coverage: 0.8 },
+  { tenantId: 'system' }
+);
+
+test('E3: 建议记录不含业务分级字段（不是"投影转换"，而是投影无处可写）', () => {
+  const rec = recOf('C');
+  const keys = Object.keys(rec);
+  expect(keys, '出现裸 tier 列名：轴必须显式带前缀 advice_').not.toContain('tier');
+  expect(keys, '建议记录混入业务分级字段 —— 跨轴语义反转的土壤').not.toContain('business_tier');
+  expect(keys).not.toContain('autonomy_level');
+  // 源码级：adviceRecord.js 与建表 DDL 均不得出现业务分级列（**只看代码行**，解释性注释不算）
+  const codeOnly = (txt) => txt.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*|--)/.test(l)).join('\n');
+  expect(codeOnly(read('../src/decision/adviceRecord.js'))).not.toMatch(/business_tier/);
+  const ddl = read('../db/schema.sql');
+  const at = ddl.indexOf('CREATE TABLE IF NOT EXISTS crm.advice_record');
+  const block = codeOnly(ddl.slice(at, ddl.indexOf(');', at)));
+  expect(block, 'advice_record 表混入业务分级列').not.toMatch(/business_tier/);
 });
 
-test('E2: 只有建议档 A 可投影为可自主分级；B / C 一律投影为 HIGH（升级给人）', () => {
-  expect(anchorOf('A').business_tier, 'A（证据齐备）→ NORMAL（可自主）').toBe('NORMAL');
-  expect(anchorOf('B').business_tier, 'B（待审批）→ HIGH').toBe('HIGH');
-  // ⚠ 关键负向哨兵：C 档恰是"证据不足、禁止处置"，投影成 NORMAL 即语义反转
-  expect(anchorOf('C').business_tier, 'C（证据不足、禁止处置）投影成了可自主分级 —— 语义反转').toBe('HIGH');
-});
-
-test('E2: 投影保守单调 —— 建议档越保守，落库分级不得更宽松', () => {
-  const rank = { LEAD: 1, NORMAL: 2, HIGH: 3 };
-  // 建议档自主度：A > B ≈ C（B 走审批、C 禁止处置，均为"需人处理"）
-  const auto = (t) => anchorOf(t).business_tier;
-  expect(rank[auto('B')], 'B 不得比 A 更宽松（A 是唯一可自主档）').toBeGreaterThanOrEqual(rank[auto('A')]);
-  expect(rank[auto('C')], 'C 不得比 A 更宽松，否则最该升级的一档反被放行').toBeGreaterThanOrEqual(rank[auto('A')]);
+test('E3: 建议档按轴原名落库 —— C 档落库必须仍是 C（关键负向哨兵，防跨轴改写）', () => {
+  for (const t of ['A', 'B', 'C']) {
+    expect(recOf(t).advice_tier, `建议档 ${t} 被跨轴改写`).toBe(t);
+  }
+  // 反向：记录里不得出现 LEAD/NORMAL/HIGH 任一自主分级值
+  const blob = JSON.stringify(['A', 'B', 'C'].map(recOf));
+  for (const v of ['LEAD', 'NORMAL', 'HIGH']) {
+    expect(blob, `建议记录出现自主分级值 ${v}：两轴混用`).not.toContain(v);
+  }
 });
 
 // ---------- ④ 源码级守卫：禁止"按字面同值映射"回潮 ----------
 
-test('E2: adviceStore 源码不得出现"建议档 B → HIGH、其余 → NORMAL"式字面映射', () => {
+test('E3: 旧路线（business_tier 字面映射 / crm.decision + ADVISED）不得回潮', () => {
   const txt = read('../src/decision/adviceStore.js');
   // 只断言**代码行**（行首空白 + business_tier:），注释中的历史记录不误伤
   const badCode = /^\s*business_tier:\s*advice\.tier\s*===\s*'(B|C)'\s*\?/m;
-  expect(txt, "出现按字面映射的 business_tier 赋值：这正是把 C 档（禁止处置）错标为可自主的成因").not.toMatch(badCode);
-  expect(txt, '缺少跨轴投影的轴声明注释').toContain('跨轴保守投影');
+  expect(txt, '出现按字面映射的 business_tier 赋值：这正是把 C 档（禁止处置）错标为可自主的成因').not.toMatch(badCode);
+  expect(txt, '退役记录缺失：应显式说明旧路线被否决').toMatch(/退役/);
+  expect(txt, '退役记录缺失：应指明新载体为 advice_record').toContain('advice_record');
+  expect(read('../src/decision/adviceRecord.js'), 'adviceRecord 缺 E3 设计裁决说明').toContain('不落 crm.decision');
 });
 
 test('E2: 两轴方向相反须在源码中显式声明（防止下一位读者误判）', () => {
