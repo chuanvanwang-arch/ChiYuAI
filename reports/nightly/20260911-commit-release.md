@@ -12,11 +12,11 @@
 
 | # | 动作 | 结果 | 证据 |
 |---|---|---|---|
-| 1 | 本地 git 提交 | 🟢 **工作树 0 未提交** | `HEAD=265318a`；本地领先 origin **5 个**（明细见 ② 与 ⑪ 节） |
+| 1 | 本地 git 提交 | 🟢 **工作树 0（除并发会话活跃 WIP）** | `HEAD=84122ef`；本地领先 origin **5 个**（明细见 ② / ⑪ / ⑫ 节） |
 | 2 | GitHub 推送 | 🔴 **未完成（沙箱无凭据）** | `fatal: could not read Username for 'https://github.com'`；本地领先 origin **5 个** |
-| 3 | 生产发布 | 🟢 **成功（release 固化）** | 三容器 healthy、表 **59→61**、`system_overview_sample` 21 行、`buildTrendParts` 已进镜像 |
-| 4 | P0 事故处置 | 🟢 **已根治并实测防复发** | 昨夜 `.env` 被抹 → 修 `unpack.py`；本轮 release **`.env` 15 键完整保留**（实测通过） |
-| 5 | 缺陷修复 | 🟢 **7 项** | unpack.py / pack-local.py / server.js / migrate.js / 趋势图渲染 / 插件包重建 / gitignore |
+| 3 | 生产发布 | 🟢 **成功（release 固化 ×2）** | 三容器 healthy、表 **59→61**、采样 21 行、`/app/skills` 已建出、`skill_registry` **8→24** |
+| 4 | P0 事故处置 | 🟢 **已根治并实测防复发** | 昨夜 `.env` 被抹 → 修 `unpack.py`；本轮 2 次 release 后 **`.env` 15 键完整**（实测） |
+| 5 | 缺陷修复 | 🟢 **10 项** | unpack.py / pack-local.py / **deploy.sh(.dockerignore)** / server.js / migrate.js / 趋势图渲染 / 插件包重建 / gitignore / **getParticle 恒假守卫** / **skills 打包缺口** |
 | 6 | KMD 探针 | 🟡 `🟢6 🔴3 🟡3 ⚪2` | 红点 D1/D4/D6（D4 接线已修，属业务事件未发生） |
 | 7 | 系统概览采样 | 🟢 **本地 + 生产双侧成功** | 本地 `upserted 10 tenants`；生产容器内 `upserted 6 tenants` → K/D 页趋势真实渲染 |
 
@@ -188,7 +188,12 @@ HIGH 样本：f45d379d… | source_refresh | context-dimension-source
 ```powershell
 # ① 推送 5 个提交（沙箱无 GitHub 凭据，push 已被拒）
 cd D:\system\CRM-ai-native
-# 本地领先 origin 5 个：5475e83 / 9e3b830 / c306cdc / 44bc560 / 265318a
+# 本地领先 origin 5 个（截至本轮收尾 12:25）：
+#  12627a8 feat(memory) 发现结论入记忆闭环
+#  36ca849 feat(discovery) Claygent L3 研究代理 + getParticle 恒假守卫修复
+#  1fdb785 docs(discovery) 线索导入 MCP 测试场景
+#  3553827 fix(deploy) pack-local 补 skills
+#  84122ef fix(deploy) .dockerignore 移除 skills 排除
 git push origin feat-multi-industry-meta-model
 
 # ② 核验生产（可选，发布已完成）
@@ -280,6 +285,65 @@ $DIR = "D:\system\CRM-ai-native\scripts\tencent-lighthouse-deploy"
 
 ### 探针（release 后复跑）
 `🟢6 🔴3 🟡3 ⛔0 ⚪2`，与昨夜一致。D4 仍 🔴 属**语义正确**：`event_rules=1 / enabled=1`（接线已通电），但本地库无真实合同签署事件 → `real_auto=0`（总计 4 条全为种子）。行为级证明需 `npm run probe:kmd:e2e`。
+
+---
+
+## ⑫ 收尾轮 2（12:05–12:25）：并发 WIP 归档 + 生产「skills 缺口」双层根治
+
+### 背景
+上一轮结束时 `origin == HEAD`（推送已由你/另一会话完成）。本轮检测到**并发会话新 WIP**（lead-discovery T7–T9）与**生产镜像落后本地**，故继续「提交 · 更新生产 · 修复」。
+
+### 本轮提交（4 个，显式路径 add，禁 `git add -A`）
+
+| # | commit | 内容 | 文件 |
+|---|---|---|---|
+| 1 | `12627a8` | **发现结论入记忆闭环（P0#2）**：orchestrator `emit('discovery')` → capture 白名单 → memory_log；新增 `enforceContextByteLimit`（64KB，保护 `summary`/`account_id`，超限**真裁剪**不虚标 truncated） | `src/agent/discoveryOrchestrator.js`、`src/agent/discoverySchema.js`、`src/memory/capture.js`、`test/memory/discoveryCapture.test.js` |
+| 2 | `36ca849` | **Claygent L3 研究代理接入** + **enrichment 恒假守卫修复**（`ctx.getParticle` 恒 `undefined` → entity 退化为 `{id}`，适配器静默拿不到 name/domain，且测试仍绿） | `src/connectors/discovery/claygent.js`、`test/connectors/discovery/research.test.js`、`src/action/discoveryActions.js` |
+| 3 | `1fdb785` | 线索导入 MCP 测试场景 + 实施/测试计划进度同步 | `docs/…×3` |
+| 4 | `3553827` / `84122ef` | **skills 缺口双层根治**（见下） | `scripts/tencent-lighthouse-deploy/pack-local.py`、`deploy.sh` |
+
+> 提交前验证：`test/connectors/discovery/ + discoveryCapture + discoverySchema + discoveryActions + discoveryOrchestrator` 共 **9 文件 / 66 tests 全绿**；本地 `PORT=3211` 启动**零装配断言错误**（skill-registry 16/16、真向量启用、AGE available）。
+
+### ⚠️ 本轮最有价值的发现：生产 `skills/` 缺口（双层清单同时排除）
+
+**症状极隐蔽**：生产一切正常（容器 healthy、HTTP 200、无 ERROR），唯启动日志 `[skill-registry] seed inserted=0/0`（本地应为 `0/16`），生产 `skill_registry` 仅 **8** 行（本地 24）。属**清单类静默降级**。
+
+**根因链（两层缺一不可，单独修任一层都无效）**：
+
+| 层 | 位置 | 问题 |
+|---|---|---|
+| ① 打包侧 | `pack-local.py:INCLUDE_DIRS` | 原 `["src","db","docs","scripts"]` **漏 `skills`** → zip 里就没有 |
+| ② 镜像侧 | `deploy.sh` 生成的 `.dockerignore` | 列有裸 **`skills`** → `Dockerfile COPY . .` 会尊重它，再排除一次 |
+| 消费方 | `src/skills/skillRegistry.js:16` / `methodologySync.js:25` | 以 `<repo>/skills` 为**出厂声明源**，扫 `skills/*/registry.json`；缺失 → 声明恒 0 |
+
+**实证**：第 1 次 release（仅修 ①）后日志**仍为 `0/0`**，宿主 `/opt/crm-ai-native/skills` 已有 16 个 `registry.json`，但容器 `/app/skills` **MISSING** —— 由此定位第 ② 层。第 2 次 release（双侧同修）后 → **`seed inserted=16/16` / `memory applied=16/16`**，生产 `skill_registry` **8 → 24**（与本地一致）。
+
+**同类风险普查结论**：全仓 `join(__dirname,'..','..',…)` 形态仅 3 处 —— `uploads/assets`（运行期自建可写目录）、`skills`（已修×2）。其余读盘均在 `docs/`、`uploads/` 或 DB 记录的路径内。**`skills` 是唯一被排除的运行期根目录依赖。**
+
+### 生产更新（本轮 2 次 release，通道说明）
+
+- **通道选择**：`hotfix` 的 `HOTFIX_ALLOW_TOP={src,db,scripts,docs}` **不含 `skills`** → 该缺口**只能走 release**。
+- **脏树规避（关键）**：并发会话正在活跃编辑（`src/scheduler/timers.js`、`src/evolution/`），按铁律**不可直接 release**（`pack-local.py` 按目录遍历、**不走 git**，会误发其 WIP）。改用 **`git worktree add --detach` 干净 worktree + `release --local-root`**，既不动并发工作树、也不误发 WIP。用毕已 `worktree remove` 清理。
+- **残留说明**：`nginx HTTPS` 每次 release 均被 `deploy.sh` 重写 → 本轮已按 SKILL 流程恢复（`443=1` / https 200 / http→https 301）。
+
+### 发布后点检（全绿）
+
+| 项 | 值 |
+|---|---|
+| 容器 | 3 healthy |
+| HTTPS / 重定向 / MCP | 200 / 301 / 401 |
+| `/app/skills` | **YES**（16 个 `registry.json`） |
+| 生产 `skill_registry` | **24**（8 → 24） |
+| 表 / 采样行 / outcome 规则 | 61 / 21 / 1 |
+| `.env` | **15 键完整**（`PGPASSWORD` 长度 32）— `unpack.py` 保护修复持续生效 |
+| 启动后错误 | **0**（无装配断言/`register fail`） |
+
+### 未提交（有意保留）
+
+| 项 | 原因 |
+|---|---|
+| `db/seed/tenant-profile-manufacturing.js`、`db/seed/tenant-users-manufacturing.js` | 未被任何代码引用，且检出**敏感值**（你已拒绝共享其内容）→ 未核实前不入库 |
+| `src/evolution/`、`test/evolution/`、`src/scheduler/timers.js` | 并发会话**正在活跃开发**的新功能线（T-ICP 自进化），按铁律不代提交 |
 
 ---
 
