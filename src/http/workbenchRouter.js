@@ -19,7 +19,7 @@ import { queryParticles } from '../particles/particleRepo.js'; // 审批任务/�
 import { listTasks } from '../kanban/kanban.js';
 import { renderPage } from '../page/renderer.js';
 import { resolveMe } from './auth.js';
-import { scopeTenant, scopeOf } from './tenantScope.js';
+import { scopeTenant, scopeOf, signalOwnerScope } from './tenantScope.js';
 import { schema as WORKBENCH_SCHEMA } from '../pages/S33-workbench.schema.js';
 import { toStageCode, isOpenStage, isPoolStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）+ 公海排除（2026-09-11 T9）
 import { advanceTask } from '../approval/engine.js';
@@ -80,11 +80,16 @@ const defaultDeps = {
     return out;
   },
   // 信号数据源（第7视角 2026-09-16 主动运行时 S1）：crm.signal 统一收口（buildSignalView 消费）
+  //   T21 个人隔离：工作台「信号」视角 = 我的待办面 —— 普通用户只取自己负责的（+ 无主同角色广播），
+  //   admin/sysadmin 保持全量。作用域判定与 /api/signals 共用 tenantScope.signalOwnerScope（防两处漂移）。
   querySignals: async (actor, { status, kind } = {}) => {
     const { createSignalStore } = await import('../signal/store.js');
     const { pool } = await import('../db.js');
     const store = createSignalStore(pool);
-    return store.list({ tenant_id: scopeTenant(actor), status, kind }).catch(() => []);
+    return store.list({
+      tenant_id: scopeTenant(actor), status, kind,
+      ownerScope: signalOwnerScope(actor),
+    }).catch(() => []);
   },
   render: (schema, data) => renderPage(schema, data),
 };

@@ -119,7 +119,7 @@ import { createSignalMetricsRouter } from './signalMetricsRouter.js';
 import { login, resolveMe } from './auth.js';
 import { handleRegister } from './selfRegister.js'; // 自助注册（公开，免 admin 闸；按公司名自动判定租户）
 import { handleActivate, handleResend } from './activation.js'; // 自助注册激活闭环：激活 / 重发激活码
-import { scopeTenant, scopeOf, applyTenantOverride } from './tenantScope.js';
+import { scopeTenant, scopeOf, applyTenantOverride, signalOwnerScope } from './tenantScope.js';
 import { readConfig as storeReadConfig } from '../config/configStore.js';
 import { registerDecisionReadRoutes } from './decisionReadRoutes.js'; // B6/B7 决策读模型路由（自检卡/九尺子/思维卡/场景chip）
 import { registerPropagationRoutes } from './propagationRoutes.js'; // 参数传播中枢（继承/下发/推广；全经决策第0闸）
@@ -361,17 +361,31 @@ export function createRoutes(app, hub) {
       return me;
     };
     // 读：admin/sysadmin 通配 '*'（全量，store.list 显式处理）或 ?tenant 显式收窄；普通用户自身租户
+    //   T21 个人隔离（2026-09-16）：普通用户**强制** ownerScope（只看自己负责的 + 无主同角色广播）；
+    //   管理视角保持全量，可通过 ?mine=1 主动收窄。判定收在 tenantScope.signalOwnerScope 单一事实源。
+    //   ⚠ 请求参数不能放宽收窄：普通用户传 ?mine=0 依旧被强制收窄（非管理员不看 mine 参数）。
     app.get('/api/signals', async (req, res) => {
       const me = requireMe(req, res);
       if (!me) return;
       try {
+        const ownerScope = signalOwnerScope(me, { mine: req.query.mine === '1' });
         const items = await signalStore.list({
           tenant_id: applyTenantOverride(req, me),
           status: req.query.status,
           kind: req.query.kind,
           severity: req.query.severity,
+          ownerScope,
         });
-        res.json({ items });
+        // meta 供页面渲染作用域提示（普通用户显示「仅我负责的」，管理显示开关）
+        res.json({
+          items,
+          meta: {
+            owner_scope: ownerScope ? 'self' : 'all',
+            enforced: ownerScope !== null,
+            viewer: me.username || null,
+            role: me.role || null,
+          },
+        });
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
     // 写：scopeOf（永不通配——写不跨租户铁律；admin 也写自身所属租户）
@@ -459,11 +473,15 @@ export function createRoutes(app, hub) {
   // 公海池明细页（T5）：S0 待领取线索列表 + 认领闭环；页面 JS 负责拉 /api/lead-pool 与 /api/lead-pool/:id/pick
   app.get('/lead-pool.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/lead-pool.html', import.meta.url))));
-  // 信号中心页（主动运行时 S1，2026-09-16）：统一信号收口 crm.signal 明细 + 确认/否决
+  // 销售自动化页（主动运行时 S1，2026-09-16 由「信号中心」更名）：统一信号收口 crm.signal 明细 + 确认/否决
   //   ⚠ 本仓页面**无通配 html 路由**，逐条显式注册；漏注册 = 菜单点开 404（单测只读文件内容，测不出）
   app.get('/signal-center.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/signal-center.html', import.meta.url))));
   app.get('/signal-center', (req, res) => res.redirect('/signal-center.html'));
+  // 信号显示层单源（2026-09-16）：kind/severity/status 中文名 + 可读摘要 + 对象列。
+  //   ⚠ 本仓 /portal/*.js 无通配静态路由，逐条显式注册；漏注册 = 页面 import 404 → 表格渲染中断（白屏空表）。
+  app.get('/portal/signalLabels.js', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../portal/signalLabels.js', import.meta.url)), { headers: { 'Content-Type': 'text/javascript' } }));
   // 租户管理页（T8：crm.tenants 列表含创建者列 + 按创建者筛选；经 /api/tenants?createdBy= 读写，角色闸在 tenantRouter.js）
   app.get('/tenant-management.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/tenant-management.html', import.meta.url))));

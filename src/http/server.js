@@ -79,7 +79,7 @@ export function createApp() {
   // S05 T6：财务逾期告警 hook 注册（订阅 payment 域；subscribe 同步幂等，不阻塞启动）
   try { registerFinanceAlertHook(); } catch (e) { console.log(`[finance-alert-hook] register fail: ${e.message}`); }
   // 主动运行时 S1（2026-09-16）：信号落库收敛点注册——此后**任何** createAlert 产生的告警
-  //   都会映射为 crm.signal（信号中心/工作台第7视角/首页卡的数据源）。同步注册（pool 已具）避免
+  //   都会映射为 crm.signal（销售自动化/工作台第7视角/首页卡的数据源）。同步注册（pool 已具）避免
   //   动态 import 造成的启动竞态（早于注册的告警会漏落库）。
   try { registerAlertSignalPersister({ pool }); } catch (e) { console.log(`[signal-persist] register fail: ${e.message}`); }
   // ③ 事件触发式复盘注册（订阅 decision 域 confirmed；幂等，异常仅日志不阻断启动）
