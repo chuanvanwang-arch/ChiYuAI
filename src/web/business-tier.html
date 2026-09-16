@@ -32,6 +32,14 @@
   .modal p { color: var(--mut); font-size: 14px; }
   .modal .acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
   .btn-ghost { background: var(--panel)1f5; color: var(--ink); }
+  /* A4（2026-09-16）：状态徽章 + 撤回。撤回行不隐藏（是审计证据），只灰显。 */
+  .tier-status { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; border: 1px solid; }
+  .status-active { border-color: var(--ok); color: var(--ok); }
+  .status-revoked { border-color: var(--err); color: var(--err); }
+  .status-expired { border-color: var(--line); color: var(--mut); }
+  .business-tier-row.row-inactive td { opacity: .5; }
+  .btn-revoke { background: var(--err); padding: 4px 12px; font-size: 12px; }
+  .btn-revoke:hover { background: var(--err); opacity: .85; }
 </style>
 <link rel="stylesheet" href="/portal/tokens.css" />
 <link rel="stylesheet" href="/portal/common.css" />
@@ -66,8 +74,12 @@
 </div>
 <div class="modal-mask" id="modal">
   <div class="modal">
-    <h3>确认保存分级配置</h3>
+    <h3 id="modal-title">确认保存分级配置</h3>
     <p id="modal-body"></p>
+    <label id="revoke-reason-wrap" style="display:none;font-size:12px;color:var(--mut)">
+      撤回原因（可选）
+      <input id="f-revoke-reason" placeholder="如：客户分级调整 / 政策变更" style="width:100%;margin-top:4px" />
+    </label>
     <div class="acts">
       <crm-button class="btn-ghost" id="modal-cancel">取消</crm-button>
       <crm-button id="modal-ok">确认写入</crm-button>
@@ -98,16 +110,51 @@ import { get, post, put } from '/portal/api.js';
     };
   }
 
+  // 弹窗双模式：save（新增/修改） / revoke（撤回）。
+  // 用一个 modal 而不是两个，是为了让两种"写边界"的操作都走同一处二次确认——
+  // 撤回同样改的是 AI 自主边界，不能比保存更容易点。
+  let modalMode = 'save';
+  let revokeTarget = null;
+
+  function openModal(mode, title, body) {
+    modalMode = mode;
+    $('modal-title').textContent = title;
+    $('modal-body').textContent = body;
+    $('revoke-reason-wrap').style.display = mode === 'revoke' ? 'block' : 'none';
+    $('f-revoke-reason').value = '';
+    $('modal').classList.add('show');
+  }
+
   $('btn-save').addEventListener('click', () => {
     const p = pendingPayload();
     if (!p.dimension_value) { msg('取值必填', 'err'); return; }
-    $('modal-body').textContent = `维度=${p.dimension}，取值=${p.dimension_value}，分级=${p.tier}。保存将写入 business_tier_config 并记录决策事件。`;
-    $('modal').classList.add('show');
+    openModal('save', '确认保存分级配置',
+      `维度=${p.dimension}，取值=${p.dimension_value}，分级=${p.tier}。保存将写入 business_tier_config 并记录决策事件。`);
+  });
+
+  // 撤回按钮在列表内动态渲染 → 用事件委托（直接绑定会在每次重绘后失效）
+  $('tierList').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.btn-revoke');
+    if (!btn) return;
+    revokeTarget = { dimension: btn.dataset.dimension, dimension_value: btn.dataset.value };
+    openModal('revoke', '确认撤回分级规则',
+      `${revokeTarget.dimension} = ${revokeTarget.dimension_value} 撤回后不再参与自主边界判定，`
+      + `该取值回退 scenario.default_tier。记录保留可审计（不删除）。`);
   });
 
   $('modal-cancel').addEventListener('click', () => $('modal').classList.remove('show'));
   $('modal-ok').addEventListener('click', async () => {
     $('modal').classList.remove('show');
+    if (modalMode === 'revoke' && revokeTarget) {
+      try {
+        const d = await post('/api/business-tier-config/revoke', {
+          ...revokeTarget, reason: $('f-revoke-reason').value.trim() || null,
+        });
+        msg('已撤回（decision=' + (d.decision || '事件已记录') + '）', 'ok');
+        load();
+      } catch (e) { msg('撤回异常：' + e.message, 'err'); }
+      return;
+    }
     const p = pendingPayload();
     try {
       const d = await put('/api/business-tier-config', p);

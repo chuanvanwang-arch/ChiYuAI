@@ -23,21 +23,62 @@ export function tierBadge(tier) {
   return `<span class="tier-badge tier-${cls}">${tier || '—'}</span>`;
 }
 
+// A4（2026-09-16）：状态派生 —— 单一事实源 = revoked_at / expires_at（表上刻意不设 status 列）。
+// revoked 优先于 expired：两者同时成立时说"已撤回"更准确（撤回是主动行为，过期是时间流逝）。
+export function tierStatus(row, now = new Date()) {
+  if (row?.revoked_at) return 'revoked';
+  if (row?.expires_at && new Date(row.expires_at) <= now) return 'expired';
+  return 'active';
+}
+
+export function statusBadge(status) {
+  const label = { active: '生效', revoked: '已撤回', expired: '已过期' }[status] || status;
+  return `<span class="tier-status status-${status}">${label}</span>`;
+}
+
+// HTML 转义：dimension_value 直接来自 PUT body（用户输入）→ 原实现裸插值 = 存储型 XSS。
+// 顺带修掉既有隐患（不是新增行为，是补上本该有的转义）。
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function shortTime(t) {
+  if (!t) return '—';
+  const d = new Date(t);
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 撤回行照样渲染（不过滤）：零 DELETE 原则下撤回的行是审计证据，不能在列表里"消失"——
+// 灰显 + "已撤回"标记表达"仍在册但不生效"。真正决定是否参与判定的是 computeBusinessTier 的过滤。
 export function renderBusinessTier(rows = []) {
   if (!rows.length) {
     return `<div class="empty">尚未配置任何分级规则（DEAL=客户维×项目维 → 驱动自主边界）</div>`;
   }
   const trs = rows
-    .map(
-      (r) => `<tr class="business-tier-row">
-        <td>${r.dimension}</td>
-        <td>${r.dimension_value}</td>
+    .map((r) => {
+      const st = tierStatus(r);
+      const title = st === 'revoked'
+        ? `已撤回${r.revoked_reason ? '：' + esc(r.revoked_reason) : ''}（${shortTime(r.revoked_at)}）`
+        : (r.expires_at ? `到期：${shortTime(r.expires_at)}` : '');
+      const action = st === 'active'
+        ? `<button class="btn-revoke" data-dimension="${esc(r.dimension)}" data-value="${esc(r.dimension_value)}">撤回</button>`
+        : '';
+      return `<tr class="business-tier-row${st === 'active' ? '' : ' row-inactive'}" title="${esc(title)}">
+        <td>${esc(r.dimension)}</td>
+        <td>${esc(r.dimension_value)}</td>
         <td>${tierBadge(r.tier)}</td>
-      </tr>`
-    )
+        <td>${statusBadge(st)}</td>
+        <td>${esc(r.approved_by || '—')}</td>
+        <td>${action}</td>
+      </tr>`;
+    })
     .join('');
   return `<table class="tier-table">
-    <thead><tr><th>维度</th><th>取值</th><th>分级</th></tr></thead>
+    <thead><tr><th>维度</th><th>取值</th><th>分级</th><th>状态</th><th>批准人</th><th>操作</th></tr></thead>
     <tbody>${trs}</tbody>
   </table>`;
 }
