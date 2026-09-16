@@ -47,6 +47,9 @@ export const INCREMENTAL_SQL = [
   'migration-advice-record.sql',        // 2026-09-16 E3 建议落库：crm.advice_record 运行态表（DDL 见 schema.sql 尾部，本文件幂等叠加防旧库缺表）
   'migration-standing-grant.sql',        // 2026-09-16 S6 常驻授权：crm.standing_grant + crm.grant_execution + decision.grant_ref/autonomy_level + policy 系统模板
   'migration-standing-grant-paused.sql', // 2026-09-16 S7/T20 降级追溯：standing_grant 补 paused_at / paused_reason 两列（幂等）
+  'migration-signal-owner-index.sql',    // 2026-09-16 T21 个人隔离：crm.signal(tenant_id, owner_id, created_at DESC) 索引（owner_id 成为读路径过滤列）
+  'migration-signal-adoption-trail.sql', // 2026-09-16 采纳血缘：crm.signal 补 decision_id/action_ref/closed_reason 三列（DDL 已入 schema.sql 尾部；本文件幂等叠加防"signal 表已建但缺三列"的旧库漏列）
+  'migration-signal-config.sql',         // 2026-09-16 全链集成 Q1 出口接电：signal-delivery（渠道开关，默认仅 inbox）+ signal-dispatch（泵窗口）系统模板。用户裁决「对当前所有租户统一采用」→ 播 system 模板经 autoSeed 覆盖全部租户（含 system）。缺此两键则 signal_delivery 恒 0 行且判据 A 因零渠道而不触发（判据与链路同时静默）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
@@ -300,6 +303,31 @@ async function main() {
     }
   } catch (e) {
     console.log('[migrate] signal-schedule 播种跳过：', String(e.message || e).slice(0, 100));
+  }
+  // ─── S2 外部数据接入配置模板三键（2026-09-16 P0-3）───
+  // 背景：crm_native 的 config_store 从无 sync-mappings / sync-trust / integration-providers
+  //   → loadSyncMappings 返 {} → mapping.apply 恒 object_not_mapped → 全部 skipped；
+  //   loadTenantSyncTargets 返 [] → 定时器「在跑但零目标」；且两处 catch 静默 → 零报错零日志（F5）。
+  //   语义=初始化（WHERE NOT EXISTS），仅缺失时播种，绝不覆盖运营配置。
+  //   ⚠ 播种 ≠ 接通：integration-providers 样例 enabled:false（首次接入需人工确认，HITL 铁律）。
+  try {
+    const hasSync = await pool.query(
+      `SELECT 1 FROM crm.config_store WHERE tenant_id='system' AND key IN ('sync-mappings','sync-trust','integration-providers') LIMIT 1`
+    );
+    if (!hasSync.rowCount) {
+      const syncSql = readFileSync(new URL('./migration-sync-config.sql', import.meta.url), 'utf8');
+      const sres = await pool.query(syncSql);
+      // ⚠ pg 对「多语句 simple query」返回 **Result 数组**（非单个 Result）→ 直接读 sres.rowCount
+      //   恒为 undefined → 日志打印「新增 0 条」误导运维（实测踩坑：三键确已插入却显示 0）。
+      const inserted = Array.isArray(sres)
+        ? sres.reduce((a, x) => a + (x?.rowCount || 0), 0)
+        : (sres?.rowCount ?? 0);
+      console.log(`[migrate] 外部数据接入配置模板已播种（sync-mappings/sync-trust/integration-providers，本次新增 ${inserted} 条）`);
+    } else {
+      console.log('[migrate] 外部数据接入配置已存在，跳过（不覆盖现网配置）');
+    }
+  } catch (e) {
+    console.log('[migrate] 同步配置模板播种跳过：', String(e.message || e).slice(0, 100));
   }
   // ─── S5 T17 L3 主动研究默认调度（agent-research-schedule 平台模板）───
   try {
