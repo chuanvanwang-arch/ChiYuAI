@@ -149,4 +149,48 @@ export function seedConnectorActions() {
       return { deal_id: deal.id, account_id, signal_type };
     },
   });
+
+  // sync-writeback-fields（S4 T04 回写通道）
+  // 设计输入：docs/2026-09-15-final-design-coexistence-and-proactive.md §T04 + §A-N4
+  // 核心语义：只写白名单字段（writeback_fields_whitelist）+ 静态 Source='crm-ai-native' + 字段级 CAS（A-B4）
+  //           needsApproval（逐批审批）+ autoDecision（第 0 闸）+ agentTool:false（仅外部/定时器触发，免 agentSpec 闭包）
+  registerAction({
+    name: 'sync-writeback-fields', kind: 'write', permission: 'auth',
+    namespace: 'sync', agentTool: false, force: false, needsApproval: true,
+    autoDecision: true, confirm: 'stage2', owner: 'sync-writeback', version: '1.0.0',
+    schema: { account_id: 'string', fields: 'object', cas_expect: 'object?', external_updated_at: 'string?' },
+    parameters: { required: ['account_id', 'fields'] },
+    handler: async ({ account_id, fields, cas_expect }, ctx) => {
+      // ① 白名单过滤：仅写 config_store['sync-trust']['writeback_fields_whitelist'] 内字段
+      // ② 静态 Source 标记：写入内容恒带 Source='crm-ai-native'（对外身份，防冒充/可追溯）
+      // ③ 字段级 CAS（A-B4）：cas_expect {path,value} → updateParticle casExpectField；外部已改 → 拒绝并回传最新值
+      const { readConfig } = await import('../config/configStore.js');
+      const trustCfg = await readConfig('sync-trust', { tenantId: ctx.tenantId }).catch(() => null);
+      const whitelist = trustCfg?.value?.writeback_fields_whitelist || [];
+      const allowed = {};
+      let denied = [];
+      for (const [k, v] of Object.entries(fields || {})) {
+        if (whitelist.includes(k)) allowed[k] = v;
+        else denied.push(k);
+      }
+      // 对外标记：Source 恒为 crm-ai-native（写回客户 CRM 时的身份来源）
+      const payload = { ...allowed, Source: 'crm-ai-native' };
+      // 字段级 CAS：外部记录已被他人修改 → 拒绝（不静默覆盖），回传最新值
+      const casField = cas_expect?.path ? { path: cas_expect.path, value: cas_expect.value } : null;
+      let r;
+      try {
+        r = await updateParticle(account_id, {
+          patch: payload,
+          casExpectField: casField,
+          systemBypass: false,
+        });
+      } catch (e) {
+        if (String(e.message).includes('cas_mismatch')) {
+          return { ok: false, error: 'cas_mismatch: 外部记录已被修改，拒绝覆盖' };
+        }
+        throw e;
+      }
+      return { ok: true, written: Object.keys(allowed), denied, source: 'crm-ai-native', particle: r.id };
+    },
+  });
 }
