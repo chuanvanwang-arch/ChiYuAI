@@ -185,7 +185,19 @@ export async function buildRoutingBrief(routing, scenarioId, { tenantId = 'syste
 async function retrieveL4(actor, tenant = 'system') {
   const role = await safeActorRole(actor);
   const cfgProfile = role ? await loadProfile(role.role_tag) : null;
-  const t = await query(`SELECT dimension, dimension_value, tier FROM crm.business_tier_config WHERE tenant_id=$1`, [tenant]);
+  // A4（2026-09-16）：与判定面同一组过滤条件（撤回 / 到期的规则不参与）。
+  // ⚠ 为什么这里**必须**过滤：L4 注入的是"模型据以判断的分级依据"。若撤回行仍注入，
+  //   模型会看到"该项目=LEAD（低风险、可自主）"，而 computeBusinessTier 已按"无此规则"
+  //   回退到 scenario.default_tier（可能 HIGH）→ 上下文依据与实际判定依据分裂：
+  //   模型基于作废依据给理由，系统按新依据拦截，事后谁也无法解释这次决策。
+  // ⚠ 本谓词与 decisionRepo.js 的 ACTIVE_TIER_WHERE 必须保持一致（分属 context / decision 两层，
+  //   且一个在 SQL、一个在常量，无法共享实现）——由 test/tier-predicate-parity.test.js 静态锁死，
+  //   改一处漏一处会立刻变红。
+  const t = await query(
+    `SELECT dimension, dimension_value, tier FROM crm.business_tier_config
+      WHERE tenant_id=$1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
+    [tenant]
+  );
   return { profile: cfgProfile?.seven_elements || null, data_scope: cfgProfile?.data_scope || null, tiers: t.rows };
 }
 

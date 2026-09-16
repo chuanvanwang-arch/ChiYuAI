@@ -87,9 +87,18 @@ export const CONTROLLED_PAGES = {
   },
   'business-tier': {
     schema: S23_SCHEMA,
-    sql: `SELECT dimension, dimension_value, tier FROM crm.business_tier_config ORDER BY dimension, dimension_value`,
+    // A4（2026-09-16）：配置面**刻意不过滤**撤回/到期行——它们是审计证据，必须在配置视图里看得见，
+    //   这与判定面（computeBusinessTier / assembler 的 L4）的"过滤掉"并不矛盾，是职责不同。
+    //   但**必须把状态显式带出来**：否则本页显示 tier=LEAD 而该行其实已撤回（判定时根本不生效）
+    //   → 配置面与执行面不一致，正是 E1「配置面承诺 ≠ 执行面行为」那一类假绿。
+    sql: `SELECT dimension, dimension_value, tier, approved_by, revoked_at, expires_at
+            FROM crm.business_tier_config ORDER BY dimension, dimension_value`,
     map: (r) => ({
       tier: r.tier,
+      tier_status: r.revoked_at
+        ? 'revoked'
+        : (r.expires_at && new Date(r.expires_at) <= new Date() ? 'expired' : 'active'),
+      approved_by: r.approved_by || '—',
       customer_dim: r.dimension === 'customer' ? r.dimension_value : '',
       project_dim: r.dimension === 'project' ? r.dimension_value : '',
       autonomy_level: r.tier,

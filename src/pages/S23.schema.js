@@ -16,7 +16,9 @@ export const schema = {
     {
       kind: 'table',
       title: '分级矩阵（客户维 × 项目维）',
-      dataBinding: { source: 'particle', particleType: 'CRM_DEAL', filters: [], metrics: [], columns: ['tier', 'customer_dim', 'project_dim', 'autonomy_level'] },
+      // tier_status / approved_by（2026-09-16 A2/A4）：配置面必须能看出"这条还生效吗 / 谁批的"——
+      //   否则页面把已撤回的规则照旧显示成分级 = 配置面与执行面不一致（E1 类假绿）。
+      dataBinding: { source: 'particle', particleType: 'CRM_DEAL', filters: [], metrics: [], columns: ['tier', 'tier_status', 'approved_by', 'customer_dim', 'project_dim', 'autonomy_level'] },
     },
     { kind: 'attr-field', attrSlug: 'customer_dim', attrType: 'text', label: '客户维定义', attr: { slug: 'customer_dim', data_origin: 'rule' } },
     { kind: 'attr-field', attrSlug: 'project_dim', attrType: 'text', label: '项目维定义', attr: { slug: 'project_dim', data_origin: 'rule' } },

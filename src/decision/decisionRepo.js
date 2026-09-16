@@ -58,10 +58,27 @@ const TIER_FROM_RANK = { 1: 'LEAD', 2: 'NORMAL', 3: 'HIGH' };
 // 业务分级：DEAL = 客户维 × 项目维；两维取高风险优先（HIGH>NORMAL>LEAD），引擎只读配置
 // 2026-09-09 修复：按 tenant_id 隔离读取（此前无 tenant 过滤 → 决策引擎跨租户混读全表，
 //   同名客户/项目被任一本租户高 tier 全局抬升 = 多租户纯度红线破坏）。tenantId 缺省 'system'（模板源）。
+// A4（2026-09-16）**判定面**过滤条件 —— 单一事实源。
+// 语义：只有"当前生效"的分级规则参与判定；撤回/到期的规则视为不存在（该取值回退 scenario.default_tier）。
+// 为什么要抽成常量：分级配置存在多个读取点（判定 / L4 上下文装配 / 配置面展示），条件各写一遍就必然漏，
+//   而漏掉的那个点会**静默按旧语义工作** —— 这正是 E1「配置面承诺 ≠ 执行面行为」的成因模式。
+//   ⚠ 配置面展示**刻意不用**本条件（撤回行是审计证据，必须可见），但必须显式标注状态。
+export const ACTIVE_TIER_WHERE = `revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`;
+
 export async function computeBusinessTier({ customer, project, tenantId = 'system' } = {}) {
+  // 2026-09-16 T21 A4（用户批准）：撤回 / 到期过滤 —— 把「可撤回」接到真正的执行面上。
+  //   为什么必须有这一句：A1 只加列不消费 = 复制 E1 的错（配置面有字段、执行面不读）——
+  //   撤销一条分级却在决策里照旧生效，是"假绿"里最危险的一种（看起来有撤回能力，实际没有）。
+  //   revoked_at IS NOT NULL → 该规则不参与判定（此取值回退 scenario.default_tier）；
+  //   expires_at 到期同理，用 now() 比较（故同一份配置在不同时刻可得出不同分级 —— 这是**有意**的：
+  //   到期是时间语义，不是配置变更，所以它不产生新策略版本，但可凭镜像里的 expires_at 事后精确复算）。
+  // ⚠ 部署顺序依赖：本查询引用 2026-09-16 迁移新增的列。旧库必须先跑 `node db/migrate.js`
+  //   （或发布脚本的迁移步骤）再启动新版服务，否则本查询报 column does not exist → 决策链整体失败。
   const rows = await query(
     `SELECT dimension, dimension_value, tier FROM business_tier_config
-     WHERE tenant_id=$5 AND ((dimension=$1 AND dimension_value=$2) OR (dimension=$3 AND dimension_value=$4))`,
+     WHERE tenant_id=$5
+       AND ${ACTIVE_TIER_WHERE}
+       AND ((dimension=$1 AND dimension_value=$2) OR (dimension=$3 AND dimension_value=$4))`,
     ['customer', customer || null, 'project', project || null, tenantId]
   );
   let rank = 0;
