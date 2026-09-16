@@ -57,3 +57,11 @@ VALUES ('system', 'standing-grants-policy',
   '{"default_tier":"T1","allow_tier_upgrade_by_ai":false,"auto_pause_on_consecutive_rejects":3,"max_daily_executions":null,"notify_on_execution":true}'::jsonb,
   NULL, 'system', now())
 ON CONFLICT (tenant_id, key) DO NOTHING;
+
+-- Q3-4（全链集成 §3.4）：给既有 system 模板补 require_export_healthy 字段（缺省 false）。
+-- 用 jsonb `||` 合并：**不覆盖**既有键，只补缺失键；已存在该键时幂等无变化。
+-- 为什么不用 INSERT ... ON CONFLICT DO UPDATE：既有行的 value 由运营维护，整块覆盖会丢运营改动。
+UPDATE crm.config_store
+   SET value = value || '{"require_export_healthy": false}'::jsonb
+ WHERE tenant_id = 'system' AND key = 'standing-grants-policy'
+   AND NOT (value ? 'require_export_healthy');
