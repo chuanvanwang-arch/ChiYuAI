@@ -19,6 +19,13 @@ import { createSignalObservabilitySweep } from '../monitor/signalMetrics.js';
 import { saveNightlyReport } from '../report/nightlyReport.js';
 import { recordTokens as realRecordTokens } from '../alerts/tokenAccounting.js';
 import { scanEscalations } from '../calibration/store.js';
+// 全链集成 Q1-3（2026-09-16）：信号投递编排泵。装配集中在本文件（此处本就持有 query/pool），
+// dispatcher.js / route.js 保持纯工厂 + 依赖注入，以便零 DB 单测。
+// 注：工厂名为 createDeliveryRouter（非 createSignalRouter）——后者已被 ../signal/router.js 占用（告警→信号路由）。
+import { createDispatcher } from '../signal/dispatcher.js';
+import { createDeliveryRegistry } from '../signal/delivery/index.js';
+import { createDeliveryStore } from '../signal/delivery/signalDeliveryStore.js';
+import { createDeliveryRouter } from '../signal/route.js';
 
 const timers = new Map();   // name → { handle, intervalMs, kind }
 
@@ -165,7 +172,19 @@ export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, 
       const { values, cost } = await runWaterfall(adapters, { ...acc.payload, id: acc.id }, fields, { tenantId: tid }).catch(() => ({ values: {}, cost: 0 }));
       tenantCost += Number(cost) || 0;
       const sigs = Object.entries(values).map(([f, v]) => ({ type: f, provider: v?.provider, ts: v?.ts }));
-      if (sigs.length) await monitorAccount({ tenantId: tid }, acc.id, sigs).catch(() => {});
+      if (sigs.length) {
+        // E.2.1 处置①（2026-09-16）：原为 `.catch(() => {})` —— 空吞与「G3 不静默」铁律冲突，
+        //   使「C3 闭环从未执行」这件事在生产上完全不可见（无 trace、无账）。
+        //   ⚠ ctx 四件套（getAccount/rescore/appendMemory/updateParticle）**尚未装配**
+        //     （A-B7 经复核属「新建能力」而非补齐，未立项）→ 本轮**只消除静默**，不伪造成功：
+        //     失败逐条留痕，让缺口显式可见，而不是被静默吞掉。
+        await monitorAccount({ tenantId: tid }, acc.id, sigs).catch((err) => {
+          emit && emit('trace', 'integration-poll-monitor-failed', {
+            tenant_id: tid, account_id: acc.id, signals: sigs.length, error: String(err?.message || err),
+          });
+          recordFailure('integration-poll-monitor-failed', err);
+        });
+      }
     }
     // 可观测接线（T14）：聚合本轮 cost 落 token_accounting（零新表；fail-open）
     await recTok({ actor: 'integration-poll', action: 'integration-poll', tokensIn: tenantCost, tokensOut: 0, tenantId: tid, module: 'integration' }).catch(() => {});
@@ -491,18 +510,28 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         loadSyncTargets: mount ? ({ tenantId }) => mount.loadTenantSyncTargets({
           tenantId, readConfig, resolveCredentials: vault?.resolveCredentials, factories: syncFactories,
         }) : undefined,
-        runSync: mount ? async ({ tenantId, targets }) => mount.runTenantSyncOnce({
-          tenantId, targets,
-          deps: {
-            pool, emit, recordFailure,
-            mappings: await mount.loadSyncMappings({ tenantId, readConfig }),
-            // 第 0 闸：L2/L3 每 run 铸一枚决策；铸不出 → decisionId=null → 内核侧拒写（fail-closed）
-            mintDecision: async (scene, ctx) => {
-              const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
-              return { decisionId: r?.decision_id || null };
+        runSync: mount ? async ({ tenantId, targets }) => {
+          // P0-1（2026-09-16）：L3 回写接线。此前 deps 未传 callWriteback → engine.js:38 分支恒不成立
+          //   → counts.writeback 恒 0、L3 档「接线了却永不回写」。此处与 connectorRouter 同源装配。
+          const wb = await import('../sync/writeback.js').catch(() => null);
+          const exec = await import('../action/executor.js').catch(() => null);
+          const callWriteback = (wb?.createWritebackDispatcher && exec?.actionExecutor?.dispatch)
+            ? wb.createWritebackDispatcher({ dispatch: exec.actionExecutor.dispatch, readConfig })
+            : undefined;
+          return mount.runTenantSyncOnce({
+            tenantId, targets,
+            deps: {
+              pool, emit, recordFailure,
+              mappings: await mount.loadSyncMappings({ tenantId, readConfig }),
+              callWriteback,
+              // 第 0 闸：L2/L3 每 run 铸一枚决策；铸不出 → decisionId=null → 内核侧拒写（fail-closed）
+              mintDecision: async (scene, ctx) => {
+                const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
+                return { decisionId: r?.decision_id || null };
+              },
             },
-          },
-        }) : undefined,
+          });
+        } : undefined,
       }).catch((err) => {
         emit('trace', 'integration-poll-failed', { error: String(err?.message || err) });
         recordFailure('integration-poll-failed', err);
@@ -610,6 +639,35 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   };
   const signalObsTimer = setInterval(runSignalObs, signalObsIntervalMs);
   timers.set('signal-observability-scan', { handle: signalObsTimer, intervalMs: signalObsIntervalMs, kind: 'rule', registeredAt: now });
+
+  // ⑰ 全链集成 Q1-3 信号投递编排（泵 open signal → 四渠道投递 → crm.signal_delivery 流水）；每 5 分钟，受 VITEST 护栏
+  //   存在的理由：S1 只交付了 provider，无生产驱动点 → signal_delivery 恒 0 行。本定时器即「驱动它的进程」。
+  //   装配集中在此（timers.js 本就有 query/pool），dispatcher.js 保持纯工厂便于注入替身测试。
+  const signalDispatchIntervalMs = Number(process.env.SIGNAL_DISPATCH_MS || 300000);
+  const runSignalDispatch = () => {
+    if (process.env.VITEST) return; // 测试隔离护栏
+    const dispatcher = createDispatcher({
+      query,
+      deliveryRegistry: createDeliveryRegistry({}),
+      deliveryStore: createDeliveryStore(pool),
+      router: createDeliveryRouter({ query }),
+      readConfig, // D2：窗口来自 config_store['signal-dispatch'].max_age_days（platform 口径）
+    });
+    dispatcher.pumpAllTenants()
+      .then((r) => {
+        if (r.sent || r.failed || r.skipped) emit('trace', 'signal-dispatch', r);
+        for (const f of r.failures) {
+          emit('trace', 'signal-dispatch-tenant-failed', f);
+          recordFailure('signal-dispatch-tenant-failed', new Error(f.error));
+        }
+      })
+      .catch((err) => {
+        emit('trace', 'signal-dispatch-failed', { error: String(err?.message || err) });
+        recordFailure('signal-dispatch-failed', err);
+      });
+  };
+  const signalDispatchTimer = setInterval(runSignalDispatch, signalDispatchIntervalMs);
+  timers.set('signal-dispatch', { handle: signalDispatchTimer, intervalMs: signalDispatchIntervalMs, kind: 'rule', registeredAt: now });
 
   return timers.size;
 }

@@ -485,6 +485,38 @@ describe('A-B6 · integration-poll 同步增量分支（线A 挂载点）', () =
   });
 });
 
+// ─── E.2.1（2026-09-16）：monitorAccount 失败**不再静默** ───
+// 设计出处：docs/2026-09-15-final-design-coexistence-and-proactive.md §E.2.1 处置①（零风险、立即）。
+// 背景：`monitorAccount` 首参要求 ctx 四件套（getAccount/rescore/appendMemory/updateParticle），
+//   而 `runIntegrationPollOnce` 只传 `{ tenantId }` → 调用**结构性必然抛错**；
+//   原实现 `.catch(() => {})` 把它空吞 ⇒「C3 闭环从未真正执行」在生产上完全不可见（无 trace、无账）。
+// 本用例锁死「失败必须留痕」，防未来回归成静默（G3 不静默铁律）。
+describe('E.2.1 · monitorAccount 失败留痕（禁止空吞）', () => {
+  it('monitorAccount 抛错 → emit integration-poll-monitor-failed + recordFailure 计数 + 主流程不中断', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const { getFailures, resetFailures } = await import('../src/monitor/monitorStore.js');
+    resetFailures();
+    const traces = [];
+    await runIntegrationPollOnce({
+      listActiveTenants: async () => [{ tenant_id: 't1' }],
+      loadAdapters: async () => [{ id: 'qixin', coverageFields: ['legal_person'] }],
+      query: async () => ({ rows: [{ id: 'acc1', payload: {} }] }),
+      // 富化出非空 values → sigs.length > 0 → 命中 monitorAccount 调用点
+      runWaterfall: async () => ({ values: { legal_person: { provider: 'qixin', ts: 'x' } }, cost: 0 }),
+      monitorAccount: async () => { throw new Error('ctx.getAccount is not a function'); },
+      recordTokens: async () => ({ ok: true }),
+      emit: (k, name, p) => traces.push({ name, p }),
+    });
+    const hit = traces.find((x) => x.name === 'integration-poll-monitor-failed');
+    expect(hit).toBeTruthy();
+    expect(hit.p).toMatchObject({ tenant_id: 't1', account_id: 'acc1', signals: 1 });
+    expect(hit.p.error).toContain('ctx.getAccount');
+    expect(getFailures()['integration-poll-monitor-failed']).toBe(1);
+    // 负向对照：留痕 ≠ 阻断——主流程仍走到 done（证明此处不拖垮富化轮次）
+    expect(traces.map((x) => x.name)).toContain('integration-poll-done');
+  });
+});
+
 // ─── A-B5（T06）：webhook 对象变化事件路由——线A 第二挂载点（2026-09-16）───
 // 设计 §6.1 A-B5 + §13 T06；计划 docs/superpowers/plans/2026-09-16-line-a-mount-points.md §Task 5
 // 红线：两路共用同一 admin/sysadmin 闸；无 event.object → 既有线索派发行为不变（零回归）
@@ -554,5 +586,48 @@ describe('A-B5 · webhook 对象变化事件路由（线A 挂载点）', () => {
     });
     expect(r.status).toBe(403);
     expect(synced).toBe(false);
+  });
+});
+
+// ─── A-B1（2026-09-16）：enrich 侧共用同一描述符归一化（单一事实源）───
+// 设计 §6.1 A-B1；实现 src/connectors/discovery/providerDescriptor.js
+// 意义：同一份 integration-providers 被 enrich 与 sync 两侧消费，判据必须只有一处
+describe('A-B1 · loadTenantAdapters 走统一描述符归一化', () => {
+  it('扩字段（objects[]/token_mode/trust_level）不影响既有 enrich 装配，旧字段仍透传', async () => {
+    const { loadTenantAdapters } = await import('../src/connectors/discovery/tenantInstances.js');
+    const inst = await loadTenantAdapters('T1', {
+      readConfig: async () => ({ value: [{
+        id: 'fx', kind: 'generic-rest', enabled: true, endpoint: 'https://x',
+        field_map: { name: 'company' }, token_mode: 'corp-access-token', trust_level: 'L2',
+        objects: [{ name: 'AccountObj', direction: 'in' }],
+      }] }),
+      resolveCredentials: async () => ({ fx: 'tok' }),
+      genericFactories: {
+        'generic-rest': (await import('../src/connectors/discovery/adapters/genericRest.js')).genericRestAdapter,
+      },
+    });
+    expect(inst).toHaveLength(1);
+    expect(inst[0].config.field_map).toEqual({ name: 'company' }); // 旧字段零回归
+    expect(inst[0].config.token_mode).toBe('corp-access-token');
+    expect(inst[0].config.trust_level).toBe('L2');
+  });
+
+  it('非法方向 → 该对象被剔除且 emit issues（不静默）；未知 kind → 留痕', async () => {
+    const { loadTenantAdapters } = await import('../src/connectors/discovery/tenantInstances.js');
+    const traces = [];
+    const seen = [];
+    const inst = await loadTenantAdapters('T1', {
+      readConfig: async () => ({ value: [
+        { id: 'ok', kind: 'generic-rest', enabled: true, objects: [{ name: 'A', direction: 'up' }] },
+        { id: 'wt', kind: 'unknown-kind', enabled: true },
+      ] }),
+      resolveCredentials: async () => ({}),
+      genericFactories: { 'generic-rest': (cfg) => { seen.push(cfg); return { id: cfg.id }; } },
+      emit: (lvl, name, p) => traces.push({ name, p }),
+    });
+    expect(inst).toHaveLength(1);
+    expect(seen[0].objects).toEqual([]); // 非法对象被剔除，不猜方向
+    expect(traces.some((t) => t.name === 'integration-providers-invalid' && t.p.issues.some((s) => s.includes('unknown_direction:up')))).toBe(true);
+    expect(traces.some((t) => t.name === 'integration-kind-unknown' && t.p.kind === 'unknown-kind')).toBe(true);
   });
 });
