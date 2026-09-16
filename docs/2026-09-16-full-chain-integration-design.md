@@ -1,0 +1,670 @@
+# 全链集成设计：信号出口接电 + 现有 CRM 接线 + 运行时顺序闸门
+
+> **版本** v1.1（FINAL，唯一有效设计）｜ **日期** 2026-09-16 ｜ **状态**：✅ **已批准**（2026-09-16 用户批准；批准范围 = §1 三段式 15 任务 + §0.4 对最终设计 §14.2 的修正）
+> **v1.1 变更**（2026-09-16，计划期发现 → 用户裁决）：新增 §3.1.1「泵范围与有界性」修正 D1（**泵须含 `system` 平台租户**，用户选定方案 A）与 D2（**候选集加时间窗**，模型保守裁决）；连带改 §3.2 / §1 / §4（Q1-1、Q1-2 的 `success`）/ §5.1 / §5.2（N8、N9）。**完整改动清单见 §8.3。契约的 `contract_task_id` / `agent` / `skills` / `memory` / `knowledge_scope` 一律未变。**
+> **性质**：实施级设计。**批准后唯一入口为 `writing-plans`**（§8）。批准前不写实现代码的 HARD-GATE **现已解除**——可进入实施计划。
+> **前序权威**：`docs/2026-09-15-final-design-coexistence-and-proactive.md`（FINAL v1.0，2026-09-16 已批准）。
+> **本设计的性质**：**不含任何新能力**。全部工作是把「已交付但未被生产触发点驱动」的模块接上电。这不是加功能，是**接线**。
+> **对最终设计的关系**：本设计**修正**最终设计 §14.2 的实施顺序表述（修正理由与替代机制见 §0.4），其余 §15 红线 11 条**全部继承，无一放宽**。
+
+---
+
+## §0 结论先行
+
+### 0.1 一条最重要的判断
+
+> **截图上那四条红色告警是真的，而它暴露的不是一个 bug，是同一个元缺陷在更深一层的重演。**
+
+最终设计 §0.2 曾点破病灶：`alertEndpoints.js` 文件头自述「等挂载方统一 add」——**挂载方一直没来**。
+
+S1 交付后，这个模式**下沉了一层**：
+
+| 层级 | 模块 | 生产调用点 | 判定 |
+| --- | --- | --- | --- |
+| 第一层（最终设计 §0.2 已修） | `alertEndpoints` / `registerAlertHook` | 已在 S1 挂载 | ✅ 已闭合 |
+| **第二层（本次发现）** | `createDeliveryRegistry`（投递 provider + 分发器） | **0** —— 仅出现在定义处与单元测试 | 🔴 **未闭合** |
+
+即：**S1 造好了水管（四渠道 provider），但没有造水泵（编排层），也没有人开水泵。** S1 计划 `docs/superpowers/plans/2026-09-16-proactive-s1-delivery.md` 的 9 个 Task 中，**没有任何一个是「编排 / 驱动」**——它只交付了 `deliver()` 这个**方法**，未交付调用它的**进程**。
+
+### 0.2 起点诊断：三层断链（全部源码级实证）
+
+**第 1 层 · 出口编排层不存在**
+
+| 判据 | 命令 | 结果 |
+| --- | --- | --- |
+| 生产调用点 | `grep -rn "createDeliveryRegistry" src/` | **0**（仅 `src/signal/delivery/index.js:10` 定义） |
+| 测试调用点 | `grep -rn "createDeliveryRegistry" test/` | 7（`test/signal/delivery.test.js`） |
+| S1 计划是否含编排任务 | `grep -n "^## Task" docs/superpowers/plans/2026-09-16-proactive-s1-delivery.md` | 9 个 Task，**无编排/驱动** |
+
+**第 2 层 · 「防假绿判据」自身携带假前提**（比第 1 层危险，因为它让防护机制失效）
+
+```js
+// src/monitor/signalMetrics.js:11
+const DEFAULT_CHANNELS = ['inbox', 'email', 'im', 'webhook'];
+// src/monitor/signalMetrics.js:73
+export async function detectNegativePredicates({ tenantId, since, enabledChannels = DEFAULT_CHANNELS })
+```
+
+而定时器⑯ 调用 `createSignalObservabilitySweep()` 时**未传 `enabledChannels`**（`src/scheduler/timers.js:604`）。
+
+后果：**无论租户真实配置如何，四个渠道一律被判为「已开启」。** 面板上「渠道『email』已开启」这句话，不是读取 `config_store['signal-delivery'].channels` 的结果，而是**判据硬编码注入的断言**。也就是说：一个用来防假绿的判据，自己制造了一条假前提。
+
+**第 3 层 · 与现有 CRM 的集成（线 A）全线未接线**
+
+| # | 项 | 状态 | 复跑判据 |
+| - | -- | ---- | -------- |
+| E1-1 | 挂载层 `src/sync/mount.js` | 🟡 模块已建、**未接线** | `grep -rn "sync/mount\|runTenantSyncOnce" src/scheduler/timers.js src/http/connectorRouter.js` → 0 |
+| E1-2 | `integration-poll` 增量拉取分支 | ❌ 未接（`runIntegrationPollOnce` 仍只跑 `runWaterfall` + `monitorAccount`） | `grep -n "runTenantSyncOnce" src/scheduler/timers.js` → 0 |
+| E1-3 | 对象变化事件路由 | ❌ 未接（webhook 分支派发 `conn-signal-lead-gen`，非 sync 内核） | `grep -n "handleObjectChanged" src/http/connectorRouter.js` → 0 |
+| E1-4 | 端到端证据 | ❌ 无 | `crm.sync_cursor` 无 `last_status='ok'` 行 |
+| A-B1 | `integration-providers` 扩 `objects[]`/`token_mode`/`trust_level` | ❌ 未实现 | `grep -n "objects\|token_mode\|trust_level" src/connectors/discovery/tenantInstances.js` → 0 |
+| A-B2 | `credentialVault` 结构化凭据 | ❌ 未实现 | `grep -n "JSON.parse\|appId\|permanentCode" src/connectors/discovery/credentialVault.js` → 0 |
+
+**第 3.5 层 · 配置面零消费**（三个新发现的零命中）
+
+| 配置键 / 字段（最终设计 §9.4 已定义） | `src/` 命中数 | 含义 |
+| --- | --- | --- |
+| `signal-delivery` | **0** | 渠道开关 / 路由 / 收件人 / 频次 / 静默时段**全部未被消费** |
+| `role_recipients` | **0** | 收件人解析**不存在** |
+| `rate_limit` | **0** | 频次闸**不存在** |
+| `signal-digest` | **0** | 每日简报未被驱动 |
+
+### 0.3 与 ROX / Attio / Lightfield 的对照结论
+
+仓库已有 `docs/2026-09-16-competitive-learning-plan.md`（用户已确认），其 §1–§3 的事实基线与红线**本设计全部继承、不重复**。本节只补充**对本问题唯一要命的推论**：
+
+> **三家没有一家是靠「多接几个投递渠道」解决「提醒发不出去」的。**
+>
+> | 家 | 真正的机制 | 对本问题的启示 |
+> | -- | ---------- | -------------- |
+> | ROX | Inbox 是统一行动中心；**之所以不空**，是因为有一个「优先级排序器 + 收件人解析器」**直接消费 CRM 的对象状态** | 投递的前置是**消费端契约**，不是传输通道 |
+> | Attio | 工程护城河 = MCP 37 工具 + OAuth 继承用户权限 + **分工作区限速** | **限速是一等公民**，不是可选优化 |
+> | Lightfield | 护城河 = agentic CSV import / replacement agent（**迁移成本 = 切换成本**） | 入口能力决定天花板；同步是产品而非脚本 |
+>
+> **共同点**：**投递必须先有「消费端契约」，再有「传输通道」。我方当前恰好只有通道、没有消费端。**
+> 因此本设计的重心不在「加渠道」，而在**补消费端（编排 + 路由 + 收件人 + 限速）**与**补入口（接线 + 通用通道）**。
+
+### 0.4 ⚠ 对最终设计 §14.2 的正式修正（顺序纪律 → 运行时闸门）
+
+最终设计 §14.2 规定：
+
+> 「**客户价值排序 ≠ 实施顺序**……在链路断裂且无投递观测时放开自动写＝把假绿放大成真错。」
+
+用户本次选择的**方案 C（一次全链贯通）**与该表述**表面上冲突**。本节按最终设计 §D.4 维护约定处理（该约定要求：突破设计表述须先改设计并走 `brainstorming`——本次即该路径），并给出**不牺牲安全初衷的替代机制**：
+
+| 维度 | §14.2 原表述 | 本设计（v1.0 修正） |
+| --- | --- | --- |
+| 顺序纪律的载体 | **排期**（先做 S1，再做 S2/S4） | **运行时闸门**（`exportGate`，fail-closed） |
+| 交付批次 | 分批 | **同批交付**（Q1/Q2/Q3 并行开发） |
+| 危险动作的放行条件 | 隐含于「还没做到」 | **显式判据**：出口判据 ① 成立（见 §5）才允许回写与自治启用 |
+| 未满足条件时的行为 | 功能尚未存在 | 功能存在但 **`blocked_by_export_gate`**，并 emit trace |
+
+**判据的等价性论证**：§14.2 想防的是「没有投递观测就放开自动写」。排期只是达成它的一种手段；**运行时闸门是达成同一目标的更严格手段**——因为闸门在生产环境**持续生效**，而排期纪律在交付完成后即失效。故本修正**不是放宽，是收紧**。
+
+> **⚠ 表述红线（继承 §0.5）**：闸门未投产前，**不得**对外表述「顺序纪律已由运行时保障」。
+
+### 0.5 目标 / 非目标 / 硬约束
+
+**目标**
+1. **出口**：任一 `crm.signal` 都能在 `crm.signal_delivery` 找到对应 `sent` / `failed` / `skipped` 行；渠道集合来自 `config_store`。
+2. **判据**：`detectNegativePredicates` 的启用渠道集合来自真实配置，消除假前提。
+3. **入口**：`generic-rest` 通道端到端跑通，`crm.sync_cursor` 出现 `last_status='ok'` 行。
+4. **回写**：`sync-writeback-fields` Action 在有生产调用者且受 `exportGate` 约束。
+
+**非目标（明确不做）**
+- ❌ 不新增粒子类型、不改业务域模型（继承最终设计 §15.1 #2）。
+- ❌ 不做「完整双向同步」（继承 §15.2 #6）。
+- ❌ 不做多厂商适配器齐备（本批次只 `generic-rest`；`fxiaoke` / `neocrm` 留待接入方确定）。
+- ❌ 不做 Voice Mode / Artifacts 等形态项（P2 观察清单，不立项）。
+
+**硬约束（不可偏离）**
+- 零 `DELETE`；所有状态变更走状态字段。
+- 全部查询带 `tenant_id`；跨租户零可见。
+- 写操作过决策第 0 闸 + 审计。
+- 全部配置 per-tenant 走 `readConfig` / `writeConfig`（`src/config/configStore.js`），**零硬编码**。
+- 不新增投递渠道种类（仍是 inbox / email / im / webhook 四渠道）。
+
+---
+
+## §1 三段式方案
+
+### 1.1 Q1｜出口接电（P0，截图的直接修复）
+
+| # | 交付物 | 职责 | 关键判据 |
+| -- | ------ | ---- | -------- |
+| Q1-1 | `src/signal/dispatcher.js`（新建） | **投递编排器（水泵）**：泵出 `crm.signal` 中 `status='open'` 且落于时间窗内的行，逐渠道调 `deliver()`；**泵范围含 `system` 平台租户（D1）**；幂等键 `signal_id + channel`；失败重试 `attempts ≤ config.retry` | 同一条 signal 二次泵不产生重复 `sent` 行；`tenant_id='system'` 的信号同样被泵（不得静默排除） |
+| Q1-2 | `src/signal/route.js`（新建） | **消费端契约**：读 `config_store['signal-delivery']` → 真实 `channels{}` / `route{severity→渠道}` / `role_recipients`（**含 `platform` 回退，D1**） / `quiet_hours` / `rate_limit` | 配置为 `off` 的渠道零投递行；`role_recipients` 解析出真实收件人；`system` 租户回退 `role_recipients.platform`，缺失则 `no_recipient` |
+| Q1-3 | `src/scheduler/timers.js`（修改） | 注册定时器⑰ `signal-dispatch`（默认 5 分钟，`SIGNAL_DISPATCH_MS` 可覆盖），`EXPECTED_TIMERS` 16 → **17** | `timers.test.js` EXPECTED_TIMERS=17 通过 |
+| Q1-4 | `src/monitor/signalMetrics.js`（修改） | **修正假前提**：`enabledChannels` 改为从 `config_store['signal-delivery'].channels` 读取；**读不到配置时视为「全部关闭」并 emit trace**（而非默认全开） | 租户未配置 → 判据不触发且 trace 有记录；配置只开 `inbox` → 只对 `inbox` 判据 |
+| Q1-5 | 真库端到端验收 | `crm.signal_delivery` 出现真实 `sent` 行（非测试） | 判据 ① 成立（见 §5） |
+
+### 1.2 Q2｜入口接线（P1，与现有 CRM 打通）
+
+| # | 交付物 | 职责 | 关键判据 |
+| -- | ------ | ---- | -------- |
+| Q2-1 | `src/scheduler/timers.js`（修改） | `integration-poll` 增对象增量拉取分支，调用 `mount.runTenantSyncOnce()`（E1-2 接线） | `grep -n "runTenantSyncOnce" src/scheduler/timers.js` ≥ 1 |
+| Q2-2 | `src/http/connectorRouter.js`（修改） | webhook 分支增对象变化事件路由，调用 `mount.handleObjectChanged()`（E1-3 接线） | `grep -n "handleObjectChanged" src/http/connectorRouter.js` ≥ 1 |
+| Q2-3 | `src/connectors/discovery/tenantInstances.js`（修改） | A-B1：`integration-providers` 描述符扩 `objects[]` / `token_mode` / `trust_level` | 三个字段 grep 命中 |
+| Q2-4 | `src/connectors/discovery/credentialVault.js`（修改） | A-B2：支持结构化凭据（`appId` / `appSecret` / `permanentCode` / `token` 等），仍 fail-closed | 结构化凭据可读写且不明文落日志 |
+| Q2-5 | `src/sync/factory.js` + provider（修改/新建） | `generic-rest` 端到端：`verifyAuth` / `discoverObjects` / `readIncremental` 三方法可用 | 判据 ② 成立（见 §5） |
+
+> **实施状态（2026-09-16 17:10 复核，逐条复跑判据，非快照）**
+>
+> | # | 复跑判据 | 结果 |
+> | -- | -------- | ---- |
+> | Q2-1 | `grep -n "runTenantSyncOnce" src/scheduler/timers.js` | ✅ 命中 1（`:494`，缺省装配注入 `mount.runTenantSyncOnce`）；`test/external-integration.test.js` A-B6 段 6 例 |
+> | Q2-2 | `grep -n "handleObjectChanged" src/http/connectorRouter.js` | ✅ 命中 1（`:58`）；`conn-signal-lead-gen` 分支零回归（A-B5 段含"不带 `event.object` → 保持既有线索派发"用例） |
+> | Q2-3 | `grep -rln "providerDescriptor.js" src/` | ✅ 命中 3（归一化模块 + `tenantInstances.js` + `sync/mount.js`，**两侧共用同一判据**）；旧描述符（`field_map`/`signal_map`、无 `token_mode`）仍可加载 → 向后兼容判据成立；`providerDescriptor.test.js` 13 例 |
+> | Q2-4 | `grep -c "parseCredentialPayload\|persistToken" src/connectors/discovery/credentialVault.js` | ✅ 命中 5；三条判据各有断言：① 写入并读回（`persistSecret(object)` / `readToken` 往返）② **零日志出口**（静态守卫：模块内无 `console.*` / `emit(` / `logger`；负向对照防恒真）③ **缺字段 verifyAuth 返回 `ok:false` 而非抛**（fxiaoke 缺 appSecret、网络抛错、generic-rest 缺 endpoint/凭据 共 4 例） |
+> | Q2-5 | `prospecting` 承接，本批次未动 | ⬜ 未实施 |
+>
+> **Q2-3 落点说明（与 §1.2 表的一致性）**：设计指定落点为 `tenantInstances.js`；实现把**归一化逻辑**放在新模块 `src/connectors/discovery/providerDescriptor.js`，由 `tenantInstances.js` 消费——满足"三字段可解析"且**避免 enrich / sync 两侧各写一套判据**（同族前例：A-B3 的两个同名 `KIND_FACTORY`）。`tenantInstances.js` 仍是该能力的**入口**，判据不变。
+> **Q1 / Q3 未动**：Q1 出口接电与 Q3 回写+运行时闸门本批次均未实施（E.1 已登记"投递编排层缺失"由 Q1 承接）。
+
+
+### 1.3 Q3｜回写与运行时闸门（P2）
+
+| # | 交付物 | 职责 | 关键判据 |
+| -- | ------ | ---- | -------- |
+| Q3-1 | `src/sync/mapping.js`（修改） | 字段级白名单 + 字段级 CAS：`sync-mappings.fields[]` 未知字段一律拒绝；回写字段 ⊆ `sync-trust.writeback_fields_whitelist` | 未知字段被拒并计入 `skipped`，不报错不静默 |
+| Q3-2 | `src/action/seed-actions.js` + 执行侧（修改） | `sync-writeback-fields` Action 接入生产调用者（E-③ 判据）；带 `static_on_write: {Source: 'crm-ai-native'}` | `grep -rn "sync-writeback-fields" src/ \| grep -v "seed-actions\|action/"` ≥ 1 |
+| Q3-3 | `src/sync/exportGate.js`（新建） | **运行时顺序闸门**：回写与自治的启用前置 = 出口判据 ① 成立；不成立则返回 `blocked_by_export_gate` 并 emit trace（**fail-closed**） | 出口未健康 → 回写 Action 被拒且 trace 留痕 |
+| Q3-4 | `config_store['standing-grants-policy']`（扩展） | 增 `require_export_healthy: true`，自治执行同样受闸门约束 | 闸门关时自主执行量为 0 |
+
+### 1.4 交付与闸门的关系（本设计与 §14.2 的衔接）
+
+```
+同批开发 ────────────────────────────────────────────
+  Q1 出口接电          Q2 入口接线          Q3 回写+闸门
+      │                    │                    │
+      └──────── 同批交付（一个发布批次）──────────┘
+                           │
+              ┌────────────▼─────────────┐
+              │  exportGate（运行时闸门） │
+              │  出口判据① 未成立 → 阻断   │
+              └────────────┬─────────────┘
+                           │
+              Q3 回写与自治【存在但关闭】
+```
+
+> **要点**：危险动作（回写 / 自治）**代码同批就位**，但**默认不可用**，由 `exportGate` 在生产环境持续把关。这样既满足「一次贯通」，又比排期纪律**更严格**地守住 §14.2 的安全初衷。
+
+---
+
+## §2 数据与配置（零新表）
+
+### 2.1 复用既有表（不新建）
+
+| 表 | 用途 | 状态 |
+| -- | ---- | ---- |
+| `crm.signal` | 信号统一收口 | 已存在，174 行真实数据 |
+| `crm.signal_delivery` | 投递流水（**防假绿核心**） | 已存在，0 行（本设计将其填满） |
+| `crm.external_ref` | 外部引用映射 | 已存在（线 A） |
+| `crm.sync_cursor` | 同步运行留痕 | 已存在（线 A） |
+| `crm.standing_grant` / `crm.grant_execution` | 常驻授权与执行流水 | 已存在（S6） |
+
+> **结论**：**本设计零新表、零新粒子类型**。这从根本上规避了「新增粒子类型」红线。
+
+### 2.2 配置键（复用 2 个 + 扩展 1 个）
+
+| 键 | 动作 | 本设计新增字段 |
+| -- | ---- | -------------- |
+| `signal-delivery` | **首次消费**（此前零命中） | 无新增字段，按最终设计 §9.4 既有结构落地 |
+| `standing-grants-policy` | 扩展 | `require_export_healthy: true` |
+| `integration-providers` | 扩展 | `objects[]` / `token_mode` / `trust_level`（A-B1） |
+
+---
+
+## §3 关键机制设计
+
+### 3.1 投递编排器（幂等 + 重试 + 熔断）
+
+```
+定时器⑰（每 5 分钟）
+  → 候选租户集 = SELECT DISTINCT tenant_id FROM crm.signal
+                   WHERE status='open' AND created_at >= now() - $window
+        （**含 `system` 平台租户** —— 见 §3.1.1，不得静默排除）
+  → 对每个 tenant：
+      SELECT crm.signal WHERE status='open' AND tenant_id=$1 AND created_at >= now() - $window
+  → 对每条 signal：
+      route.js 计算 {channels, recipients}（读 config_store）
+      → 频次闸（rate_limit.per_hour / per_day）
+      → 静默时段闸（quiet_hours）
+      → 对每个 channel：dispatcher.deliver()
+           ├ 幂等检查：signal_delivery 是否已有该 (signal_id, channel) 的终态行
+           │            已有 sent → 跳过；已有 failed 且 attempts < retry → 重试
+           └ 调 deliveryRegistry.deliver() → 落 sent / failed / skipped
+  → 失败累计超阈值 → emit trace + monitor_event（不静默）
+```
+
+**幂等键**：`signal_id + channel`（重试不改键，只增 `attempts`）。
+**不静默纪律**：`skipped` 必带 `last_error`（如 `quiet_hours` / `rate_limited`）——继承最终设计 §10.2 判据。
+
+#### 3.1.1 泵范围与有界性（设计修正 D1 / D2，2026-09-16 计划期发现）
+
+计划期对 Q1-1 的候选集逐字核验，发现两处会导致「泵上线但红框不消失」的缺陷，现予以修正：
+
+| 编号 | 缺陷 | 修正 | 依据 |
+| --- | --- | --- | --- |
+| **D1** | 初稿 `pumpAllTenants` 的租户选择器为 `... AND tenant_id <> 'system'`，而定时器只调 `pumpAllTenants` → **平台租户的信号永不被泵**，平台级告警继续静默 | **泵范围含 `system`**；收件人按 §3.2 回退到 `role_recipients.platform` | 判据① 须在 `system` 口径下同样成立，否则「全链集成」在平台口径下为假绿 |
+| **D2** | `crm.signal.status` 投递后**不迁移**（仍是 `open`），泵候选集随时间为单调增长；幂等由 `signal_delivery` 去重保证（正确但**不有界**） | 加**时间窗** `created_at >= now() - $window`，默认 7 天，`config_store['signal-dispatch'].max_age_days` 可覆盖 | 见下方取舍 |
+
+**D2 的取舍（为何加窗口而不加终端标记）**：
+
+- **备选 1（选中）· 时间窗**：零 DDL、不改 `crm.signal` 状态机语义、与既有 `S_STAGES` / `isOpenStage` 判据零冲突；代价是「超过窗口仍未投递的信号」不再重试——但**这是显式可见的**（窗口外 signal 仍留在 `status='open'`，可被巡检看到），而非静默丢弃。
+- **备选 2（否决）· 在 `crm.signal` 加 `delivered_at` / 状态迁移**：需改表 + 迁移 + 全部 `status='open'` 读取点复评（本仓铁律：**配置/状态表加语义前须先 grep 全部读取点并逐个决定过滤与否**）——一次改动 15 个读取点，收益仅是候选集更小。**风险显著高于收益**，且与 §1「本段不新增粒子类型、不改业务域模型」的约束精神相悖。
+
+> **红线**：**不得因为「窗口外」而删除或迁移 `crm.signal` 行**（本仓绝对禁 DELETE）。窗口只影响**泵的候选集**，不影响留痕。
+
+### 3.2 收件人解析（`role_recipients`）
+
+```
+signal.target_role + signal.owner_id
+  → config_store['signal-delivery'].role_recipients{ role → [用户] }
+  → owner_id 优先（若 signal 有归属人）
+  → 解析出 { user_id, email, im_webhook }
+  → 解析不到 → status='skipped' + last_error='no_recipient'（不静默、不假绿）
+```
+
+**平台租户（`tenant_id='system'`）的收件人回退（设计修正 D1 的配套）**：
+
+```
+signal.tenant_id === 'system'
+  → 优先按 target_role 解析（与业务租户同路径）
+  → 解析不到 → 回退 role_recipients.platform
+  → platform 键缺失 → 仍走 skipped + last_error='no_recipient'
+```
+
+> **两点纪律**：
+> ① **`system` 不享有投递豁免**——不得因为「平台信号没有明确收件人」而跳过投递判定；缺失收件人必须留 `skipped` 行。
+> ② **不得硬编码平台收件人**（如把运维邮箱写进代码）——一切收件人来自 `config_store`，继承本仓「阈值/差异化 100% 后台配置化」铁律。
+
+> **判据**：**解析不到收件人必须留 `skipped` 行**，否则「投递失败」会伪装成「没信号」，形成假绿。
+
+### 3.3 假绿判据修正（本设计最容易被忽略、但最重要的一项）
+
+```js
+// 修正前（假前提）
+export async function detectNegativePredicates({ tenantId, since, enabledChannels = DEFAULT_CHANNELS })
+
+// 修正后（真前提）
+const cfg = await readConfig('signal-delivery', { tenantId });
+if (!cfg || !cfg.channels) {
+  emit('trace', 'signal-observability-config-missing', { tenant_id: tenantId });
+  return [];                       // 读不到配置 → 不判（并留痕），而非默认全开
+}
+const enabledChannels = Object.entries(cfg.channels)
+  .filter(([, v]) => v === 'on' || v === true)
+  .map(([k]) => k);
+```
+
+**为什么这是「最重要」**：本设计修的是**仪表**，不是**管道**。若只接水泵、不修仪表，运维会看到「全绿」而实际链路仍断——**这正是本项目一贯最忌讳的假绿**。
+
+### 3.4 运行时顺序闸门 `exportGate`（§0.4 的落地形式）
+
+```
+exportGate.isExportHealthy({ tenantId }) 判定式：
+  ① crm.signal_delivery 存在 status='sent' 行（窗口内）
+  ② 渠道集合来自 config_store（非硬编码）
+  ③ crm.signal_delivery 无「配置为 on 但零投递行」的渠道（复用 §3.3 修正后的判据）
+三者全真 → healthy；否则 blocked
+```
+
+**接入点**：
+- `sync-writeback-fields` Action 入口（回写）
+- `standing-grants-policy` 的自治放行判定
+
+**fail-closed**：`isExportHealthy` 抛错 → 视为 **blocked**（不是 healthy）。
+
+---
+
+## §4 生命契约（15 任务，覆盖全部 7 个名册 agent）
+
+> **字段语义**：见 `brainstorming` SKILL §A。`contract_task_id` **必填**，值须等于 `src/agent/contractIds.js` 的 `CONTRACT_IDS[agent]`。
+> **校验命令（P7 强制，已执行）**：
+>
+> ```bash
+> node scripts/validate-contract.mjs docs/2026-09-16-full-chain-integration-design.md --registry src/agent/agentSpec.js
+> ```
+>
+> **覆盖断言（双向）**：本设计覆盖 **7 个**登记 agent，故必须**全覆盖**——下文 15 个契约块对应 7 个 agent，无一遗漏。
+
+### Q1｜出口接电
+
+#### Q1-1 投递编排器（水泵）
+
+```contract-yaml
+- task: "Q1-1 新建 src/signal/dispatcher.js 投递编排器（泵 open signal → 逐渠道 deliver，幂等 + 重试）"
+  contract_task_id: ct-followup
+  agent: followup-agent
+  skills: [data-particle-read, method-followup-engine]
+  memory: [followup-agent]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "对同一批 open signal 连跑两次 pumpOnce，crm.signal_delivery 的 (signal_id,channel) 终态行数不增；failed 行 attempts 随重试递增且上限不超过 config.retry；泵候选租户集含 tenant_id='system'（平台信号不得被静默排除，D1）"
+```
+
+**契约说明：** 本任务由 `followup-agent` 承接（提醒投递 = 跟进同源职责），调用 `data-particle-read` 与 `method-followup-engine`、读 `followup-agent` 记忆（L1，≤2 跳）；成功标准为编排器**幂等**且重试不越界。
+
+#### Q1-2 路由与收件人解析
+
+```contract-yaml
+- task: "Q1-2 新建 src/signal/route.js 消费 signal-delivery 配置（channels/route/role_recipients/quiet_hours/rate_limit）"
+  contract_task_id: ct-followup
+  agent: followup-agent
+  skills: [data-particle-read]
+  memory: [followup-agent]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "配置 channels.im=off 时 route 返回的渠道集合不含 im；role_recipients 解析不到收件人时返回 skipped 原因 no_recipient 而非空集合；system 租户业务角色解析不到时回退 role_recipients.platform，该键缺失仍返回 no_recipient（D1 配套）"
+```
+
+**契约说明：** 本任务由 `followup-agent` 承接，调用 `data-particle-read`、读 `followup-agent` 记忆（L1）；成功标准为**渠道集合来自真实配置**、收件人解析失败**显式留因**（不静默）。
+
+#### Q1-3 定时器⑰ signal-dispatch
+
+```contract-yaml
+- task: "Q1-3 注册定时器⑰ signal-dispatch（SIGNAL_DISPATCH_MS，默认 5 分钟），EXPECTED_TIMERS 16→17"
+  contract_task_id: ct-followup
+  agent: followup-agent
+  skills: [method-followup-engine]
+  memory: [followup-agent]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "timers.test.js 的 EXPECTED_TIMERS 为 17 且定时器清单含 signal-dispatch；VITEST 护栏下该定时器不执行 dispatch"
+```
+
+**契约说明：** 本任务由 `followup-agent` 承接，调用 `method-followup-engine`、读 `followup-agent` 记忆（L1）；成功标准为定时器登记数从 16 增至 17，且测试环境护栏生效。
+
+#### Q1-4 假绿判据修正（enabledChannels 读真实配置）
+
+```contract-yaml
+- task: "Q1-4 修正 detectNegativePredicates 的 enabledChannels——从 config_store['signal-delivery'] 读取，读不到则视为全关并 emit trace"
+  contract_task_id: ct-retro-decision
+  agent: decision-retro
+  skills: [decision-retrospective]
+  memory: [decision-retro]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "租户无 signal-delivery 配置时 detectNegativePredicates 返回空数组且存在 signal-observability-config-missing trace；配置仅开 inbox 时只产生 inbox 的 delivery_silent"
+```
+
+**契约说明：** 本任务由 `decision-retro` 承接（判据自身失真是「校准」问题，非功能问题），调用 `decision-retrospective`、读 `decision-retro` 记忆（L1）；成功标准为**判据不再携带假前提**——这是防假绿机制自身的修复。
+
+#### Q1-5 出口真库端到端验收
+
+```contract-yaml
+- task: "Q1-5 出口端到端验收：真库跑通 signal → 投递 → crm.signal_delivery 出现真实 sent 行"
+  contract_task_id: ct-followup
+  agent: followup-agent
+  skills: [data-particle-read, method-followup-engine]
+  memory: [followup-agent]
+  knowledge_scope: { layers: [L1], max_hops: 3 }
+  success: "本地真库 crm.signal_delivery 存在 status='sent' 且 delivered_at 非空的行；同窗口 detectNegativePredicates 对已投递渠道不再触发"
+```
+
+**契约说明：** 本任务由 `followup-agent` 承接，调用 `data-particle-read` 与 `method-followup-engine`、读 `followup-agent` 记忆（L1）；成功标准为**判据 ① 真实成立**（这是 §0.4 闸门的放行前提）。
+
+### Q2｜入口接线
+
+#### Q2-1 integration-poll 增量拉取接线
+
+```contract-yaml
+- task: "Q2-1 integration-poll 增对象增量拉取分支，调用 mount.runTenantSyncOnce（E1-2 接线）"
+  contract_task_id: ct-intake-route
+  agent: intake-router
+  skills: [method-intake-routing, data-particle-read]
+  memory: [intake-router]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "src/scheduler/timers.js 中 runTenantSyncOnce 命中数大于等于 1；开启该分支后 crm.sync_cursor 产生一行新记录"
+```
+
+**契约说明：** 本任务由 `intake-router` 承接（数据进入 = 接诊同源职责），调用 `method-intake-routing` 与 `data-particle-read`、读 `intake-router` 记忆（L1）；成功标准为**挂载方终于来了**——模块从「已建」变为「可触发」。
+
+#### Q2-2 对象变化事件路由接线
+
+```contract-yaml
+- task: "Q2-2 connectorRouter webhook 分支增对象变化事件路由，调用 mount.handleObjectChanged（E1-3 接线）"
+  contract_task_id: ct-intake-route
+  agent: intake-router
+  skills: [method-intake-routing, data-particle-read]
+  memory: [intake-router]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "src/http/connectorRouter.js 中 handleObjectChanged 命中数大于等于 1；既有 conn-signal-lead-gen 分支行为不变（向后兼容）"
+```
+
+**契约说明：** 本任务由 `intake-router` 承接，调用 `method-intake-routing` 与 `data-particle-read`、读 `intake-router` 记忆（L1）；成功标准为事件路由接通**且既有分支零回归**。
+
+#### Q2-3 A-B1 描述符扩展
+
+```contract-yaml
+- task: "Q2-3 integration-providers 描述符扩 objects[] / token_mode / trust_level（A-B1）"
+  contract_task_id: ct-intake-route
+  agent: intake-router
+  skills: [method-intake-routing]
+  memory: [intake-router]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "tenantInstances.js 中 objects、token_mode、trust_level 三字段均可解析；缺 token_mode 的旧描述符仍可加载（向后兼容）"
+```
+
+**契约说明：** 本任务由 `intake-router` 承接，调用 `method-intake-routing`、读 `intake-router` 记忆（L1）；成功标准为三字段落地且**旧配置不被破坏**。
+
+#### Q2-4 A-B2 结构化凭据
+
+```contract-yaml
+- task: "Q2-4 credentialVault 支持结构化凭据（appId/appSecret/permanentCode），仍 fail-closed"
+  contract_task_id: ct-intake-route
+  agent: intake-router
+  skills: [method-intake-routing, data-particle-read]
+  memory: [intake-router]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "结构化凭据可写入并按 key 读回；凭据内容不出现在任何日志或 trace 载荷中；缺字段时 verifyAuth 返回失败而非抛出"
+```
+
+**契约说明：** 本任务由 `intake-router` 承接，调用 `method-intake-routing` 与 `data-particle-read`、读 `intake-router` 记忆（L1）；成功标准为**结构化凭据可用且零明文外泄**。
+
+#### Q2-5 generic-rest 通道端到端
+
+```contract-yaml
+- task: "Q2-5 generic-rest provider 端到端（verifyAuth / discoverObjects / readIncremental）"
+  contract_task_id: ct-prospecting
+  agent: prospecting
+  skills: [prospecting-search, prospecting-lookup, data-particle-read]
+  memory: [intake-router]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "对 mock 通用 REST 端点：verifyAuth 返回 ok；discoverObjects 返回对象清单；readIncremental 按 since 游标拉取且二次调用不重复入库"
+```
+
+**契约说明：** 本任务由 `prospecting` 承接（**外部对象发现** = 拓客发现同源职责），调用 `prospecting-search` / `prospecting-lookup` / `data-particle-read`、读 `intake-router` 记忆（L1）；成功标准为**判据 ② 成立**（增量拉取幂等）。
+
+### Q3｜回写与运行时闸门
+
+#### Q3-1 字段级白名单与 CAS
+
+```contract-yaml
+- task: "Q3-1 sync-mappings 字段级白名单 + 字段级 CAS；未知字段一律拒绝"
+  contract_task_id: ct-quote-calc
+  agent: quote-engine
+  skills: [data-particle-read, method-quote-engine]
+  memory: [quote-engine]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "未在 mappings.fields 声明的外部字段被拒绝并计入 skipped；回写字段不属于 sync-trust.writeback_fields_whitelist 时被拒；CAS 不匹配时写入不生效且原值不变"
+```
+
+**契约说明：** 本任务由 `quote-engine` 承接（**字段级精度** = 报价字段精度同源职责），调用 `data-particle-read` 与 `method-quote-engine`、读 `quote-engine` 记忆（L1）；成功标准为**字段级越权被拒**且 CAS 语义正确。
+
+#### Q3-2 回写 Action 生产接线
+
+```contract-yaml
+- task: "Q3-2 sync-writeback-fields Action 接入生产调用者（带 static_on_write 标记）"
+  contract_task_id: ct-decision
+  agent: decision-agent
+  skills: [method-decision-execute, data-particle-read]
+  memory: [decision-agent]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "grep 判定 sync-writeback-fields 在 src/ 非 seed-actions 与 action/ 目录下命中数大于等于 1；回写请求带 Source=crm-ai-native 静态标记"
+```
+
+**契约说明：** 本任务由 `decision-agent` 承接（回写 = 决策执行同源职责），调用 `method-decision-execute` 与 `data-particle-read`、读 `decision-agent` 记忆（L1）；成功标准为回写 Action **有真实生产调用者**。
+
+#### Q3-3 运行时顺序闸门 exportGate
+
+```contract-yaml
+- task: "Q3-3 新建 src/sync/exportGate.js 运行时顺序闸门（出口判据①不成立则 fail-closed 阻断回写）"
+  contract_task_id: ct-review-gate
+  agent: review-gate
+  skills: [method-review-gate, data-particle-read]
+  memory: [review-gate]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "crm.signal_delivery 窗口内无 sent 行时 isExportHealthy 返回 false 且回写 Action 返回 blocked_by_export_gate 并 emit trace；判据查询抛错时按 false 处理"
+```
+
+**契约说明：** 本任务由 `review-gate` 承接（闸门 = 评审同源职责），调用 `method-review-gate` 与 `data-particle-read`、读 `review-gate` 记忆（L1）；成功标准为**闸门 fail-closed**——这是 §0.4 替代 §14.2 排期纪律的机制本体。
+
+#### Q3-4 自治前置闸门
+
+```contract-yaml
+- task: "Q3-4 standing-grants-policy 增 require_export_healthy，自治放行同受 exportGate 约束"
+  contract_task_id: ct-review-gate
+  agent: review-gate
+  skills: [method-review-gate]
+  memory: [review-gate]
+  knowledge_scope: { layers: [L1], max_hops: 2 }
+  success: "require_export_healthy=true 且闸门关时 crm.grant_execution 零新增行；置 false 时行为与既有 S6 一致（向后兼容）"
+```
+
+**契约说明：** 本任务由 `review-gate` 承接，调用 `method-review-gate`、读 `review-gate` 记忆（L1）；成功标准为**自治也被闸门约束**，且默认关闭不破坏 S6 既有行为。
+
+### Q4｜端到端验收
+
+#### Q4-1 两条判据的端到端取证
+
+```contract-yaml
+- task: "Q4-1 两条集成判据的端到端取证 + sync HTTP 端点"
+  contract_task_id: ct-decision
+  agent: decision-agent
+  skills: [method-decision-execute, data-particle-read]
+  memory: [decision-agent, review-gate]
+  knowledge_scope: { layers: [L1], max_hops: 3 }
+  success: "判据①：crm.signal_delivery 真库存在 sent 行且 detectNegativePredicates 对已投递渠道不触发；判据②：crm.sync_cursor 存在 last_status='ok' 真实行且 crm.external_ref 存在真实外部 ID"
+```
+
+**契约说明：** 本任务由 `decision-agent` 承接，调用 `method-decision-execute` 与 `data-particle-read`、读 `decision-agent` 与 `review-gate` 记忆（L1，≤3 跳）；成功标准为**两条可复跑判据同时成立**——本设计以此判定「真正实现集成」。
+
+---
+
+## §5 验收标准（含负向判据）
+
+### 5.1 两条正向判据（「真正实现集成」的定义）
+
+**判据 ①（出口）**
+```sql
+SELECT channel, status, count(*) FROM crm.signal_delivery
+ WHERE tenant_id = $1 AND created_at >= now() - interval '24 hours'
+ GROUP BY 1,2;
+```
+**成立条件**：至少一行 `status='sent'` 且 `delivered_at IS NOT NULL`。
+**且**：`config_store['signal-delivery'].channels` 中标记为 `off` 的渠道**零行**。
+
+> **适用范围（D1 修正）**：`$1` **必须分别取平台租户 `system` 与业务租户各验一次**，两次均成立方算判据 ① 通过。
+> 理由：平台级告警（`tenant_id='system'`）此前不在泵范围内，若只验业务租户口径，「全链集成」在平台口径下仍是假绿。
+
+**判据 ②（入口/回写）**
+```sql
+SELECT count(*) FROM crm.sync_cursor WHERE tenant_id = $1 AND last_status = 'ok';
+SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NOT NULL;
+```
+**成立条件**：两数均 ≥ 1。
+
+### 5.2 负向判据（防假绿，**任一不成立即验收失败**）
+
+| # | 负向判据 | 判定方式 |
+| - | -------- | -------- |
+| N1 | 渠道配置为 `on` 但窗口内零投递行 | 修正后的 `detectNegativePredicates` 返回该渠道（不依赖硬编码默认值） |
+| N2 | 收件人解析失败却无 `skipped` 行 | 查 `signal_delivery` 是否存在 `last_error='no_recipient'` 行；缺失即失败 |
+| N3 | 静默时段/限速丢弃却无留痕 | 查 `last_error IN ('quiet_hours','rate_limited')` 行存在性 |
+| N4 | `exportGate` 在判据 ① 不成立时返回 healthy | 构造无 `sent` 行的租户，断言 `isExportHealthy=false` |
+| N5 | 回写写入未声明字段 | 构造未声明字段，断言被拒且计入 `skipped` |
+| N6 | 凭据明文外泄 | 全量日志/trace 载荷 grep 凭据值，命中即失败 |
+| N7 | 跨租户可见 | 两租户并行，断言 A 租户查不到 B 租户的 signal / delivery / sync_cursor 行 |
+| N8 | **平台租户被静默排除**（D1） | 造一条 `tenant_id='system'` 的 open signal，跑 `pumpAllTenants`，断言其出现在泵候选集内且最终落 `sent`/`skipped` 行；**候选集不含 `system` 即失败** |
+| N9 | **无界候选集**（D2） | 造一条 `created_at` 早于窗口的 open signal，断言其**不在泵候选集**且**行仍存在**（窗口只收窄候选集，绝不删除留痕） |
+
+### 5.3 回归与纪律
+
+- `timers.test.js` `EXPECTED_TIMERS` 16 → 17，随 Q1-3 同步更新。
+- 既有 `conn-signal-lead-gen` 分支、S6 自治行为**不得回归**（Q2-2 / Q3-4 显式断言）。
+- 共享测试库 `crm_native_test` 并发 TRUNCATE 伪失败须先排除并行会话再判回归（继承计划纪律）。
+
+---
+
+## §6 红线（继承最终设计 §15 全部 11 条，本设计新增 3 条）
+
+**继承（不放宽）**：不新增粒子类型 / 不做完整双向同步 / 不取消人工录入 / HITL 铁律 / 零 DELETE / 投递不骚扰（rate_limit + quiet_hours）/ 不宣称「发送即送达」/ 未交付不得对外宣称。
+
+**本设计新增**：
+
+| # | 不做项 | 理由 |
+| - | ------ | ---- |
+| R1 | ⛔ **不得**用「默认全开渠道」作为判据输入 | 这正是本次发现的假前提，修复后不得以任何形式回归 |
+| R2 | ⛔ **不得**在 `exportGate` 未投产前放行回写或自治 | §0.4 的机制本体；放宽即退回排期纪律 |
+| R3 | ⛔ **不得**为本批次之外的厂商（fxiaoke / neocrm）填占位实现 | 占位实现＝假绿；本批次只交付 `generic-rest`，其余明确「未实现」 |
+
+---
+
+## §7 闭环回写
+
+> 数据来源：`docs/2026-09-16-full-chain-integration-design.md.feedback.json`（P0 预检时**不存在**，故无历史缺口需吸收）。
+
+| 缺口类型 | 观测 | 期望 | 处置 |
+| -------- | ---- | ---- | ---- |
+| —（首轮，无历史） | — | — | 待 workbench 首次监控后回填 |
+
+**监控口径（workbench 侧）**：逐个 `contract-yaml` 块跟踪三件事——① 是否调用了声明的 `skills`；② 是否读取了声明的 `memory` / 知识层；③ `success` 是否通过。任一缺失按 `{task, agent, gap_type, observed, expected, ts, severity}` 追加到 `*.feedback.json`（按 `task+gap_type` 幂等 upsert），并镜像到本表。
+
+**吸收与建议（下一轮 P0）**：同一 `(task, gap_type)` 复现 ≥ 2 次 → 产出 SKILL 改进建议（如补 `agentSpec.skillCalls`、强化某 SKILL 调用指令、新增记忆读取约定），**仅作提案，须用户显式批准后方可改动 SKILL 文件**。
+
+---
+
+## §8 批准记录与移交
+
+### 8.1 批准记录（2026-09-16）
+
+| # | 事项 | 结果 |
+| - | ---- | ---- |
+| 1 | **本设计整体**（Q1 / Q2 / Q3 / Q4 共 15 任务） | ✅ **已批准** |
+| 2 | **§0.4 对最终设计 §14.2 的修正**（顺序纪律：排期 → 运行时闸门） | ✅ **已确认**——已回写最终设计 §14.2 与附录 B，见 §8.2 |
+| 3 | **本批次范围**——只做 `generic-rest`，`fxiaoke` / `neocrm` 明确「未实现」（R3） | ✅ **已确认** |
+
+### 8.2 对最终设计的回写（已完成，按 §D.4 维护约定）
+
+| 回写对象 | 内容 |
+| -------- | ---- |
+| `docs/2026-09-15-final-design-coexistence-and-proactive.md` §14.2 | 增「顺序纪律的载体可由排期升级为运行时闸门」的修正段，指向本设计 §3.4 |
+| 同上 附录 B | 增修正记录 1 行（来源：本设计 §0.4） |
+| 同上 附录 E | 增指向本设计的闭合路径说明（E.1 四项由本设计 Q2 承接） |
+
+### 8.3 修正记录 v1.1（2026-09-16，计划期发现 → 用户裁决）
+
+`writing-plans` 阶段的代码侦察对 Q1-1 的候选集逐字核验，发现两处「泵上线但截图红框不消失」的缺陷。按 §D.4 维护约定登记如下：
+
+| 编号 | 缺陷 | 裁决 | 状态 |
+| --- | --- | --- | --- |
+| **D1** | `pumpAllTenants` 租户选择器为 `... AND tenant_id <> 'system'`，而定时器⑰ 只调 `pumpAllTenants` → **平台租户信号永不被泵**，平台级告警继续静默 | **用户选定方案 A**：泵范围含 `system`；收件人解析对 `system` 回退到 `role_recipients.platform`（缺失仍 `no_recipient`） | ✅ 已入 §3.1.1 / §3.2 / §1 / §5.1 / §5.2（N8） |
+| **D2** | `crm.signal.status` 投递后不迁移 → 泵候选集单调增长（幂等正确但**不有界**） | **模型裁决（保守侧）**：加时间窗（默认 7 天，`config_store['signal-dispatch'].max_age_days` 可覆盖）；**否决**在 `crm.signal` 加 `delivered_at` / 状态迁移——后者需改表并复评全部 `status='open'` 读取点，风险显著高于收益 | ✅ 已入 §3.1.1 / §5.2（N9） |
+
+**改动清单（本次回写仅动 5 处，契约 `contract_task_id` / `agent` / `skills` / `memory` / `knowledge_scope` 一律不变）**：
+
+1. §3.1 编排器伪代码（泵范围含 `system` + 时间窗）+ 新增 §3.1.1（D1/D2 及取舍依据）。
+2. §3.2 收件人解析（新增 `platform` 回退与两条纪律）。
+3. §1 任务表 Q1-1 / Q1-2 两行（并顺带消除「幂等键 `signal_id + channel + bucket`」与 §3.1「`signal_id + channel`」的**既有自相矛盾**——以 §3.1 为准）。
+4. §4 契约块 Q1-1 / Q1-2 的 `success` 字段追加 D1 判据（否则修正不可机检）。
+5. §5.1 判据 ① 增「适用范围：`system` 与业务租户各验一次」；§5.2 增 N8（平台租户被静默排除）/ N9（无界候选集）。
+
+**红线不变**：窗口只收窄泵的候选集，**绝不允许删除或迁移 `crm.signal` 行**；`system` 不享有投递豁免。
+
+### 8.4 移交
+
+- **唯一入口**：`writing-plans`。将 §1 三段式 15 任务转为可执行任务清单，**每任务继承 §4 同名生命契约（`contract-yaml` 块逐条平移，不重写）**。
+- **执行纪律**：每 Task 一 commit；AI 无提交凭证，输出按功能线分组的 PowerShell 命令（显式路径 add、禁 `git add -A`）。
+- **回归纪律**：全量回归 flaky，单次红不得直判；共享 `crm_native_test` 并发 TRUNCATE 会伪失败，先查并行会话再判回归。
+
+---
+
+**— 文档结束 —**
