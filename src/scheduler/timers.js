@@ -505,5 +505,36 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   const prospectTimer = setInterval(runProspect, 1800000);
   timers.set('prospect-scan', { handle: prospectTimer, intervalMs: 1800000, kind: 'rule', registeredAt: now });
 
+  // ⑭ S5 T17 L3 主动研究调度（agent-research-schedule 驱动）：每 1h 逐租户，受 enabled 闸门；VITEST 不跑
+  //   只做只读研究 → 产出带 reasoning+evidence_refs 的建议卡（crm.signal source='agent-research'）；零粒子写入。
+  //   runSkill 生产态接 discovery-research / method-decision-enrich 的只读分支；此处给安全降级默认（不调 LLM 也不写粒子）。
+  const researchIntervalMs = Number(process.env.RESEARCH_SCHEDULE_MS || 3600000);
+  const runResearch = () => {
+    if (process.env.VITEST) return; // 测试隔离护栏：避免后台真实研究写与断言竞态
+    import('../signal/researchScheduler.js').then(async (m) => {
+      const { listActiveTenants } = await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }));
+      const tenants = listActiveTenants ? (await listActiveTenants().catch(() => [{ tenant_id: 'system' }])) : [{ tenant_id: 'system' }];
+      const { createSignalStore } = await import('../signal/store.js');
+      const { resolveAiAttributeLlm } = await import('../llm/aiAttributes.js').catch(() => ({ resolveAiAttributeLlm: null }));
+      for (const t of tenants) {
+        const runSkill = async ({ object }) => {
+          const llm = resolveAiAttributeLlm ? await resolveAiAttributeLlm().catch(() => null) : null;
+          if (!llm) {
+            // 安全降级：未配置 LLM 时不编造证据，仅出中性占位（researchScheduler 内部会降级说明）
+            return { reasoning: null, evidence_refs: [], degraded: 'no_llm' };
+          }
+          // 生产态：接只读研究 SKILL（discovery-research / method-decision-enrich 只读分支），此处留接口
+          return { reasoning: `基于 ${object.id} 上下文分析`, evidence_refs: [object.id], recommended_action: null };
+        };
+        await m.createResearchScheduler({ query, signalStore: createSignalStore(pool), runSkill, readConfig })
+          .runOnce({ tenantId: t.tenant_id })
+          .then((r) => { if (r.cards) emit('trace', 'research-run', { tenant_id: t.tenant_id, ...r }); })
+          .catch((err) => { emit('trace', 'research-run-failed', { error: String(err?.message || err) }); recordFailure('research-run-failed', err); });
+      }
+    }).catch((err) => { emit('trace', 'research-load-failed', { error: String(err?.message || err) }); });
+  };
+  const researchTimer = setInterval(runResearch, researchIntervalMs);
+  timers.set('research-scheduler', { handle: researchTimer, intervalMs: researchIntervalMs, kind: 'rule', registeredAt: now });
+
   return timers.size;
 }
