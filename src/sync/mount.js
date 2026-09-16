@@ -12,6 +12,8 @@ import { createSyncEngine } from './engine.js';
 import { createMappingResolver } from './mapping.js';
 import { createEntityResolver } from './resolver.js';
 import { createCursorStore } from './cursor.js';
+// A-B1 单一事实源：描述符的解释权归 providerDescriptor.js（本文件与 enrich 侧共用同一判据）
+import { normalizeProviderDescriptors, inboundObjects } from '../connectors/discovery/providerDescriptor.js';
 
 export const SYNC_TRUST_ORDER = ['L1', 'L2', 'L3'];
 
@@ -67,23 +69,26 @@ export async function loadSyncMappings({ tenantId = 'system', readConfig } = {})
 }
 
 // —— descriptor → 同步目标（仅 enabled + 有入向 objects[] + kind 受支持）——
-export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, resolveCredentials, factories = {} } = {}) {
+// A-B1：归一化与方向判据全部走 providerDescriptor.js（单一事实源），本文件不自行解析描述符
+export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, resolveCredentials, factories = {}, emit } = {}) {
   try {
     const row = await readConfig('integration-providers', { tenantId });
-    const descs = Array.isArray(row?.value) ? row.value : [];
+    const { descriptors, issues } = normalizeProviderDescriptors(Array.isArray(row?.value) ? row.value : []);
+    if (issues.length && typeof emit === 'function') {
+      emit('trace', 'integration-providers-invalid', { tenant_id: tenantId, issues });
+    }
     const trustRow = await readConfig('sync-trust', { tenantId });
     const globalLevel = trustRow?.value?.default_level || 'L1';
     const creds = resolveCredentials
-      ? await resolveCredentials({ tenantId, providerIds: descs.map((d) => d.id) }).catch(() => ({}))
+      ? await resolveCredentials({ tenantId, providerIds: descriptors.map((d) => d.id) }).catch(() => ({}))
       : {};
     const out = [];
-    for (const d of descs) {
-      if (!d?.enabled) continue;
+    for (const d of descriptors) {
+      if (!d.enabled) continue;
       const factory = factories[d.kind];
       if (!factory) continue; // 未知 kind 跳过（不抛，防扫描中断）
-      const inbound = (Array.isArray(d.objects) ? d.objects : [])
-        .filter((o) => o?.name && (!o.direction || o.direction === 'in'));
-      if (!inbound.length) continue; // 无 objects[] → no-op（既有 descriptor 零行为变化）
+      const inbound = inboundObjects(d);
+      if (!inbound.length) continue; // 无入向 objects[] → no-op（既有 descriptor 零行为变化）
       out.push({
         id: d.id,
         kind: d.kind,
@@ -115,8 +120,8 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
   }));
   const out = { runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
   for (const t of targets) {
-    // 防御性再过滤：targets 亦可能来自调用方直接构造（非 loadTenantSyncTargets）
-    const inbound = (t.objects || []).filter((o) => o?.name && (!o.direction || o.direction === 'in'));
+    // 防御性再过滤：targets 亦可能来自调用方直接构造（非 loadTenantSyncTargets）→ 共用同一方向判据
+    const inbound = inboundObjects(t);
     for (const obj of inbound) {
       out.runs++;
       try {
@@ -168,7 +173,7 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
 export async function handleObjectChanged({
   tenantId = 'system', provider, object, row = {}, deps = {},
 } = {}) {
-  const { mappings = {}, readConfig, createResolver, pool, mintDecision, emit } = deps;
+  const { mappings = {}, readConfig, createResolver, pool, mintDecision, emit, callWriteback } = deps;
   const def = mappings[object];
   if (!def?.particle_type) return { ok: false, error: 'object_not_mapped' }; // fail-closed：不越权建粒子
   const extId = row.id || row.external_id || (def.identity?.external_id_field ? row[def.identity.external_id_field] : null);
@@ -202,5 +207,20 @@ export async function handleObjectChanged({
       created: !!u?.created, decision_id: decisionId,
     });
   }
-  return { ok: true, readOnly: false, created: !!u?.created, particle_id: u?.particle_id, decisionId };
+  // P0-1（2026-09-16）：L3 回写分支。此前本函数形参/deps 均无 callWriteback
+  //   → 事件路径的 L3 永远不可达（counts.writeback 恒 0）。语义与 engine.js 的 L3 分支同源：
+  //   仅 L3 回写；失败留痕（writeback_error）不静默、也不阻断读入链路（事件已入库，回写是可补偿步骤）。
+  let wb = null;
+  if (level === 'L3' && typeof callWriteback === 'function') {
+    wb = await callWriteback({
+      tenantId, object, externalId: extId, particleId: u?.particle_id, row, level, decisionId,
+    }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
+  }
+  return {
+    ok: true, readOnly: false, created: !!u?.created, particle_id: u?.particle_id, decisionId,
+    // 未进入回写路径（L1/L2 或未注入）时**不落这两个键**——避免把「未接线」伪造成「回写 0 条成功」
+    ...(level === 'L3' && typeof callWriteback === 'function'
+      ? { writeback: wb?.ok ? 1 : 0, writeback_error: wb?.ok ? null : (wb?.error || null) }
+      : {}),
+  };
 }

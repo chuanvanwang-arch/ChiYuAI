@@ -14,7 +14,26 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
     const allowWriteback = level === 'L3';
     const cur = await cursor.get({ tenantId, provider: provider.kind || 'mock', object }).catch(() => null);
     // ⚠ 必须传 object：描述符按对象声明（§9.3 objects[]），provider 需据此定位查询目标
-    const inc = await provider.readIncremental({ object, cursor: cur?.cursor_value || null }).catch(() => ({ rows: [], cursor: null }));
+    // ⚠ 去假健康（2026-09-16 P0-2）：provider 失败必须留痕并短路返回。
+    //   旧实现 `.catch(() => ({ rows: [], cursor: null }))` 吞掉异常 + 不检查 `ok:false`
+    //   → counts.read=0 且 last_status='ok' →「同步在跑」与「一条都没读到」不可区分（F2）。
+    let inc;
+    try {
+      inc = await provider.readIncremental({ object, cursor: cur?.cursor_value || null });
+    } catch (e) {
+      inc = { ok: false, error: String(e?.message || e) };
+    }
+    if (inc?.ok === false) {
+      const errMsg = String(inc.error || 'read_failed');
+      const zeroCounts = { read: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
+      // 只读路径同样落 failed：L1 也不是「可以静默失败」的理由
+      await cursor.set({
+        tenantId, provider: provider.kind || 'mock', object,
+        counts: zeroCounts, status: 'failed', error: errMsg,
+        cursor: cur?.cursor_value || null, decisionId,
+      }).catch(() => {});
+      return { ok: false, error: errMsg, ...zeroCounts };
+    }
     const read = (inc.rows || []).length;
     const counts = { read, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
     if (!allowWrite) {
