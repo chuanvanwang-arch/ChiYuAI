@@ -1,4 +1,4 @@
-// src/portal/layoutMenu.js — 导航菜单单源（全员 5 项 + 系统分组仅 admin）
+// src/portal/layoutMenu.js — 导航菜单单源（FULL_MENU 全员 9 项 + ADMIN_MENU 系统分组仅 admin）
 // 角色过滤：menuFor(role)；FULL_MENU/ADMIN_MENU 供 layout.js 与单测引用
 // 客户深度洞察 + 指名客户监测合并为客户跟踪（S13 合并入口，画像/洞察 TAB 并入 named-accounts.html）
 export const FULL_MENU = [
@@ -6,11 +6,14 @@ export const FULL_MENU = [
   // 公海池（2026-09-14）：公海 S0 待领取线索明细 + 认领闭环；紧邻线索·商机，销售角色可见。
   // 权益门禁 core_crm：与 crm-lead-pick 动作权益一致（无 core_crm 仅能看不能领，故整体隐藏入口避免误导）。
   { group: '销售', label: '公海池', href: '/lead-pool.html', requiresEntitlement: ['core_crm'] },
-  // 信号中心（2026-09-16 主动运行时 S1）：统一信号收口（crm.signal 明细/确认/否决）；销售角色可见
-  { group: '销售', label: '信号中心', href: '/signal-center.html', requiresEntitlement: ['core_crm'] },
   // 客户跟踪：客户 360 洞察入口 → 受 customer_360 权益门禁（配置驱动，免费档不展示）
   { group: '销售', label: '客户跟踪', href: '/named-accounts.html', requiresEntitlement: ['customer_360'] },
   { group: '销售', label: '销售行为看板', href: '/sales-behavior-board.html' },
+  // 销售自动化（2026-09-16 主动运行时 S1，原名「信号中心」）：统一信号收口（crm.signal 明细/确认/否决）。
+  //   2026-09-16 决议：更名为「销售自动化」并从「销售」组移入「协同」组、置于「我的待办」之上
+  //   （信号是待办的上游输入，同组相邻便于「信号 → 待办」动线）。
+  //   href/页面文件名/路由/端点均不改（/signal-center.html 为稳定标识，仅显示名与分组变化）。
+  { group: '协同', label: '销售自动化', href: '/signal-center.html', requiresEntitlement: ['core_crm'] },
   { group: '协同', label: '我的待办', href: '/my-todo.html' },
   // 业务主数据门户（2026-08-28 实施计划）：与配置中心（admin 独享）边界分离，业务角色可见；
   // 5 个维护面只放在门户总览内，左侧菜单不再展开，避免臃肿。

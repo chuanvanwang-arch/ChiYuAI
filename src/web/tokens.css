@@ -11,6 +11,15 @@ select,input,textarea,button{
 }
 select:focus,input:focus,textarea:focus,button:focus{ outline:2px solid var(--ac); outline-offset:1px; }
 
+/* ── 原生下拉弹层（<option> 列表）单独着色（2026-09-16 用户截图实证缺陷）──
+   现象：select 本体已是深色，但展开后的选项列表是白底 + 极浅灰字，几乎不可读。
+   根因：弹层不是 select 本体的渲染，而是一个独立原生控件 —— 上面那条规则只设了 select 的
+   background，未设 option 的 background；而 color 会被 option 继承（浅色 --ink）⇒
+   浅字落在弹层默认白底上。
+   修法：option / optgroup 必须**成对**声明 background + color（只补其一仍会撞对比度），
+   且只准用本文件令牌（沿「禁止自带浅色 fallback」铁律）。 */
+select option,select optgroup{ background:var(--panel); color:var(--ink); }
+
 :root{
   --bg:#0f172a;  --panel:#1e293b;  --line:#334155;
   --ink:#e2e8f0;  --mut:#cbd5e1;
@@ -61,6 +70,7 @@ select:focus,input:focus,textarea:focus,button:focus{ outline:2px solid var(--ac
   --muted:var(--mut);
   --accent:var(--ac);
   --accent-soft:rgba(99,102,241,.12);
+  --err-soft:rgba(248,113,113,.10);  /* 警示底（红 10% 透明底，与 --accent-soft 同范式；页面禁止自带 rgba 色值） */
   --good:var(--ok);
   --bad:var(--err);
 }

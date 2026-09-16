@@ -13,6 +13,10 @@ const T = `  /* tokens 引用（与 common.css 同源，CSS 变量穿透 shadow 
     padding:8px 10px; font-size:13px; font-family:var(--font); outline:none;
   }
   select{ color-scheme:dark; appearance:auto; cursor:pointer; }
+  /* 弹层（<option> 列表）须单独着色：只设 select 的 background 不覆盖弹层，
+     而 color 会被 option 继承浅色 → 浅字落白底不可读（2026-09-16 用户截图实证）。
+     shadow 内无法继承宿主样式，故与 tokens.css 同口径在此显式成对声明 background+color。 */
+  select option,select optgroup{ background:var(--panel); color:var(--ink); }
   select:focus,input:focus,textarea:focus,button:focus{ border-color:var(--ac); }
   button{ background:var(--panel); cursor:pointer; font-weight:600; }
   button.primary{ background:var(--ac); border-color:var(--ac); color:var(--on-ac); }

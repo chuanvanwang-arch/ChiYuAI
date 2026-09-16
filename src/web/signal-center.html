@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/portal/tokens.css">
 <link rel="stylesheet" href="/portal/common.css">
 <link rel="stylesheet" href="/portal/page.css">
+<script type="module" src="/portal/components.js"></script>
 <style>
  .sc-wrap{max-width:1120px}
  .sc-head{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
@@ -13,26 +14,27 @@
  .sc-sub{color:var(--mut);font-size:13px;margin-bottom:16px}
  .sc-toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
  .sc-toolbar label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
- .sc-toolbar select,.sc-toolbar button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13px}
+ .sc-toolbar crm-select{min-width:110px}
+ .sc-toolbar select,.sc-toolbar button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:13px}
  .sc-table{width:100%;border-collapse:collapse;font-size:13px}
  .sc-table th,.sc-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
  .sc-table th{color:var(--mut);font-weight:500;font-size:12px}
- .sc-table button{padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px;cursor:pointer}
- .sc-table button:hover{border-color:var(--acc)}
- .sev-high{color:#dc2626;font-weight:600}
- .sev-medium{color:#d97706}
+ .sc-table crm-button{margin-right:6px}
+ .sev-high{color:var(--err);font-weight:600}
+ .sev-medium{color:var(--warn)}
  .sev-low{color:var(--mut)}
  .muted{color:var(--mut)}
  .sc-empty{padding:22px;text-align:center;color:var(--mut)}
  .sc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
- .sc-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
+ .sc-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel)}
  .sc-card .k{font-size:12px;color:var(--mut);margin-bottom:6px}
  .sc-card .v{font-size:20px;font-weight:600}
  .sc-card .hint{font-size:11px;color:var(--mut);margin-top:3px}
  .sc-code{color:var(--mut);font-size:11px}
+ .sc-lock{color:var(--mut);font-size:12px;margin-left:6px}
  .sc-block{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px}
  .sc-block h3{font-size:13px;margin:0 0 8px;color:var(--mut);font-weight:500}
- .sc-alert{border:1px solid #dc2626;background:rgba(220,38,38,.08);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px}
+ .sc-alert{border:1px solid var(--err);background:var(--err-soft);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px}
  .sc-down{font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
  .sc-down:last-child{border-bottom:0}
  .sc-ok{color:var(--mut);font-size:13px}
@@ -49,28 +51,36 @@
 
   <section class="sc-toolbar">
     <label>状态
-      <select id="filter-status" data-signal-status>
+      <crm-select id="filter-status" data-signal-status>
         <option value="">全部</option>
         <option value="open">待处理</option>
         <option value="acked">已确认</option>
         <option value="closed">已否决</option>
         <option value="acted">已成单</option>
-      </select>
+      </crm-select>
     </label>
     <label>严重度
-      <select id="filter-severity" data-severity>
+      <crm-select id="filter-severity" data-severity>
         <option value="">全部</option>
         <option value="high">高</option>
         <option value="medium">中</option>
         <option value="low">低</option>
-      </select>
+      </crm-select>
     </label>
     <label>类型
-      <select id="filter-kind" data-signal-kind>
+      <crm-select id="filter-kind" data-signal-kind>
         <option value="">全部</option>
-      </select>
+      </crm-select>
     </label>
-    <button id="refresh" data-refresh>刷新</button>
+    <!-- T21 个人隔离：普通销售员的作用域由服务端强制（meta.enforced），页面不再给选项 -->
+    <label id="scope-label">范围
+      <crm-select id="filter-scope" data-scope>
+        <option value="self">只看我负责的</option>
+        <option value="all">全租户（管理）</option>
+      </crm-select>
+      <span id="scope-lock" class="sc-lock" hidden>个人隔离：仅显示我负责的</span>
+    </label>
+    <crm-button id="refresh" data-refresh>刷新</crm-button>
   </section>
 
   <section id="signal-metrics" data-signal-metrics>
@@ -164,6 +174,20 @@ function summaryOf(s) {
   return sub || KIND_TEXT[s.kind] || s.kind || '';
 }
 
+// T21 个人隔离：作用域 UI（2026-09-16 用户指令「除管理外，需要进行个人隔离！」）
+//   enforced=true（普通销售员）→ 服务端已强制收窄，隐藏选择器并明示「仅显示我负责的」
+//   enforced=false（管理员）   → 显示「全租户 / 只看我的」切换
+// 提示带上当前视图者，便于回答「为什么我看不到某条信号」
+function applyScopeUi(meta) {
+  const sel = $('filter-scope');
+  const lock = $('scope-lock');
+  if (!sel || !lock) return;
+  const enforced = meta.enforced === true;
+  sel.style.display = enforced ? 'none' : '';
+  lock.hidden = !enforced;
+  if (enforced) lock.textContent = meta.viewer ? `个人隔离：仅显示 ${meta.viewer} 负责的` : '个人隔离：仅显示我负责的';
+}
+
 async function load() {
   const status = $('filter-status').value;
   const severity = $('filter-severity').value;
@@ -172,6 +196,9 @@ async function load() {
   if (status) q.set('status', status);
   if (severity) q.set('severity', severity);
   if (kind) q.set('kind', kind);
+  // T21 个人隔离：scope=self 时请求收窄到「我负责的」。
+  //   ⚠ 这只是意图声明——服务端对普通用户强制收窄，伪造 mine 参数无法放宽（见 tenantScope.signalOwnerScope）
+  if (($('filter-scope')?.value || 'self') === 'self') q.set('mine', '1');
 
   const res = await fetch(`/api/signals?${q}`, { headers: authHeaders() });
   if (!res.ok) {
@@ -181,6 +208,7 @@ async function load() {
   }
   const data = await res.json().catch(() => ({ items: [] }));
   const items = Array.isArray(data.items) ? data.items : [];
+  applyScopeUi(data.meta || {});
 
   $('scCount').textContent = `${items.length} 条`;
   $('scEmpty').hidden = items.length > 0;
@@ -191,7 +219,7 @@ async function load() {
     const p = s.payload || {};
     const tr = document.createElement('tr');
     const actBtn = s.status === 'open'
-      ? `<button data-ack="${esc(s.signal_id)}">确认</button> <button data-close="${esc(s.signal_id)}">否决</button>`
+      ? `<crm-button class="btn" data-ack="${esc(s.signal_id)}">确认</crm-button> <crm-button class="btn" data-close="${esc(s.signal_id)}">否决</crm-button>`
       : `<span class="muted">${STATUS_TEXT[s.status] || s.status}</span>`;
     // 对象列优先显示业务可读标识（external_id），退化到 ID 前 8 位，鼠标悬停可见完整 ID
     const objText = p.external_id || shortId(s.particle_id) || '—';
@@ -219,7 +247,8 @@ function fillKindFilter(items) {
     o.textContent = KIND_TEXT[k] || k;
     sel.appendChild(o);
   }
-  sel.dataset.filled = '1';
+  // 空结果不得上锁：首载为 0 条时若直接置 filled，后续数据出现也不会再补齐（2026-09-16 实测实坑）
+  if (kinds.length) sel.dataset.filled = '1';
 }
 
 // 确认/否决：POST 状态变更端点（写 crm.signal，租户取自身——写不跨租户）
@@ -263,6 +292,7 @@ $('refresh').addEventListener('click', () => { load(); loadMetrics(); });
 $('filter-status').addEventListener('change', load);
 $('filter-severity').addEventListener('change', load);
 $('filter-kind').addEventListener('change', load);
+$('filter-scope')?.addEventListener('change', load);
 $('signal-table').addEventListener('click', (e) => {
   const ack = e.target.closest('[data-ack]');
   const close = e.target.closest('[data-close]');
