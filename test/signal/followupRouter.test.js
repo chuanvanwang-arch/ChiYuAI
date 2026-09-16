@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createFollowupRouter } from 'file:///D:/system/CRM-ai-native/src/signal/followupRouter.js';
+import { createFollowupRouter } from '../../src/signal/followupRouter.js';
 
 describe('followupRouter（对象变化事件路由 T06）', () => {
   it('对象变化事件触发重评（emit→on 链路）', async () => {

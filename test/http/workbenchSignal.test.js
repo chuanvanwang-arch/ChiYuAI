@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
-import { buildSignalView } from 'file:///D:/system/CRM-ai-native/src/signal/workbenchView.js';
+import { buildSignalView } from '../../src/signal/workbenchView.js';
 
 describe('workbench 第7视角（信号）', () => {
   it('workbenchRouter 声明 signals 视角（VIEW_ALIASES/VIEWS 含 signals）', () => {

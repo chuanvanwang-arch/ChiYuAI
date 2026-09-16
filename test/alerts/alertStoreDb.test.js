@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
-import { resetAlertStore } from 'file:///D:/system/CRM-ai-native/src/alerts/alertStore.js';
-import { createAlertWithDb } from 'file:///D:/system/CRM-ai-native/src/alerts/alertStore.js';
+import { resetAlertStore } from '../../src/alerts/alertStore.js';
+import { createAlertWithDb } from '../../src/alerts/alertStore.js';
 
 // 真库验证（crm_native_test）：内存 Map 双写 DB crm.signal（防假绿核心：createAlert ok ≠ 已落库）
 let pool;
@@ -33,7 +33,7 @@ describe('alertStore 内存→DB 双写（B-B3）', () => {
   });
 
   it('既有 API 签名不变（createAlert/listAlerts/ackAlert/closeAlert）', async () => {
-    const mod = await import('file:///D:/system/CRM-ai-native/src/alerts/alertStore.js');
+    const mod = await import('../../src/alerts/alertStore.js');
     expect(typeof mod.createAlert).toBe('function');
     expect(typeof mod.listAlerts).toBe('function');
     expect(typeof mod.ackAlert).toBe('function');

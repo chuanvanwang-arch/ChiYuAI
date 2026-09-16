@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSignalRouter } from 'file:///D:/system/CRM-ai-native/src/signal/router.js';
+import { createSignalRouter } from '../../src/signal/router.js';
 
 describe('signal router（告警→信号映射）', () => {
   it('signalFromAlert 映射告警为信号（source=rule-scan）', () => {

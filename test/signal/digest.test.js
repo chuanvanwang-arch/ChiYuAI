@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildDailyDigest } from 'file:///D:/system/CRM-ai-native/src/signal/digest.js';
+import { buildDailyDigest } from '../../src/signal/digest.js';
 
 describe('signal digest（每日作战简报，对齐 Rox Daily Digest）', () => {
   it('按状态与严重度聚合 open 计数', () => {

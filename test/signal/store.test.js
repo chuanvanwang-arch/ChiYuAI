@@ -3,7 +3,7 @@ import pg from 'pg';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createSignalStore } from 'file:///D:/system/CRM-ai-native/src/signal/store.js';
+import { createSignalStore } from '../../src/signal/store.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 

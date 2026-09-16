@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createDeliveryStore } from 'file:///D:/system/CRM-ai-native/src/signal/delivery/signalDeliveryStore.js';
-import { createDeliveryRegistry } from 'file:///D:/system/CRM-ai-native/src/signal/delivery/index.js';
+import { createDeliveryStore } from '../../src/signal/delivery/signalDeliveryStore.js';
+import { createDeliveryRegistry } from '../../src/signal/delivery/index.js';
 
 // 注入式替身 store（不依赖共享库并发；对齐计划 §Task 3 契约测试）
 function makeMemStore() {
