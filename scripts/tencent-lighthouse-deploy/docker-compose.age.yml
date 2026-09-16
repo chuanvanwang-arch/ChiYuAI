@@ -28,3 +28,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.pg-age
+    # ── 2026-09-16：显式声明 shared_preload_libraries（覆盖 apache/age 基础镜像的 CMD）──────
+    # ① 必须保留 age —— 否则 AGE 决策网络图失去主路径，退化为递归 CTE 降级；
+    # ② 追加 pg_stat_statements —— 生产慢查询统计。
+    #    为何不用 ALTER SYSTEM：crm-pg 以命令行 `postgres -c ...` 启动，**命令行优先级高于
+    #    postgresql.auto.conf** → ALTER SYSTEM 被静默覆盖。判据是 pg_settings.source='command line'。
+    #    故只能在此处（compose command）声明。
+    # ⚠ 前置校验（缺任一 .so 即容器启动失败 → 生产库不可用，务必先跑）：
+    #     docker exec crm-pg ls -l /usr/lib/postgresql/16/lib/pg_stat_statements.so
+    # ⚠ 本行生效后仍需一次性 `CREATE EXTENSION pg_stat_statements`；
+    #    完整步骤与回滚见 docs/2026-09-16-prod-performance-diagnosis.md §6.5
+    command: postgres -c shared_preload_libraries=age,pg_stat_statements
