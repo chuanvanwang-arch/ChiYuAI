@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createCursorStore } from 'file:///D:/system/CRM-ai-native/src/sync/cursor.js';
+import { createCursorStore } from '../../src/sync/cursor.js';
 
 describe('sync cursor（运行留痕）', () => {
   it('set 用 upsert 更新不新建行（同租户×provider×object 一行）', async () => {

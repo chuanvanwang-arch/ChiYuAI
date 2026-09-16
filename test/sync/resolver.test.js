@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createEntityResolver } from 'file:///D:/system/CRM-ai-native/src/sync/resolver.js';
+import { createEntityResolver } from '../../src/sync/resolver.js';
 
 function fakePool() {
   const refs = [];

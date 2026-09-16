@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createFxiaokeProvider } from 'file:///D:/system/CRM-ai-native/src/sync/fxiaoke.js';
+import { createFxiaokeProvider } from '../../src/sync/fxiaoke.js';
 
 describe('fxiaoke provider（纷享适配器）', () => {
   it('verifyAuth 用凭据换取 CorpAccessToken 并缓存（二次调用不打网络）', async () => {

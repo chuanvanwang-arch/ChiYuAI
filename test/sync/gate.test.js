@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSyncGate } from 'file:///D:/system/CRM-ai-native/src/sync/gate.js';
+import { createSyncGate } from '../../src/sync/gate.js';
 
 describe('sync gate（接入评审闸门）', () => {
   it('四类动作未放行一律拒绝（fail-closed）', async () => {

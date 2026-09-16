@@ -1,10 +1,10 @@
 // test/agent/eventTrigger.s5.test.js — T12 三源触发器（向后兼容旧 matchTrigger 签名）
 import { describe, it, expect } from 'vitest';
-import { emit, on } from 'file:///D:/system/CRM-ai-native/src/events/bus.js';
+import { emit, on } from '../../src/events/bus.js';
 import {
   matchTriggerBySource, matchTrigger, AGENT_EVENT_TRIGGER_DEFAULT,
   setSignalStore, createEventTrigger,
-} from 'file:///D:/system/CRM-ai-native/src/agent/eventTrigger.js';
+} from '../../src/agent/eventTrigger.js';
 
 const CFG = AGENT_EVENT_TRIGGER_DEFAULT;
 

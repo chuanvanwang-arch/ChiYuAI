@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createProviderRegistry } from 'file:///D:/system/CRM-ai-native/src/sync/provider.js';
+import { createProviderRegistry } from '../../src/sync/provider.js';
 
 describe('sync provider 注册表', () => {
   it('已注册 kind 返回 provider 实例（三方法齐备）', () => {

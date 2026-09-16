@@ -2,8 +2,8 @@
 // 契约：trust L3 允许回写且首 N 批需人工确认；engine runOnce 在 L3 下执行回写（callWriteback 注入）
 //   回写失败（CAS 拒绝）计入 conflicted 不静默
 import { describe, it, expect, vi } from 'vitest';
-import { createTrustManager } from 'file:///D:/system/CRM-ai-native/src/sync/trust.js';
-import { createSyncEngine } from 'file:///D:/system/CRM-ai-native/src/sync/engine.js';
+import { createTrustManager } from '../../src/sync/trust.js';
+import { createSyncEngine } from '../../src/sync/engine.js';
 
 describe('writeback gate（T04 回写入网关）', () => {
   it('L3 允许回写且首 N 批需人工确认（first_n_batches_require_human）', async () => {

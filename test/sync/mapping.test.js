@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMappingResolver } from 'file:///D:/system/CRM-ai-native/src/sync/mapping.js';
+import { createMappingResolver } from '../../src/sync/mapping.js';
 
 describe('sync mapping（声明式映射层）', () => {
   it('按映射配置把外部字段映射到粒子 payload（含类型转换）', () => {

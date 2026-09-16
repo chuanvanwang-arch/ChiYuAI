@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePrice, getUnitPrice } from 'file:///D:/system/CRM-ai-native/src/sales/priceCalc.js';
+import { resolvePrice, getUnitPrice } from '../../src/sales/priceCalc.js';
 
 describe('quote baseline（报价基线 T08）', () => {
   it('命中既有价格表 → 返回真实价', () => {
