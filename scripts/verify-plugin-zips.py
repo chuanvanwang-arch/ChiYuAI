@@ -135,7 +135,7 @@ def check_zip(path, expect_name, expect_version, skill_names, content_rules):
 check_zip(
     os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
     expect_name="crm-native",
-    expect_version="1.10.0",
+    expect_version="1.12.0",
     skill_names=["crm-native", "crm-query", "crm-write", "crm-risk", "decision-retrospective",
                  "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map",
                  "method-risk-tradeoff", "method-stop-loss", "method-fact-vs-script",
@@ -191,6 +191,13 @@ check_zip(
         "skill 首次接入含 OAuth 授权渠道（推荐）": (r"OAuth 授权", True, "skills/crm-native/SKILL.md"),
         "agent 首次接入含 OAuth 授权渠道（推荐）": (r"OAuth 授权", True, "agents/crm-native.md"),
         "skill 含 401 resource_metadata 触发语义": (r"resource_metadata", True, "skills/crm-native/SKILL.md"),
+        # 2026-09-17 新增对外 MCP 工具：crm-signal-list / crm-signal-ics（主动运行时信号总线，
+        #   Plan A 日历规则 + Plan B 内部异动派生的对外出口）。背景：后端已跑通（crm.signal 有产出）
+        #   但专家包读清单不含二者 ⇒ 外部办公智能体看得见工具名、不知道何时用 → 「落树不可感知」。
+        #   三条均锚定 skills/crm-native/SKILL.md，否则会被 plugin.json / README 抢先满足而假绿。
+        "skill 含 crm-signal-list 信号查询路由": (r"crm-signal-list", True, "skills/crm-native/SKILL.md"),
+        "skill 含 crm-signal-ics 日历导出路由": (r"crm-signal-ics", True, "skills/crm-native/SKILL.md"),
+        "skill 含信号内部推断低置信警示": (r"内部推断（低置信）", True, "skills/crm-native/SKILL.md"),
     },
 )
 
@@ -198,7 +205,7 @@ check_zip(
 check_zip(
     os.path.join(REPO, "plugin-platform-admin.zip"),
     expect_name="crm-platform-admin",
-    expect_version="1.2.0",
+    expect_version="1.3.0",
     skill_names=["industry-onboarding", "user-rbac-admin", "system-bootstrap", "platform-ops-insight"],
     content_rules={
         "industry-onboarding 含 Step 4B 按租户播种主数据": (r"Step 4B", True),
@@ -215,6 +222,143 @@ check_zip(
         "industry-onboarding 标注付费源不得启用": (r"付费源", True, "skills/industry-onboarding/SKILL.md"),
     },
 )
+
+def _md5(p):
+    import hashlib
+    with open(p, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()
+
+
+def check_skill_mirrors():
+    """SKILL.md 多副本漂移守卫（2026-09-17 新增）。
+
+    背景（本轮实测）：同一份 `skills/<x>/SKILL.md` 在仓库里存在 **3 份副本**——
+      A. `skills/`              → 权威源（pack-crm-plugin.py 打包源）
+      B. `connector/skills/`    → **实时镜像**（Buddy 连接器分发的技能文档，BUDDY 侧读这里）
+      C. `.workbuddy-plugin/skills/` → 历史分发副本（无任何打包脚本消费）
+    A 改而 B 不改 = 「后端/打包已更新，BUDDY 仍看到旧用法」的静默失配 —— 与
+    「落树≠可感知」同族。故对 **A↔B 作硬断言**；C 属死副本，仅告警不阻断（见 WARN）。
+
+    规则：A 下每个文件都必须在 B 中存在且 **逐字节相同**（B 允许有 A 没有的
+    connector 专属技能，如 `crm-cli`，不计失败）。
+    """
+    print(f"\n{'=' * 60}\nskills/ ↔ connector/skills/  (实时镜像漂移守卫)\n{'=' * 60}")
+    a_root = os.path.join(REPO, "skills")
+    b_root = os.path.join(REPO, "connector", "skills")
+    if not (os.path.isdir(a_root) and os.path.isdir(b_root)):
+        bad(f"镜像目录缺失：{a_root} 或 {b_root}")
+        return
+    missing, drift, same = [], [], 0
+    for dirpath, _dirnames, filenames in os.walk(a_root):
+        for fn in filenames:
+            rel = os.path.relpath(os.path.join(dirpath, fn), a_root)
+            bp = os.path.join(b_root, rel)
+            if not os.path.exists(bp):
+                missing.append(rel)
+            elif _md5(os.path.join(dirpath, fn)) != _md5(bp):
+                drift.append(rel)
+            else:
+                same += 1
+    if missing or drift:
+        for r in missing[:10]:
+            bad(f"connector/skills 缺失：{r}")
+        for r in drift[:10]:
+            bad(f"connector/skills 漂移（内容不一致）：{r}")
+        bad(f"镜像不一致：相同 {same} / 缺失 {len(missing)} / 漂移 {len(drift)}"
+            f" → 跑 `cp -r skills/<x>/SKILL.md connector/skills/<x>/SKILL.md` 同步"
+            f"（或整体 `cp -r skills/. connector/skills/`，保留 connector 专属技能）")
+    else:
+        ok(f"实时镜像一致（{same} 个文件逐字节相同，零缺失零漂移）")
+
+    # 死副本只告警：不阻断校验，但必须显式可见（禁静默）
+    c_root = os.path.join(REPO, ".workbuddy-plugin", "skills")
+    if os.path.isdir(c_root):
+        c_drift = []
+        for dirpath, _dirnames, filenames in os.walk(a_root):
+            for fn in filenames:
+                rel = os.path.relpath(os.path.join(dirpath, fn), a_root)
+                cp = os.path.join(c_root, rel)
+                if not os.path.exists(cp) or _md5(os.path.join(dirpath, fn)) != _md5(cp):
+                    c_drift.append(rel)
+        if c_drift:
+            print(f"  [WARN] .workbuddy-plugin/skills/ 已漂移 {len(c_drift)} 个文件"
+                  f"（历史分发副本，**无任何打包脚本消费**，不影响发布产物；"
+                  f"建议同步或移除，避免后人误以为它是源）")
+        else:
+            ok(".workbuddy-plugin/skills/ 与权威源一致")
+
+
+def check_preview_artifacts():
+    """预览页 ↔ 清单的**结构一致性**自动核对（手工/后处理产物，无法自动重建）。
+
+    两个文件都**无法**自动同步：
+      · `assets/capsules/index.html`  —— 无生成器；`pack-buddy-import.mjs` 打包时**显式排除**。
+      · `assets/capsules/form-cards.html` —— 由 `gen-capsule-form-cards.mjs` 生成后，
+        被**外部编辑器追加 `data-page-node-id`**；直接重生成会抹掉该后处理（实测 945/700 行差异），
+        故只能手工增量维护。
+
+    ⚠ 只核对「计数声明」不够：数字写对但**漏卡片**同样是静默陈旧（2026-09-17 实测：
+      form-cards 写「14 个胶囊」而清单已 17，且实际缺 3 张卡）。故同时核对**结构证据**——
+      卡片节点数 与 胶囊图标引用覆盖。不阻断（二者均非打包必需件），但每次运行必现。
+    """
+    print(f"\n{'=' * 60}\nassets/capsules 预览页 ↔ 清单（手工/后处理产物，结构一致性）\n{'=' * 60}")
+    mf = os.path.join(REPO, "buddy-crm-manifest.json")
+    if not os.path.exists(mf):
+        print("  [WARN] buddy-crm-manifest.json 缺失，跳过")
+        return
+    man = json.load(open(mf, encoding="utf-8"))
+    modes = (man.get("home") or {}).get("workModes") or []
+    total = sum(len(w.get("capsules") or []) for w in modes)
+    icons = sorted({
+        os.path.basename(c["icon"])
+        for w in modes for c in (w.get("capsules") or []) if c.get("icon")
+    })
+
+    def review(rel, count_pattern, card_pattern, icon_pattern):
+        p = os.path.join(REPO, rel.replace("/", os.sep))
+        if not os.path.exists(p):
+            print(f"  [WARN] {rel} 不存在（若已废弃请从 check_preview_artifacts 移除）")
+            return
+        txt = open(p, encoding="utf-8").read()
+        # ① 计数声明
+        m = re.search(count_pattern, txt)
+        if not m:
+            print(f"  [WARN] {rel} 未找到计数声明（格式可能已变，需人工核对）")
+        elif int(m.group(1)) != total:
+            print(f"  [WARN] {rel} 计数陈旧：写 {m.group(1)}，实际应为 {total}（禁静默陈旧）")
+        else:
+            print(f"  [OK]   {rel} 计数一致（{total} 个胶囊）")
+        # ② 结构证据：卡片节点数（无稳定节点模式的文件传 None 跳过）
+        if card_pattern:
+            cards = len(re.findall(card_pattern, txt))
+            if cards == total:
+                print(f"  [OK]   {rel} 卡片节点 {cards} 个 = 胶囊总数")
+            else:
+                print(f"  [WARN] {rel} 卡片节点 {cards} 个 ≠ 胶囊总数 {total}"
+                      f"（漏卡 = 分发面陈旧，禁静默）")
+        # ③ 结构证据：图标节点数
+        #    ⚠ 只验「图标名在文中出现过」太弱——同一图标有 3 处引用时删 1 处仍会通过（实测）。
+        #      故按**节点**计数：每张卡必须恰好挂 1 个图标节点。
+        nodes = len(re.findall(icon_pattern, txt))
+        if nodes == total:
+            print(f"  [OK]   {rel} 图标节点 {nodes} 个 = 胶囊总数")
+        else:
+            print(f"  [WARN] {rel} 图标节点 {nodes} 个 ≠ 胶囊总数 {total}"
+                  f"（卡片缺图标 = 分发面陈旧，禁静默）")
+        # ④ 图标名覆盖（防整类图标漏挂）
+        miss = [i for i in icons if i not in txt]
+        if miss:
+            print(f"  [WARN] {rel} 缺 {len(miss)} 个胶囊图标："
+                  f"{', '.join(miss[:6])}{' …' if len(miss) > 6 else ''}")
+        else:
+            print(f"  [OK]   {rel} 覆盖全部 {len(icons)} 个胶囊图标")
+
+    review("assets/capsules/index.html", r"(\d+)\s*个场景胶囊",
+           None, r'src="\./[a-z0-9-]+\.svg"')
+    review("assets/capsules/form-cards.html",
+           r"共\s*\d+\s*个工作模式\s*/\s*(\d+)\s*个胶囊",
+           r'id="cap-[a-z0-9-]+"', r'class="ico" src="\./[a-z0-9-]+\.svg"')
+
 
 def check_connector():
     """2026-09-15 OAuth 改造回退守卫：连接器必须声明 oauth，且不得再写死 Authorization 头。
@@ -252,7 +396,136 @@ def check_connector():
             ok(f"token-schema.json 字段 = {keys}")
 
 
+def check_expert_display_fields():
+    """专家卡片展示字段的「源清单 ↔ 包内」一致性守卫（2026-09-17 新增）。
+
+    背景（取证见 `.workbuddy/memory/reference-infra-and-guards.md` §十三）：用户可见的专家
+    卡片三层 = **大字 `profession`** / **灰色小标题 `displayName`** / 描述 `displayDescription`
+    （客户端 `ExpertCard` 用 `profession` 作 h3、`displayName` 落副标题位/花名位）。
+    `displayName` 是「小标题」的**唯一载体**，但它同时散落在源清单、`agents/*.md` frontmatter
+    与 4 个 zip 里 —— **只改源不重打包 = 用户永远看不到新小标题**（与「落树≠可感知」同族）。
+
+    规则：两个规范包内 `.codebuddy-plugin/plugin.json` 的 `displayName` 与 `profession`
+    必须与**源清单逐字一致**（zh 与 en 都比）。`displayDescription.zh` 由打包脚本强制归一到
+    40–50 字，故不参与比对（越界会被静默回写为固定句式）。
+    """
+    print(f"\n{'=' * 60}\n专家卡片字段 源清单 ↔ 包内  (小标题漂移守卫)\n{'=' * 60}")
+    pairs = [
+        (os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
+         os.path.join(REPO, ".workbuddy-plugin", "plugin.json"), "crm-native"),
+        (os.path.join(REPO, "plugin-platform-admin.zip"),
+         os.path.join(REPO, "plugin-platform-admin", ".codebuddy-plugin", "plugin.json"),
+         "crm-platform-admin"),
+    ]
+    for zip_path, src_path, label in pairs:
+        if not (os.path.exists(zip_path) and os.path.exists(src_path)):
+            bad(f"{label}: 包或源清单缺失（{zip_path} / {src_path}）")
+            continue
+        with zipfile.ZipFile(zip_path) as z:
+            inner_pj = json.loads(z.read(".codebuddy-plugin/plugin.json"))
+        src_pj = json.load(open(src_path, encoding="utf-8"))
+        for field in ("displayName", "profession"):
+            a = src_pj.get(field) or {}
+            b = inner_pj.get(field) or {}
+            if a == b:
+                ok(f"{label}.{field} 源↔包一致（zh={a.get('zh')!r}）")
+            else:
+                bad(f"{label}.{field} 源↔包不一致：源 {a} vs 包 {b}"
+                    f" → 跑 `python scripts/pack-{'crm' if label == 'crm-native' else 'platform-admin'}-plugin.py` 重打包")
+        # 小标题禁为空 / 禁回退成技术 ID（早期值形态）
+        dz = (inner_pj.get("displayName") or {}).get("zh", "")
+        if dz and dz not in (label, "crm-native", "crm-platform-admin"):
+            ok(f"{label}.displayName.zh 非空且非技术 ID（{dz}）")
+        else:
+            bad(f"{label}.displayName.zh 缺失或退化为技术 ID：{dz!r}")
+
+
+# ---- 版本一致性守卫 ----
+# 为什么需要：2026-09-17 实测发现 1.11.0 轮次**只** bump 了权威源与包内清单，
+#   `plugin/openclaw.plugin.json` 与 `plugin/package.json` 漏改（仍停 1.10.0），
+#   而 README 把三者并称「版本三清单」⇒ **文档承诺与文件事实不一致，且无任何断言能发现**。
+#   `plugin/.workbuddy-plugin/plugin.json`（历史嵌套副本，不参与分发）更长期停在 1.5.0，
+#   属同族漂移噪声。本守卫把「版本一致」变成可断言对象。
+VERSION_GROUPS = [
+    ("crm-native", [
+        ".workbuddy-plugin/plugin.json",                 # 权威源（pack-crm-plugin.py 读它）
+        "plugin/openclaw.plugin.json",                   # ClawHub 清单
+        "plugin/package.json",                           # npm 清单
+        "plugin/.workbuddy-plugin/plugin.json",          # 历史嵌套副本（不参与分发，仅防漂移噪声）
+    ]),
+    ("crm-platform-admin", [
+        "plugin-platform-admin/.codebuddy-plugin/plugin.json",   # 权威源
+        "plugin-platform-admin/openclaw.plugin.json",            # ClawHub 清单
+        "plugin-platform-admin/package.json",                    # npm 清单
+    ]),
+]
+
+
+def check_version_consistency():
+    print(f"\n{'=' * 60}\n版本一致性  (版本清单漂移守卫)\n{'=' * 60}")
+    for label, rels in VERSION_GROUPS:
+        found = {}
+        for rel in rels:
+            p = os.path.join(REPO, rel.replace("/", os.sep))
+            if not os.path.exists(p):
+                bad(f"{label}: 版本清单缺失 {rel}")
+                continue
+            try:
+                d = json.load(open(p, encoding="utf-8"))
+            except Exception as e:
+                bad(f"{label}: {rel} 非合法 JSON（{e}）")
+                continue
+            found[rel] = d.get("version")
+
+        missing = [r for r, v in found.items() if not v]
+        for r in missing:
+            bad(f"{label}: {r} 无 version 字段")
+        vals = {r: v for r, v in found.items() if v}
+        if not vals:
+            continue
+        uniq = set(vals.values())
+        if len(uniq) == 1 and not missing:
+            v = uniq.pop()
+            ok(f"{label} 版本清单一致（{len(vals)} 文件）= {v}")
+        else:
+            bad(f"{label} 版本漂移 —— {len(vals)} 个清单出现 {len(uniq)} 个版本："
+                + "; ".join(f"{r}={v}" for r, v in sorted(vals.items()))
+                + " → 所有清单须同步 bump（不要只改权威源）")
+
+    # 包内清单 ↔ 权威源（防「改了源忘记重打包 = 用户看到的仍是旧版本」）
+    pairs = [
+        (os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
+         os.path.join(REPO, ".workbuddy-plugin", "plugin.json"),
+         "crm-native", "crm"),
+        (os.path.join(REPO, "plugin-platform-admin.zip"),
+         os.path.join(REPO, "plugin-platform-admin", ".codebuddy-plugin", "plugin.json"),
+         "crm-platform-admin", "platform-admin"),
+    ]
+    for zip_path, src_path, label, packer in pairs:
+        if not (os.path.exists(zip_path) and os.path.exists(src_path)):
+            bad(f"{label}: 包或源清单缺失，无法比对版本")
+            continue
+        with zipfile.ZipFile(zip_path) as z:
+            inner_v = json.loads(z.read(".codebuddy-plugin/plugin.json")).get("version")
+        src_v = json.load(open(src_path, encoding="utf-8")).get("version")
+        if inner_v == src_v:
+            ok(f"{label} 包内版本 = 源版本 = {src_v}")
+        else:
+            bad(f"{label} 包内版本 {inner_v} ≠ 源版本 {src_v}"
+                f" → 跑 `python scripts/pack-{packer}-plugin.py` 重打包")
+
+    # connector 为**独立版本线**（不与专家包等值），仅作信息输出，避免伪断言。
+    meta_p = os.path.join(REPO, "connector", "connector-meta.json")
+    if os.path.exists(meta_p):
+        mv = json.load(open(meta_p, encoding="utf-8")).get("version")
+        print(f"  [INFO] connector 独立版本线：connector-meta.json version = {mv}")
+
+
 check_connector()
+check_skill_mirrors()
+check_preview_artifacts()
+check_expert_display_fields()
+check_version_consistency()
 
 print("\n" + "=" * 60)
 if FAIL:

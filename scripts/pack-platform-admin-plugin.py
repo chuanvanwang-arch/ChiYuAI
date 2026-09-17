@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-pack-platform-admin-plugin.py — 将 CRM 平台管理助手打包为 WorkBuddy 合规 .zip 分发文件。
+pack-platform-admin-plugin.py — 将企业AI销售决策管理专家（crm-platform-admin）打包为 WorkBuddy 合规 .zip 分发文件。
 
 与 scripts/pack-crm-plugin.py 同构（同一套合规规则），差异仅在源目录与产物名：
   - 源清单：plugin-platform-admin/.codebuddy-plugin/plugin.json
