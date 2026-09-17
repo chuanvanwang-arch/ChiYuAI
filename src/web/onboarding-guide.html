@@ -47,9 +47,19 @@
         <p class="hint">填多少算多少，留空即跳过该项。密码字段只用于本机直连邮箱，服务端加密落库。</p>
         <div class="field"><label for="email">常用邮箱地址</label><input type="text" id="email" placeholder="you@company.com" autocomplete="off" /></div>
         <div class="field"><label for="pass">邮箱密码 / 授权码</label><input type="password" id="pass" placeholder="（不填则跳过邮箱）" autocomplete="off" /></div>
-        <div class="field"><label for="im">企业微信 / 飞书 / 钉钉</label><input type="text" id="im" placeholder="企微 corpid / 飞书 app_id / 钉钉 appkey（可留空）" autocomplete="off" /></div>
-        <div class="field"><label for="wx">个人微信（可选）</label><input type="text" id="wx" placeholder="未接入不影响核心功能" autocomplete="off" /></div>
-        <div class="field"><label for="cal">日历（可选）</label><input type="text" id="cal" placeholder="CalDAV 地址或账号（可留空）" autocomplete="off" /></div>
+        <div class="field"><label for="wx">企业微信 corpid</label><input type="text" id="wx" placeholder="（不填则跳过企微）" autocomplete="off" /></div>
+        <div class="field"><label for="wxsecret">企业微信密钥 corpsecret</label><input type="password" id="wxsecret" placeholder="企微后台获取；与 corpid 成对" autocomplete="off" /></div>
+        <!-- 高级项默认折叠：保持「系统问、用户答」的极简三步；多数租户留空即可 -->
+        <details id="adv">
+          <summary>高级：邮箱服务器 / 日历 / 会议接口（多数情况可留空）</summary>
+          <div class="field"><label for="host">邮箱服务器 host</label><input type="text" id="host" placeholder="留空则按邮箱域名推导为 imap.&lt;域名&gt;" autocomplete="off" /></div>
+          <div class="field"><label for="cal">日历 CalDAV 地址</label><input type="text" id="cal" placeholder="https://cal.example.com/dav/" autocomplete="off" /></div>
+          <div class="field"><label for="caluser">日历账号（可选）</label><input type="text" id="caluser" placeholder="多数日历需登录" autocomplete="off" /></div>
+          <div class="field"><label for="calpass">日历密码（可选）</label><input type="password" id="calpass" placeholder="可留空" autocomplete="off" /></div>
+          <div class="field"><label for="im">会议接口地址（企微/飞书/钉钉）</label><input type="text" id="im" placeholder="https://api.example.com/v1/meetings" autocomplete="off" /></div>
+          <div class="field"><label for="imtoken">会议接口令牌</label><input type="password" id="imtoken" placeholder="Bearer token" autocomplete="off" /></div>
+        </details>
+        <p class="hint">ℹ️ <b>个人微信</b>：无开放 API，系统<b>不做假接通</b>（未接入不影响核心功能）——本向导只接<b>企业微信</b>。</p>
         <div class="toolbar">
           <button class="primary" id="to2">下一步：验证</button>
           <button class="link" id="skipAll">全部跳过</button>
@@ -59,8 +69,8 @@
       <div id="step2" hidden>
         <h2>② 验证与说明</h2>
         <p class="hint">对已填项做 <b>verifyScope 真实探测</b>（<b>fail-closed</b>：探测不通过即不接入，绝不用 mock 代真）。
-          凭据缺失时明确提示 <code>credentials_missing</code>；真实通道连通未交付时如实报 <code>probe_not_implemented</code>，
-          不把「未验证」伪装成「已验证」。</p>
+          凭据不全 → <code>credentials_incomplete</code>（列出缺哪个字段）；连不通 → <code>connect_failed</code>；
+          账号/密码错 → <code>auth_failed</code>。<b>不把「未验证」伪装成「已验证」</b>。</p>
         <pre id="verifyOut">（点击「开始验证」）</pre>
         <p class="hint">📖 说明：接入后<b>当前只读（L1）</b>——系统只读取并抽取结构化字段（主题/参与方/时间），
           不落原始正文；信任档提升到 L2/L3 需<b>独立审批闸</b>，不在本向导范围。</p>
@@ -99,14 +109,39 @@
     function show(n) {
       for (const i of [1, 2, 3]) { $('step' + i).hidden = i !== n; $('s' + i).classList.toggle('on', i <= n); }
     }
+    // 凭据必填字段（**与后端 probes.js:PROBE_REQUIRED_FIELDS 对齐**——test/web/onboardingGuidePage.test.js
+    //   有跨层守卫断言两者一致；漂移会让用户填完表单仍被后端拒，且前端无提示）
+    const CRED_FIELDS = {
+      'generic-email': ['host', 'user', 'pass'],
+      'generic-calendar': ['url'],
+      'generic-meeting': ['endpoint', 'token'],
+      'generic-wechat': ['corp_id', 'secret'],
+    };
+    // 邮箱服务器推导：you@company.com → imap.company.com（主流邮箱通用约定）。
+    //   ⚠ 推导**不是**判定：推导出的 host 仍要走真实 IMAP LOGIN 探测，连不上即连不上（不假绿）。
+    function deriveImapHost(email) {
+      const d = String(email || '').split('@')[1];
+      return d ? 'imap.' + d.trim().toLowerCase() : '';
+    }
     function collect() {
-      const email = $('email').value.trim(), pass = $('pass').value, im = $('im').value.trim(),
-        wx = $('wx').value.trim(), cal = $('cal').value.trim();
       const out = [];
-      if (email && pass) out.push({ key: 'email', kind: 'generic-email', label: '邮箱', credentials: { user: email, pass } });
-      if (cal) out.push({ key: 'cal', kind: 'generic-calendar', label: '日历', credentials: { endpoint: cal } });
-      if (im) out.push({ key: 'im', kind: 'generic-meeting', label: '会议', credentials: { corp_id: im } });
-      if (wx) out.push({ key: 'wx', kind: 'generic-wechat', label: '微信', credentials: { corp_id: wx } });
+      const email = $('email').value.trim(), pass = $('pass').value;
+      if (email) {
+        const host = $('host').value.trim() || deriveImapHost(email);
+        // host 为空（邮箱地址不合法）时不猜：交给后端报 credentials_incomplete（含 missing）
+        out.push({ key: 'email', kind: 'generic-email', label: '邮箱', credentials: host ? { host, user: email, pass } : { user: email, pass } });
+      }
+      const cal = $('cal').value.trim();
+      if (cal) {
+        const c = { url: cal };
+        const cu = $('caluser').value.trim(), cp = $('calpass').value;
+        if (cu && cp) { c.user = cu; c.pass = cp; }
+        out.push({ key: 'cal', kind: 'generic-calendar', label: '日历', credentials: c });
+      }
+      const im = $('im').value.trim(), imt = $('imtoken').value;
+      if (im || imt) out.push({ key: 'im', kind: 'generic-meeting', label: '会议', credentials: { endpoint: im, token: imt } });
+      const wx = $('wx').value.trim(), ws = $('wxsecret').value;
+      if (wx || ws) out.push({ key: 'wx', kind: 'generic-wechat', label: '企业微信', credentials: { corp_id: wx, secret: ws } });
       return out;
     }
     function tenantId() { return new URLSearchParams(location.search).get('tenant_id') || 'system'; }
@@ -127,13 +162,26 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1', verify_only: true }),
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
-        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + (res.hint ? ' — ' + res.hint : '')}\n`;
+        // missing（缺哪个字段）必须显示：否则用户只知道「不通过」，不知道改哪里
+        const miss = Array.isArray(res.missing) && res.missing.length ? `（缺：${res.missing.join('、')}）` : '';
+        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + miss + (res.hint ? ' — ' + res.hint : '')}\n`;
       }
     };
 
+    // 确认前明示「系统将连哪里」（设计 §4.5.1：展示探测目标/账号归属，用户知情后才确认）。
+    //   ⚠ 只显示连接目标（host/URL 主机），**绝不回显密码/令牌**（明文不落前端）。
+    function targetOf(c) {
+      const cr = c.credentials || {};
+      const raw = cr.host || cr.url || cr.endpoint || (c.kind === 'generic-wechat' ? 'qyapi.weixin.qq.com' : '');
+      if (!raw) return '';
+      try { return new URL(/^https?:\/\//i.test(raw) ? raw : `imap://${raw}`).host || String(raw); } catch { return String(raw); }
+    }
     function renderPlan() {
       $('planOut').textContent = collected.length
-        ? collected.map((c, i) => `${i + 1}. ${c.label}（${c.kind}）→ 信任档 L1 只读`).join('\n')
+        ? collected.map((c, i) => {
+          const t = targetOf(c);
+          return `${i + 1}. ${c.label}（${c.kind}）→ 信任档 L1 只读${t ? `｜连接目标 ${t}` : ''}`;
+        }).join('\n')
         : '（无拟接入项 —— 可整体跳过）';
     }
 

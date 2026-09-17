@@ -61,10 +61,14 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
     }
     // ② verifyScope 真探测（fail-closed；缺凭据→credentials_missing 明确提示）
     if (typeof verifyScope === 'function') {
-      const v = await verifyScope({ tenantId, id, kind }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
+      // ⚠ 必须把本次提交的凭据交给 verifyScope：verify_only（向导②）**不落库**，
+      //   只查 vault 会永远 credentials_missing ⇒ 探针从不执行 ⇒ 「验证」结构性不可通过。
+      const inlineCred = credentials && typeof credentials === 'object' && Object.keys(credentials).length ? credentials : null;
+      const v = await verifyScope({ tenantId, id, kind, credentials: inlineCred }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
       if (!v?.ok) {
         return res.status(400).json({
           ok: false, error: v?.error || 'verify_failed', probe: v?.probe || null,
+          missing: Array.isArray(v?.missing) && v.missing.length ? v.missing : null, // 告诉用户**缺哪个字段**
           hint: v?.hint || '该通道需补齐凭据（credentials_missing）',
         });
       }

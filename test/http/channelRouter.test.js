@@ -108,6 +108,38 @@ describe('channelRouter 契约（T6）', () => {
     expect(JSON.stringify(res.body)).not.toContain('secret-pass');
   });
 
+  it('verify_only 必须把本次凭据交给 verifyScope（否则只查 vault ⇒ 永远 credentials_missing、探针从不执行）', async () => {
+    // 真实缺陷回归：向导② 用 verify_only=true（**不落库**）做探测，而 verifyScope 原先只查 vault
+    //   ⇒ vault 里没有本次凭据 ⇒ 恒返回 credentials_missing ⇒ 探针**一次都不会被调用**
+    //   ⇒ 「开始验证」永远显示失败，用户永远看不到「探测通过」。零副作用 ≠ 零凭据。
+    let seen = null;
+    const { deps, store } = makeDeps({
+      verifyScope: async (a) => { seen = a; return { ok: true, probe: 'imap_login' }; },
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'channel-email-1', kind: 'generic-email', credentials: { host: 'imap.x.com', user: 'u', pass: 'p' }, verify_only: true },
+    }), res);
+    expect(seen, 'verifyScope 未被调用').toBeTruthy();
+    expect(seen.credentials).toEqual({ host: 'imap.x.com', user: 'u', pass: 'p' });
+    expect(store['secret:channel-email-1']).toBeUndefined(); // 仍然零副作用：凭据未落库
+  });
+
+  it('探测失败 → missing 透传到响应（用户能看到「缺哪个字段」而非笼统失败）', async () => {
+    const { deps } = makeDeps({
+      verifyScope: async () => ({ ok: false, error: 'credentials_incomplete', missing: ['host'] }),
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'channel-email-1', kind: 'generic-email', credentials: { user: 'u', pass: 'p' } },
+    }), res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('credentials_incomplete');
+    expect(res.body.missing).toEqual(['host']);
+  });
+
   it('verify_not_wired：未装配探测时 verify_only 不得谎称已验证（fail-closed）', async () => {
     const { deps } = makeDeps({ verifyScope: null });
     const r = createChannelRouter(deps);
