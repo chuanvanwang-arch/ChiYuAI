@@ -16,9 +16,11 @@
 | 3 | 生产装配（零接线→可构造） | ✅ | `src/scheduler/timers.js:532-536` ⑩ `syncFactories = { ...SYNC_PROVIDER_FACTORY, ...PRESET_FACTORIES }` → `mount.loadTenantSyncTargets` |
 | 4 | 信任档闸门（L1 只读→L3 可回写） | ✅ | `src/sync/mount.js` `effectiveTrustLevel = min(descriptor, global)`，无自动提权 |
 | 5 | 回写方向（第 0 闸放行） | ✅ | `src/sync/writeback.js` + `timers.js:564` dispatcher（decision 驱动） |
-| 6 | **真实租户连通** | 🔴 **未做（Q2-5 缺口）** | 需接入方提供真实 endpoint/凭据/对象；**未接通不得宣称已连通**（判据②：成立行禁来自 smoke/mock） |
+| 6 | **真实租户连通（需求④ 同步集成）** | 🔴 **未做（Q2-5 缺口）** | 需接入方提供真实 endpoint/凭据/对象；**未接通不得宣称已连通**（判据②：成立行禁来自 smoke/mock） |
+| 7 | **真实租户连通（需求② 邮箱通道）** | 🟡 **链路已验证 / 凭据待换** | 2026-09-18 实测：`imap.163.com:993` TLS 握手成功、IMAP 协议正常，服务端对**登录密码**回 `A1 NO LOGIN Login error or password error` → 真因是国内邮箱须用**客户端授权码**（非密码）。探针与向导已能如实报出该拒因并给出下一步；**换成授权码后可即时复验**（`node scripts/_probe_email_realcred.mjs`，凭据经环境变量传入，不落库） |
 
 > 🔴 **本手册是「如何接通」的操作步骤，不是「已接通」的验收报告。** 接通动作需租户提供真实凭据后执行，产出 `verifyAuth ok` 才算数。
+> 🟡 **国内邮箱（163/126/QQ）专项**：IMAP/SMTP 一律要求「客户端授权码」，**登录密码必定 `auth_failed`**。路径：登录网页邮箱 → 设置 → 开启 POP3/SMTP/IMAP 服务 → 生成授权码 → 用授权码替代密码填入向导。163 的 IMAP 亦可能要求先开启服务，未开启时同样表现为 `auth_failed`（服务端不区分两种原因，须人工确认设置状态）。
 
 ---
 
