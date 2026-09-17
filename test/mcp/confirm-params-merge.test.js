@@ -39,15 +39,29 @@ describe('mergePhase2Params（纯函数：只增补、禁覆盖）', () => {
     expect(conflict).toBe('amount');
   });
 
-  it('协议位键（confirm_token/api_token/choice/force/…）不参与合并与冲突判定', () => {
+  it('协议位键（confirm_token/api_token/choice/decision_id/…）不参与合并与冲突判定', () => {
     const session = { params: { name: '甲客户' } };
     const { params, conflict } = mergePhase2Params(session, {
-      confirm_token: 'ct_x', api_token: 'tk_x', choice: '1', force: true, decision_id: 'd1', extra: 1,
+      confirm_token: 'ct_x', api_token: 'tk_x', choice: '1', decision_id: 'd1', extra: 1,
     });
     expect(conflict).toBeNull();
     expect(params).toEqual({ name: '甲客户', extra: 1 });
     expect(params.confirm_token).toBeUndefined();
-    expect(params.force).toBeUndefined();
+    expect(params.api_token).toBeUndefined();
+  });
+
+  // force **是业务执行参数**，不是协议位（2026-09-09 决策：executor 第 2 闸「R6 高危写 force 双闸」
+  //   读 params.force；若把 force 当协议位跳过合并 → force 永不进 execParams →
+  //   data-particle-update（force:true）经 MCP 通道恒被 needs_force 拒绝。见 gateway.js:22-24 决策注释。
+  //   本用例即该决策的回归锚点：刻意**不**使用 force 作协议位样例（17c8faf 前的旧期望已过期）。
+  it('force 属业务参数 → 参与合并（锚定 gateway.js:22-24 决策，防回归）', () => {
+    const session = { params: { name: '甲客户' } };
+    const { params, conflict, added } = mergePhase2Params(session, { force: true });
+    expect(conflict).toBeNull();
+    expect(added).toEqual(['force']);
+    expect(params.force).toBe(true);
+    // 已展示键被 force 改写仍须冲突（业务参数享有与其它业务参数同等的覆盖保护）
+    expect(mergePhase2Params({ params: { force: false } }, { force: true }).conflict).toBe('force');
   });
 
   it('phase2 空 → 与 phase1 完全等价（向后兼容旧调用方）', () => {
