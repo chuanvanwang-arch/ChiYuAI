@@ -71,7 +71,9 @@ export function createConnectorRouter({ resolveMe, dispatch, runDiscovery, runSy
         // 第 0 闸：L2/L3 写路径须铸决策；铸不出 → 内核拒写（fail-closed，与 timers.js 集成轮询同源装配）
         mintDecision: async (scene, ctx) => {
           const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
-          return { decisionId: r?.decision_id || null };
+          // 凭证读取收敛到 autonomyEngine.decisionIdOf（此前按顶层 `r.decision_id` 读 → 恒 undefined
+          //   → L2/L3 写路径被判「无决策」而结构性 fail-closed；2026-09-16 修复）
+          return { decisionId: autonomy?.decisionIdOf?.(r) ?? null };
         },
       },
     });

@@ -2,7 +2,7 @@
 // 渲染纯函数（浏览器 + vitest 共用）+ 表驱动 GET/PUT 端点（决策第0闸）
 // 数据后端：CRM_APPROVAL_* 粒子（方案 A：配置页直写粒子，单一事实源；2026-08-31 接通运行态引擎，原 crm.approval_flow 表降级只读兼容）
 import { Router } from 'express';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { getFlowByDomain, getFlowByDomainWithFallback, writeFlowFromStages } from '../approval/flow.js';
 import { queryParticles } from '../particles/particleRepo.js';
@@ -110,7 +110,8 @@ const defaultDeps = {
   produceDecision: async (ctx) => {
     try {
       const r = await requireDecision('config-change', ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { trigger_context: ctx });
       return { decisionId: null, ok: true };

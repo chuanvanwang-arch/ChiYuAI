@@ -14,7 +14,7 @@
 //   · 禁物理 DELETE：deleteConfig 内部软删 is_deleted
 //   router.handlers = {list, create, update, remove, setDefault, test}（注入式测试无需起服务器）
 import { Router } from 'express';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { resolveMe as realResolveMe } from './auth.js';
 import { scopeTenant, scopeOf } from './tenantScope.js';
@@ -34,7 +34,8 @@ const defaultDeps = {
   produceDecision: async (scene, ctx) => {
     try {
       const r = await requireDecision(scene, ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { scenario_id: scene, trigger_context: ctx });
       return { decisionId: null, ok: true };

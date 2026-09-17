@@ -40,7 +40,8 @@ function defaultDeps() {
     requireDecision: async (ctx) => {
       try {
         const r = await requireDecisionReal('config-change', ctx || {});
-        return { decision_id: r.decision_id || null, ok: !!r.decision_id };
+        const did = decisionIdOf(r);
+        return { decision_id: did, ok: !!did };
       } catch {
         await recordDecisionEvent('config_change', { trigger_context: ctx });
         return { decision_id: null, ok: true };
@@ -133,5 +134,5 @@ function resolveMe(req) {
 }
 
 // 决策引擎真实实现（懒加载，避免顶部 ESM 循环依赖）
-import { requireDecision as requireDecisionReal } from '../decision/autonomyEngine.js';
+import { requireDecision as requireDecisionReal, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';

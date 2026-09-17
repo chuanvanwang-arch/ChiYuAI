@@ -112,6 +112,20 @@ async function dispatchDecisionAgent(intent, { scenario_id, decision_id = null, 
   }
 }
 
+// ── 决策凭证读取的**唯一**入口（2026-09-16 收敛）──
+// 背景：`requireDecision` 返回 `{ mode, decision, confidence, … }` —— 凭证在 **`result.decision.decision_id`**。
+//   但库内曾有 **11 处**调用方按「顶层 `result.decision_id`」读取（configRouter / connectorRouter /
+//   llmConfigRouter / namedAccountAssignRouter / 6 个 portal 配置模块 / scheduler.timers 集成轮询）
+//   → 恒得 `undefined`，造成两类后果：
+//     ① 配置写 `decision_id` 恒 NULL —— 决策确实铸了却与配置行断链（第 0 闸「有决策、无留痕」）；
+//     ② L2/L3 同步写路径被判「无决策」→ **结构性 fail-closed**（且被 `.catch(() => null)` 掩盖成"没配置"）。
+// 唯一正确读法此前只存在于 `src/action/executor.js:70`（`d.decision.decision_id`）。
+// 为避免出现第 12 处，读取权收敛到本函数（对齐本仓「同名字段解释权收敛单一模块」铁律）。
+// ⚠ 刻意**不**在 `requireDecision` 里补一个顶层 `decision_id` 别名：那会引入同义双键（本仓已明文禁止）。
+export function decisionIdOf(result) {
+  return result?.decision?.decision_id || null;
+}
+
 export async function requireDecision(scenario_id, trigger_context = {}, involved_entities = [], opts = {}) {
   // cfg 优先级：opts.conf（显式注入，测试/特殊通道）> config_store['autonomy-conf']（校准外置）> DEFAULT_CONF（出厂缺省）
   const cfg = { ...(await loadEngineConf()), ...(opts.conf || {}) };

@@ -9,7 +9,7 @@
 //   · 密钥字段：secretFields 配置时，PUT 落库前加密、GET 返回掩码（明文不入客户端/日志）
 //   router.handlers = {get, put}（Express 路由内部转调；测试直接调 handlers，注入式依赖）
 import { Router } from 'express';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { sevenDimensionsCheck } from '../sevenDimensions/engine.js';
 import { resolveMe as realResolveMe } from './auth.js';
@@ -26,7 +26,8 @@ const defaultDeps = {
   produceDecision: async (scene, ctx) => {
     try {
       const r = await requireDecision(scene, ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { scenario_id: scene, trigger_context: ctx });
       return { decisionId: null, ok: true };

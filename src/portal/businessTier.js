@@ -4,7 +4,7 @@
 // tier 取值：LEAD / NORMAL / HIGH；引擎 computeBusinessTier 按两维取高风险优先
 import { Router } from 'express';
 import { query } from '../db.js';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { resolveMe } from '../http/auth.js';
 import { scopeTenant, scopeOf } from '../http/tenantScope.js';
@@ -213,7 +213,8 @@ const defaultDeps = {
   produceDecision: async (ctx) => {
     try {
       const r = await requireDecision('config-change', ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { trigger_context: ctx });
       return { decisionId: null, ok: true };

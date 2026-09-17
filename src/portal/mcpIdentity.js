@@ -2,7 +2,7 @@
 // 零信任：token 仅存哈希（crm.mcp_identity.token_hash），明文仅创建时一次性返回前端
 import { Router } from 'express';
 import { query } from '../db.js';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { newStructuredToken } from '../mcp/tokenFormat.js';
 import { hasRole } from '../http/middleware/rbac.js';
@@ -151,7 +151,8 @@ const defaultDeps = {
   produceDecision: async (ctx) => {
     try {
       const r = await requireDecision('config-change', ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { trigger_context: ctx });
       return { decisionId: null, ok: true };

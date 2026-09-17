@@ -546,7 +546,10 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
               // 第 0 闸：L2/L3 每 run 铸一枚决策；铸不出 → decisionId=null → 内核侧拒写（fail-closed）
               mintDecision: async (scene, ctx) => {
                 const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
-                return { decisionId: r?.decision_id || null };
+                // 凭证读取收敛到 autonomyEngine.decisionIdOf（此前按顶层 `r.decision_id` 读 → 恒 undefined
+                //   → 集成同步 L2/L3 被判「无决策」而结构性 fail-closed，且被 .catch(() => null) 掩盖；
+                //   2026-09-16 由「模拟种子」实跑暴露：decision 表已新增行，但 decisionId 仍为 null）
+                return { decisionId: autonomy?.decisionIdOf?.(r) ?? null };
               },
             },
           });

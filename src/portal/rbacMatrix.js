@@ -5,7 +5,7 @@
 // 引擎 enforceScope(src/context/scope.js:81) 比对 data_scope.domain vs 粒子 type(全名 CRM_*)
 import { Router } from 'express';
 import { query } from '../db.js';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 
 // 业务可授权粒子（矩阵列，canonical CRM_* 名）
@@ -136,7 +136,8 @@ const defaultDeps = {
   produceDecision: async (ctx) => {
     try {
       const r = await requireDecision('config-change', ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { trigger_context: ctx });
       return { decisionId: null, ok: true };

@@ -77,7 +77,7 @@ export function validateCheckParams(cp) {
 // 2026-09-05 G3：读按 scopeTenant(me)（admin '*' → system），写按 scopeOf(me)（永不通配）；persist 走写池
 import { Router } from 'express';
 import { query, queryWrite } from '../db.js';
-import { requireDecision } from '../decision/autonomyEngine.js';
+import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { listAlertRules, updateAlertRule } from '../alerts/alertRegistry.js';
 import { resolveMe } from '../http/auth.js';
@@ -113,7 +113,8 @@ const defaultDeps = {
   produceDecision: async (ctx) => {
     try {
       const r = await requireDecision('config-change', ctx || {});
-      return { decisionId: r.decision_id || null, ok: !!r.decision_id };
+      const did = decisionIdOf(r);
+      return { decisionId: did, ok: !!did };
     } catch {
       await recordDecisionEvent('config_change', { trigger_context: ctx });
       return { decisionId: null, ok: true };
