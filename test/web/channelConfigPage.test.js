@@ -42,7 +42,18 @@ describe('channel-config.html 配置台', () => {
     expect(src).toContain('/api/channels/connect');
   });
 
-  it('入口可达性：本页链接到首次接入向导；上游页（discovery-rules 外部数据接入）链接到本页', () => {
+  // ── 入口可达性（2026-09-17 实缺陷回归）────────────────────────────────
+  // 事实：本页有 routes serve + 上面全部契约测试全绿 + 与 discovery-rules / 360 / 接入台互链，
+  //   但**主导航零入口**（layoutMenu 无 /channel-config.html）⇒ 用户从侧边栏根本到不了接入面。
+  //   与 discovery.html 同一形态（「页面在、链路通、没人到得了」；判据⑤同族：绿在测试、死在使用）。
+  //   ⚠ 只断言「页面内部有什么」的契约测试，永远发现不了「没人到得了」——入口必须自身成为断言对象，
+  //   否则补完入口后仍会随下次重构静默脱落。
+  it('入口可达性：主导航有入口（防孤岛回归）+ 链到首次接入向导 + 上游页互链', async () => {
+    const { FULL_MENU } = await import('../../src/portal/layoutMenu.js');
+    const hit = FULL_MENU.find((m) => m.href === '/channel-config.html');
+    expect(hit, 'channel-config.html 失去导航入口 → 又变孤岛').toBeTruthy();
+    expect(hit.group).toBe('协同');
+    expect(hit.requiresEntitlement).toEqual(['core_crm']);
     expect(src).toContain('/onboarding-guide.html');
     expect(upstream).toContain('/channel-config.html');
   });

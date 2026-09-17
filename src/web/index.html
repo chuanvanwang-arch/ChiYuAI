@@ -39,6 +39,20 @@
 <!-- NL / copilot 生成结果（⌘K / S02 goal-form 提交后展示 draft 预览） -->
 <div class="nl-result" id="nlResult"></div>
 
+<!-- 首次接入引导（需求②：开通期由**系统主动引导**，而非要人自己去翻配置页）──────────────
+     展示判据：仅当本租户**零通道**时出现；一旦接入任意通道即自动收起（不长期占位、不噪音）。
+     数据源＝/api/channels（与通道配置台 / 接入向导**同一后端**；不另建第二个数据源）。
+     文案必须说清「不接通不影响核心功能」——否则会误导为「系统不完整」。 -->
+<section class="panel" id="onboard-banner" hidden>
+  <h3>🔌 接通外部沟通（可选 · 3 步）</h3>
+  <p style="font-size:13px;color:var(--ink);margin:0 0 10px">
+    接通常用邮箱 / 日历 / 会议 / 企业微信后，系统会自动把客户往来记录提取出来、汇入客户图谱。<br>
+    <b>不接通不影响核心功能</b>，随时可以补接。
+  </p>
+  <crm-button id="goOnboard">开始 3 步接入向导</crm-button>
+  <a href="/channel-config.html" style="font-size:12px;margin-left:12px;color:var(--mut)">或进入通道配置台</a>
+</section>
+
 <!-- 实时事件流（S02 子表为快照，此处为 EventSource 实时推送，常驻预警 SSE） -->
 <section class="panel">
   <h3>📡 实时事件流（实时推送）</h3>
@@ -69,6 +83,19 @@ injectLayout();
     const r = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) { localStorage.clear(); location.href = '/home.html'; }
   } catch { localStorage.clear(); location.href = '/home.html'; }
+})();
+
+// 首次接入引导（需求②「开通期系统主动引导」）
+//   零通道 → 展示；已接通 → 收起。读取失败**静默**（接入面故障不许拖垮首页 S02 出片）。
+(async () => {
+  const box = document.getElementById('onboard-banner');
+  if (!box) return;
+  try {
+    const r = await get('/api/channels');
+    const n = (r?.items || r?.channels || []).length;
+    box.hidden = n > 0;
+  } catch { /* 静默：不破坏首页既有内容 */ }
+  document.getElementById('goOnboard')?.addEventListener('click', () => { location.href = '/onboarding-guide.html'; });
 })();
 
 function escapeHtml(v) {
