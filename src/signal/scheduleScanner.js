@@ -36,20 +36,53 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
     return true;
   }
 
+  // 周期型命中：现在的小时/星期等于规则声明值即为窗口（二者省略则恒真 = 每小时）。
+  //   ⚠ 窗口判定只到「小时」粒度 → 语义上依赖调用频率 ≤ 每小时一次；**幂等**不靠窗口，靠 bucketKey。
+  function hitsPeriodic(rule, now = Date.now()) {
+    const d = new Date(now);
+    if (Number.isInteger(rule.weekday) && d.getDay() !== rule.weekday) return false;
+    if (Number.isInteger(rule.hour) && d.getHours() !== rule.hour) return false;
+    return true;
+  }
+
+  // 桶键：决定「多久算一次新的到期提醒」。同日/同周/同月内重复扫描 → 键相同 → 由
+  //   signalStore.create 的 dedup_key 幂等吸收（不新增行）。
+  function bucketKey(now = Date.now(), bucket = 'day') {
+    const d = new Date(now);
+    const p = (n) => String(n).padStart(2, '0');
+    if (bucket === 'month') return `${d.getFullYear()}-${p(d.getMonth() + 1)}`;
+    if (bucket === 'week') {
+      // ISO 周（周一为首日）
+      const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const day = t.getUTCDay() || 7;
+      t.setUTCDate(t.getUTCDate() + 4 - day);
+      const yStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+      const week = Math.ceil(((t - yStart) / 86400000 + 1) / 7);
+      return `${t.getUTCFullYear()}-W${p(week)}`;
+    }
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
   async function scanOnce({ tenantId = 'system', now = Date.now() } = {}) {
     const cfgRow = await readConfig('signal-schedule', { tenantId }).catch(() => null);
     const cfg = cfgRow?.value || {};
     if (cfg.enabled === false) return { scanned: 0, signals: 0 };
     const rules = Array.isArray(cfg.rules) ? cfg.rules.filter((r) => r.enabled !== false) : [];
     if (!rules.length) return { scanned: 0, signals: 0 };
-    const types = [...new Set(rules.map((r) => r.entity_type))];
+    // 周期型规则不绑粒子（entity_type 为 null）→ 不得进入粒子类型集合：
+    //   传 null 进 `type = ANY(...)` 会让该元素恒为 NULL 匹配（等价于静默丢规则）。
+    const particleRules = rules.filter((r) => r.schedule_kind !== 'periodic' && r.entity_type);
+    const periodicRules = rules.filter((r) => r.schedule_kind === 'periodic');
+    const types = [...new Set(particleRules.map((r) => r.entity_type))];
     const { rows } = await query(
       `SELECT id, tenant_id, payload FROM crm.particles WHERE type = ANY($1::text[]) AND tenant_id=$2`,
       [types, tenantId]
     );
     let signals = 0;
+    let deduped = 0;          // 被 dedup 吸收的命中数（与 signals 分开，保留既有 signals 计数语义）
+    const missing = [];       // 「规则就绪但数据面缺失」的显式归因（禁止静默零命中）
     for (const entity of rows) {
-      for (const rule of rules) {
+      for (const rule of particleRules) {
         if (entity.payload?.type && entity.payload.type !== rule.entity_type) continue;
         if (!hitsRule(rule, entity, now)) continue;
         const r = await signalStore.create({
@@ -64,10 +97,30 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
           evidence: { rule_id: rule.id, threshold_days: rule.threshold_days },
           dedup_key: `schedule:${rule.id}:${entity.id}:${rule.bucket || 'day'}`,
         });
-        if (r?.ok) signals += 1;
+        if (r?.ok) { signals += 1; if (r.deduped) deduped += 1; }
       }
     }
-    return { scanned: rows.length, signals };
+    // ── 周期型规则：不读 particles，按租户内启用用户逐人产个人级信号 ──
+    for (const rule of periodicRules) {
+      if (!hitsPeriodic(rule, now)) continue;
+      const { rows: users } = await query(
+        `SELECT username FROM crm.crm_users WHERE tenant_id=$1 AND enabled IS TRUE ORDER BY username`,
+        [tenantId],
+      ).catch(() => ({ rows: [] }));              // 用户面读取失败 → 归因见 evidence.missing，不静默造假
+      if (!users.length) { missing.push({ rule_id: rule.id, reason: 'no_enabled_users' }); continue; }
+      for (const u of users) {
+        const r = await signalStore.create({
+          tenant_id: tenantId, source: 'rule-scan', kind: rule.kind,
+          severity: rule.severity || 'low', target_role: rule.target_role || 'sales',
+          owner_id: u.username,
+          payload: { subject: `${rule.kind} 到期`, rule_id: rule.id },
+          evidence: { rule_id: rule.id, schedule_kind: 'periodic', weekday: rule.weekday ?? null, hour: rule.hour ?? null },
+          dedup_key: `schedule:${rule.id}:${u.username}:${bucketKey(now, rule.bucket)}`,
+        });
+        if (r?.ok) { signals += 1; if (r.deduped) deduped += 1; }
+      }
+    }
+    return { scanned: rows.length, signals, deduped, missing };
   }
-  return { scanOnce, hitsRule };
+  return { scanOnce, hitsRule, hitsPeriodic, bucketKey };
 }

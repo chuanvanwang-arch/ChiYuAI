@@ -108,3 +108,66 @@ describe('hitsRule：due_within_days 前瞻语义 + 旧语义零回归', () => {
     expect(sc.hitsRule(AGE_RULE, { payload: { updated_at: '2026-10-31T00:00:00Z' } }, NOW)).toBe(false); // 1 天前 → 不命中
   });
 });
+
+// ── L3 周期型规则（2026-09-16）：schedule_kind='periodic' ──
+// 为什么需要：report_due（周报到期）约束的是**人**而非实体，没有对应粒子。
+//   强行绑粒子只能硬塞到某个 CRM_DEAL 上 → 语义造假（给不存在的商机发提醒）。
+//   故须有不读 particles 的周期分支，按租户内启用用户逐人产个人级信号。
+describe('scanOnce：periodic 规则（不读 particles）', () => {
+  function ctxPeriodic() {
+    const created = [];
+    const queries = [];
+    return {
+      created, queries,
+      q: async (sql) => {
+        queries.push(sql);
+        if (/FROM crm\.crm_users/.test(sql)) return { rows: [{ username: 'alice' }, { username: 'bob' }] };
+        return { rows: [] };                       // 粒子查询恒空
+      },
+      store: { create: async (o) => { created.push(o); return { ok: true, deduped: false }; } },
+      readConfig: async () => ({ value: { enabled: true, rules: [
+        { id: 'report-due', kind: 'report_due', entity_type: null, schedule_kind: 'periodic',
+          weekday: 5, hour: 17, severity: 'low', target_role: 'sales', enabled: true, bucket: 'week' },
+      ] } }),
+    };
+  }
+
+  it('落在窗口内 → 按启用用户逐人产信号，owner_id 落到人', async () => {
+    const c = ctxPeriodic();
+    const sc2 = createScheduleScanner({ query: c.q, signalStore: c.store, readConfig: c.readConfig });
+    const NOW = Date.parse('2026-09-18T17:05:00+08:00');   // 2026-09-18 是周五
+    const r = await sc2.scanOnce({ tenantId: 't1', now: NOW });
+    expect(r.signals).toBe(2);
+    expect(c.created.map((x) => x.owner_id).sort()).toEqual(['alice', 'bob']);
+    expect(c.created[0].dedup_key).toContain('schedule:report-due:');
+    expect(c.created[0].dedup_key).toContain('2026-W38');
+  });
+
+  it('不在窗口（非该星期/小时）→ 零产出', async () => {
+    const c = ctxPeriodic();
+    const sc2 = createScheduleScanner({ query: c.q, signalStore: c.store, readConfig: c.readConfig });
+    const r = await sc2.scanOnce({ tenantId: 't1', now: Date.parse('2026-09-17T17:05:00+08:00') }); // 周四
+    expect(r.signals).toBe(0);
+  });
+
+  it('窗口内重复扫描 → dedup_key 不变（幂等由桶键保证）', async () => {
+    const c = ctxPeriodic();
+    const sc2 = createScheduleScanner({ query: c.q, signalStore: c.store, readConfig: c.readConfig });
+    const NOW = Date.parse('2026-09-18T17:05:00+08:00');
+    await sc2.scanOnce({ tenantId: 't1', now: NOW });
+    await sc2.scanOnce({ tenantId: 't1', now: NOW + 60_000 });
+    const keys = new Set(c.created.map((x) => x.dedup_key));
+    expect(keys.size).toBe(2);                     // 两个用户各一把键，不因二次扫描翻倍
+    expect(c.created).toHaveLength(4);             // 但 create 被调 4 次（幂等由 store.create 的 dedup 承担）
+  });
+
+  it('纯函数 hitsPeriodic / bucketKey', async () => {
+    const sc2 = createScheduleScanner({ query: async () => ({ rows: [] }), signalStore: { create: async () => ({ ok: true }) }, readConfig: async () => ({ value: {} }) });
+    const FRI = Date.parse('2026-09-18T17:05:00+08:00');
+    expect(sc2.hitsPeriodic({ weekday: 5, hour: 17 }, FRI)).toBe(true);
+    expect(sc2.hitsPeriodic({ weekday: 4, hour: 17 }, FRI)).toBe(false);
+    expect(sc2.bucketKey(FRI, 'week')).toBe('2026-W38');
+    expect(sc2.bucketKey(FRI, 'day')).toBe('2026-09-18');
+    expect(sc2.bucketKey(FRI, 'month')).toBe('2026-09');
+  });
+});
