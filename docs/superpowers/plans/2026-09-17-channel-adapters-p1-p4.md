@@ -764,7 +764,7 @@ git commit -m "feat(channels): 图谱汇入接线（命中既有账户 → enric
 - Modify: `src/web/account-insight.html`（360 视图加「外部沟通维度」区块——通道信号时间线）
 - Test: `test/web/channelConfigPage.test.js`、`test/web/onboardingGuidePage.test.js`（静态/动态守卫，对齐 portal-page-deadzone 范式）
 
-- [ ] **Step 1: 写失败测试（页面含通道 API 接线 + 向导三步 DOM）**
+- [x] **Step 1: 写失败测试（页面含通道 API 接线 + 向导三步 DOM）**
 
 ```js
 // test/web/onboardingGuidePage.test.js
@@ -791,8 +791,8 @@ describe('onboarding-guide.html 向导三步', () => {
 });
 ```
 
-- [ ] **Step 2: 运行确认失败**
-- [ ] **Step 3: 实现页面**（HTML 结构见下——向导三步/配置台双向绑定额外区块）
+- [x] **Step 2: 运行确认失败**
+- [x] **Step 3: 实现页面**（HTML 结构见下——向导三步/配置台双向绑定额外区块）
 
 > 页面实现要点（完整 HTML 长，此处给骨架与关键契约，工程师按 portal 既有风格补全样式）：
 > - `onboarding-guide.html`：全屏 3 步（欢迎→问卷（4 项输入，全可跳过）→验证与说明（verifyScope 真探测、
@@ -803,9 +803,9 @@ describe('onboarding-guide.html 向导三步', () => {
 > - `account-insight.html`：「外部沟通维度」区块 = 通道信号时间线（复用既有 360 视图数据加载，
 >   新增区块从 `/api/channels/:tenant/events` 或 enrichment.email_intent 渲染）。
 
-- [ ] **Step 4: 运行确认通过**（两页面测试 + portal 既有测试零回归）
-- [ ] **Step 4b: 页面接入真实 API 调用**——onboarding-guide.html 的「确认接入」按钮 fetch 到 `/api/channels/connect`（POST；body 含 credentials + tenant_id + id + kind；由后端完成 vault 落密 + verifyScope + review-gate）。channel-config.html 的「断开」调 POST `/api/channels/:id/disconnect`（软停用，禁删铁律）。**守卫：页面测试断言包含这两个 URL 与「只读/credentials_missing」文案（Step 1 已断言 URL，此处断言调用链完整）**。
-- [ ] **Step 5: Commit**
+- [x] **Step 4: 运行确认通过**（两页面测试 + portal 既有测试零回归）
+- [x] **Step 4b: 页面接入真实 API 调用**——onboarding-guide.html 的「确认接入」按钮 fetch 到 `/api/channels/connect`（POST；body 含 credentials + tenant_id + id + kind；由后端完成 vault 落密 + verifyScope + review-gate）。channel-config.html 的「断开」调 POST `/api/channels/:id/disconnect`（软停用，禁删铁律）。**守卫：页面测试断言包含这两个 URL 与「只读/credentials_missing」文案（Step 1 已断言 URL，此处断言调用链完整）**。
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/web/channel-config.html src/web/onboarding-guide.html src/web/account-insight.html test/web/channelConfigPage.test.js test/web/onboardingGuidePage.test.js
@@ -821,7 +821,7 @@ git commit -m "feat(channels): 通道配置台 + Onboarding 向导 + account-360
 - Modify: `src/mcp/index.js` 或工具面注册处（buildMcpTools 增 3 工具）
 - Test: `test/mcp/channelActions.test.js`
 
-- [ ] **Step 1: 写失败测试（3 工具：channel-connect / channel-query / channel-ics-export）**
+- [x] **Step 1: 写失败测试（3 工具：channel-connect / channel-query / channel-ics-export）**
 
 ```js
 // test/mcp/channelActions.test.js
@@ -855,8 +855,8 @@ describe('MCP 通道 Action（WorkBuddy 对话入口）', () => {
 });
 ```
 
-- [ ] **Step 2: 运行确认失败**
-- [ ] **Step 3: 实现（3 Action；ICS 用既有 signal calendar 的导出函数，禁再造）**
+- [x] **Step 2: 运行确认失败**
+- [x] **Step 3: 实现（3 Action；ICS 用既有 signal calendar 的导出函数，禁再造）**
 
 ```js
 // src/mcp/channelActions.js
@@ -924,9 +924,9 @@ export const channelActionTools = [
 ];
 ```
 
-- [ ] **Step 4: 运行确认通过**（channelActions 测试 + MCP 既有 21 工具面测试零回归）
-- [ ] **Step 5: 注册进 MCP 工具面**（buildMcpTools 增 3 工具——接线守卫：注册后 MCP 工具面计数 21→24）
-- [ ] **Step 6: Commit**
+- [x] **Step 4: 运行确认通过**（channelActions 测试 + MCP 既有 21 工具面测试零回归）
+- [x] **Step 5: 注册进 MCP 工具面**（buildMcpTools 增 3 工具——接线守卫：注册后 MCP 工具面计数 21→24）
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/mcp/channelActions.js src/mcp/index.js test/mcp/channelActions.test.js
@@ -942,7 +942,7 @@ git commit -m "feat(channels): MCP 通道 Action（connect/query/ics-export，Wo
 - Modify: 无（挂到向导完成处 / P3 配置台首次展示）
 - Test: `test/channels/firstHourReport.test.js`
 
-- [ ] **Step 1: 写失败测试（向导完成后系统主动交付「第一小时价值物」）**
+- [x] **Step 1: 写失败测试（向导完成后系统主动交付「第一小时价值物」）**
 
 ```js
 // test/channels/firstHourReport.test.js
@@ -968,8 +968,8 @@ describe('firstHourReport（Rox 价值前置本土化）', () => {
 });
 ```
 
-- [ ] **Step 2: 运行确认失败**
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 运行确认失败**
+- [x] **Step 3: 实现**
 
 ```js
 // src/channels/firstHourReport.js
@@ -992,8 +992,8 @@ export function buildFirstHourReport({ tenantId = 'system', imported = {}, accou
 }
 ```
 
-- [ ] **Step 4: 运行确认通过**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: 运行确认通过**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/channels/firstHourReport.js test/channels/firstHourReport.test.js
