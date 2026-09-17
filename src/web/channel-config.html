@@ -57,6 +57,7 @@
       </select></div>
     <div class="field"><label for="f-label">标签</label><input type="text" id="f-label" placeholder="如：工作邮箱" /></div>
     <div class="field"><label for="f-cred">凭据（JSON）</label><input type="password" id="f-cred" placeholder='{"user":"you@corp.com","pass":"授权码"}' autocomplete="off" /></div>
+    <p class="hint" id="cred-hint"></p>
     <div class="field"><label for="f-trust">信任档</label>
       <select id="f-trust"><option value="L1">L1 只读（默认）</option><option value="L2">L2 批量入库</option><option value="L3">L3 L2+回写</option></select></div>
     <div class="row"><button class="primary" id="connect">确认接入</button>
@@ -110,6 +111,25 @@
       await load();
     });
 
+    // 凭据必填字段（**与后端 probes.js:PROBE_REQUIRED_FIELDS 同源**——
+    //   test/web/channelConfigPage.test.js 有跨层守卫断言两者一致；漂移 ⇒ 用户填完仍被后端拒）
+    const CRED_FIELDS = {
+      'generic-email': ['host', 'user', 'pass'],
+      'generic-calendar': ['url'],
+      'generic-meeting': ['endpoint', 'token'],
+      'generic-wechat': ['corp_id', 'secret'],
+    };
+    // 随通道类型提示必填字段（用户不必猜 JSON 该填什么键）
+    function renderCredHint() {
+      const f = CRED_FIELDS[$('f-kind').value] || [];
+      const sample = Object.fromEntries(f.map((k) => [k, '…']));
+      $('cred-hint').textContent = f.length
+        ? `本通道必填字段：${f.join('、')}　示例：${JSON.stringify(sample)}`
+        : '';
+    }
+    $('f-kind').onchange = renderCredHint;
+    renderCredHint();
+
     $('connect').onclick = async () => {
       const kind = $('f-kind').value;
       const label = $('f-label').value.trim();
@@ -117,6 +137,12 @@
       const raw = $('f-cred').value.trim();
       let credentials = null;
       if (raw) { try { credentials = JSON.parse(raw); } catch { $('out').textContent = '凭据须为合法 JSON'; return; } }
+      // 本地预检（与后端同判据，见上方跨层守卫）：缺字段必然被后端拒，就地说明省一次往返。
+      //   仅在**填了凭据**时校验——留空表示沿用库里已有凭据，不得拦。
+      if (credentials) {
+        const miss = (CRED_FIELDS[kind] || []).filter((k) => String(credentials[k] ?? '').trim() === '');
+        if (miss.length) { $('out').textContent = '缺必填字段：' + miss.join('、') + '（后端也会拒，补齐后再提交）'; return; }
+      }
       const id = 'channel-' + kind.replace('generic-', '') + '-' + tenantId();
       $('out').textContent = '提交中…';
       const res = await fetch('/api/channels/connect', {

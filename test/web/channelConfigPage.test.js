@@ -8,8 +8,16 @@
 //   ⑥ 写面单一：不出现 `/api/integration/providers` 写调用（那是通用数据源面，kind 域不相交）。
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { KIND_PROBE } from '../../src/channels/kinds.js';
+import { PROBE_REQUIRED_FIELDS } from '../../src/channels/probes.js';
 
 const src = readFileSync(new URL('../../src/web/channel-config.html', import.meta.url), 'utf8');
+// 页面内联的必填字段表（与后端同源，见下方跨层守卫）
+function pageCredFields() {
+  const m = src.match(/const CRED_FIELDS = (\{[\s\S]*?\n    \});/);
+  if (!m) throw new Error('未找到 CRED_FIELDS —— 跨层守卫失去锚点');
+  return JSON.parse(m[1].replace(/'/g, '"').replace(/,(\s*\})/g, '$1'));
+}
 // 上游入口页：`discovery-rules.html`（「外部数据接入」面板，已提交）——通道 kind 域与该面不相交，故由此互链。
 const upstream = readFileSync(new URL('../../src/web/discovery-rules.html', import.meta.url), 'utf8');
 const routesSrc = readFileSync(new URL('../../src/http/routes.js', import.meta.url), 'utf8');
@@ -60,5 +68,21 @@ describe('channel-config.html 配置台', () => {
 
   it('routes.js 有 serve（有 serve 才到得了）', () => {
     expect(routesSrc).toContain('/channel-config.html');
+  });
+
+  it('凭据必填字段与后端探针要求**逐通道严格一致**（漂移 ⇒ 填完仍被后端拒）', () => {
+    const page = pageCredFields();
+    expect(Object.keys(page).sort()).toEqual(Object.keys(KIND_PROBE).sort());
+    for (const [kind, fields] of Object.entries(page)) {
+      expect(fields, `${kind} 与后端不一致`).toEqual(PROBE_REQUIRED_FIELDS[KIND_PROBE[kind]]);
+    }
+  });
+
+  it('按通道类型提示必填字段（用户不必猜 JSON 键），且留空凭据不被拦', () => {
+    expect(src).toContain('renderCredHint');
+    expect(src).toContain("id=\"cred-hint\"");
+    // 仅在**填了凭据**时预检：留空表示沿用库里已有凭据，拦截即误伤
+    const seg = src.slice(src.indexOf('if (credentials) {'), src.indexOf('if (miss.length)'));
+    expect(seg).toContain('CRED_FIELDS[kind]');
   });
 });
