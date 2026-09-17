@@ -92,3 +92,28 @@ describe('signal-center 展示层单源守门（不得自建映射副本）', ()
     expect(page).toMatch(/filter-scope'\)?\?\.addEventListener\('change', load\)/);
   });
 });
+
+// ===== P0-2 日历入口（2026-09-17 前台可见性审计）=====
+// 后端 GET /api/signals/:id/ics 早已实现且可用，但**全前端零调用** —— 功能存在却无入口，
+//   用户感知不到（这正是「落树≠可感知」的典型）。此守门锁住入口，防再度回退。
+// 鉴权：该端点走 Bearer token（authHeaders），<a href> 不带 Authorization 头 ⇒ 必须 fetch + Blob 下载。
+describe('signal-center 日历入口（ICS 下载）', () => {
+  const page = fs.readFileSync('src/web/signal-center.html', 'utf8');
+
+  it('仅对带日历时间（payload.event_at）的信号显示「加入日历」', () => {
+    expect(page).toMatch(/payload\?\.event_at/);
+    expect(page).toMatch(/data-ics/);
+    expect(page).toContain('加入日历');
+  });
+
+  it('经 fetch + Blob 下载（Bearer 头无法用 a href 替代）', () => {
+    expect(page).toMatch(/\/api\/signals\/\$\{[^}]*\}\/ics/);
+    expect(page).toMatch(/createObjectURL/);
+    expect(page).toMatch(/download/);
+  });
+
+  it('点击委托处理 data-ics（沿用表格级 listener，不逐行绑事件）', () => {
+    expect(page).toMatch(/dataset\.ics/);
+    expect(page).toMatch(/closest\('\[data-ics\]'\)/);
+  });
+});

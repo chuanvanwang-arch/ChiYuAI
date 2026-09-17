@@ -191,6 +191,10 @@ async function load() {
     const actBtn = s.status === 'open'
       ? `<crm-button class="btn" data-ack="${esc(s.signal_id)}">确认</crm-button> <crm-button class="btn" data-close="${esc(s.signal_id)}">否决</crm-button>`
       : `<span class="muted">${esc(statusLabel(s.status))}</span>`;
+    // P0-2 日历入口（2026-09-17 前台可见性审计）：仅对**带日期语义**的信号（payload.event_at）显示
+    //   —— buildIcs 缺日期返回 null（不造幽灵日程），无日期却给按钮只会得到 404 = 假入口。
+    const icsBtn = typeof s.payload?.event_at === 'string' && s.payload.event_at.trim()
+      ? ` <crm-button class="btn" data-ics="${esc(s.signal_id)}">加入日历</crm-button>` : '';
     tr.innerHTML = `
       <td title="${esc(kindTitle(s.kind))}">${esc(kindLabel(s.kind))}<div class="sc-code">${esc(s.kind || '')}</div></td>
       <td class="sev-${esc(s.severity || 'low')}">${esc(severityLabel(s.severity))}</td>
@@ -198,7 +202,7 @@ async function load() {
       <td title="${esc(JSON.stringify(s.payload || {}))}">${esc(tidy(summarizeSignal(s)).slice(0, 48))}</td>
       <td>${s.created_at ? esc(new Date(s.created_at).toLocaleString()) : ''}</td>
       <td class="sc-code">${esc(s.tenant_id || '—')}</td>
-      <td>${actBtn}</td>`;
+      <td>${actBtn}${icsBtn}</td>`;
     tbody.appendChild(tr);
   }
   fillKindFilter(items);
@@ -229,6 +233,27 @@ async function act(signalId, action) {
     return;
   }
   load();
+}
+
+// P0-2 日历下载（2026-09-17 前台可见性审计）：GET /api/signals/:id/ics 走 Bearer 鉴权，
+//   <a download href> 不会带 Authorization 头 ⇒ 必须 fetch 取 blob 再触发下载。
+//   失败不静默：非 2xx 明确提示（含后端 not_a_calendar_signal 语义）。
+async function downloadIcs(signalId) {
+  const res = await fetch(`/api/signals/${signalId}/ics`, { headers: authHeaders() });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    alert(`日历下载失败：${d.error || `HTTP ${res.status}`}`);
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `signal-${signalId}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // T20 链路观测上墙：指标卡 + 负向判据 + 降级事件（per-tenant，取自身 token 租户）
@@ -264,8 +289,10 @@ $('filter-scope')?.addEventListener('change', load);
 $('signal-table').addEventListener('click', (e) => {
   const ack = e.target.closest('[data-ack]');
   const close = e.target.closest('[data-close]');
+  const ics = e.target.closest('[data-ics]');
   if (ack) act(ack.dataset.ack, 'ack');
   else if (close) act(close.dataset.close, 'close');
+  else if (ics) downloadIcs(ics.dataset.ics);
 });
 load();
 loadMetrics();
