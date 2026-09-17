@@ -5,6 +5,12 @@ import salesforce from './salesforce.js';
 import neocrm from './neocrm.js';
 import fxiaoke from './fxiaoke.js';
 import { createGenericRestSyncProvider } from '../factory.js';
+// —— 需求② 通道预设（2026-09-17）——
+import { CHANNEL_EMAIL_PRESET } from './channel-email.js';
+import { CHANNEL_CALENDAR_PRESET } from './channel-calendar.js';
+import { CHANNEL_MEETING_PRESET } from './channel-meeting.js';
+import { CHANNEL_WECHAT_PRESET } from './channel-wechat.js';
+import { buildChannelFactories } from '../../channels/channelProvider.js';
 
 const PRESETS = { salesforce, neocrm, fxiaoke };
 
@@ -48,10 +54,16 @@ export function buildPresetProvider(presetName, descriptor = {}) {
 
 // 预设工厂字典：与 base 工厂合并后传入 mount.loadTenantSyncTargets（生产装配点 timers.js ⑩）
 // ⚠ neocrm 覆盖 base 的同名别名：预设版带完整 token-flow 鉴权（比裸 generic 别名更正确）。
+// 通道键（generic-email/calendar/meeting/wechat）由 channelProvider 装配（fetchIncremental →
+//   事件行归一化 → 图谱汇入复用同步内核）；与 base 工厂的 `generic-*` 键**刻意同名覆盖**，确保
+//   mount 消费到的是归一化版 provider（通道真接入时归一化才生效）。
+// 红线：通道「未接通不得宣称」——预设只是模板，真实连通依赖租户凭据（P4）。
 export const PRESET_FACTORIES = {
   salesforce: (d = {}) => buildPresetProvider('salesforce', d),
   neocrm: (d = {}) => buildPresetProvider('neocrm', d),
   fxiaoke: (d = {}) => buildPresetProvider('fxiaoke', d),
+  // —— 需求② 通道预设（2026-09-17）——
+  ...buildChannelFactories([CHANNEL_EMAIL_PRESET, CHANNEL_CALENDAR_PRESET, CHANNEL_MEETING_PRESET, CHANNEL_WECHAT_PRESET]),
 };
 
 // 合并 base 工厂 + 预设工厂（生产装配唯一入口）

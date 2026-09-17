@@ -106,9 +106,12 @@ describe('凭据缺失 → 三家均 fail-closed', () => {
 });
 
 describe('生产装配（防「零接线」假绿）：预设并入工厂字典 → mount 能构造 provider', () => {
-  it('syncFactoriesWithPresets 含 generic-rest + 三家预设名', () => {
+  it('syncFactoriesWithPresets 含 generic-rest + 三家预设名 + 4 通道键（2026-09-17 需求②）', () => {
     const keys = Object.keys(syncFactoriesWithPresets(SYNC_PROVIDER_FACTORY)).sort();
-    expect(keys).toEqual(['fxiaoke', 'generic-rest', 'neocrm', 'salesforce']);
+    expect(keys).toEqual([
+      'fxiaoke', 'generic-calendar', 'generic-email', 'generic-meeting', 'generic-rest',
+      'generic-wechat', 'neocrm', 'salesforce',
+    ]);
   });
 
   it('buildPresetProvider：按描述符声明的对象名过滤（保留预设 soql），且实例 kind=generic-rest', () => {
