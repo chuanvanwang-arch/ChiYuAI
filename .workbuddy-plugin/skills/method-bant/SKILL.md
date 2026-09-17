@@ -19,7 +19,7 @@ security:
 
 - "用 BANT 评估这个商机的资质"
 - "这个线索/商机现在该投入还是搁置？"
-- 商机进入 `opportunity` 阶段前的资质检查（线索→商机转段）
+- 商机进入 `S2` 阶段前的资质检查（线索→商机转段）
 
 ## 评估流程（四步）
 
@@ -46,6 +46,25 @@ security:
 
 - 输出与 `crm-deal-advance`（商机阶段推进决策）一致——BANT 未过闸禁止 `advance`
 - 四维评分可作 `decision_scenario` 的 `eval_dimensions` 输入（OPP_QUALIFY 闸门条件）
+
+## Action 读清单（评估数据源）
+
+| Action | 用途 |
+|---|---|
+| `data-particle-read` | 读取商机粒子（阶段/金额/赢率 → 四维评估输入） |
+| `data-particle-attr-read` | 属性元模型（B/A/N/T 维字段映射） |
+| `crm-field-permission` | 字段级权限校验（评估范围过滤） |
+| `crm-account-360` | 客户全景（预算/决策链背景） |
+| `crm-customer-360` | 敏感读：客户全维度（需角色确认，预算线佐证） |
+
+## Action 写清单（联动结果写回，经 crm-write 两阶段）
+
+| Action | 用途 |
+|---|---|
+| `crm-deal-advance` | BANT 过闸 → 商机阶段推进（只进不退，输单必填原因） |
+| `data-particle-update` | 评估维度写回商机（B/A/N/T 评分落粒子，经第0闸） |
+
+> 写清单一侧为「方法论结果 → 业务写」联动面：本 method SKILL 不直接 dispatch 写 Action，一律经 crm-write 两阶段（第0闸 + action-confirm）执行。
 
 ## 安全红线
 - AI 永远不在对话中接收或显示密钥明文（凭证补完走 .env / 环境变量 / 命令 三种安全通道）。

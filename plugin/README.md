@@ -278,3 +278,98 @@ python scripts/verify-plugin-zips.py     # 期望 version = 1.10.0 且 8 条线�
 python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
 python scripts/verify-plugin-zips.py     # 期望 version = 1.10.0 且 8 条防漂移规则 ok（已实测 ✅ 两个包全过）
 ```
+
+---
+
+## 2026-09-16 同步说明：信号日历 + 内部异动派生（`crm-signal-*`）
+
+> 对应平台侧交付：信号日历 Plan A（ICS / 日期规则 12 Task）与 Plan B（内部异动派生，
+> `src/signal/activityDerivation.js` + 定时器⑱ `activity-derivation-scan`）。
+
+**版本 1.10.0 → 1.11.0。**
+
+### 新增能力：信号读取与日历导出（2 个 MCP 只读工具）
+
+| 工具 | 用途 | 闸门 |
+|---|---|---|
+| `crm-signal-list` | 按条件查信号（4 条规则产出的 kind：`contact_change` / `relation_cooling` / `tender_deadline` / `report_due`） | **只读**（无闸） |
+| `crm-signal-ics` | 导出 `.ics` 日历（可在任意日历客户端订阅） | **只读**（无闸） |
+
+### 前台可感知性收口（本轮一并订正）
+
+后端跑通**不等于**外部办公智能体知道何时用：本轮把两条读工具补进 SKILL 读清单，
+并在标签映射上做单源化（`portal/signalLabels.js` 为唯一映射源，删除页面内联副本），
+同时新增 `signal-config.html` 承载 `signal-schedule` / `internal-signal-derivation` 两个配置键。
+
+### 本包改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `skills/crm-native/SKILL.md`（4 份副本） | 读清单增 `crm-signal-list` / `crm-signal-ics` 两行 + 「内部推断（低置信）」语义提示 |
+| `.workbuddy-plugin/plugin.json` + `plugin/openclaw.plugin.json` + `plugin/package.json` | 版本 1.10.0 → 1.11.0 |
+| `scripts/verify-plugin-zips.py` | `expect_version` → 1.11.0 + 3 条锚定 `skills/crm-native/SKILL.md` 的防漂移规则 |
+
+> ⚠ 本轮遗留（已在下一节订正）：`plugin/openclaw.plugin.json` 与 `plugin/package.json`
+> 当时**未同步** bump，实际停留在 `1.10.0`，与权威源 `.workbuddy-plugin/plugin.json`
+> 出现**一个 minor 的版本漂移**；`plugin/.workbuddy-plugin/plugin.json`（历史嵌套副本）
+> 更停留在 `1.5.0`。该漂移已于 1.12.0 轮次全部对齐，并新增一致性守卫生效。
+
+### 打包
+
+```bash
+python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
+python scripts/verify-plugin-zips.py
+```
+
+---
+
+## 2026-09-17 同步说明：品牌更名 + 专家名 / 小标题（版本 1.11.0 → 1.12.0）
+
+> 本轮**无新增工具、无协议变更**，属**对外标识（品牌 / 专家名 / 卡片小标题）变更**，
+> 故记 minor bump。技术代号 `CRM-AI-Native` 与 npm 包名 `@chuanvanwang-arch/crm-native` **保留不变**。
+
+### 对外名称变更
+
+| 项 | 旧 | 新 |
+|---|---|---|
+| 平台对外名 | AI原生销售平台 | **企业AI销售决策平台·ChiYu青羽** |
+| 专家主标题（`profession.zh`） | 青羽销售决策助手 | **企业AI销售决策专家** |
+| 卡片小标题（`displayName.zh`） | CRM 原生智能体 | **AI原生·可溯可信可进化** |
+| 专家简介（`displayDescription.zh`） | — | 角色自适应的企业AI销售决策专家：一句话查询、两阶段对话式写入、链断裂主动预警。（40 字，合规区间内） |
+
+英文同步：`Enterprise AI Sales Decision Expert` / `AI-Native · Traceable, Trustworthy, Evolvable`。
+
+> **字段语义提醒（易错）**：卡片渲染为**三层** —— 大字主标题 = `profession`，
+> 灰字小标题 = `displayName`，描述 = `displayDescription`。三者不可互填：
+> `displayDescription.zh` 被打包脚本**强制归一**到 40–50 字，误把小标题写进该字段会被静默截断。
+
+### 版本一致性订正（本轮实测发现）
+
+`plugin/openclaw.plugin.json` 与 `plugin/package.json` 在 1.11.0 轮次**漏改**，
+与权威源相差一个 minor；`plugin/.workbuddy-plugin/plugin.json`（历史嵌套副本）停留在 `1.5.0`。
+本轮**四条清单全部对齐到 1.12.0**，并在校验器新增版本一致性守卫防复发。
+
+### 本包改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `.workbuddy-plugin/plugin.json` | `version` 1.11.0 → 1.12.0；`profession` / `displayName` / `displayDescription` 换新名 |
+| `plugin/openclaw.plugin.json` | `version` 1.10.0 → 1.12.0（**订正漂移**）；`name` 换新小标题 |
+| `plugin/package.json` | `version` 1.10.0 → 1.12.0（**订正漂移**） |
+| `plugin/.workbuddy-plugin/plugin.json` | `version` 1.5.0 → 1.12.0（历史嵌套副本对齐，仍**不参与分发**） |
+| `.workbuddy-plugin/agents/crm-native.md` + `plugin/agents/crm-native.md` | H1 与能力映射换正式名 |
+| `plugin/index.js` | 入口 JSDoc 换正式名 |
+| `scripts/verify-plugin-zips.py` | `expect_version` → 1.12.0 + **新增 `check_version_consistency()` 版本三清单一致性守卫** |
+
+> **副本一致性**：`skills/crm-native/SKILL.md` 共 **4 份** byte-equal 副本（`skills/` 权威源 +
+> `.workbuddy-plugin/skills/` + `connector/skills/` + `plugin/skills/`）；`.workbuddy-plugin/agents/crm-native.md`
+> 共 **2 份**（+ `plugin/agents/`）。**版本四清单**（权威源 + openclaw + package.json + 历史嵌套副本）
+> 本轮已全部对齐，由校验器强制。
+
+### 打包
+
+```bash
+python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
+python scripts/verify-plugin-zips.py     # 期望 version = 1.12.0 且版本一致性守卫 ok
+```
+

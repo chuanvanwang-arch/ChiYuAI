@@ -9,5 +9,5 @@
     {"dim_key":"T","label":"时间线 Timeline","weight":0.8,"required":false,"desc":"购买时间窗是否明确，有无可推进的下一步时间点"}
   ],
   "priority_rule": "硬维度优先：B/A/N 任一不达标即低资质，先补缺口再谈投入；事实优先于客户口头意向",
-  "gate_rule": "任一 required 维度评分 <0.6 → 禁止推进（advance 到 opportunity 前先补证）"
+  "gate_rule": "任一 required 维度评分 <0.6 → 禁止推进（advance 到 S2 前先补证）"
 }

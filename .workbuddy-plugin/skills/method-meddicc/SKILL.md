@@ -51,6 +51,25 @@ security:
 - 输出与 `crm-deal-advance` / 报价推进决策一致——MEDDICC 硬维度未过闸禁止乐观推进报价
 - 七维评分可作 `decision_scenario` 的 `eval_dimensions` 输入（赢单判断闸门条件）
 
+## Action 读清单（评估数据源）
+
+| Action | 用途 |
+|---|---|
+| `data-particle-read` | 读取商机/客户粒子（评估输入） |
+| `data-particle-attr-read` | 属性元模型（方法论维度字段映射） |
+| `crm-field-permission` | 字段级权限校验（评估范围过滤） |
+| `crm-account-360` | 客户全景（背景/决策链佐证） |
+| `crm-customer-360` | 敏感读：客户全维度（需角色确认） |
+
+## Action 写清单（联动结果写回，经 crm-write 两阶段）
+
+| Action | 用途 |
+|---|---|
+| `crm-deal-advance` | MEDDICC 硬维度过闸后推进商机阶段 |
+| `data-particle-update` | 七维评分写回商机（经第0闸） |
+
+> 写清单一侧为「方法论结果 → 业务写」联动面：本 method SKILL 不直接 dispatch 写 Action，一律经 crm-write 两阶段（第0闸 + action-confirm）执行。七维（M/E/D/C/I/C/C）未过闸禁止乐观推进报价。
+
 ## 安全红线
 - AI 永远不在对话中接收或显示密钥明文（凭证补完走 .env / 环境变量 / 命令 三种安全通道）。
 - 写操作经 action-confirm 显式角色确认；无凭证自动降级 sales 只读并显式提示。

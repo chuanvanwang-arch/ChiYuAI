@@ -1,0 +1,12 @@
+{
+  "name": "method-stage-progression",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "商机阶段推进方法论（S1-S6 客户行为三列判定）",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "STAGE_PROGRESSION",
+  "dimensions": ["S1", "S2", "S3", "S4", "S5", "S6"],
+  "rbac_roles": ["sales", "manager"],
+  "enabled": true
+}

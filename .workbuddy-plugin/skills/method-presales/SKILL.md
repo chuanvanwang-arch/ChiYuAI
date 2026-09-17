@@ -43,6 +43,25 @@ security:
 → gate=FAIL 时建议触发 crm-proposal-write 补齐缺口
 ```
 
+## Action 读清单（评估数据源）
+
+| Action | 用途 |
+|---|---|
+| `data-particle-read` | 读取商机/客户粒子（评估输入） |
+| `data-particle-attr-read` | 属性元模型（方法论维度字段映射） |
+| `crm-field-permission` | 字段级权限校验（评估范围过滤） |
+| `crm-account-360` | 客户全景（背景/决策链佐证） |
+| `crm-customer-360` | 敏感读：客户全维度（需角色确认） |
+
+## Action 写清单（联动结果写回，经 crm-write 两阶段）
+
+| Action | 用途 |
+|---|---|
+| `crm-proposal-write` | gate=FAIL 时触发技术方案补写（售前方案产出） |
+| `data-particle-update` | 方案要点/技术匹配度写回商机 |
+
+> 写清单一侧为「方法论结果 → 业务写」联动面：本 method SKILL 不直接 dispatch 写 Action，一律经 crm-write 两阶段（第0闸 + action-confirm）执行。gate=FAIL 禁止推进报价，先经 crm-proposal-write 补方案。
+
 ## 安全红线
 - AI 永远不在对话中接收或显示密钥明文（凭证补完走 .env / 环境变量 / 命令 三种安全通道）。
 - 写操作经 action-confirm 显式角色确认；无凭证自动降级 sales 只读并显式提示。

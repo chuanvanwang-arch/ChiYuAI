@@ -4,9 +4,10 @@
 
 | 模式 | 触发条件 | severity |
 |---|---|---|
-| `no_proposal_over_30d` | DEAL stage∈[opportunity,quote,win] 且无 has_technical_proposal 边且 `now - updated_at > 30天` | high |
-| `win_without_proposal` | DEAL.stage=win 且无方案边 | high |
+| `no_proposal_over_30d` | DEAL stage∈[S2,S3,S6] 且无 has_technical_proposal 边且 `now - updated_at > 30天` | high |
+| `win_without_proposal` | DEAL.stage=S6 且无方案边 | high |
 | `payment_overdue` | 合同应收日期 < now - 账期 且无回款粒子关联 | medium-high |
+| `stop_loss_triggered` | DEAL.payload.stop_loss.status==='triggered' | medium-high |
 
 ## 差量写入纪律
 

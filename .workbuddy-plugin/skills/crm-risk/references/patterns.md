@@ -4,7 +4,7 @@
 
 | 模式 | 判定 | 业务影响 | 处置 |
 |---|---|---|---|
-| no_proposal_over_30d | 商机进入 opportunity 后 30 天无技术方案 | 方案缺位 → 赢单率下降 | 生成方案（crm-write） |
+| no_proposal_over_30d | 商机进入 S2 后 30 天无技术方案 | 方案缺位 → 赢单率下降 | 生成方案（crm-write） |
 | win_without_proposal | win 但无技术方案粒子 | 赢单缺方案证据 → 交付风险 | 补方案/记录原因 |
 | payment_overdue | 应收日期过期无回款 | 资金链断裂 → 现金流风险 | 催收（finance）/ 缓发 |
 | stage_rollback | 商机阶段倒退（违反只进不退） | 规则违规 → 流程失控 | 告警 + 需审批回退 |

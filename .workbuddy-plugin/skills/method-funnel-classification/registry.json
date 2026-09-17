@@ -1,0 +1,12 @@
+{
+  "name": "method-funnel-classification",
+  "version": "1.0.0",
+  "category": "methodology",
+  "description": "大漏斗客户分类：商机/目标/潜力 + 接触节奏",
+  "environment": { "required": [], "optional": [] },
+  "security": { "requiresSecrets": false, "sensitiveEnvironment": false, "externalNetworkAccess": false },
+  "methodology_id": "FUNNEL_CLASSIFICATION",
+  "dimensions": ["opportunity", "target", "potential"],
+  "rbac_roles": ["sales", "manager"],
+  "enabled": true
+}
