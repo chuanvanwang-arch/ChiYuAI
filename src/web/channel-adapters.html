@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>通道接入（邮箱 / 日历 / 会议 / 微信）</title>
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+  <style>
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 24px; background: var(--bg); color: var(--ink); }
+    .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+    .ch { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 10px 0; background: var(--panel); }
+    .ch h3 { margin: 0 0 4px; font-size: 14px; }
+    .ch .kind { color: var(--mut); font-size: 12px; font-family: var(--font-mono, monospace); }
+    .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; font-size: 13px; margin: 8px 0; }
+    .kv dt { color: var(--mut); }
+    .kv dd { margin: 0; word-break: break-word; }
+    code { background: rgba(127,127,127,.12); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .st { font-size: 12px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--line); }
+    .st.ok { color: var(--ok, #15803d); border-color: var(--ok, #15803d); }
+    .st.no { color: var(--err); border-color: var(--err); }
+    .st.mid { color: var(--warn-ink, #a16207); border-color: var(--warn-ink, #a16207); }
+    .flow { font-family: var(--font-mono, monospace); font-size: 12px; color: var(--mut); white-space: pre-wrap; }
+    .hint { color: var(--mut); font-size: 12px; margin: 4px 0; }
+    .err { color: var(--err); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">通道接入 · 邮箱 / 日历 / 会议 / 微信</h1></div></header>
+  <div class="note">外部通讯与生产工具接入（设计 <code>docs/2026-09-17-channel-adapter-unified-design.md</code> v1 已批准）。
+    四通道均为 <b>generic-* 配置驱动模板</b>（厂商差异 100% 在 descriptor，零厂商专属代码），复用 S2 同步内核（engine / mapping / resolver / trust / gate / cursor）。
+    <br>⛔ <b>本页只呈现真实状态，不做任何接入动作</b>：通道的增删改仍在「外部数据接入」（配置中心 #47/#48）。
+    状态判定基于<b>工厂字典</b>——kind 不在字典内时，<code>src/sync/mount.js</code> 会<b>静默跳过</b>，现象是「配置了但没数据」。</div>
+
+  <section id="board">加载中…</section>
+
+  <div class="ch">
+    <h3>图谱汇入（「形成图谱」的真正落点）</h3>
+    <p class="note">⚠ <b>交付状态（务必区分）</b>：实体抽取 <code>extractEntities(ev)</code>（纯函数，无 DB/IO）<b>已交付</b>；
+      真实<b>落库</b>（T7 <code>channelGraphIngest</code>）<b>尚未交付</b>——故下方落点是<b>设计目标</b>，
+      当前通道数据<b>不会</b>写入 <code>payload.enrichment</code>（<code>src/channels/entityExtractor.js:3</code> 自述
+      「真实汇入判据在 channelGraphIngest（P2 T7）」）。未接通不得宣称已接通。</p>
+    <p class="hint">不新建粒子类型、不新建图数据库（守 <code>2026-09-08</code> 已批设计 §10 硬约束）。通道产出是<b>新的边来源</b>，汇入既有图谱管道：</p>
+    <div class="flow">通道事件行（统一契约 readIncremental → eventNormalizer 归一化）  〔已交付〕
+        ↓
+实体抽取 extractEntities → { domain, company, participants, intents, signals }  〔已交付〕
+        ↓
+域名/企业识别 → 命中既有 CRM_ACCOUNT  〔P2 待交付〕
+        ↓
+CRM_ACCOUNT.payload.enrichment.{email_intent|schedule|meeting_intents|wechat_intents}[]  +  sourcedFrom 弱边
+    〔设计落点 · P2 T7 待交付，当前未落库〕
+        ↓
+account-360 视图「外部沟通维度」</div>
+    <p class="hint">信任分级：默认 <b>L1 只读</b>（fetch + extract，不写）；L2 才批量入库、L3 才回写，且每批携带 <code>decision_id</code>（决策第 0 闸）。
+      凭据必进保险库、内容不落明文审计（只落抽取后的结构化字段）。</p>
+  </div>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    import { get } from '/portal/api.js';
+    injectLayout();
+
+    // 四通道定义：载体 / descriptor 取自设计文档 §3.1–§3.4（本页是呈现层，语义解释权在设计与后端 registry）
+    //   ⚠ 契约字段：曾误写为 `fetchIncremental({since})` —— 那只是 channelProvider.js 注释里的**职责描述**，
+    //     不是方法名。真实契约 = { verifyAuth, discoverObjects, readIncremental }（factory.js:226；
+    //     channelProvider.js:5 明示「与 SYNC_PROVIDER_FACTORY[kind] 契约一致」）。写错方法名会直接误导接入方。
+    //   ⚠ 落点字段：必须区分「已交付」与「设计目标」——实体抽取（entityExtractor，纯函数）已交付，
+    //     真实汇入（T7 channelGraphIngest）未交付（entityExtractor.js:3 自述）。不得把设计目标写成既成事实。
+    const CONTRACT = 'readIncremental({ object, cursor }) → { ok, rows, cursor }（经 channelProvider 复用 generic-rest 模板引擎）';
+    const NORM = '归一化 eventNormalizer → { channel, kind, ts, actor, participants, content, external_id, domain }';
+    const SINK_TAIL = '；实体抽取 extractEntities(ev) 已交付（纯函数），**落库待 P2 T7 channelGraphIngest**';
+    const CHANNELS = [
+      {
+        kind: 'generic-email', name: '邮箱', transport: 'IMAP / Exchange / 企业邮',
+        contract: CONTRACT, norm: NORM,
+        descriptor: "{ type:'imap', host, port, tls, auth:{user,pass} } 或 { type:'ms365', auth:{clientId,secret,tenant} }",
+        extract: '事件行 domain → 企业；participants → 参与方；正文命中 报价/采购/预算/下单/比价/询价 → purchase intent，命中 拜访/约见/上门 → visit intent',
+        sink: 'intents[] / signals[]（email 侧重询价、拜访）' + SINK_TAIL,
+        note: '高敏通道：凭据入保险库（不落描述符明文）；读取范围默认最近 30 天、可配。',
+      },
+      {
+        kind: 'generic-calendar', name: '日历', transport: 'iCal / CalDAV / Exchange 日历',
+        contract: CONTRACT, norm: NORM + '（新日程 / 改期 / 取消）',
+        descriptor: "{ type:'caldav', url, auth } 或 { type:'ms365', ... }",
+        extract: 'domain → 企业；主题命中 招标/投标/竞标/应标/中选 → tender intent（→ tender_push 信号）',
+        sink: 'intents[] / signals[]（calendar 是需求②与③的接缝：改期可直接派生日期型信号）' + SINK_TAIL,
+        note: '日历是需求②与需求③的接缝：日程改期可直接生成日期型信号。',
+      },
+      {
+        kind: 'generic-meeting', name: '会议', transport: 'Zoom / Teams / 腾讯会议',
+        contract: CONTRACT, norm: NORM + '（会议记录 / 纪要）',
+        descriptor: "{ type:'zoom'|'teams'|'tencent', auth:{...} }（token-flow 通用模型已支持）",
+        extract: 'domain → 企业；纪要命中 采购/拜访/投标 关键词 → intents / signals',
+        sink: 'intents[] / signals[]（meeting 侧重竞品与异议）' + SINK_TAIL,
+        note: '需会议平台 API 凭据。',
+      },
+      {
+        kind: 'generic-wechat', name: '微信（企业微信）', transport: '企微会话 / 群聊',
+        contract: CONTRACT, norm: NORM + '（会话消息摘要）',
+        descriptor: "{ type:'wecom', corpId, agentId, auth }（企微 API）",
+        extract: 'domain → 企业；会话命中 采购/拜访/投标 关键词 → intents / signals',
+        sink: 'intents[] / signals[]（wechat 仅授权租户）' + SINK_TAIL,
+        note: '⛔ 个人微信无开放 API（历史占位假绿已识破）。企微会话读取需企业授权 + 合规审批；未接通不得宣称已接通。',
+      },
+    ];
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    async function load() {
+      const board = document.getElementById('board');
+      let factories = [];
+      let fetchErr = null;
+      try { factories = (await get('/api/sync/factories')).factories || []; }
+      catch (e) { fetchErr = e.message; }
+
+      // 已声明的通道实例（kind 以 generic- 开头者）
+      let declared = [];
+      try {
+        const d = await get('/api/integration/providers');
+        declared = (d.instances || []).filter((it) => String(it.kind || '').startsWith('generic-'));
+      } catch { /* 权限不足时不阻断主状态呈现 */ }
+
+      const cards = CHANNELS.map((c) => {
+        const ready = factories.includes(c.kind);
+        const inst = declared.filter((d) => d.kind === c.kind);
+        const enabled = inst.filter((i) => i.enabled !== false).length;
+        const badge = ready
+          ? (enabled ? `<span class="st ok">模板就绪 · 已声明 ${enabled} 个启用实例</span>` : '<span class="st mid">模板就绪 · 尚未声明实例</span>')
+          : '<span class="st no">未在工厂注册（当前不可构造）→ 接入会被静默跳过</span>';
+        return `<div class="ch"><h3>${esc(c.name)} <span class="kind">${esc(c.kind)}</span> &nbsp;${badge}</h3>
+          <dl class="kv">
+            <dt>载体</dt><dd>${esc(c.transport)}</dd>
+            <dt>契约方法</dt><dd><code>${esc(c.contract)}</code></dd>
+            <dt>归一化</dt><dd><code>${esc(c.norm)}</code></dd>
+            <dt>descriptor</dt><dd><code>${esc(c.descriptor)}</code></dd>
+            <dt>实体抽取</dt><dd>${esc(c.extract)}</dd>
+            <dt>落点</dt><dd><code>${esc(c.sink)}</code></dd>
+          </dl>
+          <p class="hint">${esc(c.note)}</p>
+          ${ready ? '' : `<p class="err">✗ <code>${esc(c.kind)}</code> 当前不在工厂字典内：即使写入 <code>integration-providers</code>，
+            <code>mount.loadTenantSyncTargets</code> 也会跳过它 → <b>不会同步任何数据</b>。这是「配置了但没数据」的根因，本页当场暴露（不猜）。</p>`}
+        </div>`;
+      }).join('');
+
+      const head = `<div class="ch"><h3>接入状态总览</h3>
+        <p class="hint">判定依据：kind 是否可在工厂字典中构造（与生产装配 <code>SYNC_PROVIDER_FACTORY ∪ PRESET_FACTORIES</code> 同源）。
+          可构造 = 接入后能进轮询面；不可构造 = 静默跳过。</p>
+        <div class="hint">当前工厂字典：${factories.length ? factories.map((f) => `<code>${esc(f)}</code>`).join(' · ') : `<span class="err">读取失败${fetchErr ? '：' + esc(fetchErr) : ''}</span>`}</div>
+        <p class="hint">交付状态（设计 §6）：<b>P1</b> 四通道模板骨架 + 工厂注册 <b>✅已交付</b> → <b>P2</b> 事件行→图谱汇入
+          （按通道分键：<code>enrichment.email_intent / schedule / meeting_intents / wechat_intents</code>）<b>✅已交付</b>
+          → <b>P3</b> 前台呈现（本页 + account-360「外部沟通维度」区块 + 通道配置台 + 向导 + MCP 通道 Action）<b>✅已交付</b>
+          → <b>P4</b> 真实连通 <b>🔴未接通</b>（探针未实现 ⇒ <code>probe_not_implemented</code> 阻塞接入；需租户真实凭据；<b>未接通不得宣称已接通</b>）。</p>
+        <p class="hint">入口：<a href="/channel-config.html">通道配置台</a>（邮箱/日历/会议/微信 自助接入 · 首次请走<a href="/onboarding-guide.html">向导</a>）·
+          <a href="/discovery-rules.html#integration-sources">外部数据接入</a>（增删改连接与凭据）·
+          <a href="/crm-sync-console.html">CRM 同步控制台</a>（映射 / 信任档 / 同步状态）</p>
+      </div>`;
+
+      board.innerHTML = head + cards;
+    }
+
+    load();
+  </script>
+</body>
+</html>
