@@ -146,11 +146,11 @@
 
 | # | 判据 | 方式 | 通过条件 | 实测（2026-09-17 本地 crm_native） |
 |---|---|---|---|---|
-| 1 | 派生真实产出 | 真库 `SELECT kind,count(*) FROM crm.signal WHERE source='derived' GROUP BY 1` | `relation_cooling > 0`（本库有 35 ACCOUNT/33 DEAL，可产出） | ⚠ **部分证伪**：`contact_change`=2；**`relation_cooling`=0**（`zero_hit, scanned=11`）。根因见 §8：ACCOUNT 的 `updated_at` 在**列**、不在 `payload`，派生器读 `payload.updated_at` → 永不命中 |
+| 1 | 派生真实产出 | 真库 `SELECT kind,count(*) FROM crm.signal WHERE source='derived' GROUP BY 1` | `relation_cooling > 0`（本库有 35 ACCOUNT/33 DEAL，可产出） | ✅ **契约已修**（2026-09-17，见 §9）：判定源改为**列** `updated_at` 后 `relation_cooling` 结构性可达（反事实 `now+25d` → **11/11** 命中）。**当日 0 命中属正确行为**——本库最旧 ACCOUNT 仅 14.7 天，无 ≥30 天停滞者，已显式归因 `zero_hit, scanned=11`（非静默）。`contact_change`=**12**（旧实现仅 2，且那 2 条来自 payload 残留夹具键） |
 | 2 | 零假信号 | 正常实体（近期有更新）不得被派生 | 反例用例通过 | ✅ `test/signal/activityDerivation.test.js` 反例用例通过（窗口外/近期更新不命中）；变异验证有鉴别力 |
-| 3 | 置信语义 | 信号 payload 含 `confidence_basis` | 字段存在且为 `internal_inference` | ✅ 派生总数 2 = 带 `internal_inference` 计数 2（每条都带） |
+| 3 | 置信语义 | 信号 payload 含 `confidence_basis` | 字段存在且为 `internal_inference` | ✅ 派生总数 **12** = 带 `internal_inference` 计数 **12**（每条都带） |
 | 4 | 口径一致 | grep 复核 | 三字段标注无源 + 无适配器产出 + 文案已改 | ✅ `discoveryRules` 标注 + 页面镜像守卫 + grep 否定断言（见 §8） |
-| 5 | 幂等 | 复跑派生 | 同 `dedup_key` 不新增 | ✅ 第二次 `system` 返回 `deduped:2`，`source='derived'` 行数不变 |
+| 5 | 幂等 | 复跑派生 | 同 `dedup_key` 不新增 | ✅ 第二次 `system` 返回 `{signals:12, deduped:12}`，`source='derived'` 行数不变（12） |
 
 **反假绿要求**：不得把"配置已播种"叙述为"筛选能力已上线"——判据 1 要求**真库有派生信号**。
 
@@ -184,20 +184,20 @@
 
 | 判据 | 命令 | 实测 |
 |---|---|---|
-| 派生真实产出 | `SELECT kind,count(*) FROM crm.signal WHERE source='derived' GROUP BY 1` | `contact_change`(low)=**2**；`relation_cooling`=**0**（见下方根因） |
-| 置信语义 | `... WHERE payload->>'confidence_basis'='internal_inference'` | **2** = 派生总数 2（每条都带，无假绿） |
-| 幂等 | 复跑 `deriveOnce` | 第二次 `system` 返回 `{signals:2, deduped:2}`，`source='derived'` 行数 **不增长** |
+| 派生真实产出 | `SELECT kind,count(*) FROM crm.signal WHERE source='derived' GROUP BY 1` | （2026-09-17 修复后）`contact_change`(low)=**12**；`relation_cooling`=**0**（当日正确：无 ≥30 天停滞客户，已显式归因 `zero_hit, scanned=11`） |
+| 置信语义 | `... WHERE payload->>'confidence_basis'='internal_inference'` | **12** = 派生总数 12（每条都带，无假绿） |
+| 幂等 | 复跑 `deriveOnce` | 第二次 `system` 返回 `{signals:12, deduped:12}`，`source='derived'` 行数 **不增长** |
 | 配置就位 | `SELECT count(*) FROM crm.config_store WHERE key='internal-signal-derivation'` | 1（system 模板，经 readConfig autoSeed 覆盖租户） |
 | 生产接线 | 定时器⑱ | 已注册，`EXPECTED_TIMERS=18` |
 
-**⚠ 判据 1 部分证伪（必须原样保留，不得叙述为"已产出"）**：
+**判据 1 曾部分证伪 → 2026-09-17 已修复（下文为**原始取证**，原样保留以留痕）**：
 `relation_cooling` = 0，派生器返回归因 `missing=[{rule_id:'relation-cooling', reason:'zero_hit', scanned:11}]`（system 租户）。
 根因（数据面实测）：`crm.particles` 的 `updated_at` 存于**表列** `updated_at`，**不在** `payload` 内——
-`CRM_ACCOUNT` 38 行 `payload ? 'updated_at'` = **0**；`CRM_CONTACT` 25 行仅 **2** 行含该 payload 键（恰是命中的 2 条）。
+`CRM_ACCOUNT` 38 行 `payload ? 'updated_at'` = **0**；`CRM_CONTACT` 25 行仅 **2** 行含该 payload 键（恰是当时命中的 2 条）。
 而 `hitsRule` 读 `entity.payload.updated_at`（派生器 SQL `SELECT id, tenant_id, payload FROM crm.particles` 未取列）⇒
 **`relation_cooling` 在生产数据面永不可能命中**，`contact_ledger_change` 也仅对"恰好把 updated_at 写进 payload"的少数行生效。
-**结论：本条属「模块已接线但数据面契约不符」，须开新任务修复（读 `updated_at` 列而非 `payload.updated_at`）后方可宣称产出。**
-本批次**未**修改派生器（遵守「偏离已批准设计须显式批准」），仅如实记录。
+**结论：本条属「模块已接线但数据面契约不符」**——首次执行时未被授权改实现，故仅如实记录（遵守「偏离已批准设计须显式批准」）；
+用户 2026-09-17 批准修复后已按 §9 落地。
 
 **口径收敛结果（本设计的必要组成）**：
 `hiring_icp_role` / `leadership_change` 标 `coverage:'no_internal_source'`；
@@ -222,4 +222,46 @@
 | `timers.js:720`、`activityDerivation.js:4`、`leadFitScorer.js:9/15`、`qixin.js:2/10/27` | 注释 | 否 |
 
 **结论**：`leadership_change` / 新战略 **无任何适配器产出**（判定成立）；`hiring_icp_role` 仅 `qixin`（付费、默认关闭）做条件字段映射，无内部数据源 ⇒ 三字段的「配置承诺 ≠ 实现」判定成立。
+
+---
+
+## §9 数据面契约修复（2026-09-17，用户批准后执行）
+
+**修复项**：判定源由 `entity.payload.updated_at` 改为**表列** `updated_at`（并让 SQL 真正取该列）。
+
+**权威源取证**（先证源、再改码）：
+- 列定义：`db/schema.sql:24` — `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`。
+- 列被业务写刷新：`updateParticle` → `particleRepo.js:249` `UPDATE particles SET …, updated_at=now()`；`mintId.js:62` upsert 同步刷新。
+  ⇒ 该列语义＝「最近一次业务写/入库时间」，正是 `window_days` / `threshold_days` 需要的量。
+- payload 内从无该键：全租户 `CRM_ACCOUNT` `payload ? 'updated_at'` = **0/38**。
+
+**改动**（3 处，`src/signal/activityDerivation.js`）：
+1. SQL：`SELECT id, tenant_id, payload` → `SELECT id, tenant_id, payload, updated_at`（漏取列＝永久零命中）。
+2. `hitsRule`：`entity?.payload?.updated_at` → `entity?.updated_at`（**单一权威源，不做 payload 回退**——双源会重造"同一字段两处解释权"并把缺陷掩盖回去）。
+3. `evidence.updated_at` 同步改为取自列（证据链与判定同源）。
+
+**测试加固（关键，防复发）**：`test/signal/activityDerivation.test.js`
+- 实体统一改为**生产形状**（时间戳在顶层列、payload 不含该键）；
+- 测试替身改为**按 SQL 的 SELECT 列表投影返回行** —— SQL 漏取 `updated_at` 时替身即返回 `undefined`，**与生产缺陷同形**（判据⑤「替身形状掩缺陷」的三重加固：设计形状数据 + 尊重语义 + 变异验证成对）；
+- 新增 `[回归]` 组 3 例：① payload 无该键、仅列有值 → 必须命中；② SQL 必须取该列；③ `payload.updated_at` 不参与判定。
+
+**验证读数（本地 crm_native，只读 + 实跑）**：
+
+| 项 | 读数 | 说明 |
+|---|---|---|
+| `relation_cooling` 列源 / 真 `now` | 0 / 11 行 | 当日无 ≥30 天停滞客户（最旧 14.7 天）→ 0 为**正确行为** |
+| `relation_cooling` 列源 / 反事实 `now+25d` | **11 / 11** | 结构性死路已消除，规则可达 |
+| `relation_cooling` payload 旧源 | **0** | 证明旧实现永不可能命中 |
+| SQL 独立通道（`updated_at < now()-30d`） | 0；`+25d` 时 11 | **与代码判定逐数一致**（防"代码自己说自己对"） |
+| `contact_change` 真库实跑 | **12**（旧实现 2） | 第 1 次 `{signals:12, deduped:2}`；第 2 次 `{deduped:12}` 行数不变（幂等） |
+| 证据链 | `evidence.updated_at` 非空 **12/12** | 证据链已改为取自列 |
+| 置信标注 | `confidence_basis` **12/12** | 判据 3 保持 |
+
+**旧产出的性质（重要）**：修复前真库仅 2 条 `contact_change`，命中的是 `徐采购` / `金总（CIO）` 两行 —— 其 `payload.updated_at` 为手写的日期串 `"2026-09-09"`（**夹具残留键**）。
+⇒ **旧产出是偶发假象，不是真实业务派生**；修复后才与业务事实对齐。
+
+**边界声明（不得越界叙述）**：
+- 修复后 `relation_cooling` 是**可达且数据依赖**的，但本库当日**零命中**——不得叙述为"关系冷却已产出"。
+- 阈值 30 天是**业务旋钮**（`config_store['internal-signal-derivation']`），本批**刻意不调低**去制造产出（那正是本仓禁止的假绿）；如需当日即有产出，须由业务侧显式改配置值，并承担"阈值被下调"的语义后果。
+- M1/M4 类环境性超时与本次修复无关。
 **扫描方法自证**：探针文件含 `hiring_icp_role` → 命中 1 行（证明该否定断言非空断言）。

@@ -13,6 +13,13 @@
 //   ③ `relation_cooling` 原设计含「且无近期互动」。实测 `src/particles/interactionIndex.js` 声明的
 //      email/calendar/call/meeting 枚举**全仓零外部消费者**（孤儿模块）、DB 侧亦无互动流水表
 //      ⇒ 本批**只用粒子 updated_at 停滞**近似，并以此作为该信号的语义边界（不宣称"互动缺失"）。
+//   ④ 【2026-09-17 修复】上述 `updated_at` 的**权威源是表列**，不是 payload 键。原实现读
+//      `entity.payload.updated_at` 且 SQL 未取该列 ⇒ 真库 ACCOUNT 38 行 `payload ? 'updated_at'` = 0，
+//      `relation_cooling` **结构性永零命中**（模块已接线、单测全绿、生产零产出＝典型假绿）。
+//      真凭：schema.sql:24 `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`；主业务写
+//      `updateParticle`（particleRepo.js:249）每次 `SET …, updated_at=now()`；`mintId.js:62` upsert 同步刷新。
+//      修复＝判定源**单一化**为列（不做 payload 回退，避免双源解释权），并让测试替身按 SQL 的
+//      SELECT 列表投影返回行——漏取列即复现缺陷，使该缺陷无法再被"替身形状"掩盖。
 //
 // 铁律：
 //   A. 派生信号必须自带来源与置信语义（source='derived'、payload.confidence_basis='internal_inference'），
@@ -43,7 +50,9 @@ export function createActivityDerivation({ query, signalStore, readConfig = defa
   //   threshold_days —— 已停滞**超过 N 天**（= 冷却）
   //   两者语义相反，故必须由规则显式声明、互斥判定；缺字段一律不命中（不把"未知时间"当"刚更新"）。
   function hitsRule(rule, entity, now = Date.now()) {
-    const ts = entity?.payload?.updated_at;
+    // 时间戳源＝**列** `updated_at`（单一权威源，2026-09-17 修复）：不读 payload，也不做 payload
+    //   回退——双源会重新制造"同一字段两处解释权"（判据⑥），并把本文件头注 ④ 的结构缺陷掩盖回去。
+    const ts = entity?.updated_at;
     if (!ts) return false;
     const t = new Date(ts).getTime();
     if (Number.isNaN(t)) return false;
@@ -76,7 +85,9 @@ export function createActivityDerivation({ query, signalStore, readConfig = defa
     for (const rule of rules) {
       if (!rule.entity_type) { missing.push({ rule_id: rule.id, reason: 'entity_type_required' }); continue; }
       const { rows } = await query(
-        `SELECT id, tenant_id, payload FROM crm.particles WHERE type=$1 AND tenant_id=$2`,
+        // ⚠ 必取 updated_at **列**（2026-09-17 修复）：payload 内从无该键（真库 ACCOUNT 38 行 payload?updated_at=0），
+        //   权威时间戳是列（schema.sql:24；updateParticle/particleRepo.js:249 每次业务写刷新）。漏取该列 ⇒ 永久零命中。
+        `SELECT id, tenant_id, payload, updated_at FROM crm.particles WHERE type=$1 AND tenant_id=$2`,
         [rule.entity_type, tenantId],
       ).catch(() => ({ rows: [] }));
       scanned += rows.length;
@@ -102,7 +113,7 @@ export function createActivityDerivation({ query, signalStore, readConfig = defa
             rule_id: rule.id,
             window_days: rule.window_days ?? null,
             threshold_days: rule.threshold_days ?? null,
-            updated_at: entity.payload?.updated_at || null,
+            updated_at: entity.updated_at || null,            // 证据链与判定同源（列），不留 payload 口子
           },
           dedup_key: `derived:${rule.id}:${entity.id}:${bucketKey(now, rule.bucket)}`,
         });

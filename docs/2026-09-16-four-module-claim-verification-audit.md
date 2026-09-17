@@ -47,10 +47,16 @@
 > 实现：`src/signal/activityDerivation.js`（`source='derived'` + `confidence_basis='internal_inference'`，
 > 权重低于实测情报）+ 定时器⑱；口径标注见 `src/config/discoveryRules.js` 与拓客规则配置页。
 >
-> **⚠ 实测补充（2026-09-17）**：`contact_ledger_change` 真库产出 2 条（可证伪通过）；
+> **✅ 实测补充与修复（2026-09-17）**：首次实测发现 `contact_ledger_change` 真库产出 2 条、
 > `relation_cooling` **零命中**——根因＝`crm.particles.updated_at` 在**列**不在 `payload`，
-> 派生器读 `payload.updated_at` ⇒ 该规则在当前数据面永不可能命中（详见
-> `docs/2026-09-16-internal-signal-derivation-design.md` §8）。修复前不得宣称「关系冷却」已可产出。
+> 派生器读 `payload.updated_at` ⇒ 该规则**结构性**永不可能命中（且那 2 条命中也来自 payload 里的
+> **夹具残留键**，非真实业务派生）。**当日已按用户批准修复**：判定源单一化为列 `updated_at`
+> （并让 SQL 真正取该列），测试替身改为按 SELECT 列表投影以防复发。
+> 修复后读数：`contact_change` 真库实跑 **12** 条（幂等复跑行数不变）；`relation_cooling` **结构性可达**
+> （反事实 `now+25d` → 11/11 命中），但本库当日**零命中**——因最旧 ACCOUNT 仅 14.7 天，无 ≥30 天停滞者，
+> 属**正确行为**且已显式归因 `zero_hit`（非静默）。
+> **口径红线**：`relation_cooling` 当日零产出**不得**叙述为"已产出"；30 天阈值是业务旋钮，
+> **未**为制造产出而下调（那属本仓禁止的假绿）。详见设计文 §9。
 
 | 信号 | 配置位点 | 数据面实现 | 判定 |
 |---|---|---|---|
