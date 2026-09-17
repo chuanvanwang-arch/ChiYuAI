@@ -9,11 +9,11 @@
 //   · 密钥字段：secretFields 配置时，PUT 落库前加密、GET 返回掩码（明文不入客户端/日志）
 //   router.handlers = {get, put}（Express 路由内部转调；测试直接调 handlers，注入式依赖）
 import { Router } from 'express';
-import { requireDecision, decisionIdOf } from '../decision/autonomyEngine.js';
-import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { sevenDimensionsCheck } from '../sevenDimensions/engine.js';
 import { resolveMe as realResolveMe } from './auth.js';
 import { readConfig as storeRead, writeConfig as storeWrite } from '../config/configStore.js';
+// 配置写第0闸铸造器（单一实现：与 channelRouter 共用，防同一键两套写闸语义）
+import { produceConfigDecision } from '../config/configDecision.js';
 import { scopeTenant, scopeOf } from './tenantScope.js';
 import { hasRole, hasAnyRole, TENANT_LEVEL_ROLES } from './middleware/rbac.js';
 
@@ -22,17 +22,8 @@ import { hasRole, hasAnyRole, TENANT_LEVEL_ROLES } from './middleware/rbac.js';
 const defaultDeps = {
   readConfig: async (key, { tenantId = 'system' } = {}) => storeRead(key, { tenantId }),
   writeConfig: async (key, value, decisionId, { tenantId = 'system' } = {}) => storeWrite(key, value, { tenantId, decisionId, updatedBy: 'system' }),
-  // 第0闸：配置写一律需决策（场景不可辨识时降级为记录事件，不硬抛——保持既有业务写语义）
-  produceDecision: async (scene, ctx) => {
-    try {
-      const r = await requireDecision(scene, ctx || {});
-      const did = decisionIdOf(r);
-      return { decisionId: did, ok: !!did };
-    } catch {
-      await recordDecisionEvent('config_change', { scenario_id: scene, trigger_context: ctx });
-      return { decisionId: null, ok: true };
-    }
-  },
+  // 第0闸：配置写一律需决策（单一实现见 ../config/configDecision.js，与 channelRouter 同源）
+  produceDecision: produceConfigDecision,
   sevenCheck: async (scene, ctx) => sevenDimensionsCheck(scene, ctx),
   // 角色解析（默认真实；测试注入 stub）
   resolveMe: async (req) => realResolveMe(req),

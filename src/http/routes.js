@@ -55,6 +55,13 @@ import { buildReasoningSteps } from '../page/reasoningSteps.js';
 import { listMetaAttr } from '../metaAttr/metaAttrRepo.js';
 // 配置中心通用端点（S16–S33：configRouter 写经第0闸 + 七维拦截）
 import { createConfigRouter, createIntegrationSecretRouter, createIntegrationProviderRouter } from './configRouter.js';
+// 配置写第0闸铸造器（单一实现：channelRouter 与 configRouter 共用同一键的写闸语义）
+import { produceConfigDecision } from '../config/configDecision.js';
+// 需求② 通道接入路由（2026-09-17）：/api/channels 配置读写 + 接入向导三步后端
+//   （WorkBuddy 对话与网页两入口共用同一引擎；凭据入 vault / verifyScope 真探测 / 接入过 review-gate HITL）
+import { createChannelRouter } from './channelRouter.js';
+import { createVerifyScope } from '../channels/verifyScope.js';
+import { createChannelReviewGate } from '../channels/reviewGate.js';
 // §15 权限重分组：配置中心注册表闸（CONFIG_ITEMS.level → 端点级 ADMIN/三角色，先于各路由第0闸）
 import { createConfigLevelGate } from './middleware/rbac.js';
 import { CONFIG_ITEMS } from '../portal/configCenter.js';
@@ -121,7 +128,7 @@ import { login, resolveMe } from './auth.js';
 import { handleRegister } from './selfRegister.js'; // 自助注册（公开，免 admin 闸；按公司名自动判定租户）
 import { handleActivate, handleResend } from './activation.js'; // 自助注册激活闭环：激活 / 重发激活码
 import { scopeTenant, scopeOf, applyTenantOverride, signalOwnerScope } from './tenantScope.js';
-import { readConfig as storeReadConfig } from '../config/configStore.js';
+import { readConfig as storeReadConfig, writeConfig as storeWriteConfig } from '../config/configStore.js';
 import { registerDecisionReadRoutes } from './decisionReadRoutes.js'; // B6/B7 决策读模型路由（自检卡/九尺子/思维卡/场景chip）
 import { registerPropagationRoutes } from './propagationRoutes.js'; // 参数传播中枢（继承/下发/推广；全经决策第0闸）
 
@@ -265,6 +272,26 @@ export function createRoutes(app, hub) {
   app.use(createIntegrationSecretRouter());
   // 外部数据接入：租户自有实例声明 CRUD（2026-09-14 补充，仅 ADMIN/sysadmin；禁物理删除→enabled 软停用）
   app.use(createIntegrationProviderRouter());
+  // ─── 需求② 通道接入路由（2026-09-17，§4.5/§8）───
+  // 三端点（WorkBuddy 对话与网页共用同一后端引擎）：
+  //   GET  /api/channels                    → 租户通道列表（integration-providers 描述符，含 enabled/trust_level）
+  //   POST /api/channels/connect            → 接入向导③确认入库（凭据入 vault → verifyScope 真探测 → review-gate → 描述符 upsert）
+  //   POST /api/channels/:id/disconnect     → 软停用 enabled=false（禁删铁律）
+  // 生产装配：verifyScope 走 createVerifyScope（真探测 fail-closed；P4 未交付 → probe_not_implemented 如实上报，不假绿）；
+  //           review-gate 走 createChannelReviewGate（HITL：查 APPROVED 的 CRM_APPROVAL_INSTANCE，无批准不放行）。
+  const channelCfg = createChannelRouter({
+    readConfig: storeReadConfig,
+    writeConfig: storeWriteConfig,
+    // 配置写第 0 闸：与 configRouter 同一铸造器（同一键 integration-providers 不得两套写闸语义）
+    produceDecision: produceConfigDecision,
+    reviewGate: createChannelReviewGate(),
+    verifyScope: createVerifyScope(),
+  });
+  app.get('/api/channels', (req, res) => channelCfg.handlers.get(req, res));
+  app.post('/api/channels/connect', (req, res) => channelCfg.handlers.connect(req, res));
+  app.post('/api/channels/:id/disconnect', (req, res) => channelCfg.handlers.disconnect(req, res));
+  app.get('/channel-config.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/channel-config.html', import.meta.url))));
   app.use(createFunnelRouter());
   // ─── S05 财务应收聚合端点（T1）───
   // 合同维：应收余额=Σplan−Σpaid；逾期天数=plan_end−today(plan_status≠done)；账龄读 config_store aging_buckets；发票对账状态

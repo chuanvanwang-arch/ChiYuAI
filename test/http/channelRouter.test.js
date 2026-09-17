@@ -89,6 +89,47 @@ describe('channelRouter 契约（T6）', () => {
     expect(res.body.error).toBe('approval_required');
   });
 
+  it('kind 判据单一源：generic-rest/mcp/cli 不是通道（不展示、不可接入）', async () => {
+    const { deps, store } = makeDeps();
+    store['t1:integration-providers'] = [
+      { id: 'src-rest', kind: 'generic-rest', enabled: true },   // 通用数据源（非通道）
+      { id: 'src-mcp', kind: 'generic-mcp', enabled: true },
+      { id: 'ch-email', kind: 'generic-email', enabled: true, trust_level: 'L1' }, // 真通道
+    ];
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.get(mkReq('/api/channels', { query: { tenant_id: 't1' } }), res);
+    expect(res.body.channels.map((c) => c.id)).toEqual(['ch-email']); // 只列通道
+    // 同判据用于接入校验：generic-rest 不得经通道向导入库
+    const res2 = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'src-rest', kind: 'generic-rest' },
+    }), res2);
+    expect(res2.statusCode).toBe(400);
+    expect(res2.body.error).toBe('kind_invalid');
+  });
+
+  it('配置写第 0 闸：connect/disconnect 铸 config-change 决策并落 decisionId', async () => {
+    const seen = [];
+    const { deps, store } = makeDeps({
+      produceDecision: async (scene, ctx) => { seen.push({ scene, ctx }); return { decisionId: 'dec-1', ok: true }; },
+      writeConfig: async (key, value, opt = {}) => { store[`t1:${key}`] = value; seen.push({ write: key, decisionId: opt.decisionId }); },
+    });
+    store['t1:integration-providers'] = [{ id: 'ch-email', kind: 'generic-email', enabled: true }];
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'ch-email', kind: 'generic-email' },
+    }), res);
+    expect(res.body.decision).toBe('dec-1');
+    expect(seen.some((s) => s.scene === 'config-change' && s.ctx?.key === 'integration-providers')).toBe(true);
+    expect(seen.some((s) => s.write === 'integration-providers' && s.decisionId === 'dec-1')).toBe(true);
+    // disconnect 同源
+    const res2 = fakeRes();
+    await r.handlers.disconnect(mkReq('/api/channels/ch-email/disconnect', { params: { id: 'ch-email' }, query: { tenant_id: 't1' } }), res2);
+    expect(res2.body.decision).toBe('dec-1');
+  });
+
   it('POST /api/channels/:id/disconnect 软停用（enabled=false，禁删铁律）', async () => {
     const { deps, store } = makeDeps();
     store['t1:integration-providers'] = [{ id: 'channel-email-1', kind: 'generic-email', enabled: true, trust_level: 'L1' }];

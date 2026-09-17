@@ -5,14 +5,8 @@
 //       未接通不得宣称已接通，对齐需求④ Q2-5 红线）。
 // 契约：verifyScope({ tenantId, id, kind }) → { ok, error?, probe?, hint? }
 import { resolveCredentials as vaultResolve } from '../connectors/discovery/credentialVault.js';
-
-// kind → 预设 verify.probe 名（与 presets/channel-*.js 一一对应）
-const KIND_PROBE = {
-  'generic-email': 'imap_login',
-  'generic-calendar': 'caldav_propfind',
-  'generic-meeting': 'meeting_api_list',
-  'generic-wechat': 'wecom_api',
-};
+// kind→probe 映射单一事实源（见 channels/kinds.js）
+import { KIND_PROBE } from './kinds.js';
 
 // 探针注册表：P4 交付真实探针后 registerChannelProbe 注入；
 //   未注册 → verifyScope 如实返回 probe_not_implemented（阻塞 connect，不让「未验证」伪装成「已验证」）。

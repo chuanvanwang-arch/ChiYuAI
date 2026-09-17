@@ -10,7 +10,15 @@
 //   GET  /api/channels                  → 租户通道列表（来自 integration-providers，含 enabled/trust_level）
 //   POST /api/channels/connect          → 接入向导③确认入库（凭据入 vault→verifyScope 探测→review-gate→描述符 upsert）
 //   POST /api/channels/:id/disconnect   → 软停用（enabled=false）
-export function createChannelRouter({ readConfig, writeConfig, reviewGate, verifyScope, persistSecret } = {}) {
+// 写闸（与 configRouter 同源，同一键 `integration-providers` 不得两套写语义）：
+//   config-store 写前铸 `config-change` 决策（produceConfigDecision 单一实现）→ decisionId 落 writeConfig。
+//   connect 另加 review-gate（§4.5.1 ③ first-connect HITL）；两者是不同闸，缺一不可。
+// 通道 kind 判据单一事实源（channels/kinds.js）：
+//   ⚠ 不得用 `kind.startsWith('generic-')` 判定——`generic-rest/mcp/cli` 同前缀但**不是通道**
+//   （会把通用数据源错当通道展示/接入＝同名前缀两义）。configRouter 的 VALID_KINDS 与之 kind 域不相交。
+import { isChannelKind } from '../channels/kinds.js';
+
+export function createChannelRouter({ readConfig, writeConfig, reviewGate, verifyScope, persistSecret, produceDecision } = {}) {
   // 凭据落密默认走 credentialVault.persistSecret（若不注入）
   const saveSecret = persistSecret || (async ({ tenantId, providerId, raw }) => {
     const m = await import('../connectors/discovery/credentialVault.js');
@@ -21,7 +29,8 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
     const tenantId = req.query.tenant_id || req.body?.tenant_id || 'system';
     try {
       const row = await readConfig('integration-providers', { tenantId });
-      const list = (Array.isArray(row?.value) ? row.value : []).filter((d) => d.kind?.startsWith('generic-'));
+      // 只呈现**通道**（isChannelKind）；通用数据源（generic-rest/mcp/cli）归 /api/integration/providers 面
+      const list = (Array.isArray(row?.value) ? row.value : []).filter((d) => isChannelKind(d.kind));
       res.json({
         ok: true,
         channels: list.map(({ id, kind, label, enabled, trust_level, objects }) => ({
@@ -36,7 +45,7 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
   async function connect(req, res) {
     const tenantId = req.body?.tenant_id || req.query.tenant_id || 'system';
     const { id, kind, credentials, trust_level = 'L1', objects = [], label } = req.body || {};
-    if (!id || !kind || !kind.startsWith('generic-')) return res.status(400).json({ ok: false, error: 'kind_invalid' });
+    if (!id || !isChannelKind(kind)) return res.status(400).json({ ok: false, error: 'kind_invalid' });
     // ① 凭据直进 vault（明文不落响应/审计）
     if (credentials && typeof credentials === 'object' && Object.keys(credentials).length) {
       try {
@@ -61,8 +70,18 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
     const idx = list.findIndex((d) => d.id === id);
     const desc = { id, kind, label: label || kind, enabled: true, trust_level, objects: Array.isArray(objects) ? objects : [] };
     if (idx >= 0) list[idx] = desc; else list.push(desc);
-    await writeConfig('integration-providers', list, { tenantId, updatedBy: req?.user?.id || 'system' });
-    res.json({ ok: true, stored: true, channel: { id, kind, enabled: true, trust_level }, hint: '首次只读（L1），信任提升过独立闸门' });
+    // 配置写第 0 闸（与 configRouter 同源）：铸 config-change 决策，decisionId 落库（写无决策不留白）
+    const decision = typeof produceDecision === 'function'
+      ? await produceDecision('config-change', { key: 'integration-providers', action: 'connect', id, kind }).catch(() => null)
+      : null;
+    await writeConfig('integration-providers', list, {
+      tenantId, decisionId: decision?.decisionId || null, updatedBy: req?.user?.id || 'system',
+    });
+    res.json({
+      ok: true, stored: true, channel: { id, kind, enabled: true, trust_level },
+      decision: decision?.decisionId || null,
+      hint: '首次只读（L1），信任提升过独立闸门',
+    });
   }
 
   async function disconnect(req, res) {
@@ -73,8 +92,14 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
       const d = list.find((x) => x.id === req.params.id);
       if (!d) return res.status(404).json({ ok: false, error: 'channel_not_found' });
       d.enabled = false;
-      await writeConfig('integration-providers', list, { tenantId, updatedBy: req?.user?.id || 'system' });
-      res.json({ ok: true, channel: { id: d.id, enabled: false } });
+      // 配置写第 0 闸（与 configRouter 同源）
+      const decision = typeof produceDecision === 'function'
+        ? await produceDecision('config-change', { key: 'integration-providers', action: 'disconnect', id: d.id }).catch(() => null)
+        : null;
+      await writeConfig('integration-providers', list, {
+        tenantId, decisionId: decision?.decisionId || null, updatedBy: req?.user?.id || 'system',
+      });
+      res.json({ ok: true, channel: { id: d.id, enabled: false }, decision: decision?.decisionId || null });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }

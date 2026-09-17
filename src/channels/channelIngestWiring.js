@@ -13,9 +13,10 @@
 import { normalizeChannelRow } from './eventNormalizer.js';
 import { ingestChannelEvent } from './channelGraphIngest.js';
 import { query, queryWrite } from '../db.js';
+// 通道 kind 单一事实源（见 channels/kinds.js；本文件不再自建集合）
+import { CHANNEL_KINDS } from './kinds.js';
 
-// 通道 kind（与 sync/factory.js 的 SYNC_PROVIDER_FACTORY 通道键、presets/index.js 的 buildChannelFactories 同源）
-export const CHANNEL_KINDS = new Set(['generic-email', 'generic-calendar', 'generic-meeting', 'generic-wechat']);
+export { CHANNEL_KINDS };
 
 // —— 生产 deps：真实现（可注入替身以便单测；缺省走真实 DB）——
 export function createChannelIngestDeps(deps = {}) {
