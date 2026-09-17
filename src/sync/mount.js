@@ -70,7 +70,7 @@ export async function loadSyncMappings({ tenantId = 'system', readConfig } = {})
 
 // —— descriptor → 同步目标（仅 enabled + 有入向 objects[] + kind 受支持）——
 // A-B1：归一化与方向判据全部走 providerDescriptor.js（单一事实源），本文件不自行解析描述符
-export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, resolveCredentials, factories = {}, emit } = {}) {
+export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, resolveCredentials, factories = {}, channelIngest, emit } = {}) {
   try {
     const row = await readConfig('integration-providers', { tenantId });
     const { descriptors, issues } = normalizeProviderDescriptors(Array.isArray(row?.value) ? row.value : []);
@@ -89,12 +89,26 @@ export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, r
       if (!factory) continue; // 未知 kind 跳过（不抛，防扫描中断）
       const inbound = inboundObjects(d);
       if (!inbound.length) continue; // 无入向 objects[] → no-op（既有 descriptor 零行为变化）
+      const trustLevel = effectiveTrustLevel(d.trust_level, globalLevel);
+      let provider = factory({ ...d, credentials: (creds && creds[d.id]) || d.credentials || null });
+      // 需求② §5（T7）：通道 provider 图谱汇入钩子。**仅**由注入方决定是否包装（本文件不识别通道 kind，
+      //   保持通用层零通道专属代码）；包装器为单一读入（同一批 rows 既进内核 upsert 也进汇入）。
+      //   包装失败不阻断目标装配（留痕后回落原 provider）。
+      if (typeof channelIngest === 'function') {
+        try {
+          provider = channelIngest({ provider, kind: d.kind, tenantId, trustLevel, emit }) || provider;
+        } catch (e) {
+          if (typeof emit === 'function') {
+            emit('trace', 'channel-ingest-wrap-failed', { tenant_id: tenantId, provider: d.id, error: String(e?.message || e) });
+          }
+        }
+      }
       out.push({
         id: d.id,
         kind: d.kind,
-        provider: factory({ ...d, credentials: (creds && creds[d.id]) || d.credentials || null }),
+        provider,
         objects: inbound,
-        trustLevel: effectiveTrustLevel(d.trust_level, globalLevel),
+        trustLevel,
         descriptorLevel: d.trust_level || null,
       });
     }

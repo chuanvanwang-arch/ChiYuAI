@@ -536,6 +536,10 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
       const syncFactories = { ...baseFactories, ...presetFactories };
       const vault = await import('../connectors/discovery/credentialVault.js').catch(() => null);
       const autonomy = await import('../decision/autonomyEngine.js').catch(() => null);
+      // 需求② §5（T7）：通道 provider 图谱汇入钩子——包装 readIncremental，单一读入逐行汇入既有账户。
+      //   仅通道 kind（generic-email/calendar/meeting/wechat）生效；非通道 provider 原样返回（零行为变化）。
+      //   未加载到 → 钩子为 undefined → mount 侧跳过包装（汇入缺席会被 channel-ingest-done 缺失暴露，非静默）。
+      const channelIngest = (await import('../channels/channelIngestWiring.js').catch(() => null))?.wrapProviderForIngest;
       // —— LF-4：第 0 闸铸造器提升到 runPoll 顶层（富化分支与同步分支**共用**，同租户一轮一枚）——
       const mintDecision = async (scene, ctx) => {
         const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
@@ -555,6 +559,7 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         // —— A-B6：租户同步目标装配（无 objects[] → 空目标 → no-op）——
         loadSyncTargets: mount ? ({ tenantId }) => mount.loadTenantSyncTargets({
           tenantId, readConfig, resolveCredentials: vault?.resolveCredentials, factories: syncFactories,
+          channelIngest, // 需求② §5（T7）：通道 provider 图谱汇入钩子
         }) : undefined,
         runSync: mount ? async ({ tenantId, targets }) => {
           // P0-1（2026-09-16）：L3 回写接线。此前 deps 未传 callWriteback → engine.js:38 分支恒不成立
