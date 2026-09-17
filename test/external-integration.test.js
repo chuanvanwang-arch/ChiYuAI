@@ -190,19 +190,34 @@ describe('T10 · conn-signal-lead-gen', () => {
 });
 
 describe('T11 · integration-poll 定时器注册', () => {
-  it('runIntegrationPollOnce 逐租户对启用 provider 拉取并 monitorAccount', async () => {
+  it('runIntegrationPollOnce 逐租户对启用 provider 拉取并 monitorAccount（LF-4：ctx 四件套已装配）', async () => {
     const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
     const accounts = [{ id: 'acc1', payload: {} }];
     const calls = [];
+    const monitorAccountCalls = [];
+    const monitorAccount = async (ctx, accId, sigs) => { monitorAccountCalls.push({ ctx, accId, sigs }); return { accId, sigs }; };
     await runIntegrationPollOnce({
       listActiveTenants: async () => [{ tenant_id: 't1' }],
       loadAdapters: async () => [{ id: 'qixin', coverageFields: ['funding_round'], enrich: async () => ({ funding_round: { value: 'B轮', confidence: 0.8, cost: 0, provider: 'qixin' } }) }],
       query: async () => ({ rows: accounts }),
       runWaterfall: async (ads, ent, fields) => { calls.push(ent.id); return { values: { funding_round: { value: 'B轮' } }, cost: 0, calls: 1 }; },
-      monitorAccount: async (deps, accId, sigs) => ({ accId, sigs }),
+      // LF-4：第 0 闸 + ctx 四件套装配齐备 → monitorAccount 走真实调用（不再结构性 TypeError / skipped 分支）
+      mintDecision: async () => ({ decisionId: 'd-test' }),
+      buildMonitorCtx: (opts) => ({
+        tenantId: opts.tenantId, decisionId: opts.decisionId,
+        getAccount: async () => ({}), rescore: async () => ({}),
+        appendMemory: async () => ({}), updateParticle: async () => ({}),
+      }),
+      monitorAccount,
       emit: () => {},
     });
     expect(calls).toContain('acc1');
+    // LF-4 根治判据：ctx 四件套齐备时 monitorAccount 被真实调用（非 skipped 分支）
+    expect(monitorAccountCalls.length).toBe(1);
+    const ctxArg = monitorAccountCalls[0].ctx;
+    for (const k of ['getAccount', 'rescore', 'appendMemory', 'updateParticle']) {
+      expect(typeof ctxArg[k], k).toBe('function');
+    }
   });
   it('ensureTimers 注册 integration-poll（间隔取自 config，缺省 6h）', async () => {
     const { ensureTimers, clearTimers, timerCount } = await import('../src/scheduler/timers.js');
@@ -577,6 +592,9 @@ describe('E.2.1 · monitorAccount 失败留痕（禁止空吞）', () => {
       query: async () => ({ rows: [{ id: 'acc1', payload: {} }] }),
       // 富化出非空 values → sigs.length > 0 → 命中 monitorAccount 调用点
       runWaterfall: async () => ({ values: { legal_person: { provider: 'qixin', ts: 'x' } }, cost: 0 }),
+      // LF-4：第 0 闸 + ctx 四件套装配齐备 → monitorAccount 走真实调用（否则走 skipped 分支，不触 failed 留痕）
+      mintDecision: async () => ({ decisionId: 'd-test' }),
+      buildMonitorCtx: () => ({ getAccount: async () => null, rescore: async () => ({ score: 0 }), appendMemory: async () => {}, updateParticle: async () => {} }),
       monitorAccount: async () => { throw new Error('ctx.getAccount is not a function'); },
       recordTokens: async () => ({ ok: true }),
       emit: (k, name, p) => traces.push({ name, p }),
