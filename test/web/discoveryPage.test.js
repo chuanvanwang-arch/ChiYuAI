@@ -27,6 +27,23 @@ describe('discovery.html 前台线索发现工作台（只读面）', () => {
     expect(html).toContain('j_score');
   });
 
+  it('需求① 定向拓客：含「输入邮箱/公司名/域名」表单 + 只读 prospecting-lookup enrich（画像补全，非候选搜索）', () => {
+    expect(html).toContain('id="directProbe"');
+    expect(html).toContain('id="dpName"');
+    expect(html).toContain('id="dpDomain"');
+    expect(html).toContain('id="dpEmail"');
+    expect(html).toContain('id="dpSearch"');
+    // 只读画像富集：调用 prospecting-lookup（read 类 Action）且 kind:'enrich'
+    //   —— 适配器 search() 只接受 ICP 批量条件、不接受 name/domain/email 定点；
+    //       定点必须走 enrich 分支，否则恒空=假绿（判据⑤同型）
+    expect(html).toContain('/api/action/prospecting-lookup');
+    expect(html).toContain("kind: 'enrich'");
+    expect(html).toContain("fields: ['industry', 'registered_address', 'legal_person', 'funding_round', 'hiring_icp_role', 'tender_match']");
+    // 画像不引导入池（防止画像字段被误当线索落公海）：落主数据走 data-particle-create 两阶段
+    expect(html).toContain('data-particle-create');
+    expect(/fetch\([^)]*\/(api\/action\/prospecting-confirm)[^)]*,\s*\{[^}]*method\s*:\s*['"](POST|PUT)['"]/i.test(html)).toBe(false);
+  });
+
   it('无 DELETE 关键字（禁 DELETE 铁律）', () => {
     expect(/\bdelete\b|\bDELETE\b/.test(html)).toBe(false);
   });

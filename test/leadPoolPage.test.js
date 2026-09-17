@@ -181,13 +181,22 @@ describe('pooled_at 写入与回填（T4）', () => {
   }, 30000);
 });
 
-describe('lead-pool.html 页面（T5）', () => {
+describe('lead-pool.html 页面（T5 + 需求① 私海回退闭环）', () => {
   it('存在且含公海池关键交互节点', async () => {
     const html = readFileSync('src/web/lead-pool.html', 'utf8');
     expect(html).toContain("import { injectLayout } from '/portal/layout.js'");
     expect(html).toContain('/api/lead-pool');
     expect(html).toContain('/api/lead-pool/${id}/pick');
     expect(html).toContain('pool-config.html'); // 空态互链
+  });
+
+  it('含「我的私海」Tab + 回退公海按钮（需求① 认领/回退闭环前端）', () => {
+    const html = readFileSync('src/web/lead-pool.html', 'utf8');
+    expect(html).toContain('data-panel="panel-mine"');
+    expect(html).toContain('/api/lead-pool/mine');       // 私海只读端点（S0P 归属=我）
+    expect(html).toContain("fetch('/api/action/crm-lead-return'"); // 回退写走既有 Action
+    expect(html).toContain('reason_code');               // 回退原因必选（RETURN_REASONS）
+    expect(html).toContain('no_project');                // 原因枚举与后端 RETURN_REASONS 同源
   });
 
   it('Express 已注册 /lead-pool.html 路由，GET 返回 HTML', async () => {

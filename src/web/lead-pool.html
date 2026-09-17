@@ -31,6 +31,8 @@
  .fr-warm{background:#fff6e5;color:#b8860b}
  .fr-stale{background:#f1f1f3;color:#8a8a93}
  .pick{background:var(--ac);color:#fff;border:0;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer}
+ .ret-reason{padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:var(--panel);color:var(--ink)}
+ .ret-btn{background:#fff;color:var(--ac);border:1px solid var(--ac);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer}
  .empty{padding:40px;text-align:center;color:var(--mut);font-size:14px}
  .empty a{color:var(--ac)}
  .trunc{padding:10px 14px;font-size:12px;color:#b45309;background:#fff7ed;border-top:1px solid var(--line)}
@@ -44,6 +46,7 @@
   <h2>公海池 · 待领取线索</h2>
   <div class="tabs">
     <button class="active" data-panel="panel-pool">公海池</button>
+    <button data-panel="panel-mine">我的私海</button>
     <button data-panel="panel-prospecting">主动拓客</button>
   </div>
 
@@ -69,7 +72,22 @@
     <div class="trunc" id="trunc" hidden>结果较多，仅显示前 200 条；可用筛选缩小范围。</div>
   </div>
 
-  <!-- 面板二：主动拓客（MCP 对话驱动搜→选→入池） -->
+  <!-- 面板二：我的私海（S0P 已认领待校验；回退公海闭环，需求①） -->
+  <div class="panel" id="panel-mine">
+    <div class="sub">私海（S0P）= 我已认领、待 BANT 校验的线索。核实无立项/无预算等可<b>回退公海</b>（写操作走决策第 0 闸，回退原因必选）。</div>
+    <div class="toolbar">
+      <button class="btn-ghost" id="btnMineRefresh">刷新</button>
+      <span class="quota" id="mineQuota"></span>
+    </div>
+    <table id="mineTbl">
+      <thead><tr><th>线索</th><th>来源</th><th>池类型</th><th>入池天数</th><th>预计金额</th><th>回退原因</th><th style="text-align:right">操作</th></tr></thead>
+      <tbody id="mineRows"></tbody>
+    </table>
+    <div class="empty" id="mineEmpty" hidden>私海暂无线索。请在「公海池」认领后在此跟进。</div>
+    <div class="trunc" id="mineTrunc" hidden>结果较多，仅显示前 200 条。</div>
+  </div>
+
+  <!-- 面板三：主动拓客（MCP 对话驱动搜→选→入池） -->
   <div class="panel" id="panel-prospecting">
     <div class="sub">MCP 对话驱动的主动拓客：按 ICP 批量搜索候选企业 → 圈选 → 确认一键进入公海池（S0），写操作走决策第 0 闸 + 两阶段审核。付费数据源需在 <a href="/discovery-rules.html">线索发现规则</a> 配置凭据，未配置时返回空为预期 fail-open。</div>
     <div class="toolbar">
@@ -165,6 +183,66 @@ $('rows').addEventListener('click', async (e)=>{
   else { showToast('认领失败：' + (data.error || data.gate || res.status)); btn.disabled = false; }
 });
 
+// —— 面板二：我的私海（S0P 已认领，回退公海闭环）——
+const RETURN_REASONS = [
+  ['no_project','无立项/无真实项目'],
+  ['no_budget','核实无预算'],
+  ['no_decision_maker','无决策人（关键人不在）'],
+  ['no_timeline','无时间表/短期无推进'],
+  ['other','其他'],
+];
+let mineAll = [];
+async function loadMine(){
+  const token = localStorage.getItem('crm_token');
+  const res = await fetch('/api/lead-pool/mine', { headers: token ? { Authorization:`Bearer ${token}` } : {} });
+  if(!res.ok){ showToast('私海加载失败：' + res.status); return; }
+  const data = await res.json().catch(()=>({ items: [] }));
+  mineAll = Array.isArray(data.items) ? data.items : [];
+  $('mineTrunc').hidden = !(data.truncated === true);
+  renderMine();
+}
+function renderMine(){
+  const tb = $('mineRows'); tb.innerHTML = '';
+  $('mineEmpty').hidden = mineAll.length > 0;
+  const opt = RETURN_REASONS.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+  for(const x of mineAll){
+    const tr = document.createElement('tr');
+    const fr = x.freshness || 'unknown';
+    const frBadge = fr==='hot' ? '<span class="fr-badge fr-hot">本周信号</span>'
+      : fr==='warm' ? '<span class="fr-badge fr-warm">近月信号</span>'
+      : fr==='stale' ? '<span class="fr-badge fr-stale">信号陈旧</span>' : '';
+    const amt = (typeof x.amount==='number' && isFinite(x.amount)) ? '¥'+x.amount.toLocaleString('zh-CN') : '—';
+    tr.innerHTML =
+      `<td>${esc(x.name||'(未命名线索)')}</td>`+
+      `<td>${esc(x.source||'—')}</td>`+
+      `<td><span class="pool-tag">${esc(x.pool_type||'—')}</span></td>`+
+      `<td>${typeof x.in_pool_days==='number' ? x.in_pool_days+' 天' : '—'}</td>`+
+      `<td>${amt}</td>`+
+      `<td><select class="ret-reason" data-id="${esc(x.id)}">${opt}</select></td>`+
+      `<td style="text-align:right"><button class="pick ret-btn" data-id="${esc(x.id)}" data-name="${esc(x.name||'')}">回退公海</button></td>`;
+    tb.appendChild(tr);
+  }
+  $('mineQuota').textContent = `共 ${mineAll.length} 条（我认领的私海线索）`;
+}
+$('btnMineRefresh').addEventListener('click', loadMine);
+$('mineRows').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.ret-btn'); if(!btn) return;
+  const id = btn.dataset.id, name = btn.dataset.name;
+  const sel = document.querySelector(`.ret-reason[data-id="${id}"]`);
+  const reason = sel ? sel.value : '';
+  if(!confirm(`确认将线索「${name}」回退公海？\n须选择回退原因（核库无立项/无预算/无决策人/无时间表）。`)) return;
+  btn.disabled = true;
+  const token = localStorage.getItem('crm_token');
+  const res = await fetch('/api/action/crm-lead-return', {
+    method:'POST',
+    headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+    body: JSON.stringify({ deal_id: id, reason_code: reason }),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(res.ok && data.ok){ showToast('已回退公海（进培育池）'); loadMine(); load(); }
+  else { showToast('回退失败：' + (data.error || data.gate || res.status)); btn.disabled = false; }
+});
+
 // —— 面板二：主动拓客 ——
 let ppSession = null, ppCands = [];
 async function ppSearch(){
@@ -213,13 +291,14 @@ async function ppConfirm(){
   if(!sel.ok){ showToast('圈选失败：' + (sel.error || sel.gate)); return; }
   const conf = await fetch('/api/action/prospecting-confirm', { method:'POST', headers:hd, body:JSON.stringify({ session_id: ppSession, confirmed_ids: ids }) }).then(r=>r.json()).catch(()=>({ok:false}));
   if(conf.ok){ showToast('已确认入池，转入公海（S0）'); ppCands = []; ppRender(); $('ppStatus').textContent=''; load(); }
-  else if(conf.gate === 'approval_required'){ showToast('审批流拦截：批量入池属写操作，需经 HITL 审批（MCP 两阶段 confirm_token），请在对话中完成确认'); }
+  else if(conf.gate === 'approval_required'){ showToast('审批流拦截：批量入池为写操作已提交审批，请前往「我的待办 /my-todo.html（待我审批）」完成 HITL 确认；如需对话驱动，可在 MCP 胶囊中走两阶段 confirm_token'); }
   else { showToast('确认失败：' + (conf.error || conf.gate || '需经决策审批')); }
 }
 $('ppSearch').addEventListener('click', ppSearch);
 $('ppConfirm').addEventListener('click', ppConfirm);
 
 load();
+loadMine();
 </script>
 </body>
 </html>
