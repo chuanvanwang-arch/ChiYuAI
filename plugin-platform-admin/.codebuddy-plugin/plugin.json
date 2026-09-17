@@ -1,7 +1,7 @@
 {
   "name": "crm-platform-admin",
-  "version": "1.2.0",
-  "description": "AI 原生销售平台管理助手——面向平台管理员 / sysadmin 的治理插件。覆盖行业租户上线（tenant-profile 配置化）、用户与 RBAC 权限新增、系统初始化（数据库迁移 + 种子 + 配置引导）三大平台治理面。继承 CRM-ai-native 同一套红线：绝对禁 DELETE、写必经决策第 0 闸、per-tenant 隔离、零信任。",
+  "version": "1.3.0",
+  "description": "企业AI销售决策管理专家——面向平台管理员 / sysadmin 的治理插件。覆盖行业租户上线（tenant-profile 配置化）、用户与 RBAC 权限新增、系统初始化（数据库迁移 + 种子 + 配置引导）三大平台治理面。继承 CRM-ai-native 同一套红线：绝对禁 DELETE、写必经决策第 0 闸、per-tenant 隔离、零信任。",
   "author": {
     "name": "CRM-ai-native",
     "email": "chuan.van.wang@gmail.com"
@@ -18,12 +18,12 @@
   "expertType": "agent",
   "agentName": "platform-admin",
   "displayName": {
-    "en": "CRM Platform Admin",
-    "zh": "CRM 平台管理助手"
+    "en": "Industry-Adaptive, Full-Process Monitoring",
+    "zh": "行业自适应过程全监控"
   },
   "profession": {
-    "en": "AI-Native Sales Platform Admin Assistant",
-    "zh": "AI 原生销售平台管理助手"
+    "en": "Enterprise AI Sales Decision Management Expert",
+    "zh": "企业AI销售决策管理专家"
   },
   "displayDescription": {
     "en": "Platform-governance assistant for CRM-ai-native: onboard new industry tenants via config profile, provision users and RBAC permissions, and bootstrap system initialization. Zero-trust, no-delete, decision-gated.",

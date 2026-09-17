@@ -1,5 +1,5 @@
 /**
- * CRM Platform Admin — OpenClaw plugin entrypoint.
+ * Enterprise AI Sales Decision Management Expert — OpenClaw plugin entrypoint.
  *
  * This plugin acts as a skill bundle: all platform-governance capabilities
  * (industry onboarding, user & RBAC provisioning, system bootstrap) are
