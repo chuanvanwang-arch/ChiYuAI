@@ -574,6 +574,8 @@ SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NO
 
 > **适用范围（E1 修正，2026-09-16 取证新增）**：成立条件须再补一条 —— 该行**不得**来自 smoke/测试租户，且 `provider` **不得**为 `mock`。
 > 理由：Q4-1 取证实测，全域 `crm.sync_cursor` 的 11 行与 `crm.external_ref` 的 26 行**全部**归属 `smoke-*` 租户，唯一 `last_status='ok'` 行的 `provider='mock'`。若不加此限定，**smoke 脚本会自己把判据 ② 刷绿**——「判据由被测方提供证据」的变体。详见 §7.1.1 与 §5.2 **N10**。
+>
+> **可验证性补充（F-4，2026-09-16）**：判据② 的**代码路径**可经 `scripts/seed-integration-sim.mjs` 在**模拟口径**下端到端复现（租户 `sim-erp`，取证 8/8）。该复现**只**证明「代码路径通」（真 HTTP / 真适配器 / 真凭据解密 / 真第 0 闸 / 真落库），**不**满足本节「真实租户口径」的成立条件；引用时必须同时声明模拟口径，禁止作为 KPI 或交付验收证据（详见 §8.3.3）。
 
 ### 5.2 负向判据（防假绿，**任一不成立即验收失败**）
 
@@ -712,6 +714,50 @@ SELECT count(*) FROM crm.external_ref WHERE tenant_id = $1 AND external_id IS NO
 | **P-3** | 计划 Q3-3b 测试引 `__resetRegistry`，而 `src/action/registry.js` 实际导出 **`resetRegistry`**（计划已预告此不确定点并给了两条路径） | 走"用既有导出"路径，**不为测试改生产接口** | `test/connectors/writebackGateWiring.test.js` |
 | **P-4** | Q4-1 脚本原 N2/N3 条目为 `check(..., true, ...)`（**恒真锚点**，永远 PASS） | 改为**真实不变量**：`failed/skipped` 行 `last_error` 非空数 = 0 且 `sent` 行带 error 数 = 0 | `scripts/smoke-full-chain-e2e.mjs` |
 | **P-5** | 计划 Q3-4 Step 6 期望 migrate 第二次输出「新增 0 条」；`db/migrate.js` **无此输出**（无迁移账本，增量 SQL 每次重跑，靠语句自身幂等） | 改以**直查结果**为判据：`has_key=t val=false` 且既有键 `default_tier` 未被覆盖 | 本表 |
+
+### 8.3.2 修正记录 v1.3（2026-09-16，全租户接通后续执行）
+
+**背景**：用户裁决「对当前所有租户都采用 0 闸」已由 system 模板 + `readConfig` autoSeed 覆盖全租户（详见 `docs/2026-09-16-signal-config-all-tenants-activation.md`）。本轮续执行闭合下列两项。
+
+> ⚠ **编号消歧**：本小节的 **P-4** 指 *Q3 计划书 §0「本计划遗留的建议项」* 中的凭据第二消费面（*计划遗留编号*），与 §8.3.1 表中同名的 **P-4**（*Q4-1 脚本恒真锚点*，*执行期编号*）**不是同一项**。两个编号空间独立，勿混。
+
+| 编号 | 事项 | 裁决 / 实测 | 落点 |
+| --- | --- | --- | --- |
+| **F-1**（机制实证） | **§0.4 的机制本体验证**：运行时闸门真能"自己开"，而非靠排期纪律 | `exportGate` 随判据① 成立**自动**由 `healthy=false reason=sent_exists,channels_from_config` 翻为 `healthy=true reason=ok checks={sent_exists:t,channels_from_config:t,no_silent_channel:t}` —— **零人为开关**。Q4-1 取证 5/8 → **6/8、exit 0**（`system` / `acme-demo` 同形）；未通过项仅剩判据② | §7.1 复跑 |
+| **P-4**（计划遗留·凭据第二消费面） | `runIntegrationPollOnce` 签名**不接收** `resolveCredentials` —— 调用方（定时器⑩ `timers.js:501` 起）已注入却被**静默丢弃**；且 `runWaterfall` 的 ctx 仅 `{ tenantId }` ⇒ 消费 `ctx.credentials[pid]` 的五个 adapter（anysite / qixin / xinbang / genericRest / genericMcp）凭据**恒空**，退化为「无 `Authorization` 的请求」→ 表现为"没有数据"而非"凭据没送到"（典型假绿；与 §0.2「交付 ≠ 可触发」同族，**同一库内第四次发作**） | **修**：签名接收 `resolveCredentials`；按本租户 `adapters.map(a => a.id)` 解析 → 经 `ctx.credentials` 透传进 `runWaterfall`；范式对齐 `discoveryOrchestrator.js:58-63` / `prospectingActions.js:79-83`（**注入优先 + 缺省动态 import 回落**，使"未来调用方忘记注入"不再重演同一断点）。解析失败**不静默**（`integration-poll-credentials-failed` trace + `recordFailure`）但**不阻断**富化 —— 缺凭据在 adapter 侧本等价于"不带 Authorization"，硬阻断会把"缺凭据"升级成"整轮富化归零"，超出本修复意图 | `src/scheduler/timers.js`（签名 + 凭据块 + ctx）；`test/external-integration.test.js`（+3 例） |
+| **观测（未修·登记）** | `test/connectors/discovery/anysiteRest.test.js:39`「无凭据 → fail-open 返回空」为**既有红**：`.env` 载入 `ANY_SITE_KEY` ⇒「无凭据」前提被摧毁。**已证与本轮无关**（该测试除 `vitest` 外**零 import**，结构上不可能受 `timers.js` 影响；`ANY_SITE_KEY=` 清空后 5/5 转绿） | 与 `shared-db-test-hygiene` 既有「外部环境输入破坏『未配置』前提」同族；**不在本轮修**（属测试环境隔离议题） | 本表 |
+
+**P-4 证据链（三层，全部真跑，非快照）**：
+
+1. **行为断言**（真 `runWaterfall` + 真 adapter 消费形状）：注入解析器 → `providerIds` == 本租户 adapter ids → adapter **实收**凭据。**负向对照双证**（防假绿）：① 仅退「ctx 透传」→ 断点②守卫红（`seen=[undefined]`）；② 模拟「注入被静默丢弃」→ 断点①守卫红 + 留痕断言红。两例均**仅在缺陷存在时红**，证明断言有鉴别力。
+2. **真库回落路径**（不注入任一解析器，库 = `crm_native`）：`ctx.credentials={"qixin":null}`、零失败留痕 ⇒ 回落路径未抛。
+3. **真 pgcrypto 端到端往返**（**零 DB 写入**，规避禁删铁律下的不可清理污染）：真加密（明文零泄露）→ 真 `resolveCredentials` 解密 + 形状还原（单串 `string` / 结构化 `object`）→ 真 `runIntegrationPollOnce` + 真 `runWaterfall` → adapter 实收 `"sk-real-qx-secret"`。
+
+**回归**：`external-integration` **49/49**（新增 3 例）；`timers` / `discoveryOrchestrator` / `prospectingSearchAdapters` / `connectors/discovery` 合计 172 例中 **171 绿**，唯一红即上表登记之**既有红**。
+
+**判据② 剩余唯一阻断项**：真实租户的集成实例启停（**第 0 闸，须用户裁决**）。F-1 与 P-4 已消除其**前置**障碍。
+
+### 8.3.3 修正记录 v1.4（2026-09-16 23:45 · 「模拟种子」实跑暴露）
+
+**触发**：用户裁决「可以模拟一些种子」。交付 `scripts/seed-integration-sim.mjs`（幂等、禁删、默认 dry-run，`--apply` 落库），起本地模拟外部 CRM 并沿**生产同源装配**实跑。
+**口径声明（必读）**：本轮取得的一切外部数据均为**模拟**。判据② 在**模拟口径**下成立，**不得**作为 KPI / 交付验收证据引用。
+
+| 编号 | 事项 | 裁决 / 实测 | 落点 |
+| --- | --- | --- | --- |
+| **F-2** | **判据② 的前置缺口**：L2/L3 同步写路径须 `mintDecision('integration-sync')`，而 `decision_scenario` 全量 24 场景中**从无 `integration-sync`** → `requireDecision` 抛「未知决策场景」→ 被 `.catch(() => null)` 吞掉 → `decisionId=null` → 内核 `throw decision_required` → **写路径结构性 fail-closed**。这是「播种 ≠ 接通」的又一实例：**启用 L2 的前置条件是先播该场景** | 种子脚本已播（**本地库**；克隆 `PARTICLE_CREATE` 的形状以保证列类型与维度 `cond` 均为已知可评分项，仅换标识与 `trigger`）。生产侧**未播**——待用户裁决是否启用 L2 时一并决定载体（建议 `db/migration-*.sql` 幂等 INSERT） | `scripts/seed-integration-sim.mjs` `seedScene()` |
+| **F-3** | **决策凭证读取层级系统性错误（11 处）**：`requireDecision` 返回 `{ mode, decision, … }`，凭证在 **`result.decision.decision_id`**；但 11 处调用方按**顶层** `result.decision_id` 读取 → 恒 `undefined`。后果：① 配置写 `decision_id` 恒 NULL（第 0 闸「有决策、无留痕」，实测 `config_store` 204 行仅 7 行有值）② L2/L3 同步被判「无决策」而 fail-closed。唯一正确读法此前只在 `executor.js:70` | **收敛为单一读取点** `autonomyEngine.decisionIdOf(result)`（对齐「同名字段解释权收敛单一模块」铁律），11 处调用方全部改用它；**刻意不**在引擎补顶层别名（避免同义双键）。新增 `test/decision/decisionIdOf.test.js` 6 例：形状 + **真引擎**（真库锁定真实形状）+ 收敛守卫（含**正向对照**防恒真；负向对照已验证能精确定位回退的文件） | `src/decision/autonomyEngine.js`（新增导出）+ 11 个调用方 |
+| **F-4** | **模拟种子交付与取证**：`sim-erp`（非 `smoke*`）+ `kind='generic-rest'`（≠ `mock`）→ 出口与入口两侧在同一模拟租户同时成立 | **`scripts/smoke-full-chain-e2e.mjs sim-erp` → 8/8、exit 0**（判据①② 全通过，N1–N4/N10 全 PASS，`exportGate healthy=true`）。取证细节：`sync_cursor` 2 行 `ok`（游标推进至 `2026-09-16T20:10:00Z`/`20:20:00Z`，`decision_id` 非空）、`external_ref` 5 行（3×`CRM_ACCOUNT` + 2×`CRM_DEAL`）、`signal_delivery` 2 行 `sent`（`delivered_at` 非空）；**幂等**两轮均 `created=0`/`sent=0`；模拟源实测收到 `auth_ok=true`（凭据真到达 HTTP 头，守 N6 不记录值）；`system`/`acme-demo` 复跑仍 **6/8 无回归** | `scripts/seed-integration-sim.mjs` |
+| **F-5** | **第 0 闸在平台内存在第二套语义（`propagationRoutes.js` 本地同名 `decisionIdOf`）**：`src/http/propagationRoutes.js:19-27` 的 `requireConfigChangeDecision` **不调用**引擎 `requireDecision`（该文件 `:6` 的导入为**死导入**，全文件无调用点），而是 `recordDecisionEvent('config_change', …)` → 取 **`event_id` 当 `decision_id` 凭证**，并**双写两形**返回 `{ decision_id: id, decision: { decision_id: id } }`；配套的**本地** `decisionIdOf`（`:36-38`）含 `dec?.decision_id || dec?.id` 兜底 —— 与 F-3 收敛出的 `autonomyEngine.decisionIdOf`（严格单一路径、**刻意不**留同义键）**同名不同义**，直接违反「同名字段解释权收敛单一模块」铁律。**后果**：改前 11 处（F-3）读错 → 恒 `undefined` → fail-closed；本处自造凭证 → **恒有值、不 fail-closed** ⇒ 同一平台**两套第 0 闸语义**；`.id` 兜底在异常输入下可把**非决策 id** 写进 `config_store.decision_id` 与审计链。测试替身形状已在佐证：`test/propagation/routes.test.js:77` 的桩返回**顶层** `{ decision_id: 'D1' }`（真引擎形状见 `test/decision/decisionIdOf.test.js` 的「真引擎形状（真库）」） | **未修**：与下方 `config-change` 口径裁决**同源**，单侧改动会留下半迁移态（收敛需同时定「配置写是否必须铸真决策」） | 本表 + 下方 ⚠ 段 |
+| **F-6** | **出口观测两处真实缺陷（收尾复核实测暴露；**非**本轮改动引入，属已发布代码）**：<br>**(a) 判据粒度不足以识别「渠道开了但一封也发不出去」**：`src/monitor/signalMetrics.js` 判据 A 的查询是 `SELECT channel, COUNT(*) FROM crm.signal_delivery WHERE tenant_id=$1 AND created_at>=$2 GROUP BY channel` —— **只看「有无行」，不看 `status`**；`src/sync/exportGate.js:59` 又直接以「无该告警」当**判据③ 通过**的条件。⇒ 配置为 on 的渠道若**全部 skipped**（如无收件人），仍被判**健康**。<br>**(b) skipped 投递行无幂等键 → 每次泵运行线性累积**：实测租户 `sim-erp` 的 `email skipped` 行 `935 → 1125`（**+190 = 2 次泵调用 × 95 条 open 信号**，确定性可复现，两次独立测量一致），而同一批 signal 的 `inbox sent` 稳定在 95 ⇒ **幂等在 `sent` 维度有效、在 `skipped` 维度失效**。<br>**合并后果**：① `crm.signal_delivery` 无界增长（全租户 × 每泵周期 × 每条 open 信号 × 每个未成立渠道）；② 判据 A 赖以判「静默」的「有行」分母被**判据自身产生的噪音**永久污染 ⇒ **任何真实静默都不会再被检出**（`exportGate` 判据③ 与 `delivery_silent` 告警**同时失效**）—— 属「自指仪器」族（仪器自己制造的噪音使仪器永久静默）。 | **未修**（对已发布观测/投递模块的行为更改，须先裁决）：候选修法 ① 判据 A 收紧为「窗口内**无 `status='sent'` 行**」（把「有尝试但全失败」与「零尝试」区分开）；② `skipped`/`failed` 行加幂等键（如 `signal_id+channel`，仅在**状态变化**时落新行）；两者可独立实施 | 本表 |
+| **观测（未修·登记）** | `test/llm/ai-attributes.test.js:71` 超时（fake timers 下的重试等待）为**既有失败**：文件与 `src/llm/` 均未被本轮改动（`git status` 为空）⇒ 该失败存在于 HEAD；单独跑仍红（确定性） | 不在本轮修 | 本表 |
+| **修正（本轮内自纠）** | `scripts/seed-integration-sim.mjs` ⑪ 自检原为 `const onChannels = ['inbox']`（**硬编码**「模板默认仅 inbox=on」）—— 违反本仓铁律「阈值/差异化 100% 后台配置化，禁域字面量」。并行会话把平台 `signal-delivery` 模板的 `email` 由 off 改 on（经 `autoSeed` 派生到全部租户）后，该硬编码前提立即失效 → 输出 ❌「越界行=1」，**而同一时刻读实时配置的 `smoke-full-chain-e2e.mjs` 仍 8/8 通过** ⇒ 纯硬编码前提造成的假红 | 已改为读本租户实时配置（与 smoke 判据同源）；复跑 `越界行 = 0 ✅`。并显式声明本检查的已知局限（配置历史上曾置 on 留下的行会计入）⇒ **权威判据以 smoke 脚本为准** | `scripts/seed-integration-sim.mjs` ⑪ |
+
+**F-3 的现场还原（为何此缺陷此前不可见）**：`timers.js` / `connectorRouter.js` 的 `mintDecision` 把异常与空值都压成 `decisionId: null`，trace 只留 `decision_required` —— 读起来像"没配置"；而 `crm.decision` 表**确实新增了行**（模拟种子首轮实跑：决策 5 条、`sync_cursor` 仍 0 行、`external_ref` 仍 0 行）。**「表里有决策」与「链路取到决策」不可区分** —— 本项目已登记反模式「断言/读数与真实行为脱钩」的又一变体。
+
+**⚠ 一处**必须由用户裁决**的相邻缺口（超出本轮授权范围，故未动）**：
+`requireDecision('config-change', …)` 是 configRouter / llmConfigRouter / namedAccountAssignRouter / 6 个 portal 模块的**统一第 0 闸场景**，但 `decision_scenario` 里**没有 `config-change`**（只有 `ATTR_SCHEMA_CHANGE` / `CALIBRATION_CHANGE`）⇒ 这些写路径全部落到 `catch → recordDecisionEvent → { decisionId: null, ok: true }` 的**降级分支**：**记了事件、未铸决策、不阻断写**。即「写操作过决策第 0 闸」这条口径，对**配置写通道**目前是**纸面口径**。修与不修都要先定口径（涉及平台级治理），故只登记、不改动。
+
+**该缺口的第二种实现形态（F-5，同上，一并待裁决）**：`propagationRoutes.js` 走的是**相反方向**的自洽做法——它**不**走 `catch` 降级，而是本地把「记 `config_change` 事件」**直接当作第 0 闸**，用 `event_id` 充当 `decision_id`（`:19-27`）。两种形态（**降级记事件** vs **本地自造凭证**）并存，说明 `config-change` 缺的不是一处补丁，而是**一个口径**：配置写通道究竟要不要铸**真决策**（`crm.decision` 行）、要不要能**阻断**写。裁决后 F-5 与上述 11 处应**一次性收敛**到同一条语义（含：删除 `:6` 死导入、本地 `decisionIdOf` 并入 `autonomyEngine.decisionIdOf`、把 `test/propagation/routes.test.js:77` 的桩改成**真引擎形状**）。
 
 ### 8.4 移交
 

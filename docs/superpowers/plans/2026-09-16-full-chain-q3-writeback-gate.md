@@ -1076,8 +1076,8 @@ Expected: `{"valid": true, "errors": []}`（exit 0）。本计划的 6 个 Task 
 
 **本计划遗留的建议项（不属本批次，需用户裁决后另立计划）**：
 
-| # | 项 | 出处 |
-| - | -- | ---- |
-| P-2 | `src/monitor/signalMetrics.js:178` 的 sweep 租户选择器仍排除 `system`（D1 同族遗漏） | 本计划 §0.3 |
-| P-3 | `test/connectors/writebackAction.test.js` 三条用例全为静态源码断言，建议逐步替换为行为断言（本计划已为其最关键的两条提供替代实现） | 本计划 §0.1 |
-| P-4 | A-B2 的第二消费面：`timers.js:489` 注入 `resolveCredentials` 但 `runIntegrationPollOnce`（`:125`）签名未接收，且富化 ctx 无 `credentials` → 消费 `ctx.credentials[pid]` 的四个 adapter（anysite/qixin/genericRest/genericMcp）凭据全落空 | `2026-09-16-design-merge-audit.md` 同族；2026-09-16 复核新识别 |
+| # | 项 | 出处 | 状态（2026-09-16 22:40 复核） |
+| - | -- | ---- | ---- |
+| P-2 | `src/monitor/signalMetrics.js:178` 的 sweep 租户选择器仍排除 `system`（D1 同族遗漏） | 本计划 §0.3 | ✅ **已闭合**（并行会话落盘无排除版，实测 `sweepOnce → tenants=9` 含 `system`） |
+| P-3 | `test/connectors/writebackAction.test.js` 三条用例全为静态源码断言，建议逐步替换为行为断言（本计划已为其最关键的两条提供替代实现） | 本计划 §0.1 | ⬜ 未动（建议项，非缺陷） |
+| P-4 | A-B2 的第二消费面：`timers.js:489` 注入 `resolveCredentials` 但 `runIntegrationPollOnce`（`:125`）签名未接收，且富化 ctx 无 `credentials` → 消费 `ctx.credentials[pid]` 的四个 adapter（anysite/qixin/genericRest/genericMcp）凭据全落空 | `2026-09-16-design-merge-audit.md` 同族；2026-09-16 复核新识别 | ✅ **已闭合**（2026-09-16 续执行）：签名接收 + `ctx.credentials` 透传进 `runWaterfall` + 注入优先/动态 import 回落；+3 行为断言与**双负向对照**；详见设计 §8.3.2 P-4 |
