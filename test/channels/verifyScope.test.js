@@ -117,6 +117,34 @@ describe('verifyScope 真探测 fail-closed', () => {
     expect(r.missing).toEqual(['host', 'pass']);
   });
 
+  it('探针报的服务端拒因（hint）必须透传（吞掉它＝把「授权机制不符」误读成「密码错」）', async () => {
+    // 真实现场（2026-09-18，watchm@163.com 实测）：imap.163.com:993 握手/协议全通，
+    //   对**登录密码**回 `A1 NO LOGIN Login error or password error`——真因是国内邮箱须用「客户端授权码」。
+    //   探针已把该行脱敏后作为 hint 带出；此处锁定 verifyScope 不得在中间层吞掉它。
+    const verify = createVerifyScope({
+      resolveCredentials: async ({ providerIds }) => ({ [providerIds[0]]: { user: 'u', pass: 'p' } }),
+      probes: {
+        imap_login: async () => ({
+          ok: false, error: 'auth_failed', hint: 'A1 NO LOGIN Login error or password error',
+        }),
+      },
+    });
+    const r = await verify({ tenantId: 't1', id: 'channel-email-1', kind: 'generic-email' });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('auth_failed');
+    expect(r.hint).toContain('Login error or password error');
+  });
+
+  it('探针成功时的 detail 必须透传（证明真的取到数据，而非仅「连上了」）', async () => {
+    const verify = createVerifyScope({
+      resolveCredentials: async ({ providerIds }) => ({ [providerIds[0]]: { url: 'https://cal.example.com/dav/' } }),
+      probes: { caldav_propfind: async () => ({ ok: true, detail: { status: 207, calendars: 2 } }) },
+    });
+    const r = await verify({ tenantId: 't1', id: 'ch-cal', kind: 'generic-calendar' });
+    expect(r.ok).toBe(true);
+    expect(r.detail).toEqual({ status: 207, calendars: 2 });
+  });
+
   it('resolveCredentials 查询失败 → fail-closed（不因查询失败而放行）', async () => {
     const verify = createVerifyScope({ resolveCredentials: async () => { throw new Error('vault down'); } });
     const r = await verify({ tenantId: 't1', id: 'channel-email-1', kind: 'generic-email' });

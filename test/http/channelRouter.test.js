@@ -89,6 +89,38 @@ describe('channelRouter 契约（T6）', () => {
     expect(res.body.error).toBe('approval_required');
   });
 
+  it('验证成功 → detail 透传（证明「真的取到了数据」，不只是「连上了」）', async () => {
+    const { deps } = makeDeps({
+      verifyScope: async () => ({ ok: true, probe: 'meeting_api_list', detail: { status: 200, meetings: 3 } }),
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'ch-m', kind: 'generic-meeting', credentials: { endpoint: 'https://api.x/v1', token: 't' }, verify_only: true },
+    }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.detail).toEqual({ status: 200, meetings: 3 });
+  });
+
+  it('探测失败 → 探针 hint 必须透传（吞掉服务端拒因＝把用户导向改密码，属假失败）', async () => {
+    // 真实现场（2026-09-18）：163 IMAP 对登录密码回 `A1 NO LOGIN Login error or password error`，
+    //   真因是「须用客户端授权码」。若只回 auth_failed，用户只会反复改密码 → 方向被误导。
+    const { deps } = makeDeps({
+      verifyScope: async () => ({
+        ok: false, error: 'auth_failed', probe: 'imap_login',
+        missing: null, hint: 'A1 NO LOGIN Login error or password error',
+      }),
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'ch-e', kind: 'generic-email', credentials: { host: 'imap.163.com', user: 'u', pass: 'p' }, verify_only: true },
+    }), res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('auth_failed');
+    expect(res.body.hint).toContain('Login error or password error');
+  });
+
   it('verify_only=true → 只探测、零副作用（不落凭据/不写描述符/不铸决策/不过人工闸）', async () => {
     const { deps, store } = makeDeps({
       verifyScope: async () => ({ ok: true, probe: 'imap_login' }),

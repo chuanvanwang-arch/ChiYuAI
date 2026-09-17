@@ -65,8 +65,16 @@ export function createVerifyScope({ resolveCredentials = vaultResolve, probes = 
         .catch((e) => ({ ok: false, error: String(e?.message || e) }));
       // missing 必须透传：否则前端只能显示「credentials_incomplete」，用户不知道缺哪个字段
       //   （「不知道改哪里」的失败与「密码错」一样具有误导性）
-      if (!r?.ok) return { ok: false, error: r?.error || 'verify_failed', probe: probeName, missing: r?.missing || null };
-      return { ok: true, probe: probeName, verified_at: new Date().toISOString() };
+      // hint 同样必须透传（2026-09-18）：服务端拒因（如 163 的 `LOGIN Login error or password error`
+      //   ＝需用客户端授权码）被吞掉后，用户只会反复改密码，方向被误导（假失败）。
+      if (!r?.ok) {
+        return {
+          ok: false, error: r?.error || 'verify_failed', probe: probeName,
+          missing: r?.missing || null, hint: r?.hint || null,
+        };
+      }
+      // detail 保留：证明**真的取到了数据**（如会议条数），而不只是「连上了」
+      return { ok: true, probe: probeName, verified_at: new Date().toISOString(), detail: r?.detail ?? null };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };
     }

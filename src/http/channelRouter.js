@@ -69,10 +69,18 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
         return res.status(400).json({
           ok: false, error: v?.error || 'verify_failed', probe: v?.probe || null,
           missing: Array.isArray(v?.missing) && v.missing.length ? v.missing : null, // 告诉用户**缺哪个字段**
-          hint: v?.hint || '该通道需补齐凭据（credentials_missing）',
+          // hint 优先取探针实报（如 163 服务端原话「需用客户端授权码」）：
+          //   一律用 credentials_missing 的话术会让「授权机制不符」被读成「凭据没填」（假失败）。
+          hint: v?.hint || (v?.error === 'credentials_missing' ? '该通道需补齐凭据（credentials_missing）' : null),
         });
       }
-      if (verifyOnly) return res.json({ ok: true, verified: true, stored: false, probe: v?.probe || null, hint: '仅验证，未落库（确认后才入库）' });
+      if (verifyOnly) {
+        return res.json({
+          ok: true, verified: true, stored: false, probe: v?.probe || null,
+          detail: v?.detail ?? null, // 探针实证（如日历 displayname 数 / 会议条数），证明真的取到了数据
+          hint: '仅验证，未落库（确认后才入库）',
+        });
+      }
     } else if (verifyOnly) {
       // 未注入 verifyScope 时**不得**谎称已验证（fail-closed：如实报未验证）
       return res.status(400).json({ ok: false, error: 'verify_not_wired', hint: '未装配探测，不能宣称已验证' });

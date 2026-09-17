@@ -66,6 +66,16 @@ function imapLogin(c, ms) {
   const pass = String(c.pass);
   // IMAP 字面量需引号包裹并转义内部引号/反斜杠
   const q = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  // NO/BAD 行的原因透传（2026-09-18）：此前只回 `auth_failed`，把服务端原话吞掉 →
+  //   163/126/QQ 的真实原因是「需用客户端授权码」，服务端 NO 行也确实写了 `Login error or password error`，
+  //   但用户看到裸 `auth_failed` 只会去改密码，方向被误导（**假失败**：真因是授权机制不是密码）。
+  //   ⚠ 必须脱敏：服务端可能回显我们发送的用户名/片段，任何出现在凭据里的字面量一律抹掉。
+  const hint = (line) => {
+    const raw = String(line || '').replace(/\r?\n/g, ' ').slice(0, 200);
+    return [String(c.user), String(c.pass), String(c.host)]
+      .filter((s) => s && s.length >= 3)
+      .reduce((acc, s) => acc.split(s).join('<redacted>'), raw);
+  };
   return new Promise((resolve, reject) => {
     let settled = false;
     let buf = '';
@@ -102,8 +112,8 @@ function imapLogin(c, ms) {
           }
         } else if (phase === 'login') {
           if (/^A1\s+OK\b/i.test(line)) finish({ ok: true, detail: { host, port, tls: tlsOn } });
-          else if (/^A1\s+(NO|BAD)\b/i.test(line)) finish({ ok: false, error: 'auth_failed' });
-          else if (/^A1\b/i.test(line)) finish({ ok: false, error: 'auth_failed' });
+          else if (/^A1\s+(NO|BAD)\b/i.test(line)) finish({ ok: false, error: 'auth_failed', hint: hint(line) });
+          else if (/^A1\b/i.test(line)) finish({ ok: false, error: 'auth_failed', hint: hint(line) });
         }
       }
     });

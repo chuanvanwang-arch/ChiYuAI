@@ -164,9 +164,23 @@
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
         // missing（缺哪个字段）必须显示：否则用户只知道「不通过」，不知道改哪里
         const miss = Array.isArray(res.missing) && res.missing.length ? `（缺：${res.missing.join('、')}）` : '';
-        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + miss + (res.hint ? ' — ' + res.hint : '')}\n`;
+        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + miss}${guidedHint(res, c)}\n`;
       }
     };
+
+    // 服务端拒因 → 可执行的下一步。为什么需要这层：
+    //   `auth_failed` 对国内邮箱的**真实含义多是「用错凭据类型」**——163/126/QQ 的 IMAP 只接受
+    //   邮箱设置里生成的「客户端授权码」，登录密码必被拒（163 原话 `LOGIN Login error or password error`）。
+    //   只显示 auth_failed 会把人送去反复改密码，属**假失败**（方向被误导）；这里点明真因与操作路径。
+    function guidedHint(res, c) {
+      if (res.ok) return '';
+      const h = res.hint ? ' — ' + res.hint : '';
+      if (res.error === 'auth_failed' && c.kind === 'generic-email') {
+        return h + '\n   ↳ 国内 163/126/QQ 邮箱的 IMAP 只认「客户端授权码」，登录密码必被拒：'
+          + '登录网页邮箱 → 设置 → 开启 POP3/SMTP/IMAP 服务 → 生成授权码 → 把授权码填回上面的密码框。';
+      }
+      return h;
+    }
 
     // 确认前明示「系统将连哪里」（设计 §4.5.1：展示探测目标/账号归属，用户知情后才确认）。
     //   ⚠ 只显示连接目标（host/URL 主机），**绝不回显密码/令牌**（明文不落前端）。
