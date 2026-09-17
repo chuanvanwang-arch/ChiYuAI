@@ -7,14 +7,9 @@
 // 零通道专属分支：模板引擎差异由 descriptor 表达；归一化是纯函数（eventNormalizer）。
 import { createGenericRestSyncProvider } from '../sync/factory.js';
 import { normalizeChannelRow } from './eventNormalizer.js';
-
-// §3.0 契约：事件行 channel 是「真实通道短名」（email/calendar/meeting/wechat），非 provider kind
-const CHANNEL_SHORT = {
-  'generic-email': 'email',
-  'generic-calendar': 'calendar',
-  'generic-meeting': 'meeting',
-  'generic-wechat': 'wechat',
-};
+// §3.0 契约：事件行 channel 是「真实通道短名」（email/calendar/meeting/wechat），非 provider kind。
+// 该映射表已上收 kinds.js（通道单一事实源），本文件不再自建（防两处解释权）。
+import { CHANNEL_SHORT } from './kinds.js';
 
 export function createChannelProvider(preset = {}) {
   // 返回工厂（mount 消费）：receive 租户 descriptor cfg → provider 实例

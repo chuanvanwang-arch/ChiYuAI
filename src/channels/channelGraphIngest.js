@@ -3,14 +3,21 @@
 //   + docs/superpowers/plans/2026-09-17-channel-adapters-p1-p4.md Task 7
 // 判据（红线）：
 //   ① 只命中**既有** CRM_ACCOUNT（by domain）才写——不入新图、不创建新账户（图谱汇入不改企业识别面）；
-//   ② L1 只读观察期不写（对齐 trust L1）；L2/L3 才追加 enrichment.email_intent[] + sourcedFrom 弱边；
-//   ③ 追加是**幂等**（external_id 去重）：同一事件行重复汇入不产生重复条目；
+//   ② L1 只读观察期不写（对齐 trust L1）；L2/L3 才按通道落 enrichment + sourcedFrom 弱边；
+//   ③ 追加是**幂等**（external_id 去重，按目标键判定）：同一事件行重复汇入不产生重复条目；
 //   ④ 不新建粒子类型/不新建图（零内核断言）；写经上层 engine/mount 第 0 闸（本层不重复铸决策）；
 //   ⑤ 任何失败都不静默（emit trace 'channel-ingest-failed'），trustLevel 读不到 → fail-safe 降 L1。
+//   ⑥ **落点逐通道分键**（对齐设计 §3.1–§3.4）：email→email_intent / calendar→schedule /
+//      meeting→meeting_intents / wechat→wechat_intents。键由 kinds.js 单一事实源给出（enrichmentKeyOf）；
+//      通道语义由**所在键**承载，条目不重复存 channel（避免键与字段两处解释权）。
 import { extractEntities } from './entityExtractor.js';
+import { enrichmentKeyOf } from './kinds.js';
 
 // 可写信任档（对齐 mount.js SYNC_TRUST_ORDER 的写语义：L1 只读，L2/L3 才落库）
 const WRITE_LEVELS = new Set(['L2', 'L3']);
+
+// 条目内参与者只留结构化邮箱（§5「参与者 → 360 视图」；不落姓名等自由文本），并限量防单条膨胀
+const MAX_PARTICIPANTS = 20;
 
 function noop() {}
 
@@ -39,14 +46,21 @@ export async function ingestChannelEvent(ev = {}, deps = {}) {
   if (!acc) return { ok: true, written: false, reason: 'account_not_found' };
   if (!WRITE_LEVELS.has(level)) return { ok: true, written: false, reason: 'read_only_l1' };
 
-  // ④ 幂等：同一 external_id 已汇入 → 不重复追加（无 external_id 时不去重，保持向后兼容）
-  const existing = Array.isArray(acc.enrichment?.email_intent) ? acc.enrichment.email_intent : [];
+  // ④ 落点键（按通道分键；短名优先，kind 亦可判定）
+  const key = enrichmentKeyOf(ev.channel || ev.kind);
+
+  // ⑤ 幂等：**本键内**同一 external_id 已汇入 → 不重复追加（无 external_id 时不去重，保持向后兼容）
+  const existing = Array.isArray(acc.enrichment?.[key]) ? acc.enrichment[key] : [];
   if (ev.external_id && existing.some((x) => x && x.external_id === ev.external_id)) {
-    return { ok: true, written: false, reason: 'duplicate', company: ents.company || domain };
+    return { ok: true, written: false, reason: 'duplicate', company: ents.company || domain, enrichment_key: key };
   }
 
+  const participants = (Array.isArray(ev.participants) ? ev.participants : [])
+    .map((p) => (p && p.email) || null)
+    .filter(Boolean)
+    .slice(0, MAX_PARTICIPANTS);
   const payload = {
-    email_intent: [
+    [key]: [
       ...existing,
       {
         external_id: ev.external_id ?? null,
@@ -54,6 +68,7 @@ export async function ingestChannelEvent(ev = {}, deps = {}) {
         ts: ev.ts ?? null,
         subject: ev.content?.subject ?? null,
         domain,
+        participants,
       },
     ],
   };
@@ -62,11 +77,11 @@ export async function ingestChannelEvent(ev = {}, deps = {}) {
       .catch((e) => ({ ok: false, error: String(e?.message || e) }))
     : { ok: false, error: 'appendEnrichment_not_wired' };
   if (!w?.ok) {
-    // ⑤ 不静默：失败上墙（与 mount.js 单目标失败留痕同源）
+    // ⑥ 不静默：失败上墙（与 mount.js 单目标失败留痕同源）
     trace('trace', 'channel-ingest-failed', {
-      channel: ev.channel, external_id: ev.external_id, domain, error: w?.error || 'unknown',
+      channel: ev.channel, external_id: ev.external_id, domain, enrichment_key: key, error: w?.error || 'unknown',
     });
-    return { ok: false, written: false, error: w?.error || 'unknown' };
+    return { ok: false, written: false, error: w?.error || 'unknown', enrichment_key: key };
   }
 
   // 弱边（sourcedFrom）：失败不阻断（enrichment 已落，弱边是可补偿步骤）。
@@ -81,5 +96,5 @@ export async function ingestChannelEvent(ev = {}, deps = {}) {
       participants: ev.participants || [],
     }).catch(() => {});
   }
-  return { ok: true, written: true, company: ents.company || domain };
+  return { ok: true, written: true, company: ents.company || domain, enrichment_key: key };
 }

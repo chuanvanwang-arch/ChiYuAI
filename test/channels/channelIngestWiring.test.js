@@ -50,6 +50,28 @@ describe('wrapProviderForIngest（行为级）', () => {
       const done = traces.find((t) => t.n === 'channel-ingest-done');
       expect(done).toBeTruthy();
       expect(done.m.ingested).toBe(1);
+      // 落点键可观测（防「写进了错的键」这类静默错配）
+      expect(done.m.enrichment_keys).toEqual(['email_intent']);
+    });
+  });
+
+  it('落点键按**行内 channel**（非 provider kind）判定：日历行落 schedule', () => {
+    const calls = [];
+    const traces = [];
+    const deps = {
+      findAccountByDomain: async () => ({ particle_id: 'p-acc-1', enrichment: {} }),
+      appendEnrichment: async (a) => { calls.push(a); return { ok: true }; },
+      addWeakEdge: async () => ({ ok: true }),
+    };
+    // 注：日历行须带参与方邮箱才可判定 domain（无归属 → fail-safe 不写，属正确行为）
+    const p = mkProvider([{ channel: 'calendar', dtstart: '2026-09-18T10:00:00Z', summary: '现场拜访', participants: [{ email: 'buyer@acme.com' }], external_id: 'evt-1' }]);
+    const wrapped = wrapProviderForIngest({ provider: p, kind: 'generic-calendar', tenantId: 't1', trustLevel: 'L2', deps, emit: (l, n, m) => traces.push({ n, m }) });
+    return wrapped.readIncremental({}).then(() => {
+      expect(calls.length).toBe(1);
+      expect(calls[0].payload.schedule).toBeTruthy();
+      expect(calls[0].payload.email_intent).toBeUndefined(); // 不得落邮件键
+      expect(calls[0].payload.schedule[0].subject).toBe('现场拜访');
+      expect(traces.find((t) => t.n === 'channel-ingest-done').m.enrichment_keys).toEqual(['schedule']);
     });
   });
 

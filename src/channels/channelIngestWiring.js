@@ -100,6 +100,7 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
       const rows = Array.isArray(inc?.rows) ? inc.rows : [];
       let ingested = 0;
       let failed = 0;
+      const keys = new Set(); // 本轮实际落到的 enrichment 键（落点可观测：不静默）
       for (const row of rows) {
         try {
           const ev = normalizeChannelRow(row);
@@ -108,7 +109,10 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
             trustLevel: async () => level,
             emit: trace,
           });
-          if (r?.written) ingested++;
+          if (r?.written) {
+            ingested++;
+            if (r.enrichment_key) keys.add(r.enrichment_key);
+          }
         } catch (e) {
           // ⑤ 行级失败不阻断读入链路，但留痕（不静默）
           failed++;
@@ -117,9 +121,12 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
           });
         }
       }
-      // 不静默：本轮「读入 N 行 / 汇入 M 条 / 失败 K 条」上墙——「零汇入」与「没接线」可区分
+      // 不静默：本轮「读入 N 行 / 汇入 M 条 / 失败 K 条 / 落到哪些键」上墙——
+      // 「零汇入」与「没接线」可区分，且落点键可核对（防「写进了错的键」这类静默错配）。
       if (rows.length) {
-        trace('trace', 'channel-ingest-done', { tenant_id: tenantId, kind, read: rows.length, ingested, failed });
+        trace('trace', 'channel-ingest-done', {
+          tenant_id: tenantId, kind, read: rows.length, ingested, failed, enrichment_keys: [...keys],
+        });
       }
       return inc;
     },
