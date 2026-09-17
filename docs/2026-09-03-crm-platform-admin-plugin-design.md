@@ -1,4 +1,4 @@
-# 设计文档：AI 原生销售平台管理助手插件（crm-platform-admin）
+# 设计文档：企业AI销售决策管理专家插件（crm-platform-admin）
 
 > 日期：2026-09-03
 > 包根：`D:\system\CRM-ai-native\plugin-platform-admin\`
@@ -6,7 +6,7 @@
 
 ## 1. 背景与决策
 
-用户要求「新增一个插件：AI 原生销售平台管理助手」，覆盖**行业新增 / 用户与权限新增 / 系统初始化**。
+用户要求「新增一个插件：企业AI销售决策管理专家」，覆盖**行业新增 / 用户与权限新增 / 系统初始化**。
 
 **决策：新建独立插件包 `crm-platform-admin`，与业务包 `plugin/`(crm-native) 平级、独立安装。**
 

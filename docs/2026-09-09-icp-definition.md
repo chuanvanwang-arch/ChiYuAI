@@ -1,4 +1,4 @@
-# 青羽 ChiYu · 客户范围锁定（ICP 定义）
+# ChiYu青羽 · 客户范围锁定（ICP 定义）
 
 > 日期：2026-09-09 ｜ 用途：回答「平台服务对象是谁 / 客户范围是什么」，并指导获客**向上寻找**
 > 事实源：套餐定价 `db/seed-billing-config.sql`（billing-plans）· 行业适配 `src/web/landing.html#industry` · 真实商机（C 医疗器械 / M 涂料 / XX 制造）

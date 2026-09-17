@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""构建 AI 原生销售管理平台介绍 PPT（六大亮点版 · 12 页）
+"""构建企业AI销售决策平台介绍 PPT（六大亮点版 · 12 页）
 叙事主轴 = 三大业务亮点 + 三大技术亮点：
   业务：①集成大量销售成熟方法论 ②植入销售人员行为习惯 ③LTC 流程内嵌化
   技术：④上下文图谱构建客户记忆系统 ⑤销售决策模型可跟踪每个智能体任务
@@ -83,7 +83,7 @@ TECH = PURPLE
 # =====================================================================
 s = newslide()
 txt(s,0.9,1.3,6,0.5,'AI-NATIVE SALES PLATFORM · 2026',13,CYAN,True)
-txt(s,0.9,1.85,12,1.4,'AI 原生销售管理平台',44,WHITE,True)
+txt(s,0.9,1.85,12,1.4,'企业AI销售决策平台',44,WHITE,True)
 txt(s,0.9,3.3,11,0.7,'销售方法论 × 行为习惯 × LTC 内嵌 · 记忆系统 × 决策透明 × 每日复盘',17,AMBER,True)
 txt(s,0.9,4.25,11,1.3,
     '不是把流程搬到线上，而是把成熟的销售经验、行为标准与业务流程，\n连同智能体的记忆、决策与复盘能力，一起装进平台。',
@@ -316,15 +316,15 @@ pill(s,0.9,4.1,3.5,0.6,'第一步 · 一键召唤专家包',CYAN,BG2,13)
 pill(s,4.7,4.1,3.8,0.6,'第二步 · 方法论+行为标准铺开',AMBER,BG2,13)
 pill(s,8.6,4.1,3.8,0.6,'第三步 · 每日复盘自动运转',GREEN,BG2,13)
 txt(s,0.9,5.4,11.5,1.2,
-    'AI 原生销售管理平台 —— 让每一次报价有方法、每一次拜访有标准、\n每一个决策可追溯、每一天的经验都被沉淀。',
+    '企业AI销售决策平台 —— 让每一次报价有方法、每一次拜访有标准、\n每一个决策可追溯、每一天的经验都被沉淀。',
     17,AMBER,True,spacing=1.3)
 
 # ---------- 保存 ----------
-out = 'D:/system/CRM-ai-native/doc/AI原生销售管理平台介绍_2026.pptx'
+out = 'D:/system/CRM-ai-native/doc/企业AI销售决策平台介绍_2026.pptx'
 try:
     prs.save(out)
     print('SAVED_OK', out, 'slides=', len(prs.slides._sldIdLst))
 except PermissionError:
-    out2 = 'D:/system/CRM-ai-native/doc/AI原生销售管理平台介绍_2026_tmp.pptx'
+    out2 = 'D:/system/CRM-ai-native/doc/企业AI销售决策平台介绍_2026_tmp.pptx'
     prs.save(out2)
     print('LOCKED_SAVED_AS', out2, 'slides=', len(prs.slides._sldIdLst))

@@ -9,13 +9,13 @@
 |---|---|
 | 应用 ID | `cb_FOxvB7l9dSOVv4ziL408`（平台生成，不可改） |
 | 应用名称 | CRM 销售智能工作台 |
-| 应用简介 | AI 原生销售管理垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。 |
+| 应用简介 | 企业AI销售决策平台垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。 |
 | 应用头像 | `buddy-app-store-listing/app-avatar.png`（512×512 PNG，5.4 KB） |
 | 授权 URL / 回调 | （待定，见 §5 待确认项） |
 
 ## 2. 首页配置
 
-**首页标题**（≤25 字）：`AI原生销售管理平台·ChiYu青羽`
+**首页标题**（≤25 字）：`企业AI销售决策平台·ChiYu青羽`
 
 **内置连接器**：`crm-native-mcp`
 
@@ -47,7 +47,7 @@
 | 胶囊名称 | 客户360（5/8） |
 | 英文名称 | Customer 360（12/30） |
 | 图标 | `assets/capsules/customer-360.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-query`、`method-role-map` |
 | 关联灵感 | 决策链缺失即高风险、事实 vs 话术：口头承诺不算承诺、B 新能源口头预算教训 |
 
@@ -75,7 +75,7 @@
 | 胶囊名称 | 商机推进（4/8） |
 | 英文名称 | Deal Progression（16/30） |
 | 图标 | `assets/capsules/deal-progression.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`method-stage-progression`、`method-bant` |
 | 关联灵感 | BANT 四维速判、阶段推进前置检查、缺预算不升级 |
 
@@ -103,7 +103,7 @@
 | 胶囊名称 | 生成报价（4/8） |
 | 英文名称 | Quote Generation（16/30） |
 | 图标 | `assets/capsules/quote-generation.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-write`、`method-risk-tradeoff` |
 | 关联灵感 | 报价审批红线、折扣超权限必转审批、off-system 报价红线 |
 
@@ -131,7 +131,7 @@
 | 胶囊名称 | 今日跟进（4/8） |
 | 英文名称 | Daily Follow-up（15/30） |
 | 图标 | `assets/capsules/daily-followup.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-query`、`method-behavior-standard` |
 | 关联灵感 | TAORAN 六要素、承诺到期优先、行为合格线 21 条 |
 
@@ -159,7 +159,7 @@
 | 胶囊名称 | 风险预警（4/8） |
 | 英文名称 | Risk Alert（10/30） |
 | 图标 | `assets/capsules/risk-alert.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-risk`、`method-stop-loss` |
 | 关联灵感 | 链断裂四类异常、止损点三要素、沉没成本不绑架决策 |
 
@@ -209,7 +209,7 @@
 | 胶囊名称 | 管道看板（4/8） |
 | 英文名称 | Pipeline Board（14/30） |
 | 图标 | `assets/capsules/pipeline-board.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-query`、`method-funnel-classification` |
 | 关联灵感 | 加权预测口径、阶段停留时长、客户分档四象限 |
 
@@ -237,7 +237,7 @@
 | 胶囊名称 | 漏斗诊断（4/8） |
 | 英文名称 | Funnel Diagnosis（16/30） |
 | 图标 | `assets/capsules/funnel-diagnosis.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`method-funnel-classification`、`method-opportunity-matrix` |
 | 关联灵感 | 转化率基线、机会矩阵三要素、低价值低可行即止损 |
 
@@ -265,7 +265,7 @@
 | 胶囊名称 | 商机复盘（4/8） |
 | 英文名称 | Deal Retrospective（18/30） |
 | 图标 | `assets/capsules/deal-retrospective.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`decision-retrospective`、`method-fact-vs-script` |
 | 关联灵感 | 根因分布、应连边缺失率、事实 vs 话术 |
 
@@ -293,7 +293,7 @@
 | 胶囊名称 | 团队业绩（4/8） |
 | 英文名称 | Team Performance（16/30） |
 | 图标 | `assets/capsules/team-performance.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-query`、`method-behavior-standard` |
 | 关联灵感 | 管道覆盖倍数、行为合格线 21 条、缺口归因要落到动作 |
 
@@ -321,7 +321,7 @@
 | 胶囊名称 | 审批决策（4/8） |
 | 英文名称 | Approval Decision（17/30） |
 | 图标 | `assets/capsules/approval-decision.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`method-risk-tradeoff`、`decision-retrospective` |
 | 关联灵感 | 报价审批红线、B 新能源口头预算教训、红线一票否决 |
 
@@ -369,7 +369,7 @@
 | 胶囊名称 | 行业上线（4/8） |
 | 英文名称 | Industry Onboarding（19/30） |
 | 图标 | `assets/capsules/industry-onboarding.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`method-funnel-classification`、`method-role-map` |
 | 关联灵感 | 配置驱动差异化、system 模板 + 租户覆盖、禁止新增粒子类型 |
 
@@ -397,7 +397,7 @@
 | 胶囊名称 | 权限管理（4/8） |
 | 英文名称 | Access Control（14/30） |
 | 图标 | `assets/capsules/access-control.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-query` |
 | 关联灵感 | 最小权限原则、租户数据隔离、停用优于删除 |
 
@@ -424,7 +424,7 @@
 | 胶囊名称 | 计费套餐（4/8） |
 | 英文名称 | Billing Plans（13/30） |
 | 图标 | `assets/capsules/billing-plans.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native`、`crm-query` |
 | 关联灵感 | 三源一致性铁律、权益单调递增、席位/Token/功能三闸 |
 
@@ -451,7 +451,7 @@
 | 胶囊名称 | 技能开关（4/8） |
 | 英文名称 | Skill Switch（12/30） |
 | 图标 | `assets/capsules/skill-switch.svg` |
-| 绑定专家 | AI 原生销售管理助手 |
+| 绑定专家 | 企业AI销售决策专家 |
 | 绑定技能 | `crm-native` |
 | 关联灵感 | 阈值配置化、system 模板 + 租户分叉、开关前先看影响面 |
 

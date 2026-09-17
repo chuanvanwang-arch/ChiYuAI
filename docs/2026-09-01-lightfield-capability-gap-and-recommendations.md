@@ -174,7 +174,7 @@ Lightfield 的盲区恰好是本平台的护城河，组合定位建议：
 | 记忆深度 | versioned memory（叙事） | 叙事 + **决策问责**（root_cause/confidence/outcome_verified + 校准闭环）——Lightfield 公开材料中没有等价物 |
 | 信任机制 | 人审发送/关键字段 | 第 0 闸 + awaiting_confirm + RBAC + 审计（更细粒度） |
 
-一句话定位：**Lightfield 证明了"记忆比智能更值钱"；CRM-ai-native 的机会是证明"可问责的记忆比自由生长的记忆更值钱"——面向有治理诉求的组织的 AI 原生销售平台。**
+一句话定位：**Lightfield 证明了"记忆比智能更值钱"；CRM-ai-native 的机会是证明"可问责的记忆比自由生长的记忆更值钱"——面向有治理诉求的组织的企业AI销售决策平台。**
 
 ---
 

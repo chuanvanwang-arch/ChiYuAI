@@ -1,4 +1,4 @@
-# 阶段 1 底座 MVP 实施计划（AI 原生销售管理平台）
+# 阶段 1 底座 MVP 实施计划（企业AI销售决策平台）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 使用 executing-plans（或 subagent-driven-development）逐任务实施本计划。步骤用 checkbox（`- [ ]`）语法跟踪。
 

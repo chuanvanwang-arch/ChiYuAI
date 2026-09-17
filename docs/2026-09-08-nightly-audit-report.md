@@ -41,7 +41,7 @@
 | 4. 配置归属修正 | `test/propagation/permission.test.js` | id12 用户管理 F3 移租户级断言修正 |
 | 5. 连接器默认端点 | `connector/token-schema.json` | MCP 端点默认值改生产 IP（SNI 拦截期间） |
 | 6. Buddy 配置链 | `scripts/{build-buddy-import-zip,gen-industry-config-variants,pack-buddy-import,gen-buddy-config-v2,gen-config-checklist,gen-hero-backgrounds,zip-store,compare-skill-packs}.mjs` `buddy-app-store-listing/hero-{day,night}-1000x910.png` `docs/2026-09-08-{buddy-app-config-checklist,buddy-skill-benchmark}.md` | 一键导入包生成链 + hero 背景 + 手册 |
-| 7. 演示视频素材 | `doc/event/bp/video/`（脚本+音频+截图+v1-v5） `doc/event/`（截图×7+竞品 PDF） `doc/AI原生销售管理平台介绍_2026_v2.pdf` | CRM 路演视频素材与产物 |
+| 7. 演示视频素材 | `doc/event/bp/video/`（脚本+音频+截图+v1-v5） `doc/event/`（截图×7+竞品 PDF） `doc/企业AI销售决策平台介绍_2026_v2.pdf` | CRM 路演视频素材与产物 |
 
 建议不入库：`Lanch/` `fix-tenantScopeBar-route.patch` `phase2-commit.ps1`（探查/补丁产物，按既有惯例留未跟踪）。
 
@@ -71,7 +71,7 @@ git add scripts/build-buddy-import-zip.mjs scripts/gen-industry-config-variants.
 git commit -m "feat(buddy): 一键导入包生成链（样本骨架/schema 反推/hero 背景图/配置手册/借鉴分析）"
 
 # 组7 演示视频素材
-git add doc/event/ "doc/AI原生销售管理平台介绍_2026_v2.pdf"
+git add doc/event/ "doc/企业AI销售决策平台介绍_2026_v2.pdf"
 git commit -m "docs(event): CRM 演示视频 v1-v5 素材与产物 + 路演截图 + 竞品分析"
 ```
 

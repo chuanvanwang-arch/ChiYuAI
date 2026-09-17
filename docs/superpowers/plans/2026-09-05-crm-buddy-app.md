@@ -59,7 +59,7 @@ Expected: 输出 `✅ 已生成 src/web/buddy-crm-portal.html（通过 ui-lint -
 `<body>` 内容（替换脚手架的 header/page-sub/bar/list/script）：
 ```html
 <header class="page-head"><div class="ph-main"><h1 class="page-title">CRM 销售智能工作台</h1></div></header>
-<div class="page-sub">AI 原生销售管理垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。</div>
+<div class="page-sub">企业AI销售决策平台垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。</div>
 
 <div class="buddy-err" id="buddy-err"></div>
 
@@ -179,12 +179,12 @@ git commit -m "feat(buddy): 新增 CRM 销售智能工作台门户外壳（复�
   "app": {
     "appId": "<开放平台自动生成>",
     "name": "CRM 销售智能工作台",
-    "intro": "AI 原生销售管理垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。",
+    "intro": "企业AI销售决策平台垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。",
     "icon": "assets/app-icon.svg",
     "oauth": { "scopes": [], "callback": "", "origins": ["localhost:3000"] }
   },
   "home": {
-    "slogan": "你的 AI 原生销售管理伙伴，打开即进入行业专属工作台",
+    "slogan": "你的企业AI销售决策平台伙伴，打开即进入行业专属工作台",
     "workModes": [
       {
         "id": "sales",

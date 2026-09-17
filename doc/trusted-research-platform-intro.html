@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="FsXWX5ZOyIb3MQF8yD9BGM">
+<head data-page-node-id="FYqPoj8nUK87CtyL0yxfTa">
+<meta charset="UTF-8" data-page-node-id="pF6G2umHE0EfoiaWH2AZgO">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="OFcs20nj0hQ6KC23M2FLta">
+<title>多智能体可信研判与证据链溯源系统 · ChiYu AI · 能力介绍</title>
+<style>
+  :root{
+    --bg:#0c0e14; --bg2:#13161e; --card:#161a24; --card2:#1a1f2b;
+    --line:#232838; --line2:#2c3346;
+    --t1:#eef1f6; --t2:#a4abbd; --t3:#666d80;
+    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#f87171; --purple:#a78bfa; --blue:#60a5fa;
+    --r:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,'Microsoft YaHei','Noto Sans SC',sans-serif;background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px 80px}
+  .center{text-align:center}
+
+  .hero{padding:76px 0 54px;text-align:center;background:radial-gradient(900px 360px at 50% -40px,rgba(34,211,238,.10),transparent 70%)}
+  .kicker{display:inline-block;font-size:12px;letter-spacing:3px;color:var(--cyan);font-weight:600;border:1px solid var(--line2);border-radius:999px;padding:6px 16px}
+  .hero h1{font-size:40px;font-weight:900;margin:22px 0 8px;letter-spacing:-.5px;line-height:1.3}
+  .hero h1 .hl{color:var(--cyan)}
+  .hero .lead{font-size:16px;color:var(--t2);max-width:760px;margin:14px auto 0}
+  .hero .lead b{color:var(--t1);font-weight:600}
+  .hero .chips{margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .hero .chip{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid var(--line2);background:var(--card);color:var(--t2)}
+  .hero .chip b{color:var(--cyan)}
+  .cta{display:inline-flex;align-items:center;gap:8px;margin:28px 6px 0;background:var(--cyan);color:#04141a;font-weight:700;font-size:15px;padding:13px 26px;border-radius:12px;text-decoration:none;transition:.2s}
+  .cta:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(34,211,238,.25)}
+  .cta.ghost{background:transparent;color:var(--cyan);border:1px solid var(--line2)}
+
+  .sec{padding:54px 0 8px}
+  .sec .eyebrow{font-size:12px;letter-spacing:2px;color:var(--t3);font-weight:600;text-transform:uppercase}
+  .sec h2{font-size:28px;font-weight:800;margin:8px 0 6px}
+  .sec .sub{color:var(--t2);font-size:14.5px;max-width:700px}
+  .center .sub{margin:6px auto 0}
+
+  .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:28px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;transition:.2s}
+  .card:hover{border-color:var(--line2);transform:translateY(-3px)}
+  .card .ic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px}
+  .card h3{font-size:17px;font-weight:700;margin-bottom:8px}
+  .card p{font-size:13.5px;color:var(--t2);line-height:1.7}
+
+  .hlcard{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:26px;position:relative;overflow:hidden}
+  .hlcard::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--ac)}
+  .hlcard .tag{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--ac);margin-bottom:10px}
+  .hlcard h3{font-size:19px;font-weight:800;margin-bottom:10px}
+  .hlcard p{font-size:13.5px;color:var(--t2)}
+  .hlcard ul{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:7px}
+  .hlcard li{font-size:12.5px;color:var(--t1);padding-left:20px;position:relative;line-height:1.6}
+  .hlcard li::before{content:"✓";position:absolute;left:0;color:var(--ac);font-weight:700}
+  .ac-cyan{--ac:var(--cyan)} .ac-green{--ac:var(--green)} .ac-amber{--ac:var(--amber)}
+  .ac-purple{--ac:var(--purple)} .ac-blue{--ac:var(--blue)}
+
+  .stream{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 16px}
+  .stream .st{font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--bg2);border:1px solid var(--line2);color:var(--t1)}
+  .stream .st.hl{background:rgba(34,211,238,.12);color:var(--cyan);border-color:rgba(34,211,238,.35)}
+  .stream .st.am{background:rgba(251,191,36,.12);color:var(--amber);border-color:rgba(251,191,36,.35)}
+  .stream .st.gr{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.35)}
+  .stream .ar{color:var(--t3);font-size:16px}
+
+  .arch{margin-top:26px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 14px}
+  .arch svg{width:100%;height:auto;display:block}
+
+  table{width:100%;border-collapse:collapse;margin-top:24px;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--card2);font-size:12px;letter-spacing:.5px;color:var(--t2);font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td.dim{color:var(--t3)}
+  td strong{color:var(--t1)}
+  .y{color:var(--green);font-weight:700}
+  .n{color:var(--red);font-weight:700}
+  .p{color:var(--amber);font-weight:700}
+  .weak{background:rgba(251,191,36,.04)}
+
+  .case h3{font-size:17px;font-weight:700;margin-bottom:8px}
+  .case p{font-size:13px;color:var(--t2)}
+  .case .flow{font-size:12px;color:var(--t3);margin-top:10px;line-height:1.8}
+  .case .flow b{color:var(--cyan);font-weight:600}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+  .step{background:var(--card);border:1px solid var(--line);border-top:2px solid var(--cyan);border-radius:12px;padding:20px}
+  .step .k{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--cyan)}
+  .step h4{font-size:16px;font-weight:700;margin:6px 0 8px}
+  .step p{font-size:12.5px;color:var(--t2)}
+
+  .note{margin-top:18px;font-size:12px;color:var(--t3);background:var(--bg2);border:1px dashed var(--line2);border-radius:10px;padding:12px 16px;line-height:1.8}
+  .note b{color:var(--t2)}
+
+  .final{margin-top:60px;text-align:center;background:radial-gradient(700px 300px at 50% 0,rgba(52,211,153,.10),transparent 70%);border:1px solid var(--line);border-radius:20px;padding:46px 28px}
+  .final h2{font-size:26px;font-weight:800;line-height:1.4}
+  .final p{color:var(--t2);margin:12px auto 0;max-width:620px;font-size:15px}
+  .foot{text-align:center;color:var(--t3);font-size:12px;margin-top:48px;line-height:1.9}
+
+  @media(max-width:760px){
+    .hero h1{font-size:28px}
+    .g2,.g3,.steps{grid-template-columns:1fr}
+    table{font-size:12px}
+  }
+</style>
+</head>
+<body data-page-node-id="QiQTqSiajWH4Y5saJ2IODC">
+
+<!-- HERO -->
+<div class="hero" data-page-node-id="mCVKDP0oz5aDj7v2cZOjyK">
+  <div class="wrap" data-page-node-id="yARoFGTgEbPaF5yQshog6l">
+    <span class="kicker" data-page-node-id="xZJAfHh1WHNbt04utUQ1XC">多智能体可信研判与证据链溯源系统 · TRUSTED MULTI-AGENT ANALYSIS · ChiYu AI · 2026-09 版</span>
+    <h1 data-page-node-id="6n6VuHUvmibKsB7Cr6TlZH">让每一条研判结论都带着它的<span class="hl" data-page-node-id="FjO9wNfpblmyXUHMQOS0Af">证据、推理与分歧</span><br data-page-node-id="KdC3YRw8lgyVp14tK2pMcd">可追溯 · 可复核 · 可干预</h1>
+    <p class="lead" data-page-node-id="scTK51v0D6kVssO4Cz1VaU">不是又一个更高的模型精度，而是给"结论"装上可信结构：<b data-page-node-id="joMcfmNSo1FLvnZIKeAmCJ">结论凭什么成立、依据来自哪里、分歧如何处理、过程能否复现</b>；<br data-page-node-id="mijoF4InUmjJwNC9LAS91M">
+    面向舆情监测、开源情报分析、金融风控三类研判任务，<b data-page-node-id="ymvEd9cIsQYneD1ATy4qGj">同一可信底座，换研判域只换一份配置画像</b>；<br data-page-node-id="VfSjJ5IEdtpcmKollfuwBu">
+    少数意见留档不覆盖、处置类结论一律转人工复核，<b data-page-node-id="vHeG1cZm8vcIweorH5y3NS">不自动执行任何外部动作</b>。</p>
+    <div class="chips" data-page-node-id="m4WzqYbDRi3LPoHaTOq7mM">
+      <span class="chip" data-page-node-id="TWewSxAQW1uhqnr8yYFCmM"><b data-page-node-id="iny7Hyco0KylHn2JA0YnKb">业务亮点 3</b> · 三维可信度量 · 博弈对抗消解 · 证据链留档</span>
+      <span class="chip" data-page-node-id="ZFQXDGgYLFgS0jBuHQOkK1"><b data-page-node-id="oGqUb4zmHKdBu3iMTS5HBh">技术亮点 3</b> · 三层智能体 · 证据图谱 + 因果校验 · 推理树可审</span>
+      <span class="chip" data-page-node-id="6jG3iGaS3H6Bo2saAoQnTF"><b data-page-node-id="JbJbWNBw74g8DqAgRvibcR">平台亮点 2</b> · MCP 标准接口接入 · 配置驱动多域复用</span>
+    </div>
+    <a class="cta" href="#insight" data-page-node-id="ROf0ZnBemJppbRkLODiZHd">先看行业判断 →</a>
+    <a class="cta ghost" href="#cap" data-page-node-id="S88vBZfYu4GfYi3RqRBhcp">看三大能力</a>
+    <a class="cta ghost" href="#arch" data-page-node-id="G8RivRa3LR7jSxhofRVYo4">看分层架构</a>
+  </div>
+</div>
+
+<div class="wrap" data-page-node-id="YFPwfzkmGBRZ1z3ftnNoDA">
+
+  <!-- 行业判断 -->
+  <section class="sec" id="insight" data-page-node-id="jtKrTdQ0d70Ss5FEuCiMXx">
+    <div class="eyebrow" data-page-node-id="O4hNANAst02PMQC4bKrvXv">WHY TRUSTED</div>
+    <h2 data-page-node-id="ceDb4u4t5Za5L92AInIkiv">研判的真问题，不在"出结论"，在"凭什么信"</h2>
+    <p class="sub" data-page-node-id="MzSzoHAgljLCF0Mw1WACrz">过去几年，多智能体与大模型解决了"生成结论"的速度与覆盖面；接下来要解决的是：结论凭什么成立、依据能不能追回、分歧会不会被抹平、判断错了能不能纠正。</p>
+    <div class="g2" data-page-node-id="YWZvHyGHsXbn6ldOLZxh8m">
+      <div class="card" data-page-node-id="VgzZnVQIBI6xGSKM2VhfiV">
+        <div class="ic" style="background:rgba(248,113,113,.12);color:var(--red)" data-page-node-id="ihrqAHPUDBvNoyzJFi4Q8l">🕳️</div>
+        <h3 data-page-node-id="Os09uRGj8r9GLM5GCSg3s5">决策黑箱</h3>
+        <p data-page-node-id="bhYVZm2kcqkQWdGR8csxBZ">只给结论不给依据，判断逻辑留在模型权重里。复核的人只能在"信"与"不信"之间二选一，无法验证，也无从纠正。结论因此难以进入正式业务决策。</p>
+      </div>
+      <div class="card" data-page-node-id="5a8jhWvGq8GJGQvDDBBBQm">
+        <div class="ic" style="background:rgba(251,191,36,.12);color:var(--amber)" data-page-node-id="63F0vOJvDJaX0W636FBTQe">⚖️</div>
+        <h3 data-page-node-id="mpoeem2XnKY37XFcw2lZS4">分歧被投票抹平</h3>
+        <p data-page-node-id="A0PwjxMg3XGGFdL3BX6O3U">多智能体独立判断后简单加权投票，异议被平均数掩盖。而分歧本身不是噪声——它恰好标记了不确定性的位置，是复核最该看的地方。</p>
+      </div>
+      <div class="card" data-page-node-id="eI7C3ucCQoHHjIrne5AODx">
+        <div class="ic" style="background:rgba(96,165,250,.12);color:var(--blue)" data-page-node-id="xb7eTkaDWhXb3uXrvhxNNb">🔀</div>
+        <h3 data-page-node-id="CXk2QRgL9MRYC0kqimrjk6">相关当因果</h3>
+        <p data-page-node-id="xku1n1nVGgpHV25U84Vxb4">共现即判因，不做时序与因果结构校验。归因错一次，后续动作方向全错，而且错得看起来很合理，往往在造成损失后才被发现。</p>
+      </div>
+      <div class="card" data-page-node-id="SIV9Xa1wWfgXFWLIuT1LGi">
+        <div class="ic" style="background:rgba(167,139,250,.12);color:var(--purple)" data-page-node-id="Df50iXCUr7IFJD9pxtFB9C">🧩</div>
+        <h3 data-page-node-id="N8PrMaEJ9j08ADQvFB4Oh5">过程不可复现</h3>
+        <p data-page-node-id="eknvxJjocXXzCzRctqMjEI">中间结论与逻辑链不留痕，同一次输入两次运行未必同一结论。不可复现就不可审计；不可审计，就无法干预与追责。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 三大能力 -->
+  <section class="sec" id="cap" data-page-node-id="xJTYGWHxmyB0aEHcGdVNtE">
+    <div class="eyebrow" data-page-node-id="rYsxCVjevGZ2oP9eF9rZXE">CORE CAPABILITIES</div>
+    <h2 data-page-node-id="F9TGOitZfbUC9Pcgkyqxpd">三项核心能力，对应赛题三条要求</h2>
+    <p class="sub" data-page-node-id="eoHLDvbd0aD2cehEiXk6ug">从度量到消解，从溯源到可审——四项能力不是并列的功能点，而是一条完整链路上的四个环节。</p>
+    <div class="g3" data-page-node-id="UDC7m1pQsbSbYahyzKDkwt">
+      <div class="hlcard ac-cyan" data-page-node-id="IlG0KyPOF6G2RXL0rAEUxl">
+        <div class="tag" data-page-node-id="bBem6SfkF1rLAte1kxJBuY">能力 ①</div>
+        <h3 data-page-node-id="V9IRnSEhcPBSpPmRjyDgXN">可信度量与冲突消解</h3>
+        <p data-page-node-id="mlDKcV7zABxKQsFmZ5CJgu">从信源、证据、逻辑三个维度构建置信度模型，自动识别结论冲突并经博弈对抗机制消解。</p>
+        <ul data-page-node-id="c07TG4OFGS9DCESinMgZsQ">
+          <li data-page-node-id="uFF2m2bUzatFfmF99LB1es">三维置信度：信源可信度 × 证据强度 × 逻辑一致性</li>
+          <li data-page-node-id="wSpvEqXkgvZIpG6Y5bFDFG">结论冲突自动识别，按事实 / 口径 / 立场分类定性</li>
+          <li data-page-node-id="SBSZc5pE5rnE3l3ApsgU3x">正方 · 反方 · 仲裁三方对抗，五种消解策略</li>
+          <li data-page-node-id="scrPLFGPSnJbyM11YLC9nw">少数意见留档，仲裁不覆盖分歧</li>
+        </ul>
+      </div>
+      <div class="hlcard ac-amber" data-page-node-id="0uqVXeAlJz4nC8ngCHXVih">
+        <div class="tag" data-page-node-id="wThVOJGEgfulpLljmDv37o">能力 ②</div>
+        <h3 data-page-node-id="ZSiwsjdqlHkaQZdXFwREy4">证据溯源与因果校验</h3>
+        <p data-page-node-id="xdrrwyWQKCpcgrG7CcNdBa">构建"结论→证据→来源"证据图谱实现全程溯源，以因果校验区分相关与因果，防范归因错误。</p>
+        <ul data-page-node-id="zRraFj2lmnSDZWSQAkPhDg">
+          <li data-page-node-id="peKGcH9GrHPhWNz8CQy2mw">三级图谱：结论 → 证据 → 来源，可逐级下钻</li>
+          <li data-page-node-id="ZMmErw43WjDtmWxFZvU9Ac">关系标注：支持 / 反驳 / 已排除（软标记，不删原始证据）</li>
+          <li data-page-node-id="6C88ZOEIFtXtpYGmmobyho">因果三关：时序优先 · 反事实检验 · 混杂因素排查</li>
+          <li data-page-node-id="RcoK5zNGVcQtimV3NRFEKk">因果证据不足时结论保持"待验证"，不升格</li>
+        </ul>
+      </div>
+      <div class="hlcard ac-green" data-page-node-id="C3LHz125gnFBIKF0COVdyH">
+        <div class="tag" data-page-node-id="KQ9VHlW9N99IwdHZzwftfq">能力 ③</div>
+        <h3 data-page-node-id="BqDRl7v6NczLcGdItyrBBs">推理透明与全程可审</h3>
+        <p data-page-node-id="cn15Lg5r9nqfIrUFAUIxhZ">记录推理中间结论与逻辑链，以推理树可视化输出，确保可审计、可复现、可干预。</p>
+        <ul data-page-node-id="2emwqgoHzRCpxAyvOnWOMB">
+          <li data-page-node-id="VOH2ctHHvD2aXwdCXHOVjw">推理树节点四态：已确证 · 待验证 · 存疑 · 缺依据</li>
+          <li data-page-node-id="SdF50daN9QO956CuiGQCLk">节点记录依据、置信度、时间戳与生成它的智能体</li>
+          <li data-page-node-id="cIO9s16CpBCkHTaWtqC5ts">审计日志哈希链，事后篡改可被检测</li>
+          <li data-page-node-id="cdNya0ZacLWdtbsLsUepPk">人工可排除证据或修改结论，重算并保留两版结果</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stream" data-page-node-id="Ze6zLdokMK67MfoiYjVnGe">
+      <span class="st hl" data-page-node-id="urwFU1pYJxpLYMUziXLGuJ">采集接入</span><span class="ar" data-page-node-id="OVUylUKueJ6VFKvyUIWcB7">→</span>
+      <span class="st hl" data-page-node-id="XcdoffCsyspCUPKof4Yy7v">结构化抽取</span><span class="ar" data-page-node-id="yavJxnPujA4seB83MACF5X">→</span>
+      <span class="st hl" data-page-node-id="fGlAcamFeBNxTK8meeiA6k">入证据图谱</span><span class="ar" data-page-node-id="gHVkGoGXi0P2jXQ4BUKf2A">→</span>
+      <span class="st am" data-page-node-id="3tSjGnGFVa2d3ZonprpgD5">多角色研判</span><span class="ar" data-page-node-id="V5wcb2ieiH5CfxTrONdXyO">→</span>
+      <span class="st am" data-page-node-id="7br3aF9GNPeNCLpr37PK5Y">冲突识别</span><span class="ar" data-page-node-id="D52vUAPiXUYlAytqVVoBC5">→</span>
+      <span class="st am" data-page-node-id="DrZep0iES7woArZp9TivXi">对抗消解</span><span class="ar" data-page-node-id="WqAnK3gqpPjjd8Oo5SUEKa">→</span>
+      <span class="st gr" data-page-node-id="24j1kvomEG2oB8dcX7dLHr">因果校验</span><span class="ar" data-page-node-id="2WKavRbX4LW8manrW0hNkO">→</span>
+      <span class="st gr" data-page-node-id="s8AXVXsLWaaPrL0VFL4554">推理树可审</span><span class="ar" data-page-node-id="fD5PNYn3vZLYLBFwXNik9g">→</span>
+      <span class="st gr" data-page-node-id="OYmEfeXu717mlicwMMdFr2">人工复核归档</span>
+    </div>
+  </section>
+
+  <!-- 架构 -->
+  <section class="sec" id="arch" data-page-node-id="pgf0U0GcXPtw7DnZ6p8X2u">
+    <div class="eyebrow" data-page-node-id="WVSFKwhW4XdVs3vWJ30Npu">ARCHITECTURE</div>
+    <h2 data-page-node-id="UNtgnNYCEbr3kCbuJyVpFq">三层智能体：研判、消解、追溯各司其职</h2>
+    <p class="sub" data-page-node-id="IoS9T3dFp5r2rp5tS3n6EL">分层不是为了好看，而是为了让"谁产生了这条结论"与"谁有权改变它"在结构上就分得清楚。</p>
+    <div class="arch" data-page-node-id="7rRs9F62X1BIZPOPqlV8Lu">
+      <svg viewBox="0 0 980 470" xmlns="http://www.w3.org/2000/svg" data-page-node-id="iU8tCxX9t8HnvGem8D9XJK">
+        <rect x="0" y="6" width="980" height="126" rx="16" fill="#12161f" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" data-page-node-id="alFRm4Vhc5pnQ4tKa4uPkq"/>
+        <text x="22" y="36" fill="#22d3ee" font-size="16" font-weight="bold" font-family="Microsoft YaHei" data-page-node-id="Omi5fdF9GsF4LEwY2vIc1Q">L0 · 研判智能体集群（并行，各持独立视角）</text>
+        <rect x="22" y="52" width="222" height="64" rx="10" fill="#161a24" stroke="#22d3ee" stroke-width="1.5" data-page-node-id="yCpnBE90MXUzdulKdhp5ed"/>
+        <text x="133" y="80" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="gaQU9HDAbsawoPxx84HoU4">事实抽取智能体</text>
+        <text x="133" y="101" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="JLipqODaoSgaQG4kt3yImP">结论 + 证据候选</text>
+        <rect x="258" y="52" width="222" height="64" rx="10" fill="#161a24" stroke="#22d3ee" stroke-width="1.5" data-page-node-id="QTICneHT6cwuYPg9N7bHSB"/>
+        <text x="369" y="80" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="NPPNVxyrFINJTG9DP6Zidq">时序核查智能体</text>
+        <text x="369" y="101" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="4jRG0osERdbmLsAL9MPoNR">时间线一致性</text>
+        <rect x="494" y="52" width="222" height="64" rx="10" fill="#161a24" stroke="#22d3ee" stroke-width="1.5" data-page-node-id="wVfFGvOFs4BABpzbfcPz28"/>
+        <text x="605" y="80" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="yFXu70QCuJ486cjKzoRAE7">立场研判智能体</text>
+        <text x="605" y="101" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="TXrg9IS2LSxyk05XNR5zQZ">口径与倾向识别</text>
+        <rect x="730" y="52" width="228" height="64" rx="10" fill="#161a24" stroke="#22d3ee" stroke-width="1.5" data-page-node-id="D6Fu9nEJoiJF75T02oEXeX"/>
+        <text x="844" y="80" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="W07V88hrRkGDuQDPIKj7Zc">反证检索智能体</text>
+        <text x="844" y="101" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="Lj9HLDo5MDTJBC3QiZRSH6">主动寻找反例</text>
+
+        <path d="M490 132 L490 168" stroke="#2c3346" stroke-width="2" data-page-node-id="jqjFmB2BuClW6f7xV6CfvJ"/>
+        <path d="M483 160 L490 172 L497 160 Z" fill="#2c3346" data-page-node-id="rV9zckFHTBUI5DD7UbiBn8"/>
+
+        <rect x="0" y="172" width="980" height="126" rx="16" fill="#12161f" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" data-page-node-id="vgjiOZUTjG2ERW7tmCEwdg"/>
+        <text x="22" y="202" fill="#60a5fa" font-size="16" font-weight="bold" font-family="Microsoft YaHei" data-page-node-id="GxNDdecxsvYD5RPulV4pWR">L1 · 仲裁与消解层（冲突识别 → 博弈对抗 → 证据加权 → 分歧留档）</text>
+        <rect x="22" y="218" width="222" height="64" rx="10" fill="#161a24" stroke="#60a5fa" stroke-width="1.5" data-page-node-id="d3WA85Z91upx3xbAxzFf5C"/>
+        <text x="133" y="246" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="JA4lsCDsTJk6inSTt9ajJr">冲突识别</text>
+        <text x="133" y="267" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="kCVtRXT8scMM7fBX113BsW">事实 / 口径 / 立场</text>
+        <rect x="258" y="218" width="222" height="64" rx="10" fill="#161a24" stroke="#fbbf24" stroke-width="1.5" data-page-node-id="6ZDlkm6KnHdYBE5WLcUKe1"/>
+        <text x="369" y="246" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="WOZz6ID44bUGcjOM0BQxQN">博弈对抗</text>
+        <text x="369" y="267" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="6IRUAIiy6II2gPzaNUwkF5">正方 / 反方 / 仲裁</text>
+        <rect x="494" y="218" width="222" height="64" rx="10" fill="#161a24" stroke="#fbbf24" stroke-width="1.5" data-page-node-id="bwxNipkMKS2L6DMC28Y0sC"/>
+        <text x="605" y="246" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="r0r4KYQBmLTxAO8uJvNrrT">证据加权消解</text>
+        <text x="605" y="267" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="0Tq03yogURRZHRGLVgPrMJ">按可信度重算</text>
+        <rect x="730" y="218" width="228" height="64" rx="10" fill="#161a24" stroke="#a78bfa" stroke-width="1.5" data-page-node-id="hMbBLOPw8KYUhBgPWMwHvG"/>
+        <text x="844" y="246" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="rAGPp4mu0ptpusF6VZftKg">分歧留档</text>
+        <text x="844" y="267" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="kPUiNyTU5JH3X5hKJ3eCpr">少数意见不覆盖</text>
+
+        <path d="M490 298 L490 334" stroke="#2c3346" stroke-width="2" data-page-node-id="GK2Wjri0qnSZXuKGSFb91Y"/>
+        <path d="M483 326 L490 338 L497 326 Z" fill="#2c3346" data-page-node-id="zY28Vjc2f2aekdR1yXAL0S"/>
+
+        <rect x="0" y="338" width="980" height="126" rx="16" fill="#12161f" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" data-page-node-id="MGzwVJY3t7pelvKKR3bAgQ"/>
+        <text x="22" y="368" fill="#34d399" font-size="16" font-weight="bold" font-family="Microsoft YaHei" data-page-node-id="JdJ4IytWO6dbDr8T7WcHCP">L2 · 审计与追溯层（可查、可复现、可干预）</text>
+        <rect x="22" y="384" width="222" height="64" rx="10" fill="#161a24" stroke="#34d399" stroke-width="1.5" data-page-node-id="zKoUOFADQXjmYE8cqo4UBF"/>
+        <text x="133" y="412" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="N63PEydYCPFkbA2o17kWRw">证据图谱</text>
+        <text x="133" y="433" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="Brr8UGPESTPOGAL3O9tt6Y">结论→证据→来源</text>
+        <rect x="258" y="384" width="222" height="64" rx="10" fill="#161a24" stroke="#34d399" stroke-width="1.5" data-page-node-id="8GiAHCXTHNLcgYN5Ic5SLx"/>
+        <text x="369" y="412" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="4bBaZnolHPaOJf9A82kprF">推理树</text>
+        <text x="369" y="433" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="Zoa3IiL6yG6YDd4n42ngou">中间结论留痕</text>
+        <rect x="494" y="384" width="222" height="64" rx="10" fill="#161a24" stroke="#34d399" stroke-width="1.5" data-page-node-id="HcCnvWAvaHR78SMlUDALHy"/>
+        <text x="605" y="412" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="hAdDF9qHdATM3dOEjAANAn">防篡改哈希链</text>
+        <text x="605" y="433" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="vppqWN3ZvuKHN6NYKFVJr2">审计留痕</text>
+        <rect x="730" y="384" width="228" height="64" rx="10" fill="#161a24" stroke="#34d399" stroke-width="1.5" data-page-node-id="qELC3Vm9pQeXdJ46cYCRC5"/>
+        <text x="844" y="412" fill="#eef1f6" font-size="14" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="tI5CNs0ey9NoW5nr9y3gKC">人工复核闸</text>
+        <text x="844" y="433" fill="#666d80" font-size="12" text-anchor="middle" font-family="Microsoft YaHei" data-page-node-id="zxTywBJfRM4DSJPXV8Y1nj">可干预后重算</text>
+      </svg>
+    </div>
+    <div class="note" data-page-node-id="UMGPkptw0soHfXVj1IpUJx">认知支柱：<b data-page-node-id="6uAXjHn1A3hKHjo0kzhGJm">K-M-D 认知决策管道</b>（知识层给判据、方法层给算法、决策层给结论，逐层留痕）｜<b data-page-node-id="Tj5KZJe0oDkSKUBZcFfCr6">三维置信度</b>（信源 × 证据 × 逻辑，可复算）｜<b data-page-node-id="GDHDL1QgRL0TkQt9BPIfOn">决策第 0 闸</b>（缺信息就报缺，不放行、不静默通过）。</div>
+  </section>
+
+  <!-- 场景 -->
+  <section class="sec" id="scene" data-page-node-id="yVeTOchaLcHqnl1s9fDnf9">
+    <div class="eyebrow" data-page-node-id="c23k11AMdYj3IFRIA55WWB">SCENARIOS</div>
+    <h2 data-page-node-id="t7OkPJejQtz5oibW509fMZ">三类研判任务，共用同一可信底座</h2>
+    <p class="sub" data-page-node-id="XvYoAxp5NIcsNSIp2QOb3W">差异全部落在配置层——来源等级表、判据集、消解策略阈值，不需要改动内核代码。</p>
+    <div class="g3" data-page-node-id="1fmioM5GFiQBhwF998Nn0t">
+      <div class="card case" data-page-node-id="BVNrb5jz28pO1itW6fZ7sY">
+        <div class="ic" style="background:rgba(34,211,238,.12);color:var(--cyan)" data-page-node-id="62qGElF1PVefCSIIhdlhmJ">📡</div>
+        <h3 data-page-node-id="MmSGwOGR1FE1YuGauGHiTl">舆情监测</h3>
+        <p data-page-node-id="siCYkD8oU2caFtIJeCJLBo">多源舆情结论互相矛盾时，先分来源等级，再判是事实冲突还是口径冲突；协同发布类判断必须先过时序关，避免把行业例会引发的集中表述误判为协同操纵。</p>
+        <div class="flow" data-page-node-id="u8H1HCQhDHFshZFdDq8BMY">冲突识别 → <b data-page-node-id="p19RCX4sU1KQgiUhiG4ZOL">来源分级</b> → 对抗消解 → 证据链归档</div>
+      </div>
+      <div class="card case" data-page-node-id="9tUPu8oPb4xzJnpCQfQ7wt">
+        <div class="ic" style="background:rgba(251,191,36,.12);color:var(--amber)" data-page-node-id="ZdlrrLGxuYapKNrWB89j8V">🔎</div>
+        <h3 data-page-node-id="sxXJ8dbLvzzDwwLLuGFQKv">开源情报分析</h3>
+        <p data-page-node-id="zVmMDDolZemd5SGZZaEaTf">结论必须能一路下钻到原始段落与抓取时间；转述与二手来源单独标注等级，反证检索智能体主动寻找反例，反例无法解释时命题不升格。</p>
+        <div class="flow" data-page-node-id="bg1YhBEJtRcgdTfX2w1ku6">抽取入图 → <b data-page-node-id="fCZJAYLpvTUhRrAuw4Hy5h">三级下钻</b> → 反证检索 → 因果三关</div>
+      </div>
+      <div class="card case" data-page-node-id="SbuaxGwySiLAq8U8po4T4e">
+        <div class="ic" style="background:rgba(52,211,153,.12);color:var(--green)" data-page-node-id="vtGr7eWFawIX7vJqKsID8g">🛡️</div>
+        <h3 data-page-node-id="fypPXhIoTWtJk9n5Qw1UUk">金融风控</h3>
+        <p data-page-node-id="HEKStbinAq1Vs6Ls7zzFLX">高风险结论强制进人工仲裁，两套结论并列保留；所有推理中间结论与人工干预动作写入审计哈希链，满足事后复核与监管回溯要求。</p>
+        <div class="flow" data-page-node-id="Jwo278o7QQWh4EMYUkBFJ0">多角色研判 → <b data-page-node-id="AFwC3M0EwiF05giJyi2Xw7">人工仲裁</b> → 推理树留痕 → 哈希链归档</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 对标 -->
+  <section class="sec" id="bench" data-page-node-id="p0z4uoFSKMe680q65mf8CS">
+    <div class="eyebrow" data-page-node-id="hVh55hYzIltVBkoOpFtB9M">BENCHMARK</div>
+    <h2 data-page-node-id="ymPvNKOdK6ljSU2yoPDRDt">差异在可信结构，不在模型本体</h2>
+    <p class="sub" data-page-node-id="Rp4nHx3gukGzva9MEJsKrB">下表对照列为同类能力的一般特征，不针对任何特定厂商或产品。</p>
+    <table data-page-node-id="rWtnE0A1zUO9mO0b8MBMmR">
+      <thead data-page-node-id="KcfDk2DGHooJ6Qe4rb66zn">
+        <tr data-page-node-id="rcAYkfsPFTAmuVkzeADcRc"><th style="width:18%" data-page-node-id="bEnECsLr7k0HSPkAiVjYD2">能力维度</th><th style="width:27%" data-page-node-id="fZPHrPrf6CaY15tfRf0xLs">通用大模型研判工具</th><th style="width:23%" data-page-node-id="WcUngiocexqmb191EGOaro">传统规则引擎 / BI</th><th data-page-node-id="7gEwXWgpc3a1AliVIT6sy8">本系统</th></tr>
+      </thead>
+      <tbody data-page-node-id="orseAzkQGnB8oiWqpOVnDR">
+        <tr data-page-node-id="FoiTGusQSj6KGHYXnlPler"><td data-page-node-id="KgXjgNAA1Ve2W9N4jUgWbN"><strong data-page-node-id="aO4kmEeuAzlz73G8GJyvqI">结论形态</strong></td><td class="p" data-page-node-id="ky6mHByuiNdDOMg2h6P9RF">△ 生成一段文本结论即结束</td><td class="n" data-page-node-id="C1Vh2fOwKJUZ5FxHSkPnKm">✗ 阈值命中的结果行</td><td class="y" data-page-node-id="rrv2CXMojYpsQFhYMfyHwN">✓ 结论 + 证据链 + 推理树一并输出</td></tr>
+        <tr data-page-node-id="Zj3MHCT14DihZWOI9IiENp"><td data-page-node-id="OSs5BKoFj520sDOA0ke8a7"><strong data-page-node-id="MoKrgPBH5pSHv5AshYy1ic">多智能体协同</strong></td><td class="p" data-page-node-id="YGiDHh9AkQtekhbLd2hu78">△ 单模型或固定角色对话串</td><td class="n" data-page-node-id="FCKG1GZPy0TxMHabDOwLiF">✗ 无</td><td class="y" data-page-node-id="qBz7Hnd0TL0ZLXqv54JHFq">✓ 多角色并行研判 + 仲裁智能体消解</td></tr>
+        <tr data-page-node-id="3Hvx2KEcHU6vTWdJNxFyHr"><td data-page-node-id="b9hI6cxPCpMkC8litdExw5"><strong data-page-node-id="739Z4DhrZEpjDt0AZxgti0">冲突处理</strong></td><td class="n" data-page-node-id="Q9XaJohzJK68OhTiGbkgxc">✗ 无显式机制，靠提示词调和</td><td class="p" data-page-node-id="h5uj7JxbkgQKkWOvwn2hNy">△ 人工比对，无自动消解</td><td class="y" data-page-node-id="EtrgGGLfO1SPYCzbRMYEs1">✓ 冲突识别 + 五策略消解 + 分歧留档</td></tr>
+        <tr data-page-node-id="cM11BSfztjEfOGFj8K7e92"><td data-page-node-id="SBxHJLZBKTQFlDyt0tU44j"><strong data-page-node-id="a4cugskOQLwqi5tfUY4F2F">溯源深度</strong></td><td class="p" data-page-node-id="GItUNJ4M6EQtv8oOQE6ivo">△ 引用链接，不可逐级下钻</td><td class="n" data-page-node-id="HNRJx9CLgqEWe6ONsPSxpD">✗ 无</td><td class="y" data-page-node-id="ZDdnlsAotSeNDu9jDKXrgh">✓ 结论→证据→来源三级可下钻</td></tr>
+        <tr data-page-node-id="ni0Fk8UtfvEuAabRKO9ToE"><td data-page-node-id="p6E4OD1LEjo5lwcpdKmXfW"><strong data-page-node-id="ZdqTFbcTOJYKBbACnHbEAT">因果校验</strong></td><td class="n" data-page-node-id="JkNeO91b37gCwtAkSaeA3o">✗ 无</td><td class="n" data-page-node-id="oVoSzc6GOTwE4YSRaRd55W">✗ 无</td><td class="y" data-page-node-id="81jB6P2sPxGEcXNhE0bcki">✓ 时序 + 反事实 + 混杂因素三关</td></tr>
+        <tr data-page-node-id="dZFJoNDf2pNDavvaoFRnIC"><td data-page-node-id="84KHSrEYdvU87tiWB9GCI5"><strong data-page-node-id="zUh7kyj3Zk9Gcb6QXzKCw2">过程可审</strong></td><td class="p" data-page-node-id="nFpOTHoIyuWLIBS34z4enm">△ 只有会话记录，不可复现</td><td class="n" data-page-node-id="kd439P7jCvcewJxChlPzHl">✗ 无推理过程可审</td><td class="y" data-page-node-id="TaEGMqvDVRtj62CsgcqYFJ">✓ 推理树 + 审计哈希链 + 可干预重算</td></tr>
+        <tr class="weak" data-page-node-id="1krOjrp6I7XTDVoYVzA4qr"><td class="p" data-page-node-id="JNt3xRlNBo5m8IAXvNVfsw"><strong data-page-node-id="WyORrHjxSTklPrVgcTqlKt">模型本体精度</strong></td><td class="y" data-page-node-id="reuCz4nM5Rb5MxluJlkcOc">✓ 头部厂商模型能力更强</td><td class="dim" data-page-node-id="6lBLsb8h4YKOvWBBJDNv6Q">—</td><td data-page-node-id="Lh14gQ7pZaBrqoz4k18bEF">△ 不宣称更强，采用接入与配置</td></tr>
+        <tr class="weak" data-page-node-id="O01W8zYiwwGhv6iTqkYIez"><td class="p" data-page-node-id="19YgZwyH96lpLSIqBmwMPN"><strong data-page-node-id="IqAPAweb1XPxEHFB2Dt5um">行业语料规模</strong></td><td data-page-node-id="LWq8avoqNvgtQgaXtTPXOw">△ 通用语料广，垂直深度有限</td><td class="y" data-page-node-id="0xMSLQMm8IaN2ZaKYFuCYk">✓ 垂直机构积累更深</td><td data-page-node-id="CJ5iWAJCBFB0UUcLZDV01C">△ 不宣称更多，用证据图谱组织存量</td></tr>
+      </tbody>
+    </table>
+    <div class="note" data-page-node-id="HaUw7AykPRBfVMRBbQiynn">主动认弱：<b data-page-node-id="Ztgg0ERrYVNqhE0AEK4QkG">模型本体精度与语料规模两项我们不声称领先</b>——这两层的分工是接入与组织；我们的差异化在结论之上的可信结构。</div>
+  </section>
+
+  <!-- 落地 -->
+  <section class="sec" id="traction" data-page-node-id="kRB2zJI9ZKDNRVJ5vKDyNG">
+    <div class="eyebrow" data-page-node-id="aDoRI97566oxfLQ3GsBCB9">TRACTION</div>
+    <h2 data-page-node-id="WHGjqKXLUHRIWJ1PQ3xyjY">底座已生产验证，研判域按三阶段推进</h2>
+    <p class="sub" data-page-node-id="NAsExRr5qCliaUEiIiyvqn">同架构底座已在企业AI销售决策平台·ChiYu青羽生产运行，源程序 60,290 行并已申请软件著作权；决策管道、冲突消解、可解释推理均为已运行模块。</p>
+    <div class="steps" data-page-node-id="Jv8JZD0bJqm6LBJAtLMY4R">
+      <div class="step" data-page-node-id="dnA4Gns09JdGMDQFkpnq6M">
+        <div class="k" data-page-node-id="0xT9JsCvWGgNDC1wXTEQvh">已完成</div>
+        <h4 data-page-node-id="7EWujHuIlqFuDEeYL32Kzg">平台底座生产运行</h4>
+        <p data-page-node-id="NtdspQe7EV2Yx3zTXC6Kfo">多智能体编排、决策管道、冲突消解五策略、可解释推理链、事件总线与审计日志，均已在生产环境运行。</p>
+      </div>
+      <div class="step" style="border-top-color:var(--amber)" data-page-node-id="PGHxJn0WkHvWt6BFZH1iBb">
+        <div class="k" style="color:var(--amber)" data-page-node-id="SvWCEM8FBA75q8rtoCjkER">进行中</div>
+        <h4 data-page-node-id="IHPIziGasXMNkADmVCXESI">可信研判域 PoC</h4>
+        <p data-page-node-id="YESyUFYfOusrAdUYE6E6at">三维置信度内核、证据图谱三级下钻、博弈对抗消解编排、推理树与人工重算页面。</p>
+      </div>
+      <div class="step" style="border-top-color:var(--blue)" data-page-node-id="3ZBApaBjqxTg4RAuaTpEkI">
+        <div class="k" style="color:var(--blue)" data-page-node-id="P0n8DA8ZEktPDNDxFmywP1">待实测</div>
+        <h4 data-page-node-id="APZzsyUdY4T3uetoo4Lpd4">端到端实测</h4>
+        <p data-page-node-id="OoX1ONjI7g7vHKjGP9WsqL">在公开研判专题上完成端到端实测，公布冲突识别率、证据覆盖率与人工复核工时变化。</p>
+      </div>
+    </div>
+    <div class="note" data-page-node-id="bSX8ajQFCneOMevrZWelKB">如实说明：研判域目前<b data-page-node-id="qEnnSN3LFrVydE6XOqfUgb">暂无第三方客户案例</b>，上述指标为待实测项，我们不预先承诺具体数字。</div>
+  </section>
+
+  <!-- 收尾 -->
+  <div class="final" data-page-node-id="JNUOQSBsIzOKYcYHXCCALX">
+    <h2 data-page-node-id="SpEOiyQCn2nECaLgEFyY3J">让每一条结论都带着它的证据，<br data-page-node-id="3AeCHtU9IHZ0N9FdaFHdte">让每一次判断都可以被复核，<span style="color:var(--green)" data-page-node-id="4gCljwhViGANus8wI02u6Y">让组织的研判能力可以积累</span></h2>
+    <p data-page-node-id="S7y2f8P3u4UoyvM8kuQ7Qw">可信度量 · 冲突消解 · 证据溯源 · 推理透明 ｜ MCP 标准接口接入第三方智能体 ｜ 换研判域只换一份配置画像</p>
+    <div style="margin-top:26px" data-page-node-id="LC98CAGEZOIFL8JJbbuT4v">
+      <a class="cta" href="#insight" data-page-node-id="AsrNzCYMzo9O8k8KcosILU">重新查看能力全景</a>
+      <a class="cta ghost" href="#bench" data-page-node-id="bBWUFCfjYTvA8XND7qDbmZ">看对标与边界</a>
+    </div>
+  </div>
+
+  <div class="foot" data-page-node-id="I2uEPYXhl2oHQx8Z8yyX45">
+    北京青羽智行科技有限公司 · ChiYu AI ｜ www.chiyuai.com ｜ 2026 年 9 月<br data-page-node-id="CzTAnWjbQgfcKNCjCSLC2k">
+    本页场景为能力运行逻辑推演，量化指标需实测后填充，未对外承诺。
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # 上下文分层 L1-L4 设计文档（阶段 2 · 首个子系统）
 
-> 所属：AI 原生销售 CRM（CRM-ai-native）· 阶段 2 认知+智能体层
+> 所属：青羽企业AI销售决策平台（CRM-ai-native）· 阶段 2 认知+智能体层
 > 上游：决策事件主轴已落地（D1–D5，`src/decision/*`、`db/schema.sql` 8 表）
 > 下游：记忆三构件 / Action 写白名单 / 门户 NL→Page / 预警反馈回路（均复用本设计的统一注入面）
 > 方法论挂载：`ai-context-layering`（L4 治理决策层实例）

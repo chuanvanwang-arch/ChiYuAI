@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="TDU4hI4qoawDiZxDDBM6G4">
+<head data-page-node-id="xi5WeGrygsuH5BRXnzcKdN">
+<meta charset="UTF-8" data-page-node-id="U2Yew42RuV3CFWfFROjS9Z">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="RCTaGt9RvttrLDZu1JjXTj">
+<title>AI 原生设备管理平台 · ChiYu · 能力介绍</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet" data-page-node-id="62uyMND3YRGzYJed8svKsP">
+<style>
+  :root{
+    --bg:#0c0e14; --bg2:#13161e; --card:#161a24; --card2:#1a1f2b;
+    --line:#232838; --line2:#2c3346;
+    --t1:#eef1f6; --t2:#a4abbd; --t3:#666d80;
+    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#f87171; --purple:#a78bfa; --blue:#60a5fa;
+    --r:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Noto Sans SC',-apple-system,'Microsoft YaHei',sans-serif;background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px 80px}
+  .center{text-align:center}
+
+  /* HERO */
+  .hero{padding:76px 0 54px;text-align:center;background:radial-gradient(900px 360px at 50% -40px,rgba(34,211,238,.10),transparent 70%)}
+  .kicker{display:inline-block;font-size:12px;letter-spacing:3px;color:var(--cyan);font-weight:600;border:1px solid var(--line2);border-radius:999px;padding:6px 16px}
+  .hero h1{font-size:42px;font-weight:900;margin:22px 0 8px;letter-spacing:-.5px}
+  .hero h1 .hl{color:var(--cyan)}
+  .hero .lead{font-size:16px;color:var(--t2);max-width:720px;margin:14px auto 0}
+  .hero .lead b{color:var(--t1);font-weight:600}
+  .hero .chips{margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .hero .chip{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid var(--line2);background:var(--card);color:var(--t2)}
+  .hero .chip b{color:var(--cyan)}
+  .cta{display:inline-flex;align-items:center;gap:8px;margin-top:28px;background:var(--cyan);color:#04141a;font-weight:700;font-size:15px;padding:13px 26px;border-radius:12px;text-decoration:none;transition:.2s}
+  .cta:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(34,211,238,.25)}
+  .cta.ghost{background:transparent;color:var(--cyan);border:1px solid var(--line2)}
+
+  /* SECTION */
+  .sec{padding:54px 0 8px}
+  .sec .eyebrow{font-size:12px;letter-spacing:2px;color:var(--t3);font-weight:600;text-transform:uppercase}
+  .sec h2{font-size:28px;font-weight:800;margin:8px 0 6px}
+  .sec .sub{color:var(--t2);font-size:14.5px;max-width:660px}
+  .center .sub{margin:6px auto 0}
+
+  .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:28px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;transition:.2s}
+  .card:hover{border-color:var(--line2);transform:translateY(-3px)}
+  .card .ic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px}
+  .card h3{font-size:17px;font-weight:700;margin-bottom:8px}
+  .card p{font-size:13px;color:var(--t2);line-height:1.65}
+  .card .n{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--t3);margin-bottom:6px}
+
+  /* 亮点卡片 */
+  .hlcard{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:26px;position:relative;overflow:hidden}
+  .hlcard::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--ac)}
+  .hlcard .tag{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--ac);margin-bottom:10px}
+  .hlcard h3{font-size:19px;font-weight:800;margin-bottom:10px}
+  .hlcard p{font-size:13.5px;color:var(--t2)}
+  .hlcard ul{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:7px}
+  .hlcard li{font-size:12.5px;color:var(--t1);padding-left:20px;position:relative}
+  .hlcard li::before{content:"✓";position:absolute;left:0;color:var(--ac);font-weight:700}
+  .ac-cyan{--ac:var(--cyan)} .ac-green{--ac:var(--green)} .ac-amber{--ac:var(--amber)}
+  .ac-purple{--ac:var(--purple)} .ac-blue{--ac:var(--blue)}
+
+  /* 分组头 */
+  .group-head{display:flex;align-items:center;gap:10px;margin-top:44px;flex-wrap:wrap}
+  .group-head .gbadge{font-size:11px;font-weight:800;letter-spacing:1px;padding:5px 12px;border-radius:6px;background:rgba(34,211,238,.12);color:var(--cyan)}
+  .group-head .gbadge.t{background:rgba(167,139,250,.12);color:var(--purple)}
+  .group-head h2{font-size:24px;font-weight:800}
+  .group-head p{font-size:13px;color:var(--t3);margin-left:4px}
+
+  /* 链路条 */
+  .stream{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .stream .st{font-size:13px;font-weight:600;padding:8px 16px;border-radius:999px;background:var(--bg2);border:1px solid var(--line2);color:var(--t1)}
+  .stream .st.hl{background:rgba(34,211,238,.12);color:var(--cyan);border-color:rgba(34,211,238,.35)}
+  .stream .ar{color:var(--t3);font-size:18px}
+
+  /* 架构图容器 */
+  .arch{margin-top:26px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 14px}
+  .arch svg{width:100%;height:auto;display:block}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;margin-top:24px;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--card2);font-size:12px;letter-spacing:.5px;color:var(--t2);font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td.dim{color:var(--t3)}
+  td strong{color:var(--t1)}
+  .y{color:var(--green);font-weight:700}
+  .n{color:var(--red);font-weight:700}
+  .p{color:var(--amber);font-weight:700}
+
+  /* 场景推演 */
+  .case .ic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px}
+  .case h3{font-size:17px;font-weight:700;margin-bottom:8px}
+  .case p{font-size:13px;color:var(--t2)}
+  .case .flow{font-size:12px;color:var(--t3);margin-top:10px;line-height:1.8}
+  .case .flow b{color:var(--cyan);font-weight:600}
+
+  /* 路线图 */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+  .step{background:var(--card);border:1px solid var(--line);border-top:2px solid var(--cyan);border-radius:12px;padding:20px}
+  .step .k{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--cyan)}
+  .step h4{font-size:16px;font-weight:700;margin:6px 0 8px}
+  .step p{font-size:12.5px;color:var(--t2)}
+
+  .note{margin-top:18px;font-size:12px;color:var(--t3);background:var(--bg2);border:1px dashed var(--line2);border-radius:10px;padding:12px 16px;line-height:1.8}
+
+  /* 收尾 CTA */
+  .final{margin-top:60px;text-align:center;background:radial-gradient(700px 300px at 50% 0,rgba(52,211,153,.10),transparent 70%);border:1px solid var(--line);border-radius:20px;padding:46px 28px}
+  .final h2{font-size:26px;font-weight:800}
+  .final p{color:var(--t2);margin:12px auto 0;max-width:600px;font-size:15px}
+  .foot{text-align:center;color:var(--t3);font-size:12px;margin-top:48px;line-height:1.9}
+
+  @media(max-width:760px){
+    .hero h1{font-size:30px}
+    .g2,.g3,.steps{grid-template-columns:1fr}
+    table{font-size:12px}
+  }
+</style>
+</head>
+<body data-page-node-id="BMH5NvbRCW4FcgoJnVY4d0">
+
+<!-- HERO -->
+<div class="hero" data-page-node-id="IBOMw6kObj2nVSJRBwQgDU">
+  <div class="wrap" data-page-node-id="PWFLHj5kwm8xrDq680J2Kc">
+    <span class="kicker" data-page-node-id="ZH2cnDmfGLqTfHbaNgkhX9">AI 原生设备管理平台 · AI-NATIVE EQUIPMENT MANAGEMENT · ChiYu AI · 2026-09 版</span>
+    <h1 data-page-node-id="np2PynxWanvP1ab6mgq5gN">把老师傅的<span class="hl" data-page-node-id="YW1qL4Buuay0WzP7iumL10">经验、判断与处置记忆</span>，<br data-page-node-id="Fs5259DunuhhT9q0PVJgmc">变成设备群自己的<span class="hl" data-page-node-id="AzjevwTrH2GPf0xPzPbuqj">认知与闭环</span></h1>
+    <p class="lead" data-page-node-id="LDGg0OHoC4ND56SpY8GFkj">不是又一个告警看板，而是给每台设备装上<b data-page-node-id="EhUb7MzQiCEo8FoSV8Snp3">会记忆、会判别、会复盘</b>的智能体；<br data-page-node-id="cEfT0cYBSZFcBDoiXWetMP">
+    边缘侧本地研判、集群侧关联归因、业务侧工单闭环，<b data-page-node-id="Dbd3XeYKJrYG5awYeD9EJt">告警风暴被收敛成一条根因</b>；<br data-page-node-id="BeHnAdcsI5CdGECOmxXrlL">
+    每一次处置都被沉淀，下一次同类故障<b data-page-node-id="kQWqv1djX3TTXBrDm8JJ1q">直接调用先例</b>；换设备类型不改代码，<b data-page-node-id="8y1yEfOUeDUIZFjdrdQdG9">一份配置画像</b>即可上线。</p>
+    <div class="chips" data-page-node-id="DZpX8gFCUdu5NSgzmVwEYz">
+      <span class="chip" data-page-node-id="nmEFufq30xlDM0VuglGTFL"><b data-page-node-id="6vSUH9YU15q3kVGcBCOlrX">业务亮点 3</b> · 全寿命周期 · 诊断方法论 · 运维行为标准</span>
+      <span class="chip" data-page-node-id="9ZxavxGvO4CUvjL3VVbBg7"><b data-page-node-id="kQlYD2Hi4dcw7VWXD6KzuR">技术亮点 3</b> · 设备记忆体 · 认知决策引擎 · 复盘回写</span>
+      <span class="chip" data-page-node-id="mcYKeSWJHtdkiNTNMYkTXU"><b data-page-node-id="NVUgckrE4sI1tajZypBXaa">平台亮点 2</b> · K-M-D 引擎 · 分层多智能体编排</span>
+    </div>
+    <a class="cta" href="#insight" data-page-node-id="ZSUi7uU1QudkpOjYbX866K">先看行业判断 →</a>
+    <a class="cta ghost" href="#biz" data-page-node-id="UUzBdXOtZd6Ik8NKttif1P">看能力全景</a>
+    <a class="cta ghost" href="#arch" data-page-node-id="5uGqyh6mIUNlze0y7kyV3t">看分层架构</a>
+  </div>
+</div>
+
+<div class="wrap" data-page-node-id="WTwVNX16jZFCJLDpmsdLnc">
+
+  <!-- 行业判断 -->
+  <section class="sec" id="insight" data-page-node-id="Dz1rpwKlzs3F4usCF2lkDC">
+    <div class="eyebrow" data-page-node-id="PXU5IOmjTdl8pdsy7GqAGO">WHY AI-NATIVE</div>
+    <h2 data-page-node-id="MRtBDN7CnfEger5YuK7HOK">设备管理的真问题，不在"看见"，在"判断"</h2>
+    <p class="sub" data-page-node-id="zl3ZTvisfPsAie4sgILfDq">过去十年工业物联网解决了数据采集；接下来十年要解决的是：数据进来之后，谁来判断、依据什么判断、判断错了怎么纠正。</p>
+    <div class="g2" data-page-node-id="yRWQn98bykA9guVOmofM7c">
+      <div class="card" data-page-node-id="ccc55nwQufLFJACLsb49xm">
+        <div class="ic" style="background:rgba(248,113,113,.12);color:var(--red)" data-page-node-id="yLxjvhvZFH0rBxec4wQe61">🌪️</div>
+        <h3 data-page-node-id="07seEHZV3IbEECJpKy8uW9">告警风暴</h3>
+        <p data-page-node-id="vOu1WVvzk9LCAAkYGi2SD4">几十上百台异构设备并发告警，阈值体系各自为政。运维真正缺的不是更多告警，而是"哪一条才是源头"。</p>
+      </div>
+      <div class="card" data-page-node-id="DDWy7yOpJ7vwGlaWOH5Cfc">
+        <div class="ic" style="background:rgba(251,191,36,.12);color:var(--amber)" data-page-node-id="x2YRHn8SHT23RGTVExv6ZI">🔗</div>
+        <h3 data-page-node-id="FVTQxNH8txZuuIpShjfgVo">连锁传导</h3>
+        <p data-page-node-id="PIQXvCBJFqwwq9wRIHoynA">A 设备异常引发 B、C 连锁告警。只看单机的系统必然误判源头，抢修方向错一次的代价远高于误报本身。</p>
+      </div>
+      <div class="card" data-page-node-id="rt7Bg3jDdWJZ6dkeCF1Wdf">
+        <div class="ic" style="background:rgba(96,165,250,.12);color:var(--blue)" data-page-node-id="cV28HlrtedlF7NXYeVOIta">🧠</div>
+        <h3 data-page-node-id="0Xjamxhl5kotD90QnnCe6j">经验不可继承</h3>
+        <p data-page-node-id="LLZ1k9OVtDY5AUxFWOrhzj">老师傅的判别直觉留在人脑里，工单只记"已处理"。人员流动一次，组织记忆归零一次。</p>
+      </div>
+      <div class="card" data-page-node-id="NYZqEXVYlApN5XppUo11D5">
+        <div class="ic" style="background:rgba(167,139,250,.12);color:var(--purple)" data-page-node-id="kecWdowPHYqLVjlkibROdl">🧩</div>
+        <h3 data-page-node-id="cBWZP1ajfKkjulSsSj6mVH">平台停在"看见"</h3>
+        <p data-page-node-id="x9LvcQDLTP5ZAwODtiYDIY">主流工业互联网平台把连接、时序存储、组态看板、阈值告警做到了成熟，但"哪条告警是源头、该怎么处置、下次怎么更快"依然靠人。</p>
+      </div>
+    </div>
+    <div class="note" data-page-node-id="Wbp6JOZJBkpMELx2Zl2Qd5">
+      <b>我们的判断</b>：连接与可视化已被工业互联网平台解决得很好，<b>这块我们不重复造轮子，选择集成而非重建</b>；真正没人解决的是判断与闭环——<b>把经验变成可检索的记忆</b>、<b>把判断变成可解释的决策</b>、<b>把处置变成可复用的 SOP</b>。ChiYu 正是补在这三件事上，并用分层智能体架构（边缘研判 + 集群归因）承接大规模设备群的算力与告警风暴。
+    </div>
+  </section>
+
+  <!-- 业务亮点 -->
+  <div class="group-head" id="biz" data-page-node-id="8CIc0suPuShr6uTCKrWI6J">
+    <span class="gbadge" data-page-node-id="Hev7JydLV5JLUL3bsLrcLy">业务亮点 × 3</span>
+    <h2 data-page-node-id="GDcLRN4pr1lrEjdg1dajeq">先把设备管理最值钱的三样东西装进系统</h2>
+    <p data-page-node-id="g4w0oHqc7Hxa4QHyREirEE">全寿命周期 · 诊断方法论 · 运维行为标准</p>
+  </div>
+
+  <div class="g3" data-page-node-id="msCCzUChV0LMWEeoyoam6w">
+    <div class="hlcard ac-cyan" data-page-node-id="EHDp9FLawHTPY4AMn2PyIx">
+      <div class="tag" data-page-node-id="81WafdcYv7EDSBKEAKHpyb">业务亮点 01 · 设备全寿命周期一条轨道</div>
+      <h3 data-page-node-id="NGn15CYB04QJPlSPhQL51O">从台账到复盘，不再人肉接力</h3>
+      <p data-page-node-id="3XQuV0BJn1xZskxdmLMoNF">台账 → 点检 → 监测 → 告警 → 诊断 → 工单 → 维修 → 备件 → 复盘，整条 EAM 链路内嵌平台，环节断裂自动预警。</p>
+      <ul data-page-node-id="3Ppg22Dc6XLdElrH5sQFpD">
+        <li data-page-node-id="sS3Pu7uBez87JUYO7X7tBK">每台设备一份"活档案"：参数 / 备件 / 检修 / 改造全链留痕</li>
+        <li data-page-node-id="iHgxksKIca616qQ4ZSwveS">告警未转工单、工单超期未闭环、备件缺料自动预警</li>
+        <li data-page-node-id="iMTQdMQVU3dflvqdCy06sB">状态只进不退，异常回退自动探测并留证</li>
+      </ul>
+    </div>
+    <div class="hlcard ac-green" data-page-node-id="bJhPGbIJ855O2lBOs6mcrF">
+      <div class="tag" data-page-node-id="AbAAxaukz1inhpnBb09642">业务亮点 02 · 故障诊断方法论集成</div>
+      <h3 data-page-node-id="exD58eymgPfX6M9erY2AYP">判断不再靠"老师傅拍脑袋"</h3>
+      <p data-page-node-id="Ki9a4V5kcbkg08Y440nODV">把成熟的可靠性与诊断方法固化成可调用的智能体能力，每一步都标注"用了什么方法、要什么输入"。</p>
+      <ul data-page-node-id="rLNGtLylq7vXoet4PfUghF">
+        <li data-page-node-id="Jh6rqR2qwCRzQiHoy0XwE8">RCM 可靠性维修 / FMEA 失效模式 / FTA 故障树 / 5Why</li>
+        <li data-page-node-id="OkXAxAoabUq4Gvnc3wdGZf">振动烈度（ISO 10816 类）、热成像、油液分析等判据接入</li>
+        <li data-page-node-id="PfabHKaaaNabMo0vVlldIK">原发故障 vs 次生告警判别，定位真源头而非噪音源</li>
+      </ul>
+    </div>
+    <div class="hlcard ac-amber" data-page-node-id="OQoOrJWA8YfXQTMkY9T0IK">
+      <div class="tag" data-page-node-id="c7OkHIQQKEzbrDAV4zmijk">业务亮点 03 · 运维行为标准植入</div>
+      <h3 data-page-node-id="uRaRz3byPHYoRvDzlKKCkG">好运维不是天赋，是可执行的标准</h3>
+      <p data-page-node-id="1mz8mDRJUQIuVei6DxbEyb">点检八定、交接班、持证作业、工单闭环、维修留痕，逐条可测评、可查、可复盘。</p>
+      <ul data-page-node-id="Xs8mXMBi0F2UDiFkxXlAnF">
+        <li data-page-node-id="qBVN43NTMFnsPctwaVfMta">点检前准备 → 点检中记录 → 点检后复核，闭环留痕</li>
+        <li data-page-node-id="hBDLfSOHIoDjZeC7fJMjzT">工单响应与停留阈值有标尺，超阈值自动升级</li>
+        <li data-page-node-id="WJsFEiTnMhZvfQx6gkCQ7U">"我的行为"达标看板，班组自驱改进</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stream" data-page-node-id="7usD7Idl9TaV0riyPRlY5u">
+    <span class="st hl" data-page-node-id="ypkArF2lxwJje6BQZ7G9fX">台账</span><span class="ar" data-page-node-id="QoefB3ItOFdX7mhwL5N4KY">→</span>
+    <span class="st" data-page-node-id="ymkVZTp0tA9i4zBuVQkHJq">点检</span><span class="ar" data-page-node-id="xKfvriz2XvYeG3AOvOaPEw">→</span>
+    <span class="st" data-page-node-id="mfUHjTnnZQCOWDfvLPzWZR">监测</span><span class="ar" data-page-node-id="gqZC3u8x9KRmZc4e2CAOI9">→</span>
+    <span class="st hl" data-page-node-id="v2419CZ60gBvUS6gskt8tJ">告警</span><span class="ar" data-page-node-id="dD3C2u2GVj4O59kb7m4CBt">→</span>
+    <span class="st" data-page-node-id="9AALFTBQjrd0pC9Mmi3auv">诊断</span><span class="ar" data-page-node-id="1Zgt63DlPYtBAsqwe5PclY">→</span>
+    <span class="st" data-page-node-id="z2F6m7jCkLqLMs8TzA7K59">工单</span><span class="ar" data-page-node-id="7F1ppjLrbwCDmhDlh0s7rY">→</span>
+    <span class="st" data-page-node-id="vWZAdUHuMERNQfpSAXC3Xc">维修</span><span class="ar" data-page-node-id="TcLdt49UiPDNG2EgEHFyx3">→</span>
+    <span class="st" data-page-node-id="MW0I5hZ6SgriJXGPOWsBHQ">备件</span><span class="ar" data-page-node-id="7NsNkySrUPM5ICUEvqHWAR">→</span>
+    <span class="st hl" data-page-node-id="N6ZULxZ40M7rv9EpF4KfeJ">复盘</span>
+  </div>
+
+  <!-- 技术亮点 -->
+  <div class="group-head" id="tech" data-page-node-id="BdXFHEzmMXnLblkeaFnBd0">
+    <span class="gbadge t" data-page-node-id="2zitumfgECbjywODbL3Bgz">技术亮点 × 3</span>
+    <h2 data-page-node-id="zGjxg4AzAse6Xa7UdM0W5p">再让这套能力学会记忆、决策与复盘</h2>
+    <p data-page-node-id="EmbEjkjGMA4B8rrDfEPtqu">不是数据库，而是会自检、会归因、会进化的设备中枢</p>
+  </div>
+
+  <div class="g3" data-page-node-id="iHFiVw6MZ1012GmXUbtEuo">
+    <div class="hlcard ac-purple" data-page-node-id="qjbHpI1fPAG53qGmbKLNkN">
+      <div class="tag" data-page-node-id="68LC39B30XeTiyxCQTZc1t">技术亮点 01 · 设备记忆体 + 图谱 + 向量</div>
+      <h3 data-page-node-id="a3tSFBoPtWOCFZStMSEos8">从"设备台账"到"设备记忆"</h3>
+      <p data-page-node-id="XYgiVGydEsskiw5Nu4ujVl">设备—部件—测点—工艺—产线连成知识网，写库即构建；每一次运行、告警、处置都成为可语义检索的记忆。</p>
+      <ul data-page-node-id="nWKar6xkjzVYAkIi7rXCaz">
+        <li data-page-node-id="SyJ4twCtvdXbXfkyPs5yde">五类高频记忆自动沉淀：工况 / 故障与处置 / 部件与备件 / 工艺耦合 / 检修记录</li>
+        <li data-page-node-id="pBplfJTbuytFCH79P3tnzW">"上次这台泵同样的振动频谱怎么处理的" → 秒级调出先例</li>
+        <li data-page-node-id="qcKmQlYovjkBzNXX7C693C">租户级 Know-How 隔离：你的故障库不会变成别人的训练集</li>
+      </ul>
+    </div>
+    <div class="hlcard ac-blue" data-page-node-id="L4drmEitfEYMNTBIofcFJn">
+      <div class="tag" data-page-node-id="Zkx5ZXJeZAKPsyiVJKBnJG">技术亮点 02 · 认知决策引擎 · 每条结论可解释</div>
+      <h3 data-page-node-id="245mPasrlXchpmYRI1EejL">告警不再黑箱，九尺子逐项打分</h3>
+      <p data-page-node-id="EjzPzkyMAaUSglRhBJMOAz">每条诊断结论 = 一条 9 列决策记录（场景 / 结论 / 置信度 / 依据 / 风险 / 概念引用…），写操作必经"决策第 0 闸"。</p>
+      <ul data-page-node-id="9Bpeg9kTAPAiWv7LADqVPf">
+        <li data-page-node-id="zSG2k43xwyhWb1Utm7AReC">九尺子 0–4 分制：8 项确定性判定可复现 + 1 项（清晰性）可选大模型精评，默认关闭</li>
+        <li data-page-node-id="fmNNEtefBHjjWflFxZEiOq">缺什么信息就报什么，不放行、不静默通过</li>
+        <li data-page-node-id="4oAirP7KqqZrDVX1nUYCDU">处置建议必带依据与风险，并保留人工复核入口（工业安全红线）</li>
+      </ul>
+    </div>
+    <div class="hlcard ac-green" data-page-node-id="NEE4RpPPuFXhA3YqCiS9Pn">
+      <div class="tag" data-page-node-id="2ts25HqnCG62InlhHHoXGG">技术亮点 03 · 复盘智能体 · 每一次处置都变成资产</div>
+      <h3 data-page-node-id="WdEw7AFSGC2TwRjoCCtIsk">经验每天被沉淀，教训自动变 SOP</h3>
+      <p data-page-node-id="UYQ9eUXPB3eBJuXE3jaRqm">复盘智能体定期扫描当期决策与工单，自动归因、产出可审查的复盘报告，结论回写设备记忆与故障知识库。</p>
+      <ul data-page-node-id="txTeuZ9RQpemmyCQs4srGn">
+        <li data-page-node-id="1Cn2jONzeajq6KGqpcUAtG">批量归因 → 复盘报告 → 审批后沉淀（人工把关，不自动放行）</li>
+        <li data-page-node-id="Vk8eh3UWKXH2RD1z2RRVCB">误判复盘 → 修正判据阈值；成功处置 → 固化为标准处置卡</li>
+        <li data-page-node-id="TrMfFpoPRgFsXDlAeRRmHJ">MTBF / MTTR 归因分析，指向"哪类设备、哪个部件、哪种工况"在吃利润</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 平台亮点 -->
+  <div class="group-head" id="platform" data-page-node-id="aPHE8DEWI8Ddk0HZEt5q4W">
+    <span class="gbadge t" data-page-node-id="dHvRC8gcH9tosJ4DX5FwHj">平台亮点 × 2</span>
+    <h2 data-page-node-id="pYh2Lu2Qt860cAxHkfn8nd">让这套能力扛得住大规模设备群，也复制得到别的设备类型</h2>
+    <p data-page-node-id="DhEV6AUxcKndH3wq5HWDpl">K-M-D 负责"判断可靠"，分层编排负责"算得过来"</p>
+  </div>
+
+  <div class="g2" data-page-node-id="f7lMA6q8a1LgHtUpUHvouW">
+    <div class="hlcard ac-cyan" data-page-node-id="IRKnZI7fJaTxvmNVTrdbDq">
+      <div class="tag" data-page-node-id="QWZUIUcWBIEAcK66yXmQor">平台亮点 01 · 认知驱动决策引擎 K-M-D</div>
+      <h3 data-page-node-id="uj0Z18NVnnhH8UBMoAgRvZ">知识 → 方法 → 校验，三层管道</h3>
+      <p data-page-node-id="90h7FsUrtEvni2DxJeU54W">K 层装配设备记忆与工艺知识，M 层装载诊断方法论与行为标准，D 层用九尺子给每一次判断打分，结论携带概念引用，可一路追回依据。</p>
+      <ul data-page-node-id="jShMMtAw3BncZPJzoXRWRJ">
+        <li data-page-node-id="8tckv3xdXAzJyRCGnku1Zq">同一输入必得同一评分（确定性为主，大模型精评可选且默认关闭）</li>
+        <li data-page-node-id="do4CxqcOQUWnBaARBVjRfi">处置链条与先例可检索、可比对，新员工 10 秒接手陌生设备</li>
+        <li data-page-node-id="uyziU80FmMaG9GIYMFMDqy">结果回流校准：过于自信的判断被识别、下调置信度</li>
+      </ul>
+    </div>
+    <div class="hlcard ac-green" data-page-node-id="aUyL1BbVAQkAtuDqdIJOoI">
+      <div class="tag" data-page-node-id="tEuqoW5mgG30Oj0tfxs1F8">平台亮点 02 · 分层自适应多智能体编排</div>
+      <h3 data-page-node-id="L5KywteApq2QdoVyoiTGsP">设备级研判在边缘，集群级归因在云端</h3>
+      <p data-page-node-id="fLzFeWuYZ96MapSdwEzTFA">每台设备绑定边缘智能体做本地采集与异常研判，仅上报确认异常或跨设备疑点；集群协同智能体做聚合、根因与风险分级。</p>
+      <ul data-page-node-id="hAM4wzW77yUR6G7tVYBqwb">
+        <li data-page-node-id="5sVkDcnGbBEKg9buZNKKFr">单机异常边缘闭环不上送，缓解上下文溢出与算力开销</li>
+        <li data-page-node-id="GEYOKSofca1tnm68KEDnPr">断网可用：边缘独立研判，网络恢复后同步与补采</li>
+        <li data-page-node-id="cEZH4uFGLEqcTEOEiTQr9f">设备类型、测点、判据、阈值全部配置化，换类型不改内核</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 架构图 -->
+  <section class="sec" id="arch" data-page-node-id="PDR97N6ASw4SE0BUD5gEgS">
+    <div class="eyebrow" data-page-node-id="3g5iwmfEXMbXpTeLzXMbcO">ARCHITECTURE</div>
+    <h2 data-page-node-id="wMQTF52g7t559Ewwm9wMce">三层智能体 + 一根认知支柱</h2>
+    <p class="sub" data-page-node-id="ifeK0DjqHhPGBJqqzWCWBK">下层解决"算得过来"，中层解决"判得准"，上层解决"落得下去"；右侧支柱保证每一次判断可解释、可追溯、可进化。</p>
+    <div class="arch" data-page-node-id="OFeeEzltCCqnzJ2E5RALdv">
+      <svg viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" data-page-node-id="5VXJfu6ov9qVZdaE4cYqmv">
+        <defs data-page-node-id="dwEvZRMcidRhZ4jr3PvPIY">
+          <marker id="ar" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto" data-page-node-id="YLFoie07dfxBPzMOxcjEls">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="#4b5468" data-page-node-id="pGSVLZ8Rq403yrtFqVx9lo"/>
+          </marker>
+          <linearGradient id="gEdge" x1="0" y1="0" x2="1" y2="0" data-page-node-id="TWg2BuAliFUikRXQmJLWuL">
+            <stop offset="0%" stop-color="#1b2029" data-page-node-id="iPHfsdn9rRjlz2IaJhQbpM"/><stop offset="100%" stop-color="#161a24" data-page-node-id="AxewDuT6vcTsBKQRysZ4rk"/>
+          </linearGradient>
+        </defs>
+
+        <!-- 右侧支柱 -->
+        <rect x="700" y="18" width="182" height="464" rx="14" fill="#13161e" stroke="#2c3346" stroke-dasharray="5 4" data-page-node-id="d4KucAhH5RknzRrDF1f1WD"/>
+        <text x="791" y="44" fill="#a78bfa" font-size="13" font-weight="700" text-anchor="middle" data-page-node-id="vmFGWwUrmhyGbDqeOpGoDx">认知支柱</text>
+        <text x="791" y="62" fill="#666d80" font-size="10.5" text-anchor="middle" data-page-node-id="7wK8jrDWqZY4R4IaoBVEhr">K-M-D · 记忆 · 复盘</text>
+
+        <rect x="714" y="76" width="154" height="60" rx="10" fill="#1a1f2b" stroke="#3a4258" data-page-node-id="cZC0xQ1O3aXOr6xCIaybeT"/>
+        <text x="791" y="100" fill="#eef1f6" font-size="12.5" font-weight="700" text-anchor="middle" data-page-node-id="nY8U5oPTcBxNaZPXXyadOP">K 知识层</text>
+        <text x="791" y="120" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="15FOlXiFKIwaiBUa41tMLB">设备记忆 · 工艺本体 · 先例</text>
+
+        <rect x="714" y="148" width="154" height="60" rx="10" fill="#1a1f2b" stroke="#3a4258" data-page-node-id="Qr9d5QGDnHcGGetilajs78"/>
+        <text x="791" y="172" fill="#eef1f6" font-size="12.5" font-weight="700" text-anchor="middle" data-page-node-id="PfKEdFPOyKPaP107CPkiGB">M 方法层</text>
+        <text x="791" y="192" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="soENYERLEZv7l86nggyn4k">RCM/FMEA/FTA · 行为标准</text>
+
+        <rect x="714" y="220" width="154" height="60" rx="10" fill="#1a1f2b" stroke="#3a4258" data-page-node-id="ML1w3DjliXRR4qApg0FUV2"/>
+        <text x="791" y="244" fill="#eef1f6" font-size="12.5" font-weight="700" text-anchor="middle" data-page-node-id="zljXIyNDHzrBcMrMeN3rPO">D 决策层</text>
+        <text x="791" y="264" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="TL4AXnV7wEjowSib97x2ff">九尺子校验 · 9 列决策记录</text>
+
+        <rect x="714" y="292" width="154" height="60" rx="10" fill="#1a1f2b" stroke="#3a4258" data-page-node-id="wSDEXqd2UqdQYS8xi0yHEB"/>
+        <text x="791" y="316" fill="#eef1f6" font-size="12.5" font-weight="700" text-anchor="middle" data-page-node-id="7ylSqyvbjLBnNB0BBgSQA4">第 0 闸</text>
+        <text x="791" y="336" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="pxnoL1cgaFVB1TW4eqJ3Qn">写操作校验 · 人工复核入口</text>
+
+        <rect x="714" y="364" width="154" height="60" rx="10" fill="#1a1f2b" stroke="#3a4258" data-page-node-id="YT553QPr2dDEJ884ZqHDXX"/>
+        <text x="791" y="388" fill="#eef1f6" font-size="12.5" font-weight="700" text-anchor="middle" data-page-node-id="6IUuFNIiSxvm71vZDRAFW5">复盘回写</text>
+        <text x="791" y="408" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="IibV63EhJnFzIjJRAKfK4f">教训变 SOP · 知识回灌</text>
+
+        <rect x="714" y="436" width="154" height="34" rx="10" fill="#1a1f2b" stroke="#3a4258" data-page-node-id="spciEv9DJlVs8ZBQ3vOba5"/>
+        <text x="791" y="457" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle" data-page-node-id="NPxVgCWlqwW9BxAVx4yXIS">配置底座 · 多租户隔离</text>
+
+        <!-- L0 边缘 -->
+        <rect x="18" y="18" width="664" height="130" rx="14" fill="url(#gEdge)" stroke="#232838" data-page-node-id="1nOnsQIk9kECsYEDbVHNPX"/>
+        <rect x="18" y="18" width="112" height="130" rx="14" fill="#1a1f2b" data-page-node-id="lEPGuDTaWdHnDbGkoR58Mt"/>
+        <text x="74" y="58" fill="#22d3ee" font-size="12.5" font-weight="800" text-anchor="middle" data-page-node-id="MUlyYY2WpjYDKx4XnxCy5V">L0 边缘层</text>
+        <text x="74" y="78" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="R29yiXahGHUZm6eznTUx0P">每台设备</text>
+        <text x="74" y="94" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="V7seY1cYBrkSet7UFLZyc3">一个智能体</text>
+        <text x="74" y="118" fill="#666d80" font-size="9.5" text-anchor="middle" data-page-node-id="IH9BIVKQpvDZX7ENNiHpT6">断网可用</text>
+        <text x="74" y="132" fill="#666d80" font-size="9.5" text-anchor="middle" data-page-node-id="WqGEUCTccgHoU8mXBtYtXc">本地研判</text>
+
+        <g data-page-node-id="plGo08gJERDLBIzfD3MtsS">
+          <rect x="146" y="42" width="172" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="Iqi03NDXEaHLAcCs2AqoBr"/>
+          <text x="232" y="66" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="Pfwpx83gjBnoY7bG1WSEpC">采集与预处理</text>
+          <text x="232" y="86" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="namLmBNrL0WjCgYqjoH8Mn">温度 / 压力 / 振动 / 电流</text>
+          <text x="232" y="104" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="eiRsftGEpE5aYX4Cvto8pK">信号清洗 · 特征提取</text>
+        </g>
+        <g data-page-node-id="IZNmQ8IfVrnUI7u08nDzj3">
+          <rect x="328" y="42" width="172" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="D5hCcgZ4EHE25x7nyqAMO5"/>
+          <text x="414" y="66" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="cuYlOhiVU5B1aYYGvdvPG1">本地异常研判</text>
+          <text x="414" y="86" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="urBySr2yk74fF3w2GuA9F2">阈值 + 判据 · 噪声过滤</text>
+          <text x="414" y="104" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="WOLgOTvdm4wn5sJCWSXbEV">单机异常边缘闭环</text>
+        </g>
+        <g data-page-node-id="VZtKFc6PqeO03BU1FeLvM8">
+          <rect x="510" y="42" width="172" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="kLmF0av2GFSceqkCjZIeEx"/>
+          <text x="596" y="66" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="mWE2Lh8AYWMQG8J9prxBOG">本地记忆单元</text>
+          <text x="596" y="86" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="nDRUfUXvUPAscjBtW7lNzn">本机历史 · 故障记录</text>
+          <text x="596" y="104" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="Wg59Vzu4cxkH2Sffca08MA">断网可用 · 断点续传</text>
+        </g>
+
+        <!-- 箭头 L0 -> L1 -->
+        <line x1="340" y1="148" x2="340" y2="176" stroke="#4b5468" stroke-width="1.6" marker-end="url(#ar)" data-page-node-id="oWcH0BecBhPGCG5BnPwqEe"/>
+        <text x="352" y="168" fill="#666d80" font-size="10" data-page-node-id="BfQJZckfQmKjjXEXwZtAkR">仅上报确认异常 / 跨设备疑点</text>
+
+        <!-- L1 集群 -->
+        <rect x="18" y="180" width="664" height="130" rx="14" fill="url(#gEdge)" stroke="#232838" data-page-node-id="Ph6DSJY2BqjJrgjK2V3A4T"/>
+        <rect x="18" y="180" width="112" height="130" rx="14" fill="#1a1f2b" data-page-node-id="lPwy2nKWCMaRS02XlnMsct"/>
+        <text x="74" y="220" fill="#60a5fa" font-size="12.5" font-weight="800" text-anchor="middle" data-page-node-id="VBrDAStKSq6cssc0QmsscW">L1 集群层</text>
+        <text x="74" y="240" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="KwLVBCUHAc0yar0MPQOCyT">全局协同</text>
+        <text x="74" y="256" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="jZqGXRLi4shiN4qxs65ulB">云端推理</text>
+        <text x="74" y="280" fill="#666d80" font-size="9.5" text-anchor="middle" data-page-node-id="qBLliNOgmUOLwCk27QAVCz">告警聚合</text>
+        <text x="74" y="294" fill="#666d80" font-size="9.5" text-anchor="middle" data-page-node-id="xmweAccDMiXJIdHgjhVnXc">根因归因</text>
+
+        <g data-page-node-id="OU6idMjViiEabWAWxZwhCz">
+          <rect x="418" y="204" width="128" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="DF0rCHOEjHaWbDrRAcOS7a"/>
+          <text x="482" y="228" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="RfZnCjjnP0n0GYN8PE6RF0">风险分级</text>
+          <text x="482" y="248" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="ijZErs4p30u8MPv8CiGP7M">紧急/一般/预警</text>
+          <text x="482" y="266" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="lY6jyhhL1FFex12cjw2Kro">处置优先级</text>
+        </g>
+        <g data-page-node-id="8lADzY1CAPIJZV3hkrnjS8">
+          <rect x="554" y="204" width="128" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="C4FziWKOClBgwfMDxtfC0d"/>
+          <text x="618" y="228" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="5ZoeqedDvxrIc2IowQ0quo">任务调度</text>
+          <text x="618" y="248" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="QxDOFuzVb61swP6th4FQkP">补采关键指标</text>
+          <text x="618" y="266" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="uad57v1urfcsXv7KkSmWU2">下发协同指令</text>
+        </g>
+        <!-- 调整 L1 前两盒宽度以对齐 -->
+        <g data-page-node-id="GGB8MZYdIKXKrnlADi30WF">
+          <rect x="146" y="204" width="128" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="bwQfw77oBoUf27H4UlouJ6"/>
+          <text x="210" y="228" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="AyaEfVzCDYJipvOvbAEyEJ">告警聚合</text>
+          <text x="210" y="248" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="rkxE0VqzoXzMnO5ilMmz91">去重 · 事件关联</text>
+          <text x="210" y="266" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="WNC2M6nICe5E6op51WEvXs">抑制告警风暴</text>
+        </g>
+        <g data-page-node-id="qtLaTH8Txpyq3OxoVInLhp">
+          <rect x="282" y="204" width="128" height="82" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="3P4WeeYsEjqG9Sjc2SX1M2"/>
+          <text x="346" y="228" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="lsQ1aAb1Yc4dGnHZ99LObx">跨设备根因</text>
+          <text x="346" y="248" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="TCQDiMnbk0ZlqGsi3OkaMM">时序 + 工艺耦合</text>
+          <text x="346" y="266" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="aSxebslZ20NnFNYySuDFGc">原发 vs 次生</text>
+        </g>
+
+        <!-- 箭头 L1 -> L2 -->
+        <line x1="340" y1="310" x2="340" y2="338" stroke="#4b5468" stroke-width="1.6" marker-end="url(#ar)" data-page-node-id="THzSEakrGFwQGuaVEfJIcc"/>
+        <text x="352" y="328" fill="#666d80" font-size="10" data-page-node-id="lTaM78FEr32qPpWvDmlLxR">根因 + 风险等级 + 处置建议</text>
+
+        <!-- L2 业务 -->
+        <rect x="18" y="342" width="664" height="140" rx="14" fill="url(#gEdge)" stroke="#232838" data-page-node-id="KVtOo9wEmmDGJ6cBZv5hTX"/>
+        <rect x="18" y="342" width="112" height="140" rx="14" fill="#1a1f2b" data-page-node-id="TYGFbyY1E5Thc4tOIPIjTF"/>
+        <text x="74" y="382" fill="#34d399" font-size="12.5" font-weight="800" text-anchor="middle" data-page-node-id="zgAY6BzO5mlqfmg61lcoko">L2 业务层</text>
+        <text x="74" y="402" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="9AQ7QDDPkuu3uGsBcWjOlh">闭环落地</text>
+        <text x="74" y="418" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="4oTkEZrrIpEForBOLkswJJ">ChiYu 差异点</text>
+        <text x="74" y="442" fill="#666d80" font-size="9.5" text-anchor="middle" data-page-node-id="TioLxYChqVHunbPw4vNx4q">工单 · 备件</text>
+        <text x="74" y="456" fill="#666d80" font-size="9.5" text-anchor="middle" data-page-node-id="Y76lE9DKJHhwAJ5o3d1L1a">复盘 · 回写</text>
+
+        <g data-page-node-id="0HnQZLNhA6ZOiU2d5JYug4">
+          <rect x="146" y="366" width="128" height="90" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="b30a6ICc2P3Bk3XHihDzKE"/>
+          <text x="210" y="390" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="IE8VFMiyOb2wBKEhcc97Bp">工单派发</text>
+          <text x="210" y="410" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="s2xl0EE76cicExwIIx2RR8">人 / 班组 / 资质</text>
+          <text x="210" y="428" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="vd3ivmYsr0d4szbu49FXkA">响应与超期升级</text>
+        </g>
+        <g data-page-node-id="aRbHjrUQM5oaIA80Q7MLuR">
+          <rect x="282" y="366" width="128" height="90" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="VNtVAcjmsho6r2xMaJMbYy"/>
+          <text x="346" y="390" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="lAo3Hfb4yLeTUl3VxHCAmU">备件与库存</text>
+          <text x="346" y="410" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="CMl48vFEyExanDBIwHmZU0">齐套性校验</text>
+          <text x="346" y="428" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="Dj7yIiNBM56w1SlsNVw91E">缺料预警</text>
+        </g>
+        <g data-page-node-id="ZgHOVuyv14CIgbsSkXriVS">
+          <rect x="418" y="366" width="128" height="90" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="VPmB5NSH9acyimaHE7H1nV"/>
+          <text x="482" y="390" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="ECLvmX4hhGxiR0pnznPOrs">排程协同</text>
+          <text x="482" y="410" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="0s1B6cvC1jNnNBwfcHbq8B">停机窗口</text>
+          <text x="482" y="428" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="sCBYCD29Kzxx6PgtZtB1hG">产线影响评估</text>
+        </g>
+        <g data-page-node-id="g0l6SaaeEO7hgBc5J8PDHD">
+          <rect x="554" y="366" width="128" height="90" rx="10" fill="#161a24" stroke="#2c3346" data-page-node-id="mArftitaTfeZqZn68XJSwj"/>
+          <text x="618" y="390" fill="#eef1f6" font-size="12" font-weight="700" text-anchor="middle" data-page-node-id="EtTtB5wzl9RxiGGLqhuiiG">复盘归档</text>
+          <text x="618" y="410" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="e6R6r4Jg8zNSvpTIXHJOgC">处置结论入档</text>
+          <text x="618" y="428" fill="#a4abbd" font-size="10" text-anchor="middle" data-page-node-id="CdgdMGZW5VPdDkDi7PtqiD">教训转处置卡</text>
+        </g>
+
+        <!-- 回写箭头（业务层 -> 支柱） -->
+        <path d="M682,412 C716,412 700,412 714,412" stroke="#34d399" stroke-width="1.6" fill="none" marker-end="url(#ar)" data-page-node-id="1U3IryydcKTZZsSXnRUQwL"/>
+        <text x="640" y="486" fill="#34d399" font-size="10" data-page-node-id="UY9PxnaGwojssKvSvcIpcf">处置结果 → 复盘 → 回写设备记忆与故障知识库</text>
+      </svg>
+    </div>
+    <div class="note" data-page-node-id="VsTd1JQCUTziZdgEAPnTED">
+      架构对照：工业互联网平台的告警多由<b>中心化规则引擎</b>产生——规则集中配置、阈值静态、越配越乱；这里改为<b>分层自适应多智能体</b>（边缘设备智能体 + 集群协同智能体），单机异常在边缘闭环，仅上报确认异常与跨设备疑点，从而抑制告警风暴、识别跨设备连锁；<b>L2 业务层与右侧认知支柱是 ChiYu 相对工业互联网平台的增量</b>——把根因结论真正变成工单、备件、排程动作，并把处置经验沉淀回记忆与知识库。
+    </div>
+  </section>
+
+  <!-- 对标表 -->
+  <section class="sec" id="compare">
+    <div class="eyebrow">BENCHMARK</div>
+    <h2>对标现有工业互联网平台：差异不在"连得多"，在"判得准、落得下"</h2>
+    <p class="sub">主流平台的核心范式是"连接 + 时序存储 + 组态看板 + 阈值 / 规则告警"，这块已经很成熟。真正的差异发生在告警之后：谁来判断源头、依据什么判断、判断之后谁把它闭环。</p>
+    <table>
+      <thead>
+        <tr><th style="width:17%">能力维度</th><th style="width:28%">主流工业互联网平台</th><th style="width:35%">ChiYu AI 原生设备管理平台</th><th style="width:20%">差异价值</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>核心范式</strong></td><td class="dim">连接与可视化：设备上网、数据入库、看板呈现</td><td>认知与闭环：在连接之上做记忆、判断与处置</td><td class="y">从"看得见"到"判得准"</td></tr>
+        <tr><td><strong>设备接入与协议</strong></td><td class="y">✓ 成熟，协议适配面广</td><td class="p">△ 以集成 / 对接为主，不重建连接层；OPC-UA / MES / CMMS 对接为路线图 <span class="p">[规划]</span></td><td class="dim">不重复造轮子</td></tr>
+        <tr><td><strong>组态与看板</strong></td><td class="y">✓ 拖拽组态、大屏成熟</td><td class="p">△ 设备画像 / 告警台 / 工单台为主，组态弱于专业平台</td><td class="dim">定位不同，可互补</td></tr>
+        <tr><td><strong>告警机制</strong></td><td class="p">△ 阈值 / 规则引擎，规则需人工逐条配置，越配越乱</td><td class="y">✓ 边缘本地研判 + 集群关联归因，输出结论而非原始告警</td><td class="y">从"配规则"到"给结论"</td></tr>
+        <tr><td><strong>告警风暴</strong></td><td class="n">✗ 多设备并发时刷屏，缺少收敛机制</td><td class="y">✓ 聚合去重 + 时序关联，N 条告警收敛为 1 条根因</td><td class="y">运维聚焦源头</td></tr>
+        <tr><td><strong>跨设备根因</strong></td><td class="n">✗ 单机视角，连锁传导靠人跨系统拼</td><td class="y">✓ 设备—工艺—产线拓扑 + 时序推理，判别原发 vs 次生</td><td class="y">减少抢修方向错</td></tr>
+        <tr><td><strong>记忆与经验沉淀</strong></td><td class="p">△ 有历史数据，但经验非结构化，人员流动即失忆</td><td class="y">✓ 设备记忆体（图谱 + 向量 + 事件），先例语义检索</td><td class="y">经验可继承</td></tr>
+        <tr><td><strong>决策可解释</strong></td><td class="p">△ 规则触发可追（"A &gt; B"），复杂判断仍是黑箱</td><td class="y">✓ 9 列决策记录 + 九尺子打分 + 概念引用，可一路追回依据</td><td class="y">敢用、能追责</td></tr>
+        <tr><td><strong>业务闭环</strong></td><td class="p">△ 告警到工单靠人转，需外挂 CMMS / EAM</td><td class="y">✓ 工单 / 备件 / 排程内嵌，闭环自动且留痕</td><td class="y">从看板到执行</td></tr>
+        <tr><td><strong>方法论固化</strong></td><td class="n">✗ 无，依赖个人经验</td><td class="y">✓ RCM / FMEA / FTA / 5Why 等固化，可配置扩展</td><td class="y">判断有章法</td></tr>
+        <tr><td><strong>换设备类型 / 工艺</strong></td><td class="p">△ 项目制：重新配点位、规则、看板</td><td class="y">✓ 配置画像驱动，不改内核代码</td><td class="y">复制成本低</td></tr>
+        <tr><td><strong>自动执行与安全</strong></td><td class="p">△ 规则引擎可自动下发，误触发风险由配置承担</td><td class="y">✓ 决策第 0 闸 + 人工复核入口，不自动执行生产操作</td><td class="y">满足工业红线</td></tr>
+        <tr><td><strong>规模与生态成熟度</strong></td><td class="y">✓ 部署案例与行业套件丰富</td><td class="p">△ 新进入者，需以 PoC 实测验证</td><td class="dim">诚实告知</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <b>读表说明</b>：左列为工业互联网平台的通用能力特征，<b>不针对任何特定厂商</b>。连接、时序、组态三行我们标注为"不重复造轮子"——<b>这些维度我们不宣称更强，采用集成而非重建</b>；差异价值集中在<b>判断</b>（设备记忆 + 可解释决策）与<b>闭环</b>（工单 / 备件 / 排程 + 复盘回写）。分层智能体架构（边缘设备智能体 + 集群协同智能体）用于承接大规模设备群的算力与告警风暴，该思路在工业场景的可行性已有开源项目验证（如 AgentIoT / HAMA），我们在其之上叠加业务闭环与认知支柱。
+    </div>
+  </section>
+
+  <!-- 价值闭环 -->
+  <section class="sec center" id="value" data-page-node-id="UFp06Qs9FrSAmZ8CCLfGhV">
+    <div class="eyebrow" data-page-node-id="mYufr0LACyJCXI0BZLGqss">VALUE LOOP</div>
+    <h2 data-page-node-id="b3yHeIjWVzYdHs49HlCerv">八大能力合成一个飞轮</h2>
+    <p class="sub" data-page-node-id="QMqjl2PLPFIzSukY1CEJHs">监测 → 拼装 → 校验 → 决策 → 处置 → 回流 → 复盘 → 回写，环环咬合，越转越准。</p>
+    <div class="stream" data-page-node-id="S6kcnBGKHhbWJRmC1b0hz2">
+      <span class="st" data-page-node-id="qYG6FqsXUVGBYlKvZGIymR">捕获 Capture</span><span class="ar" data-page-node-id="kHKLW5SZnfQZbJ7KrMci6T">→</span>
+      <span class="st" data-page-node-id="SUsU6RME9UpDatmHnNs8OG">拼装 Assemble</span><span class="ar" data-page-node-id="v0HdcqnTFf6g2LobtqIfPU">→</span>
+      <span class="st hl" data-page-node-id="VGs16uzC8CYmQ35Ux6vbUN">校验 Verify</span><span class="ar" data-page-node-id="TJrxAkRARdYfp1LrVtIueA">→</span>
+      <span class="st" data-page-node-id="4JwI17OGz3BXxE0OmfXC3j">决策 Decide</span><span class="ar" data-page-node-id="GsCyw42WxdigB4sgXerkZN">→</span>
+      <span class="st" data-page-node-id="SHfFGlSFoNMvS71FSKBOaQ">处置 Act</span><span class="ar" data-page-node-id="NtpdGVir1o78Tp1a9qXYNX">→</span>
+      <span class="st" data-page-node-id="ez3FTHdimrQkkv1Gv8gIN0">回流 Feedback</span><span class="ar" data-page-node-id="2t2tABOaYDyo88IVGvcNO1">→</span>
+      <span class="st hl" data-page-node-id="xQQOM4zDXxLUNj1Q3JFOET">复盘 Review</span>
+    </div>
+  </section>
+
+  <!-- 场景推演 -->
+  <section class="sec" id="scenario" data-page-node-id="FS2JU5GB6mHqP0wJT7VbHw">
+    <div class="eyebrow" data-page-node-id="EickeBGQikVaRaiPpyX5pI">SCENARIO WALKTHROUGH</div>
+    <h2 data-page-node-id="dCfO9XxDzRCwYPAsBnUrGz">典型场景推演</h2>
+    <p class="sub" data-page-node-id="loCrBY2rjMOVZZK1KyPIkS">以下为能力运行逻辑的推演示意，用于说明链路如何闭合；<b data-page-node-id="vpt3NsFgq5URTUUdDGwQsX">效果指标需在真实工况下实测后填充</b>，现在不做承诺。</p>
+    <div class="g3" data-page-node-id="8m3nEys045thoeDA5gTbih">
+      <div class="case card" data-page-node-id="LiK7lg1NEp0HAvxgWxQwdQ">
+        <div class="ic" style="background:rgba(34,211,238,.12);color:var(--cyan)" data-page-node-id="8OU83EHJO2B8AQr8hHXtav">🌡️</div>
+        <h3 data-page-node-id="wLzmeS7zqCt4oXuyboS658">锅炉集群连锁告警</h3>
+        <p data-page-node-id="12qweMmHh01t6YBUwNRJXD">多台锅炉与给水泵同时告警，系统按时序与工艺耦合判别<b data-page-node-id="O5LQcAgB7qnLAzQNPXvz5s">原发故障源</b>，把 N 条告警收敛为 1 条根因。</p>
+        <div class="flow" data-page-node-id="5ToccDkcDRUtcRr0nqxx9q"><b data-page-node-id="D2whfMij3lK7Idjia1AhR0">推演链路</b>：边缘过滤噪声 → 集群聚合 → 时序归因 → 风险分级 → 人工复核 → 派单</div>
+      </div>
+      <div class="case card" data-page-node-id="cI0HowuZTs8X8BpilKr8YA">
+        <div class="ic" style="background:rgba(52,211,153,.12);color:var(--green)" data-page-node-id="WDFGA3Mo5z6s0Bsr1r0NjU">🔧</div>
+        <h3 data-page-node-id="cNobWQGmiO79Q24s7t77G2">重复故障的根治</h3>
+        <p data-page-node-id="xvCrhvlOV055gWfSICu7vt">同一台泵同类振动告警第 3 次出现，系统调出前两次处置记录，比对效果后给出<b data-page-node-id="abVf06H3pGzLfZMiHCsnwL">根治建议而非重复消警</b>。</p>
+        <div class="flow" data-page-node-id="VFcU52wDC89huGvzDx03oK"><b data-page-node-id="w4GrEo0s7o6N5m9UYf22Qn">推演链路</b>：语义检索先例 → 处置效果比对 → 判据修正建议 → 复盘审批后固化</div>
+      </div>
+      <div class="case card" data-page-node-id="Z6ZiVBfsmJwmqx4kJRCU4H">
+        <div class="ic" style="background:rgba(251,191,36,.12);color:var(--amber)" data-page-node-id="p4YLtFxvvAKgiHlzgFDA4I">📋</div>
+        <h3 data-page-node-id="33i3Y6UvbgA9qFmGWBVAop">新员工接手陌生设备</h3>
+        <p data-page-node-id="H7c8eJlIQhGngswLYrXAp2">新人点开设备画像，看到的不只是参数，而是<b data-page-node-id="V4EP6QJDJJPUAgELuUyGie">历史故障、处置先例、注意事项、关联工艺</b>。</p>
+        <div class="flow" data-page-node-id="nQFfHKUOvh5NQA3oQ0TfVO"><b data-page-node-id="55dE8MRSUEv153MN6Y6OMH">推演链路</b>：设备记忆体 → 同类设备共性问题 → 标准处置卡 → 上手路径推荐</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 落地路径 -->
+  <section class="sec" id="roadmap" data-page-node-id="jz3MhqDmnU27TROGIrqH8q">
+    <div class="eyebrow" data-page-node-id="ImYqPMOQlyDNZEQf4eg1rM">DELIVERY PATH</div>
+    <h2 data-page-node-id="iV6McHaHvDCRuR7f8JCnwo">建议的落地节奏</h2>
+    <p class="sub" data-page-node-id="7VlRFE8fafxjN98F7TRQTj">先小范围验证链路闭合，再扩设备、扩厂区。</p>
+    <div class="steps" data-page-node-id="A1FandVKC0mYFbluT2l1mM">
+      <div class="step" data-page-node-id="byK15uU1pfHrB4QP1gAk4q">
+        <div class="k" data-page-node-id="53SSRE77keeDz6AGIeghJn">STEP 01</div>
+        <h4 data-page-node-id="XmA6VlpnjHqYYGTEB7BXiP">单设备类型 PoC</h4>
+        <p data-page-node-id="Iy5VrceKC8KIpmrReBFRMM">选一类设备（如泵站 / 空压机 / 暖通机组）接入历史数据与故障记录，验证记忆构建、根因判别与复盘回写是否闭合。</p>
+      </div>
+      <div class="step" data-page-node-id="DoExxjkmOkUZl6uGsudShw">
+        <div class="k" data-page-node-id="l5c5zrzqDpR5G2nsm5Cru6">STEP 02</div>
+        <h4 data-page-node-id="IP8dhHClSqE3GULFah8BIZ">集群级试点</h4>
+        <p data-page-node-id="fqEG7uH82B56hE55TBvzgx">扩至一个厂区的设备集群，验证告警收敛率、原发/次生判别准确率、工单闭环率，指标实测后回填本材料。</p>
+      </div>
+      <div class="step" data-page-node-id="3sdR286WIAyC0rDA2WpLdh">
+        <div class="k" data-page-node-id="Bej7DLE0IqQkAAxCOvcDEU">STEP 03</div>
+        <h4 data-page-node-id="8cur4aUgW67h1zHLRQjimR">多类型复制</h4>
+        <p data-page-node-id="JXe0kMAIMtADNk5fAuKchj">以配置画像方式复制到其他设备类型，不改内核代码；租户级知识隔离，跨厂区经验可选择共享或隔离。</p>
+      </div>
+    </div>
+    <div class="note" data-page-node-id="N0SteBh9dLiRigaCdO2AMN">
+      <b data-page-node-id="Sj9bEAEvHSeBqWopYvrswA">前置条件（需客户侧确认）</b>：① 历史运行与故障数据的可得性与质量；② 工艺耦合关系（设备—产线拓扑）是否可梳理；③ 边缘算力与网络条件；④ 与既有 MES / CMMS / OPC-UA 的对接方式；⑤ 人工复核与放行权限的归属。以上未明确前，不承诺上线时间与量化收益。
+    </div>
+  </section>
+
+  <!-- 收尾 -->
+  <div class="final" data-page-node-id="HRDyiDAXakTStKQcZFzLRE">
+    <h2 data-page-node-id="uAdREQWH3BCZjVjZ0lSOmb">让每一次告警有归因，每一次处置有依据，每一次故障都被沉淀成组织的资产</h2>
+    <p data-page-node-id="T6HrQRCh0MCKHzWbHlsI9A">分层智能体负责算得过来，K-M-D 负责判得可靠，业务闭环负责落得下去——换一类设备，只换一份配置画像。</p>
+    <a class="cta" href="#biz" style="margin-top:24px" data-page-node-id="GrFWsQArJOXgygb4vnCM0o">回到能力全景 →</a>
+  </div>
+
+  <div class="foot" data-page-node-id="VWcjrxDzeqS2N2URQJFAfq">
+    AI 原生设备管理平台 · ChiYu AI · 北京青羽智行科技有限公司<br data-page-node-id="RjYAmbfd3HzklV7yqojnnd">
+    业务亮点：设备全寿命周期内嵌 / 故障诊断方法论集成 / 运维行为标准植入<br data-page-node-id="GOpteD0ThHqaZP8OCAy56B">
+    技术亮点：设备记忆体（图谱 + 向量 + 事件）/ 认知决策引擎可解释 / 复盘智能体自动回写<br data-page-node-id="1A0uQ0r3nkuEjiB88ONdiX">
+    平台亮点：K-M-D 认知决策引擎 / 分层自适应多智能体编排（边缘 + 集群 + 业务）<br data-page-node-id="YrG73OjoWF1Sqv0AB2UAwC">
+    对标口径：工业互联网平台通用能力特征，不针对特定厂商；连接与可视化采用集成而非重建<br>
+    本材料为能力介绍：标 [规划] 项为路线图；场景为逻辑推演，量化指标需实测后填充，未对外承诺。
+  </div>
+
+</div>
+</body>
+</html>

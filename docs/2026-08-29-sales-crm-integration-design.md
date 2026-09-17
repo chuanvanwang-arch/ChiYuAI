@@ -13,7 +13,7 @@
 
 ## §1 背景与目标
 
-- 用户（王川）是 Agent2B 平台产品 owner 与 AI-native 架构师，主导 CRM-ai-native（AI 原生销售管理平台，参考 Kavak「One Customer, One Agent, One VM」模型，Stage 1 十 Task 基础 MVP）。
+- 用户（王川）是 Agent2B 平台产品 owner 与 AI-native 架构师，主导 CRM-ai-native（企业AI销售决策平台，参考 Kavak「One Customer, One Agent, One VM」模型，Stage 1 十 Task 基础 MVP）。
 - 是经作者复审的 B2B 销售管理方法论：七大底层逻辑 / 七类行为习惯 / 21 条行为标准 / 大漏斗 / BANTCC。
 - 用户正在做的"拜访记录填写"功能 = 销售归来反思"本次拜访对不对"的标准载体，是整套闭环入口；上线后其他 CRM 接入改造即可复用同一 AI 质检标准（平台化）。
 - 目标：将 方法论 + 用户业务闭环注入 CRM-ai-native，使智能体输出的每一步销售行为都经"质检 → 仲裁 → 计划"闭环，且阶段推进受前置动作合格线约束。

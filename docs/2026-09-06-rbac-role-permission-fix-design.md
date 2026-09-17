@@ -1,7 +1,7 @@
 # RBAC 角色权限修复设计（sysadmin / ten_admin）
 
 - 设计日期：2026-09-06
-- 作者：AI 原生销售管理助手（设计态）
+- 作者：企业AI销售决策专家（设计态）
 - 依据：2026-09-04 审计（F1–F6）+ 2026-09-06 代码复勘
 - 流程：brainstorming（本文件）→ writing-plans → 实施 → 单元/E2E 测试 → 审计设计
 - 关联文档：docs/2026-09-04-sysadmin-role-tenant-attribution-design.md、docs/2026-09-04-param-propagation-hub-design.md §15

@@ -4038,7 +4038,7 @@ describe('buddy 线索发现胶囊（T19）', () => {
     const cap = CAPS.find((c) => c.name === TARGET);
     expect(cap, TARGET).toBeTruthy();
     expect(cap.en).toBe('Lead Discovery');
-    expect(cap.expert).toBe('AI 原生销售管理助手');
+    expect(cap.expert).toBe('企业AI销售决策专家');
     expect(Array.isArray(cap.prompts) && cap.prompts.length > 0).toBe(true);
     expect(Array.isArray(cap.inspirations) && cap.inspirations.length > 0).toBe(true);
     expect(cap.systemPrompt).toContain('discovery-run');   // MCP 工具名落在 prompt，不落 skills
@@ -4102,7 +4102,7 @@ Expected: `generated 15 capsule icons -> assets/capsules/ | 3 mode icons -> asse
   "name": "线索发现",
   "en": "Lead Discovery",
   "icon": "assets/capsules/discovery.svg",
-  "expert": "AI 原生销售管理助手",
+  "expert": "企业AI销售决策专家",
   "skills": ["crm-native", "crm-query", "method-funnel-classification"],
   "systemPrompt": "调用 discovery-run 运行一次线索自主发现：按本租户 ICP（行业/规模/地域/招聘信号/融资轮次）扫描已启用数据源，输出候选线索池（ICP 适配分 + 信号 + why_narrative）。缺口字段走 discovery-enrich 瀑布富集；需要深度画像时走 discovery-research。全部只读展示，不自动外联、不自动发信；写入 CRM 须走两阶段（先取表单再确认）并带 decision_id（决策第 0 闸）。\n\n【方法论内核】\n【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。\n【大漏斗分类】客户分三类：商机客户（已有在跟商机）、目标客户（有明确意向待开发）、潜力客户（画像匹配但未接触）。按类确定接触节奏与资源投入。\n【事实 vs 话术】严格区分可验证证据（有记录 / 有文件 / 第三方佐证）与口头表述；外部抓取字段须标来源与置信度，低置信不冒充已验证。",
   "prompts": [

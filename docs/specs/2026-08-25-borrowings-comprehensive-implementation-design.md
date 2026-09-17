@@ -1,4 +1,4 @@
-# AI 原生销售管理平台 —— CordysCRM 借鉴清单综合实施详设
+# 企业AI销售决策平台 —— CordysCRM 借鉴清单综合实施详设
 
 > 配套文档：
 > - 上游选型：`docs/2026-08-24-ai-native-sales-crm-design.md` §4（机制范式借鉴）+ §5bis（深度借鉴清单 A/B/C + E/F/G/H 发布实证）
