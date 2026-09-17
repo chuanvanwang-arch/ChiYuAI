@@ -168,9 +168,23 @@ async function tryDispatch(match, evPayload, tenantId) {
   }
 }
 
-// T12：感知落库（三类源匹配即记一条 crm.signal；dedup 生效）。signalStoreRef 为 null 时跳过（测试/未注入）。
+// T12：感知落库（三类源匹配即记一条 crm.signal；dedup 生效）。
+//   ⚠ E5-2 修正（2026-09-16，设计附录 E.5）：本函数是**判据 B（`gen_silent`）的前提量来源**
+//   （`src/monitor/signalMetrics.js` 以 `crm.signal.source='event-trigger'` 的行数当"命中"），
+//   而此前它有**两处静默**，使「前提量缺失」与「本来就没命中」**不可区分** ⇒ 判据 B 对"感知桥全断"结构性失明
+//   （**桥越坏、判据越安静**，属"自指仪器"族）：
+//     ① `!signalStoreRef` 直接 `return null` —— **未注入 ≠ 未命中**，且无任何留痕；
+//     ② 写入失败 `.catch(() => null)` 空吞 —— 违 §15「不静默失败」。
+//   现两处均留痕。**返回契约刻意不变**（失败仍 resolve `null`，不向调用方抛）：
+//   调用方 `dispatchFromTrigger` 是 `await` 且无 try/catch，抛异常会打断派发主流程 ——
+//   留痕的目的是"可观测"，不是"改变失败语义"。
 async function recordPerception({ tenantId, m, evPayload }) {
-  if (!signalStoreRef) return null;
+  if (!signalStoreRef) {
+    emit('trace', 'agent-event-trigger-perception-skipped', {
+      tenant_id: tenantId, intent: m.intent, reason: 'signal-store-not-injected',
+    });
+    return null;
+  }
   return signalStoreRef.create({
     tenant_id: tenantId, source: 'event-trigger', kind: m.intent,
     severity: 'medium', target_role: 'sales',
@@ -178,7 +192,13 @@ async function recordPerception({ tenantId, m, evPayload }) {
     payload: { subject: `${m.intent} 感知`, intent: m.intent },
     evidence: { source: m.source, domain: m.domain },
     dedup_key: `evt:${m.intent}:${evPayload?.entity_id || evPayload?.externalId || 'new'}`,
-  }).catch(() => null);
+  }).catch((e) => {
+    recordFailure('agent-event-trigger-perception', e);
+    emit('trace', 'agent-event-trigger-perception-failed', {
+      tenant_id: tenantId, intent: m.intent, error: String(e?.message || e),
+    });
+    return null;
+  });
 }
 
 // T12：三源统一 dispatch（模块级，registerAgentEventTrigger 事件路径 + createEventTrigger 共用）

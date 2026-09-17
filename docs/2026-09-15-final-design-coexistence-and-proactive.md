@@ -2184,7 +2184,7 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 | # | 项 | 状态（21:25 复核） | 复跑判据 |
 | - | -- | ---------------- | -------- |
 | **E5-1** | **巡检候选租户集排除平台租户**（`createSignalObservabilitySweep().sweepOnce()` 的 `WHERE tenant_id <> 'system'`） | ✅ **已闭合**（2026-09-16 21:20） | `grep -n "SELECT DISTINCT tenant_id FROM crm.signal" src/monitor/signalMetrics.js` → **无 `WHERE`**；`test/monitor/signalObservabilitySystemScope.test.js` **5 例**；**变异验证**：注回 `<> 'system'` → 4 红；改 `NOT IN ('system')` → 仍 4 红 |
-| **E5-2** | **判据 B 的"命中"以桥自身输出测量**（自指仪器）：`detectNegativePredicates` 的 `gen_silent` 前提取 `crm.signal.source='event-trigger'` 行数，而这些行**正是感知桥 `recordPerception` 自己写的**（`eventTrigger.js:172-180`） | 🔴 **未闭合** | `grep -n "source: 'event-trigger'" src/agent/eventTrigger.js` → `:175`（在 `recordPerception` 内）；其写入失败为 **`.catch(() => null)` 静默吞**（违 §15「不静默」）⇒ **桥越坏、判据越安静** |
+| **E5-2** | **判据 B 的"命中"以桥自身输出测量**（自指仪器）：`detectNegativePredicates` 的 `gen_silent` 前提取 `crm.signal.source='event-trigger'` 行数，而这些行**正是感知桥 `recordPerception` 自己写的**（`eventTrigger.js`） | 🟡 **部分闭合**：**② 静默已闭合（21:50）**；**① 换独立仪器仍待裁决** | ② 复跑：`test/agent/eventTriggerPerceptionTrail.test.js` **4 例**；**变异验证**：注回两处静默 → 2 红（M3 未注入档 / M4 写入失败档各命中一条）。① 复跑：`grep -n "source: 'event-trigger'" src/agent/eventTrigger.js` → 仍在 `recordPerception` 内 ⇒ 前提量仍是桥自身输出 |
 | **E5-3** | **候选集来源即被判管道**：`sweepOnce` 从 `crm.signal` 取租户 ⇒ **零信号租户永不进扫描面**，与 E1「真实租户从未被接通」**正面冲突** | 🔴 **未闭合** | 造一个只配 `signal-delivery`、零 `crm.signal` 行的租户 → `sweepOnce()` 的 `tenants` 不含它、`fired=0`（**该场景下观测器与"一切正常"不可区分**） |
 
 **E5-1 的判定依据（为何算缺陷而非设计选择）**
@@ -2197,6 +2197,15 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 - `src/http/propagationRoutes.js:98,333` —— 配置**传播源**列表（排除 `system` 与 `*`）：模板行是"被传播物"而非"传播者"。
 ⇒ 二者与本处（`system` 作为**被监控租户**）语义不同。**判据：排除 `system` 是否正当，取决于该查询里 `system` 扮演"租户"还是"模板/平台身份"**——本处是前者（故为缺陷），上两处是后者（故正确）。
 
+> **⚠ E5-2② 补记（2026-09-16 21:50 · 已闭合）**：`src/agent/eventTrigger.js` 的 `recordPerception` 原有**两处静默**，均属"违 §15 不静默"，且**正是判据 B 失明的直接成因**（"前提量缺失"与"本来就没命中"不可区分）：
+> - ① `if (!signalStoreRef) return null;` → 改为 emit `agent-event-trigger-perception-skipped`（带 `reason:'signal-store-not-injected'`，**未注入 ≠ 未命中**）；
+> - ② `create(...).catch(() => null)` → 改为 `recordFailure('agent-event-trigger-perception', e)` + emit `agent-event-trigger-perception-failed`。
+>
+> **返回契约刻意不变**（失败仍 resolve `null`，不向调用方抛）：调用方 `dispatchFromTrigger` 是裸 `await` 且无 try/catch，抛异常会打断派发主流程 —— 留痕的目的是**可观测**，不是**改变失败语义**。
+> 本项只修"可观测性"这一半（**零设计风险**）；**"换独立仪器"那一半（E5-2①）是设计决策，刻意未动**（见 E.6）。
+> **归一佐证**：生产侧 `setSignalStore(pool)` 确在 `timers.js:215` 调用 ⇒ 事件路径的感知落库**是接通的**，故本项不是"挂载方没来"，而是纯静默问题（避免了又一次误归因）。
+> **复跑**：`test/agent/eventTriggerPerceptionTrail.test.js` 4 例（含一条"写入成功 → **不得**产生上述两种留痕"的**反向**用例，防把正常路径报成故障）；eventTrigger 全家族 **5 文件 / 28 例全绿**。
+
 **⚠ 本轮最重要的方法论（已回写 `anti-fake-green-probe` SKILL）**：护栏自身的**替身必须尊重被测 SQL 的语义**。
 本次第一版替身写成「看到 `SELECT DISTINCT tenant_id` 就固定返回 `[{tenant_id:'system'}]`」——**替身的缺省值反向定义了契约**（`mount.test.js` 假 deps 同族）。
 实测代价：把缺陷注回去后**三条"行为断言"全绿**，仅负向 SQL 断言变红 ⇒ 行为断言在该缺陷下**无鉴别力、是假绿载体**。
@@ -2207,11 +2216,46 @@ docker compose --env-file scripts/tencent-lighthouse-deploy/.env exec -T db \
 
 | 缺口 | 建议处置 | 为何不自行实施 |
 | --- | ---- | ------------ |
-| E5-2 | ① 判据 B 的"命中"改用**匹配点独立留痕**（`dispatchFromTrigger` 命中即 emit trace / 记与 signal 无关的计数），**不得**以 `crm.signal` 的 `event-trigger` 行为前提；② 移除 `recordPerception` 的 `.catch(() => null)`（改 emit trace + `recordFailure`） | 独立仪器需选型：`crm.tasks`（`step='agent-event-trigger'`）**只覆盖 `READ_ONLY_SKILLS` 的匹配**，非完备仪器；选谁属设计决策 |
+| E5-2① | 判据 B 的"命中"改用**匹配点独立留痕**（`dispatchFromTrigger` 命中即 emit trace / 记与 signal 无关的计数），**不得**以 `crm.signal` 的 `event-trigger` 行为前提 | 独立仪器需选型：`crm.tasks`（`step='agent-event-trigger'`）**只覆盖 `READ_ONLY_SKILLS` 的匹配**，非完备仪器；选谁属设计决策 |
+| ~~E5-2②~~ | ~~移除 `recordPerception` 的两处静默~~ | ✅ **已闭合（21:50）**，见上「E5-2② 补记」 |
 | E5-3 | `sweepOnce` 候选集改取**租户注册表 ∪ `crm.signal`**（`listActiveTenants`，`crm.tenants status='active'`，`timers.js:134` 已在用）；并新增「零信号租户」判据 | 仅改枚举源**不产生任何告警**（两条判据都以"有信号"为前提）⇒ 须同时**新增判据**，属设计增量 |
 
 > **维护约定**：本表任一行的"状态"列更新，须同时更新其**复核时点**；禁止把"已实现"改成"✅"而不重跑判据。
 > 本表以**判据**表述（而非快照结论），是因为同一天内线 A 就发生过"模块已建但未接线"的状态迁移——**快照结论在并行开发下半衰期极短**。
+
+### E.7 ✅ 2026-09-17 复核：**测试同源缺陷 7 文件闭合 · 生产侧租户供给缺口已闭合（取裁决选项②）· 另清 2 条长尾既有缺陷**
+
+| 编号 | 缺口 | 状态 | 判据 / 证据 |
+| --- | --- | --- | --- |
+| **E7-1** | **7 个测试文件 `import { X_TENANT }` 已被删除的常量** —— 2026-09-09「数据漂移根因修复」(`scripts/_refactor_seed_tenantid.mjs`) 删除了 `db/seed/tenant-profile-*.js` 里的 `export const X_TENANT = 'acme-<行业>'`，但 7 个测试未同步 → ESM 下拿到 `undefined` → `seedXxxProfile(undefined)` 抛 `tenantId is required`（**表现为"全 skipped + exit 1"，极易被误读成"跳过"**） | ✅ **已闭合**（2026-09-17） | 复跑：`test/agent/aiFill`、`test/calc/formulaEngine`、`test/integration/{chemical,insmedi}-tenant-runbook-validation`、`test/integration/training-tenant-e2e`、`test/meta-model/{edge-config,type-resolver}` → **7 文件 / 38 例全绿**。修法＝**测试侧**新增单一来源 `test/fixtures/testTenantIds.js`（刻意**不复用 `acme-*` slug**；补回导出等于回退 09-09 的修复，禁止）。**两层均载重**：缺 import 修复 → 整文件报错；缺下述 E7-2 铺垫 → 复合外键报错 |
+| **E7-2** | 🔴 ~~**"全新租户"无法 mint 决策（复合外键违例）**~~ —— `crm.decision_scenario` 自 2026-09-05 起 PK = `(scenario_id, tenant_id)`（`db/migration-decision-scenario-tenant-pk.sql`，用户裁决「全隔离」），且 `crm.decision` 有复合外键 `decision_scenario_tenant_fkey (scenario_id, tenant_id)`；但 `db/seed-decision-scenarios.sql` **不写 `tenant_id`** ⇒ 字典**只落 `system`**。而 `requireDecision`（`src/decision/autonomyEngine.js:133-136`）在本租户无该场景时**回退 `system` 模板解析**，mint 出的行却仍写**调用方租户** ⇒ **"解析有回退、落库没有回退"** ⇒ 该租户无自身场景行时插入必违外键 | ✅ **已闭合**（2026-09-17，取裁决选项②"落库前 lazy ensure"） | 实测（测试库）：`SELECT tenant_id, count(*) FROM crm.decision_scenario GROUP BY tenant_id` → 仅 `system` 有 35 行；以测试租户走 `actionExecutor.dispatch('crm-import-batch', …, {bootstrap:true})`（该 Action 声明 `autoDecision:true, decisionScenario:'IMPORT_BATCH'`）→ `insert or update on table "decision" violates foreign key constraint "decision_scenario_tenant_fkey"`。修复后由**独立仪器**取证：`scripts/verify-tenant-scenario-provisioning.mjs`（真实入口 + **每轮全新租户** + **负向控制**）→ 4 项 PASS |
+| | **①"开通时物化"尚未做（残留项）** | ⏳ **未做 · 非阻塞** | 选项② 只保证"**要被写入时**必先物化本租户场景行"，对"**零决策活动的租户**"其 `crm.decision_scenario` 仍为空（故配置页/巡检看不到这些租户的场景行）。若要让"开通即完备"（含列举/审计语义），仍应在 `seedTenantDefaults`/onboarding 追加一次幂等克隆。**当前无正确性缺口，属完备性/可观测性增量**，未自行实施 |
+
+> **E7-2 补记（2026-09-17 · 已闭合）**：裁决取**选项②（落库前 lazy ensure）**，理由是它**同时覆盖存量租户**（选项①只覆盖今后开通者，存量仍会违外键）。
+> - **物化点收敛在"唯一可违反该外键的写入处"**：`crm.decision` 由 `decisionRepo.createDecision` 唯一写入 ⇒ 在该函数内于 INSERT 前调 `ensureTenantScenarioSafely`，一处即覆盖全部铸决策通道（`mintDecision` / 标准授权 / standing-auth…）。
+> - **同族排查多找到 1 个写者**：`crm.calibration_patch` 与 `crm.outcome_event_map` 共享同一复合外键族；`src/calibration/store.js:createPatch` 亦写 `tenant_id` ⇒ 一并接入同一入口（**否则只修一半，属"同族遗漏只修上一闸"的复发**）。
+> - **`ensureTenantScenario` 刻意不许 DELETE**：`INSERT…SELECT … FROM crm.decision_scenario s WHERE s.tenant_id='system' ON CONFLICT (scenario_id, tenant_id) DO NOTHING`，幂等、可重入（镜像 migration 步骤 3.5 的写法）。
+> - **catch 不掩盖故障**（关键）：`ensureTenantScenarioSafely` 的 try/catch **只避免"双份报错"**，不是把外键故障吞掉——物化失败后故障必然在紧随其后的 INSERT 以 `decision_scenario_tenant_fkey` **原样抛出**（`insertDecisionFailOpen` 对非维度错不降级、原样 throw；`calibration/store.js` 亦无 catch）。⚠ 该性质**依赖下游 insert 不被改成吞异常**，一旦被改，此 catch 即退化为静默容忍 ⇒ 已由 `test/decision/tenantScenarioProvisioning.test.js` 单留一条「缺行必违外键」的复现断言守住。
+> - **顺带修掉读取侧的跨租户读配置**：`loadScenarioConfig` 原先**无租户谓词**（`WHERE scenario_id=$1`），而"本租户物化"落地后同名场景必然多租户并存 ⇒ `rows[0]` **任取**。实测本地主库 `PARTICLE_CREATE` 已有 2 个租户的行（当时各行内容相同故未显形；一旦某租户按后台配置校准 `default_tier`/`eval_dimensions`/`focus_rulers`——正是**行业差异化载体**——即读到**别的租户**的配置）。现改为 `WHERE scenario_id=$1 AND tenant_id=$2` + 缺行回退 `system` 模板，**口径与 `requireDecision` 对齐**（本租户优先 → system 兜底 → 都没有才 null）。
+> - **变异验证（三条各自定位一层，全部先自检"已注入"）**：M1 物化入口退化为 no-op ⇒ 探针复现**原始外键违例**（接线载重）；M2 读取侧去掉租户谓词 ⇒ 读取谓词用例变红；M3 克隆清单漏列 `enabled_rulers` ⇒ **列集漂移守卫**变红。
+> - **测试侧铺垫已移除**：先前为让 3 个集成测试通过而加的 `test/fixtures/tenantScenarios.js`（幂等克隆垫片）**已删**，相应调用一并撤掉 ⇒ 这 3 个用例**反过来成为生产供给链路的接线证据**（物化被删即报外键违例）。⚠ 注意其局限：本地测试库仍有历史残留行，故"这 3 个用例绿"**本身不构成**"物化已接通"的充分证据——充分证据是上面的独立探针（每轮用**全新租户**）。
+> - **复跑**：7 文件同源簇 + 新增 `test/decision/tenantScenarioProvisioning.test.js`（8 例）+ 隔离护栏 **46/46 全绿**；`test/decision`+`test/calibration`+`test/setup` 全目录 **103 文件 / 629 例**（修复前后由下表两条既有缺陷占据唯一红位，见下）。
+
+> **⚠ 同批修掉的两条既有缺陷（非本项引入，但同属"长尾红"必须一并清）**：这批回归暴露出的两条红**均已单文件复现 3 次**确认与 E7-2 改动无关（`mintId.js`/`leadFitScenario` 相关文件自 `c88a29a` 基线起**从未改动**，工作树亦无未提交改动），且**同一份报告里两条的失败值可反推出根因**：
+> - `test/decision/leadFitScenario.test.js`：`leadFitRow()` 原写作 `stmt.slice(i)`（"切到语句尾"），隐含约定「**LEAD_FIT 是 VALUES 段最后一行**」——该约定被其后两次追加证伪（`PROSPECTING_CONFIRM` 09-14 追加 2 权重、`PREHEAT_MARK` 09-15 追加 1 权重）⇒ 切片吞下三行，`"weight":` 匹配到 5+2+1=**8** 个 → 报 `expected [Array(8)] to have a length of 5`。**⇒ 判据：从 SQL 文本按"位置约定"切片，等于把「后续追加」变成隐式破坏；必须按结构边界（下一个元组起始）切。** 变异 M-A（恢复"切到语句尾"）**复现出与原始完全一致的报错原文**。
+> - `test/decision/mintId.test.js`：幂等复读那次的查询**缺 `ORDER BY slug`**（同一测试内前一次查询有、这一次没有）⇒ 无 ORDER BY 时返回顺序取决于物理堆序，而上一次 `backfillStableKeys()` 的 UPDATE 会重写行版本、改变堆序 ⇒ `rows2[0]` 可能取到 `slug-B`，报「expected `26e8a45a…` to be `480adce9…`」（实测二者分别正是 slug-B / slug-A 的 key ⇒ **可反推 `rows2[0]` 确实是 slug-B 行**）。独立仪器（**反序插入**构造堆序差异）复现：无 ORDER BY 取首行 = `slug-B`，有 ORDER BY = `slug-A` ⇒ 同一数据上 `rows[0]` 即可不同。**⇒ 判据：多行断言必须显式 ORDER BY，不得依赖"两次查询返回顺序一致"。**
+
+
+> **E7-3 补记（2026-09-17 · 已闭合，用户裁决"按租户"）**：校准配置 `required_dims` 的读写此前**无 `tenant_id` 谓词**（生产代码 `src/calibration/knobs/requiredDims.js:16` 的 `apply` 的 `UPDATE` + `src/sevenDimensions/engine.js:13` 的 `sevenDimensionsCheck` 的 `SELECT`），复合主键 `(scenario_id, tenant_id)` 落地后「改一个场景」实际改写**该场景全部租户行**、「读配置」任取 `rows[0]` ⇒ 跨租户写/读（E7-2 同族遗漏）。用户裁决＝**按租户隔离**。
+> - **写侧**（`requiredDims.apply`）：`UPDATE … WHERE scenario_id=$2 AND tenant_id=$3`，tenantId 由 `approvePatch`/`rollbackPatch` 经 `ctx.tenant_id` 透传（patch 行本就带 `tenant_id`）；`createPatch` 已先 `ensureTenantScenarioSafely` 物化本租户行 ⇒ 写点只落本租户行。
+> - **读侧**（`sevenDimensionsCheck` + 三个决策级读者 `closure.js`/`attribution.js`/`traceRootCause.js`）：统一改为 `WHERE scenario_id=$1 AND (tenant_id=$2 OR tenant_id='system') ORDER BY (tenant_id=$2) DESC LIMIT 1`——**本租户优先 → system 回退**，与 `executor.js:27` / `loadScenarioConfig` 同源范式。`attribution.js` 的 `computeAttribution` 新增 `tenantId` 参数并透传给 `check` 与直读；`decisionRepo.createDecision` 落库前闸（`sevenDimensionsCheck` 调用）透传 `tenantId`；`replayDims` 透传 tenant 保证量化重放口径一致。
+> - **证据**：新增 `test/calibration/requiredDimsTenantIsolation.test.js`（2 例）——① apply 只改本租户行、不污染其他租户/system；② `sevenDimensionsCheck` 读本租户行、缺则回退 system。回归：`test/calibration` **22 文件 / 160 例全绿**；`test/decision-gate` **3 轮 × 4 例全绿**（顺序依赖抖动确认消除）。
+> - ⚠ **残留待办（非阻塞，非本次范围）**：`src/http/calibrationRouter.js:61`（手动发起处方读 `required_dims` 计算 from_value）仍读 system 行，而 `createPatch` 默认 `tenant_id='system'` ⇒ 该入口眼下只服务平台级校准，与"按租户"不冲突；若要支持"按租户手动发起"，需补 `scopeTenant(me)` 透传。另 `methodologyInjection.js:26` 读 `methodology_ids` 仍无 tenant 谓词（同族，未决但当前不影响 `required_dims` 校准语义）。
+
+> **本轮方法论（已回写 `anti-fake-green-probe` / `shared-db-test-hygiene`）：修掉一层缺陷后必须重跑并审视"是否暴露出下一层"，不得以"转绿"收工。**
+> 本案中 **E7-1 的崩溃掩盖了 E7-2**：`beforeAll` 抛错 → 整个 suite 报"全 skipped"→ §4 的复合外键问题从未被执行到。
+> 修好 import 后，E7-2 才浮现。⇒ **"错误信息消失"≠"缺陷消失"；"转绿"只对当前这一层成立。**
+> 另一条已固化的纪律：**Edit 报成功但被并行会话还原**（本轮 2 次）⇒ 多处改动须**一次原子写入 + 立刻 grep 复核**（本次即靠复核发现"import 落地、调用未落地"）。
 
 ---
 
