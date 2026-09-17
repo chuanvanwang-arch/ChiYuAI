@@ -51,6 +51,15 @@ export const SIGNAL_KIND_LABELS = {
   quote_approval_timeout: '报价审批超时',
   stage_silence: '阶段静默超期',
   price_baseline_drift: '价格基线偏离',
+  // 日期型（signal-schedule 规则，2026-09-17 Plan A 播种）
+  tender_deadline: '投标截止临近',
+  report_due: '周期报告到期',
+  // 内部异动派生（internal-signal-derivation 配置驱动，低置信 internal_inference，2026-09-17 Plan B）
+  contact_change: '联系人资料变动',
+  relation_cooling: '客户关系冷却',
+  // 集成模拟数据（scripts/seed-integration-sim.mjs，演示租户可见）
+  account_synced: '客户资料已同步',
+  opportunity_stage_advanced: '商机阶段推进',
 };
 
 // 中文名；未知 kind 原样回显（不隐藏真值）
@@ -163,6 +172,26 @@ const SUMMARIZERS = {
   s0_stale: (p) => (isNum(p.ageDays) ? `公海 S0 已 ${num(p.ageDays)} 天未认领` : null),
   s0p_recycle_warn: (p) => (isNum(p.followAgeDays) ? `已跟进 ${num(p.followAgeDays)} 天，临近回收（T-3）` : null),
   candidate_touch_window: (p) => (isNum(p.ageDays) ? `候选池已 ${num(p.ageDays)} 天未触达` : null),
+
+  // ── Plan A/B 新增 kind（2026-09-17）──
+  // ⚠ 这些信号的 payload 只有 {subject, rule_id[, confidence_basis, entity_type]}（真库实测，无业务量键），
+  //   可读量在 evidence（派生器写 window_days/threshold_days；扫描器写 threshold_days）——
+  //   故摘要从 sig.evidence 取，而非从 payload 臆造字段。
+  //   「内部推断」后缀不可省略：派生信号是低置信 inference，不得与实测情报同貌（防假绿）。
+  contact_change: (p, sig) => {
+    const w = sig?.evidence?.window_days;
+    return w != null
+      ? `客户联系人资料近 ${num(w)} 天内发生变动（内部推断，建议核实现状）`
+      : '客户联系人资料发生变动（内部推断，建议核实现状）';
+  },
+  relation_cooling: (p, sig) => {
+    const th = sig?.evidence?.threshold_days;
+    return th != null
+      ? `客户已超过 ${num(th)} 天无任何更新（内部推断，建议主动联系）`
+      : '客户长期无更新（内部推断，建议主动联系）';
+  },
+  tender_deadline: () => '投标截止日临近，建议尽快推进',
+  report_due: () => '周期性报告到期，建议按时提交',
 };
 
 // 可读摘要：专用摘要 → payload.subject（不含原始 kind 才算可读）→ 通用字段渲染 → 诚实占位
@@ -172,7 +201,8 @@ export function summarizeSignal(sig) {
   const kind = String(sig?.kind ?? '');
   const fn = SUMMARIZERS[kind];
   if (fn) {
-    const s = fn(p);
+    // 传整条 sig（不止 payload）：新 kind 的可读量在 evidence（见上方注释）
+    const s = fn(p, sig);
     if (s) return s;
   }
   const subject = typeof p.subject === 'string' ? p.subject.trim() : '';

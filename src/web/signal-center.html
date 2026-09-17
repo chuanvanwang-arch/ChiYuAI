@@ -112,6 +112,14 @@
 
 <script type="module">
 import { injectLayout } from '/portal/layout.js';
+// 展示层单源（2026-09-17 前台可见性审计）：中文化 + 摘要一律取自 /portal/signalLabels.js
+//   —— 页面此前自建了一份内联 KIND_TEXT/SEV_TEXT/summarizer，与 portal 模块**重复**（违单源铁律），
+//   新增 kind 时两处都要改，漏改一处即直出英文码（contact_change 等 4 个新 kind 正是这样漏掉的）。
+//   ⚠ 别删这行 import：删掉它（= 回到内联副本）会让守门测试 test/web/signalCenterPage.test.js 转红。
+import {
+  kindLabel, severityLabel, statusLabel,
+  summarizeSignal, scopeLabel, scopeTitle, kindTitle,
+} from '/portal/signalLabels.js';
 
 // 鉴权对齐既有页面范式（lead-pool / today-priority）：Bearer token 走 Authorization 头。
 // ⚠ 不再使用 x-tenant-id 头——resolveMe 只认 token（src/http/auth.js:57），该头从不被读取，
@@ -124,55 +132,18 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const authHeaders = () => ({ Authorization: `Bearer ${token}` });
 
-const STATUS_TEXT = { open: '待处理', acked: '已确认', closed: '已否决', acted: '已成单' };
-
-// 展示层中文化（2026-09-16）：页面是给人看的，不再直出后端代码。
-// 鉴别力：kind 未登记时回落原文——宁可见代码，也不静默显示空白（防「看起来都对」的假绿）。
-const SEV_TEXT = { high: '高', medium: '中', low: '低' };
-const KIND_TEXT = {
-  // src/alerts/alertRegistry.js 的 13 个登记 kind（守门断言见 test/web/signalCenterPage.test.js）
-  deal_stuck: '商机停滞',
-  lead_overdue: '线索跟进逾期',
-  forecast_breach: '预测缺口',
-  approval_bottleneck: '审批积压',
-  payment_due: '回款到期',
-  payment_gap: '应收差额超限',
-  payment_due_plan: '回款计划逾期',
-  coverage_gap: '目标客户覆盖缺口',
-  lost_contact: '客户接触流失警戒',
-  funnel_unhealthy: '漏斗不健康',
-  commit_red: '承诺准确率红带',
-  funnel_jitter: '漏斗抖动超标',
-  named_visit_overdue: '指名拜访逾期',
-  // 扫描器/事件源产出的 kind
-  s0_stale: '公海线索滞留',
-  visit_shortfall: '拜访量不达标',
-  info_collect_lag: '客户信息缺失',
-  object_changed: '客户资料变动',
-  suggestion_card: '研究建议卡',
-  'signal-observability': '链路断链告警',
-};
+// 展示层中文化（2026-09-17 单源化）：原内联 STATUS_TEXT / SEV_TEXT / KIND_TEXT 已**删除**，
+//   一律改用 /portal/signalLabels.js 的 statusLabel / severityLabel / kindLabel。
+//   迁移理由：两处映射=两处解释权（判据⑥），2026-09-17 审计实证新 kind 漏登记致页面显示英文码。
 const REASON_TEXT = { 'consecutive-rejects': '连续被人否决', 'usage-limit': '用量超限' };
 const shortId = (v) => (typeof v === 'string' && v.length > 12 ? v.slice(0, 8) : v);
 // payload 里常带长 UUID（如 suggestion_card 的 subject），展示时截断，避免一屏全是乱码
 const tidy = (t) => String(t || '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, (m) => m.slice(0, 8));
 
-// ⚠ 只认字符串：payload/suggestion 是 JSONB（实测常为 {}），
-//   空对象是 truthy → String({}) 会把 "[object Object]" 直上页面（2026-09-16 截图实证）。
-const asText = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
-
-// 说明列：优先用 payload 里的业务量（滞留天数/逾期天数/拜访缺口），
-// 退回到字符串 subject——否则只会显示「s0_stale 预警」这类零信息量的句子。
-function summaryOf(s) {
-  const p = s.payload || {};
-  if (p.ageDays != null) return `公海已滞留 ${p.ageDays} 天，仍无人认领`;
-  if (p.overdueDays != null) return `逾期 ${p.overdueDays} 天${p.named_owner ? `（责任人 ${p.named_owner}）` : ''}`;
-  if (p.dailyVisits != null && p.dailyTarget != null) return `今日拜访 ${p.dailyVisits} 次 / 目标 ${p.dailyTarget} 次`;
-  if (p.weeklyVisits != null && p.weeklyTarget != null) return `本周拜访 ${p.weeklyVisits} 次 / 目标 ${p.weeklyTarget} 次`;
-  if (p.weekNew != null && p.weeklyMin != null) return `本周新增 ${p.weekNew} 条 / 目标 ${p.weeklyMin} 条`;
-  const sub = tidy(asText(p.subject) || asText(s.suggestion?.text) || asText(s.suggestion));
-  return sub || KIND_TEXT[s.kind] || s.kind || '';
-}
+// 说明列改用单源 summarizeSignal（见上方 import）：它按各 kind 的**真实 payload/evidence 形状**
+//   生成可读句子，并在确实无明细时诚实返回「暂无明细」（不拿类型名冒充摘要）。
+//   JSONB 空对象（[object Object]）与长 UUID 由模块内类型闸 + 此处 tidy 兜底。
+//   ⚠ 不再自建 summaryOf/asText——内联副本是单源破窗（新增 kind 时两处漏改即直出英文码）。
 
 // T21 个人隔离：作用域 UI（2026-09-16 用户指令「除管理外，需要进行个人隔离！」）
 //   enforced=true（普通销售员）→ 服务端已强制收窄，隐藏选择器并明示「仅显示我负责的」
@@ -216,18 +187,15 @@ async function load() {
   const tbody = document.querySelector('#signal-table tbody');
   tbody.innerHTML = '';
   for (const s of items) {
-    const p = s.payload || {};
     const tr = document.createElement('tr');
     const actBtn = s.status === 'open'
       ? `<crm-button class="btn" data-ack="${esc(s.signal_id)}">确认</crm-button> <crm-button class="btn" data-close="${esc(s.signal_id)}">否决</crm-button>`
-      : `<span class="muted">${STATUS_TEXT[s.status] || s.status}</span>`;
-    // 对象列优先显示业务可读标识（external_id），退化到 ID 前 8 位，鼠标悬停可见完整 ID
-    const objText = p.external_id || shortId(s.particle_id) || '—';
+      : `<span class="muted">${esc(statusLabel(s.status))}</span>`;
     tr.innerHTML = `
-      <td>${esc(KIND_TEXT[s.kind] || s.kind || '')}<div class="sc-code">${esc(s.kind || '')}</div></td>
-      <td class="sev-${esc(s.severity || 'low')}">${esc(SEV_TEXT[s.severity] || s.severity || '')}</td>
-      <td title="${esc(s.particle_id || '')}">${esc(objText)}</td>
-      <td title="${esc(JSON.stringify(s.payload || {}))}">${esc(summaryOf(s).slice(0, 48))}</td>
+      <td title="${esc(kindTitle(s.kind))}">${esc(kindLabel(s.kind))}<div class="sc-code">${esc(s.kind || '')}</div></td>
+      <td class="sev-${esc(s.severity || 'low')}">${esc(severityLabel(s.severity))}</td>
+      <td title="${esc(scopeTitle(s))}">${esc(scopeLabel(s))}</td>
+      <td title="${esc(JSON.stringify(s.payload || {}))}">${esc(tidy(summarizeSignal(s)).slice(0, 48))}</td>
       <td>${s.created_at ? esc(new Date(s.created_at).toLocaleString()) : ''}</td>
       <td class="sc-code">${esc(s.tenant_id || '—')}</td>
       <td>${actBtn}</td>`;
@@ -244,7 +212,7 @@ function fillKindFilter(items) {
   for (const k of kinds) {
     const o = document.createElement('option');
     o.value = k;
-    o.textContent = KIND_TEXT[k] || k;
+    o.textContent = kindLabel(k);
     sel.appendChild(o);
   }
   // 空结果不得上锁：首载为 0 条时若直接置 filled，后续数据出现也不会再补齐（2026-09-16 实测实坑）

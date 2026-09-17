@@ -36,46 +36,34 @@ describe('signal-center 页面契约', () => {
   });
 });
 
-// 2026-09-16 可读性守门：页面曾直出后端代码（s0_stale / high / 裸 UUID），业务方反馈「看不懂」。
-// 以下锁住「展示层中文化」，并带扫描有效性对照（防正则失效 → 空集 → 断言空转的假绿）。
-describe('signal-center 展示层可读性守门', () => {
+// 2026-09-17 单源守门（前台可见性审计修复）：页面曾自建一份 KIND_TEXT/SEV_TEXT/summarizer 内联副本，
+//   与 src/portal/signalLabels.js **重复**（违单源铁律）——新增 kind 漏改一处即直出英文码
+//   （contact_change / relation_cooling / tender_deadline / report_due 四个新 kind 就是这样漏掉的）。
+//   现：中文化 + 摘要全部取自单源模块；kind 覆盖度守卫迁至 test/portal/signalLabels.test.js（扫全部产生点）。
+describe('signal-center 展示层单源守门（不得自建映射副本）', () => {
   const page = fs.readFileSync('src/web/signal-center.html', 'utf8');
-  const block = page.match(/const KIND_TEXT = \{([\s\S]*?)\n\};/);
-  const reg = fs.readFileSync('src/alerts/alertRegistry.js', 'utf8');
-  // 权威登记表 = DEFAULT_RULES 里 4 空格缩进的 kind
-  const regKinds = [...reg.matchAll(/^ {4}kind: '([a-z0-9_]+)'/gm)].map((m) => m[1]);
 
-  it('扫描有效性对照：可从 alertRegistry 解析出登记 kind（防正则失效致空集）', () => {
-    expect(regKinds.length).toBeGreaterThanOrEqual(13);
-    expect(regKinds).toContain('deal_stuck');
-    expect(regKinds).toContain('named_visit_overdue');
-    expect(new Set(regKinds).size).toBe(regKinds.length);
+  it('页面 import 单源展示模块 /portal/signalLabels.js', () => {
+    expect(page).toContain("from '/portal/signalLabels.js'");
+    expect(page).toMatch(/kindLabel|severityLabel/);
   });
 
-  it('每个登记 kind 都有中文标签（新增 kind 未登记 → 红）', () => {
-    expect(block).toBeTruthy();
-    const missing = regKinds.filter((k) => !new RegExp(`['"]?${k}['"]?\\s*:`).test(block[1]));
-    expect(missing, `缺少中文标签的 kind: ${missing.join(', ')}`).toEqual([]);
+  it('页面不再自建 KIND_TEXT / SEV_TEXT / STATUS_TEXT / summaryOf（内联副本 → 红）', () => {
+    expect(page).not.toMatch(/const KIND_TEXT\s*=/);
+    expect(page).not.toMatch(/const SEV_TEXT\s*=/);
+    expect(page).not.toMatch(/const STATUS_TEXT\s*=/);
+    expect(page).not.toMatch(/function summaryOf\s*\(/);
   });
 
-  it('严重度列渲染中文（不再直出 high/medium/low）', () => {
-    expect(page).toMatch(/SEV_TEXT\[s\.severity\]/);
-    expect(page).not.toMatch(/esc\(s\.severity \|\| ''\)/);
+  it('渲染调用单源函数（类型/严重度/说明/对象）', () => {
+    expect(page).toMatch(/esc\(kindLabel\(s\.kind\)\)/);
+    expect(page).toMatch(/esc\(severityLabel\(s\.severity\)\)/);
+    expect(page).toMatch(/summarizeSignal\(s\)/);
+    expect(page).toMatch(/scopeLabel\(s\)/);
   });
 
-  it('说明列优先取业务字段（滞留/逾期天数），不直出 payload.subject 原文', () => {
-    expect(page).toContain('function summaryOf');
-    expect(page).toMatch(/p\.ageDays/);
-    expect(page).not.toMatch(/esc\(\(s\.payload\?\.subject \|\| s\.kind/);
-  });
-
-  // 2026-09-16 截图实证：payload.suggestion 是 JSONB 且实测值为 {}（truthy），
-  //   String({}) 把 "[object Object]" 直接渲染到说明列 → 必须有字符串类型闸。
-  it('说明列不产出 [object Object]（JSONB 对象须被 asText 挡掉）', () => {
-    expect(page).toContain('const asText');
-    expect(page).toMatch(/typeof v === 'string'/);
-    expect(page).toMatch(/asText\(s\.suggestion/);
-    expect(page).not.toMatch(/\|\|\s*s\.suggestion\s*\|\|/); // 反向：裸接对象 → 红
+  it('类型下拉也用单源标签（避免「下拉中文、表格英文」）', () => {
+    expect(page).toMatch(/o\.textContent\s*=\s*kindLabel\(k\)/);
   });
 
   it('列表含租户列（跨租户巡检时才分得清这行是谁的）', () => {
