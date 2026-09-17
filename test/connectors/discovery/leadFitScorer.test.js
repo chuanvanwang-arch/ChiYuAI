@@ -145,3 +145,50 @@ describe('语义边界（陷阱①：不得复用 rubricScorer 的 9 维）', ()
     }
   });
 });
+
+// R-1（2026-09-17）：min_confidence 置信闸
+//   定义：rules.icp.min_confidence = 信号置信度下限。信号带数值 confidence 且 < 阈值 →
+//   该信号不计入 intent 分子（分母仍计，不标 degraded——「已知但不信」≠「无数据」）。
+//   缺 confidence / 非数值 → 不参与判定（向后兼容旧信号形状）。
+describe('R-1 · min_confidence 置信闸', () => {
+  const R = { ...RULES, icp: { ...RULES.icp, min_confidence: 0.6 } };
+
+  it('① 命中但置信 0.5(<0.6) → 不计入分子，分母仍计，不标 degraded', () => {
+    const r = computeIntentScore(
+      [{ type: 'funding_round', confidence: 0.5, ts: '2026-09-15T00:00:00Z' }],
+      R, Date.parse('2026-09-16T00:00:00Z'),
+    );
+    expect(r.value).toBe(0);                          // 0.9 被置信闸拦下
+    const b = r.breakdown.find((x) => x.key === 'funding_round');
+    expect(b.hit).toBe(false);
+    expect(b.low_confidence).toBe(true);
+    expect(b.confidence).toBe(0.5);
+    expect(r.denominator).toBeCloseTo(4.2, 4);        // 分母仍计
+    expect(r.degraded).toBe(false);                   // 已知但不信 ≠ 无数据
+  });
+
+  it('② 置信 0.8(≥0.6) → 正常计入', () => {
+    const r = computeIntentScore(
+      [{ type: 'funding_round', confidence: 0.8, ts: '2026-09-15T00:00:00Z' }],
+      R, Date.parse('2026-09-16T00:00:00Z'),
+    );
+    expect(r.value).toBeCloseTo(0.9 / 4.2, 4);
+  });
+
+  it('③ 缺 confidence（旧形状）→ 不参与判定，照常计分', () => {
+    const r = computeIntentScore(
+      [{ type: 'funding_round', ts: '2026-09-15T00:00:00Z' }],
+      R, Date.parse('2026-09-16T00:00:00Z'),
+    );
+    expect(r.value).toBeCloseTo(0.9 / 4.2, 4);
+    expect(r.breakdown.find((x) => x.key === 'funding_round').hit).toBe(true);
+  });
+
+  it('④ rules 未定义 min_confidence → 置信闸不生效（向后兼容）', () => {
+    const r = computeIntentScore(
+      [{ type: 'funding_round', confidence: 0.5, ts: '2026-09-15T00:00:00Z' }],
+      RULES, Date.parse('2026-09-16T00:00:00Z'), // RULES.icp 无 min_confidence
+    );
+    expect(r.value).toBeCloseTo(0.9 / 4.2, 4);        // 未拦截
+  });
+});

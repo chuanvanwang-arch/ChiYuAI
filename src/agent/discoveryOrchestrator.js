@@ -91,7 +91,14 @@ export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
   //   判据（可复跑）：旧实现下 grep -n "0.5, 0.5" src/agent/discoveryOrchestrator.js 非 0。
   //   评分器与 monitorCtx.rescore **共用 scoreLeadFit** ⇒ 两条路径同源，不会出现"发现时 0.3、重评时 0.8"的分裂。
   //   铁律：不假填充 —— 零信号则 intent=0、缺 ICP 字段则 icp_fit=0 且 degraded，绝不返 0.5 冒充"中等意向"。
-  const signals = Object.entries(values).map(([field, v]) => ({ type: field, provider: v?.provider, ts: v?.ts }));
+  //   R-1（2026-09-17）：信号构造补 confidence 透传（providerAdapter.fieldHit 默认 0.5，
+  //   waterfall.js:19 已透传至此；此前丢弃 → leadFitScorer 的 min_confidence 置信闸恒不触发）。
+  // R-5（2026-09-17）：无富化 provider 时 icp_fit=0 + degraded 是**正确结果**，不是缺陷。
+  //   - 适配器只覆盖 seed 自带字段（名称/行业等），富化字段（规模/地域）本就缺失 → 分子不命中是数据实况；
+  //   - 判断「0 分」的解读权在 score_degraded 与 score_breakdown（下方 L102-103 随 payload 落库）——
+  //     degraded=true 表示「缺数据而非零意向」，UI/下游据此区分，而不是把 0 当成「必然无意向」；
+  //   - 铁律承上：缺 ICP 字段时**绝不**返 0.5 冒充中等意向（那是旧占位实现的行为；判据：grep "0.5, 0.5" 本文件应为空）。
+  const signals = Object.entries(values).map(([field, v]) => ({ type: field, provider: v?.provider, ts: v?.ts, confidence: v?.confidence ?? null }));
   const scored = scoreLeadFit({ account: { payload: { ...seed, enrichment } }, signals, rules });
   const discovery = buildDiscoveryPayload(scored.icp_fit, scored.intent, signals, decisionId || 'pending', {
     ruleRef: scored.ruleRefs,

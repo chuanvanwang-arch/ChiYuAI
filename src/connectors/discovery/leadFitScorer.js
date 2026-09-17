@@ -22,6 +22,16 @@
 //   ② 权重/阈值 100% 来自 rules（config_store['discovery-rules']），禁硬编码
 //   ③ 无证据不假填充：缺字段 → 该项计 0 + degraded 标记，绝不编造分值
 //   ④ 不做时间衰减默认值兜底推理：无 ts / 空档 → 1.0（与 signalFreshness 向后兼容语义一致）
+//
+// ⚠ 边界③（R-1 语义定义，2026-09-17 拍板）：rules.icp.min_confidence
+//   = 「信号置信度下限」。语义：信号对象携带 confidence（适配器经 fieldHit 输出，
+//   providerAdapter.js:21 默认 0.5）且 confidence < min_confidence → 该信号
+//   **可信度不足，不计入 intent 分子**（分母仍计入，与「未命中按 0 计但分母计入」同语义，
+//   不标 degraded——「已知但不信」≠「无数据」）。confidence 缺失/非数值 → 不参与该判定
+//   （向后兼容：旧信号形状无 confidence 字段仍照常计分）。
+//   源证据：discoveryRules.js:15 配置 `min_confidence: 0.6`；providerAdapter.js:21
+//   fieldHit 默认 confidence=0.5；waterfall.js:19 透传 confidence；discoveryOrchestrator.js:92
+//   信号构造此前**丢弃** confidence → LF-2 已补透传（见该文件 ⑦ 段）。
 import { freshnessMultiplier, ageDaysOf } from '../../config/signalFreshness.js';
 
 // 设计 §5 的 rule_ref 契约（禁改字符串：glass-box 与 UI 依赖它定位"为何此刻判定为目标客户"）
@@ -65,15 +75,28 @@ export function computeIntentScore(signals = [], rules = {}, now = Date.now()) {
   }
 
   let num = 0; let den = 0; const breakdown = [];
+  // R-1（2026-09-17）：rules.icp.min_confidence = 信号置信度下限。
+  //   信号带 confidence 且显式 < 阈值 → 可信度不足，不计入分子（分母仍计，不标 degraded）。
+  //   confidence 缺失/非数值 → 不参与判定（向后兼容旧信号形状）。
+  const minConf = Number((rules && rules.icp && rules.icp.min_confidence));
+  const confGate = Number.isFinite(minConf) ? minConf : null;
   for (const [key, cfg] of Object.entries(weights)) {
     const weight = weightOf(cfg);
     if (weight === null) continue;              // 非数值权重：跳过（不计入分母，避免污染归一）
     den += weight;
-    if (!hit.has(key)) {
+    const sig = hit.get(key);
+    if (!sig) {
       breakdown.push({ key, weight, hit: false, mult: 0, contribution: 0 });
       continue;
     }
-    const mult = tiers.length ? freshnessMultiplier(ageDaysOf(tsOf(hit.get(key), key, rules), now), tiers) : 1.0;
+    // 置信闸：仅当信号显式携带数值 confidence 且低于阈值时拦截（未知置信不受影响）
+    const conf = typeof sig.confidence === 'number' ? sig.confidence : null;
+    const lowConf = confGate !== null && conf !== null && conf < confGate;
+    if (lowConf) {
+      breakdown.push({ key, weight, hit: false, low_confidence: true, confidence: conf, mult: 0, contribution: 0 });
+      continue;
+    }
+    const mult = tiers.length ? freshnessMultiplier(ageDaysOf(tsOf(sig, key, rules), now), tiers) : 1.0;
     const contribution = weight * mult;
     num += contribution;
     breakdown.push({ key, weight, hit: true, mult, contribution });
