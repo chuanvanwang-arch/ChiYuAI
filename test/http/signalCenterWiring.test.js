@@ -117,11 +117,15 @@ describe('/api/signals 端点接线', () => {
     expect(ackBlock).not.toMatch(/setStatus\(applyTenantOverride/);
   });
 
-  it('三个端点均要求登录（401 守卫覆盖读+写）', () => {
+  it('各端点均要求登录（401 守卫覆盖读+写）', () => {
     const guards = (block.match(/status\(401\)/g) || []).length;
     expect(guards).toBeGreaterThanOrEqual(1); // requireMe 统一实现
     expect(block).toMatch(/const requireMe = \(req, res\)/);
+    // 自洽断言（2026-09-17）：原写死 3 —— 新增 GET /api/signals/delivery-status 后变 4 即假红。
+    // 改为「块内注册的每个 /api/signals* 端点都必须走统一 requireMe 守卫」，与端点数量解耦。
+    const endpoints = (block.match(/app\.(get|post|put|patch)\('\/api\/signals/g) || []).length;
     const requireMeUses = (block.match(/requireMe\(req, res\)/g) || []).length;
-    expect(requireMeUses).toBe(3);
+    expect(endpoints).toBeGreaterThanOrEqual(4);
+    expect(requireMeUses, '每个 /api/signals* 端点都应调用 requireMe').toBe(endpoints);
   });
 });
