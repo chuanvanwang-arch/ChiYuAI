@@ -141,5 +141,21 @@ INSERT INTO crm.decision_scenario
  '{"action":["preheat-mark"],"connector":"preheat"}'::jsonb,
  ARRAY['BANT'],
  '[{"cond":"hitl_confirm","label":"人工确认（HITL）","weight":1.0}]'::jsonb,
- 'LEAD', TRUE)
+ 'LEAD', TRUE),
+-- integration-sync（2026-09-16 全链集成 S2 回写/同步第 0 闸；用户裁决「写幂等播种进生产」）：
+--   外部系统增量同步（kind=generic-rest 等）的 L2/L3 写路径经 timers 定时器⑩ mintDecision 铸决策；
+--   requireDecision 强校验场景存在（autonomyEngine.js:124，未知场景直接 throw）→ 缺此行则 mint 抛错、
+--   被 `.catch(() => null)` 压成 decisionId=null、内核侧再以 `throw decision_required` **结构性 fail-closed**
+--   （外层两处 catch 静默 → 现象与"根本没配置集成"不可区分，F5 族假绿）。
+--   形状**与 PARTICLE_CREATE 逐字对齐**（stage=meta / tier=NORMAL / autonomous_allowed=TRUE / 同一组 4 个
+--   eval_dimensions）：同步写是"系统间搬运已存在的业务事实"，硬人工闸由 L3 回写白名单 + 第 3 闸 HITL 承担，
+--   自治与否交 autonomyEngine 按置信度/先例判定（禁硬编码，走配置）。
+--   ⚠ 本行须与 scripts/seed-integration-sim.mjs `seedScene()`（克隆 PARTICLE_CREATE）**取值一致**——
+--     两处不一致会让"本库取证通过 / 生产行为不同"（库间漂移使取证不可比）。
+--   ⚠ 播种 ≠ 接通：本行只让 mint 有落点；实际启用某租户 L2 仍须人工写 integration-providers + sync-trust。
+('integration-sync', 'meta', '外部系统增量同步（L2/L3 写路径第 0 闸；形状与 PARTICLE_CREATE 对齐）',
+ '{"timer":["integration-poll"]}'::jsonb,
+ ARRAY[]::TEXT[],
+ '[{"cond":"data_origin","label":"数据来源与字段合法","weight":0.34},{"cond":"identity_dedup","label":"主体查重（不重复建档）","weight":0.33},{"cond":"ownership","label":"归属完整（named_owner 必填）","weight":0.33},{"cond":"governance_approval","label":"人工确认","weight":0.15}]'::jsonb,
+ 'NORMAL', TRUE)
 ON CONFLICT (scenario_id, tenant_id) DO NOTHING;
