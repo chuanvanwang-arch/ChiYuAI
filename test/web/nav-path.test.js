@@ -32,7 +32,11 @@ test('no html page references legacy /portal/nav.js topbar', () => {
 // 登录页/演示原型是独立全屏页，故意不接全局壳（避免双顶栏/双侧栏冲突）。
 // 2026-09-06 新增对外公开页：landing.html（官网落地页，未登录可访问）、buddy-crm-portal.html（对外门户原型）——
 //   这类页面接 app shell 会在未登录态弹登录/侧栏，与「公开可访问」定位冲突，故纳入排除。
-const EXCLUDED = new Set(['home.html', 'portal-stage3-mockup.html', 'landing.html', 'buddy-crm-portal.html']);
+// 2026-09-17 新增 onboarding-guide.html（首次接入向导，需求②）：**刻意全屏 3 步向导**，不接全局壳——
+//   用户诉求原话是「系统会自动有个向导…而不是需要人来进入配置页」，向导一旦嵌进侧边栏壳就回到
+//   「让人自己去翻菜单」的老路。属与登录页同类的「独立全屏页故意不接壳」，故纳入排除。
+//   （入口可达性由另一条链保证：首页引导条 + channel-config.html 顶部按钮 + layoutMenu「外部沟通接入」。）
+const EXCLUDED = new Set(['home.html', 'portal-stage3-mockup.html', 'landing.html', 'buddy-crm-portal.html', 'onboarding-guide.html']);
 test('all non-excluded pages switched to layout.js shell', () => {
   const missing = [];
   for (const f of htmls) {
