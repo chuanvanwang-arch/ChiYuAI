@@ -65,7 +65,7 @@ export function injectLayout() {
   shell.className = 'app-shell';
   shell.innerHTML = `
     <header class="topbar">
-      <a class="brand" href="/">⚡ AI原生销售管理·青羽ChiYu</a>
+      <a class="brand" href="/">⚡ 企业AI销售决策平台·ChiYu青羽</a>
       <div class="cmdbar"><span class="kbd">⌘K</span><input id="cmdInput" placeholder="输入指令，如：给 30 天未跟进的商机生成唤醒邮件"></div>
       <div class="topbar-right">
         <div class="avatar" id="avatar" tabindex="0">

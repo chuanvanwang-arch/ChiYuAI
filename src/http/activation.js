@@ -25,7 +25,7 @@ function mask(target = '') {
 
 // 送达：真实邮件（SMTP 配置即发）/ 短信（需网关）/ 开发回显兜底
 async function sendActivation({ channel, target, code, username }) {
-  const subject = 'AI原生销售管理平台 · 账号激活码';
+  const subject = '企业AI销售决策平台 · 账号激活码';
   const text = `您的账号激活码是 ${code}（15 分钟内有效）。如非本人操作请忽略。`;
 
   // 真实邮件：配置了 SMTP 凭据（SMTP_USER+SMTP_PASS）即真发；缺省指向 Brevo（smtp-relay.brevo.com:587 STARTTLS）

@@ -61,7 +61,7 @@ export function buildIcs(signal = {}, { durationMinutes = 30, now = new Date() }
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//CRM AI Native//Signal//CN',
+    'PRODID:-//ChiYu Enterprise AI Sales//Signal//CN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

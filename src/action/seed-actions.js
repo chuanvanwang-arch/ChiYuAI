@@ -2243,7 +2243,7 @@ export function seedActions() {
 
   // ── 信号读 Action（2026-09-17 前台可见性审计 P1-4）──
   // 「MCP 工具面由 Action Registry 生成」（src/mcp/tools.js buildMcpTools）——registry 里此前**零 signal action**
-  //   ⇒ 两个专家包（crm-native / crm-platform-admin）经 crm-native-mcp 连上后，工具清单里根本没有信号能力；
+  //   ⇒ 两个专家包（crm-native / sales-decision-admin）经 crm-native-mcp 连上后，工具清单里根本没有信号能力；
   //   「更新插件」自然无用（暴露面源头未开）。此二 Action 是暴露的前提。
   // 口径：
   //   · kind='read' → 走读直连（executor 不触写闸/第0闸）；

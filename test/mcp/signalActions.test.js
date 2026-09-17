@@ -1,7 +1,7 @@
 // test/mcp/signalActions.test.js — 信号读 Action 的注册与 MCP 暴露（P1-4）
 //
 // 背景（2026-09-17 前台可见性审计）：MCP 工具面由 Action Registry 生成（src/mcp/tools.js buildMcpTools），
-//   而 registry 里此前**零 signal action** ⇒ 两个专家包（crm-native / crm-platform-admin）经
+//   而 registry 里此前**零 signal action** ⇒ 两个专家包（crm-native / sales-decision-admin）经
 //   crm-native-mcp 连上后，工具清单里根本没有信号能力 —— 「更新插件」自然无用（暴露面源头未开）。
 // 本测试锁住：① 两 Action 注册（kind=read）；② buildMcpTools 工具面确实含二者（**唯一咽喉**）；
 //   ③ 身份 fail-closed（无 actor 拒绝，不收窄=泄漏）；④ 缺参明确失败（不静默）。
