@@ -318,6 +318,18 @@ async function main() {
   } catch (e) {
     console.log('[migrate] 日期规则补充跳过：', String(e.message || e).slice(0, 120));
   }
+  // ─── 日期规则补充 2（2026-09-17）：visit-remind（拜访，前瞻型）───
+  //   同「键内数组按 rule.id 追加」范式（原因同上：键已存在 → 整键播种对存量租户失效）。
+  //   缺口：需求③点名「拜访」，而既有 4 条规则无一承载 → 拜访提醒在配置面零命中。
+  //   ⚠ 播种 ≠ 有产出：命中还要求粒子 payload 真有 visit_at；无该字段时零命中是正确行为。
+  try {
+    const visitSql = readFileSync(new URL('./migration-signal-schedule-visit-rule.sql', import.meta.url), 'utf8');
+    const vres = await pool.query(visitSql);
+    const vtouched = Array.isArray(vres) ? vres.reduce((a, x) => a + (x?.rowCount || 0), 0) : (vres?.rowCount ?? 0);
+    console.log(`[migrate] 日期规则补充已确保（visit_remind，本次更新 ${vtouched} 行）`);
+  } catch (e) {
+    console.log('[migrate] 拜访日期规则补充跳过：', String(e.message || e).slice(0, 120));
+  }
   // ─── 内部客户异动派生配置（2026-09-16）：internal-signal-derivation 平台模板 ───
   // 新键 → 整键播种（WHERE NOT EXISTS）。消费方 src/signal/activityDerivation.js。
   // 缺此键：派生器 loadConfig 返 null → fail-closed 零产出（不会静默产假信号，但也无信号）。
@@ -471,7 +483,7 @@ async function main() {
   await pool.query(
     `INSERT INTO crm.config_store (key, value)
      SELECT v.key, v.value FROM (VALUES
-       ('system', '{"site_name":"CRM AI Native","default_theme":"light","session_timeout":120,"security_policy":{"password_min_len":8,"mfa_required":false,"allow_external_login":false}}'::jsonb),
+       ('system', '{"site_name":"ChiYu 企业AI销售决策平台","default_theme":"light","session_timeout":120,"security_policy":{"password_min_len":8,"mfa_required":false,"allow_external_login":false}}'::jsonb),
        ('event-retro', '{"enabled":true,"min_tier":"HIGH","cooldown_hours":24,"auto_pump":true}'::jsonb),
        ('agent-event-trigger', '{"enabled":true,"cooldown_ms":300000,"matrix":[{"domain":"ontology","type":"ontology-sync","entity_type":"CRM_DEAL","intent":"stage-progression","agent":"quote-engine","skill_slug":"method-stage-progression","dedup_field":"payload.stage"},{"domain":"ontology","type":"ontology-sync","entity_type":"CRM_ACCOUNT","intent":"funnel-classification","agent":"followup-agent","skill_slug":"method-funnel-classification","dedup_field":"payload.tier"},{"domain":"ontology","type":"ontology-sync","entity_type":"CRM_KNOWLEDGE","intent":"decision-enrich","agent":"decision-agent","skill_slug":"method-decision-enrich","dedup_field":null}]}'::jsonb),
        ('routing-explore', '{"window_days":14,"max_running":2,"blacklist":["QUOTE_PRICING","SIGN_RISK"],"min_arm_sample":20}'::jsonb)

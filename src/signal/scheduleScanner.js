@@ -63,6 +63,27 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
 
+  // 日历载体日期（2026-09-17 补）：把**前瞻型**规则命中的那个日期写进信号 payload.event_at，
+  //   使 `delivery/email.js` 能挂 .ics 附件、`/api/signals/:id/ics` 能下载 —— 这是需求③
+  //   「到点自动运行……**同时建立日历**（汇报/投标/拜访）」的唯一可达路径。
+  //   ⚠ 实测缺口（2026-09-17，本地 crm_native）：全库 `payload ? 'event_at'` 的信号 = **0** 行，
+  //     即 buildIcs 恒返回 null ⇒「建立日历」在此之前**结构性不可达**（不是"没配日历服务"，是没有日期）。
+  //
+  //   为什么**只**对 due_within_days 写：
+  //     ① age 型（stage_silence / quote_approval_timeout）谈的是「已经过了多久」，其时间戳在**过去**；
+  //        写进 event_at 会让 buildIcs 产出**过去的幽灵日程**，违反 ics.js 铁律②「缺日期不造日程」的精神
+  //        （用户日历里出现一个早已发生的"会议"比没有更坏）。
+  //     ② 周期型（report_due）本就不绑日期。
+  //   与 hitsRule 同源判据：ts_field 必须由规则显式声明；非 ISO 文本（如 payload.bidding.started_at
+  //   的自由文本 `"2026-11-04 前后"`）→ new Date() 得 NaN → 不写（错误日期比没有日期更坏）。
+  function calendarDate(rule, entity) {
+    if (rule?.condition?.op !== 'due_within_days') return null; // 仅前瞻型
+    if (!rule.ts_field) return null;                            // 与 hitsRule 同：禁回退 updated_at
+    const ts = entity?.payload?.[rule.ts_field];
+    if (!ts) return null;
+    return Number.isNaN(new Date(ts).getTime()) ? null : ts;
+  }
+
   async function scanOnce({ tenantId = 'system', now = Date.now() } = {}) {
     const cfgRow = await readConfig('signal-schedule', { tenantId }).catch(() => null);
     const cfg = cfgRow?.value || {};
@@ -85,6 +106,10 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
       for (const rule of particleRules) {
         if (entity.payload?.type && entity.payload.type !== rule.entity_type) continue;
         if (!hitsRule(rule, entity, now)) continue;
+        // 前瞻型把被判定日期带进 payload.event_at（= .ics 日历载体；见 calendarDate 头注）。
+        //   缺日期时**不加该键**（而非 event_at:null）——保持「无该键」与「有该键」在 DB 上可区分，
+        //   便于用 `payload ? 'event_at'` 直接审计日历覆盖率。
+        const eventAt = calendarDate(rule, entity);
         const r = await signalStore.create({
           tenant_id: tenantId, source: 'rule-scan', kind: rule.kind,
           severity: rule.severity || 'medium', target_role: rule.target_role || 'sales',
@@ -93,7 +118,10 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
           //   无主的（如公海/未分配）落 NULL → 按 target_role 广播，符合语义。
           owner_id: entity.payload?.owner_id || null,
           particle_id: entity.id,
-          payload: { subject: `${rule.kind} 命中`, rule_id: rule.id },
+          payload: {
+            subject: `${rule.kind} 命中`, rule_id: rule.id,
+            ...(eventAt ? { event_at: eventAt } : {}),
+          },
           evidence: { rule_id: rule.id, threshold_days: rule.threshold_days },
           dedup_key: `schedule:${rule.id}:${entity.id}:${rule.bucket || 'day'}`,
         });
@@ -122,5 +150,5 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
     }
     return { scanned: rows.length, signals, deduped, missing };
   }
-  return { scanOnce, hitsRule, hitsPeriodic, bucketKey };
+  return { scanOnce, hitsRule, hitsPeriodic, bucketKey, calendarDate };
 }

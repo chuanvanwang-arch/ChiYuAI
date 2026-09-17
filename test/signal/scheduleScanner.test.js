@@ -171,3 +171,64 @@ describe('scanOnce：periodic 规则（不读 particles）', () => {
     expect(sc2.bucketKey(FRI, 'month')).toBe('2026-09');
   });
 });
+
+// ── 日历载体（2026-09-17 补）：前瞻型命中的日期写入 payload.event_at ──
+// 缺口实证（本地 crm_native）：全库 `payload ? 'event_at'` 的 crm.signal = **0** 行
+//   ⇒ buildIcs() 恒返回 null ⇒ 需求③「到点自动运行……**同时建立日历**」在此之前结构性不可达。
+//   根因不在日历模块（ics.js 正确实现了「缺日期不造日程」铁律②），而在**没有任何生产者写该键**。
+// 边界（必须锁死，否则会从「没有日历」变成「有假日历」）：
+//   · 只有 due_within_days（前瞻型）才写 —— age 型（静默/超时）的时间戳在**过去**，
+//     写进去会生成过去的幽灵日程；周期型本就不绑日期。
+//   · ts_field 必须显式声明；非 ISO 自由文本（`"2026-11-04 前后"`）不得写入。
+describe('日历载体：前瞻型命中 → payload.event_at（.ics 可达）', () => {
+  const NOW = Date.parse('2026-11-01T00:00:00Z');
+  const DUE = {
+    id: 'tender-deadline', kind: 'tender_deadline', entity_type: 'CRM_DEAL',
+    condition: { op: 'due_within_days', threshold_days: 7 },
+    ts_field: 'tender_deadline', severity: 'high', target_role: 'sales', enabled: true, bucket: 'day',
+  };
+
+  it('命中 → payload.event_at 等于被判定日期，且 buildIcs 能产出 VEVENT（端到端可生成日历）', async () => {
+    const { buildIcs } = await import('../../src/signal/ics.js');
+    const deal = { id: 'd-tender', tenant_id: 't1', payload: {
+      tender_deadline: '2026-11-04T02:00:00Z', owner_id: 'alice' } };
+    const c = makeCtx({ rows: [deal], readConfigValue: { enabled: true, rules: [DUE] } });
+    const sc2 = createScheduleScanner({ query: c.q, signalStore: c.signalStore, readConfig: c.readConfig });
+    const r = await sc2.scanOnce({ tenantId: 't1', now: NOW });
+    expect(r.signals).toBe(1);
+    const sig = c.signalStore.created[0];
+    expect(sig.payload.event_at).toBe('2026-11-04T02:00:00Z');
+    // 关键：载体真能被 ics 渲染（同一 payload 走生产构建器）——这才是「建日历」成立的证据
+    const ics = buildIcs({ signal_id: 'sig-1', kind: sig.kind, payload: sig.payload });
+    expect(ics).toContain('BEGIN:VEVENT');
+    expect(ics).toContain('DTSTART:20261104T020000Z');
+  });
+
+  it('age 型（静默/超时）命中 → **不写** event_at（防过去的幽灵日程）', async () => {
+    const deal = { id: 'd-quiet', tenant_id: 't1', payload: {
+      quote_status: 'pending_approval', approval_requested_at: new Date(NOW - 9 * 86400000).toISOString() } };
+    const c = makeCtx({ rows: [deal], readConfigValue: { enabled: true, rules: [RULE] } });
+    const sc2 = createScheduleScanner({ query: c.q, signalStore: c.signalStore, readConfig: c.readConfig });
+    const r = await sc2.scanOnce({ tenantId: 't1', now: NOW });
+    expect(r.signals).toBe(1);
+    expect(c.signalStore.created[0].payload).not.toHaveProperty('event_at');
+  });
+
+  it('前瞻型但日期是非 ISO 自由文本（payload.bidding.started_at 实况）→ 不写 event_at', async () => {
+    const deal = { id: 'd-free', tenant_id: 't1', payload: { tender_deadline: '2026-11-04 前后' } };
+    const c = makeCtx({ rows: [deal], readConfigValue: { enabled: true, rules: [{ ...DUE, ts_field: 'started_at' }] } });
+    const sc2 = createScheduleScanner({ query: c.q, signalStore: c.signalStore, readConfig: c.readConfig });
+    await sc2.scanOnce({ tenantId: 't1', now: NOW });
+    // 非 ISO → hitsRule 的 NaN 分支已判不命中，故压根不产信号；即便产出也必须不带 event_at
+    for (const s of c.signalStore.created) expect(s.payload).not.toHaveProperty('event_at');
+  });
+
+  it('纯函数 calendarDate 三态：前瞻型取日期 / age 型返 null / 无 ts_field 返 null', () => {
+    const sc3 = createScheduleScanner({ query: async () => ({ rows: [] }), signalStore: { create: async () => ({ ok: true }) }, readConfig: async () => ({ value: {} }) });
+    expect(sc3.calendarDate(DUE, { payload: { tender_deadline: '2026-11-04T00:00:00Z' } })).toBe('2026-11-04T00:00:00Z');
+    expect(sc3.calendarDate(RULE, { payload: { approval_requested_at: '2026-10-01T00:00:00Z' } })).toBeNull();
+    expect(sc3.calendarDate({ ...DUE, ts_field: undefined }, { payload: { tender_deadline: '2026-11-04T00:00:00Z' } })).toBeNull();
+    expect(sc3.calendarDate(DUE, { payload: {} })).toBeNull();
+    expect(sc3.calendarDate(DUE, { payload: { tender_deadline: '不是日期' } })).toBeNull();
+  });
+});

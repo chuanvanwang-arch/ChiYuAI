@@ -1,0 +1,14 @@
+[
+  {
+    "at": "2026-09-17T12:32:55.827Z",
+    "path": "/im-bridge",
+    "signal_id": "3ca27b71-d74f-4160-ab39-b19543810db0",
+    "kind": "tender_deadline",
+    "severity": "high",
+    "payload": {
+      "rule_id": "tender-deadline",
+      "subject": "tender_deadline 命中",
+      "event_at": "2026-09-22T12:32:42.712Z"
+    }
+  }
+]
