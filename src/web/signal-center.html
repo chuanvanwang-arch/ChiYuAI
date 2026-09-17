@@ -268,10 +268,23 @@ async function loadMetrics() {
   $('m-exec').textContent = String(m.execution_volume ?? 0);
 
   const neg = Array.isArray(d.negative_predicates) ? d.negative_predicates : [];
+  // ⚠ 判据文案必须与判据语义**一对一**（2026-09-17 修实体缺陷）。
+  //   原实现只有 delivery_silent 一个分支，其余一律套用「外部事件命中 N 次，系统却一条提醒都没生成」
+  //   —— 于是 signalMetrics 的 `delivery_undelivered`（渠道尝试过但 0 送达，字段是 attempted/top_error）
+  //   被误述为「零提醒生成」（字段是 fired）⇒ 运维看到的是**错误的故障归因**，
+  //   且 `a.fired` 为 undefined 时还会渲染出字面量 "undefined"。
+  //   实测（demo-datadriven，2026-09-17）：API 返回 2 条 delivery_undelivered
+  //   （im attempted=3、email attempted=4，top_error 均为 retry_exhausted），页面却无法描述它们。
+  //   未知类型**必须原样暴露**，不得借用其它判据的文案——套用文案正是本缺陷的成因。
+  const NEG_TEXT = {
+    delivery_silent: (a) => `提醒没送出去：渠道「${esc(a.channel)}」已开启，但窗口内一条都没发出去`,
+    delivery_undelivered: (a) => `渠道「${esc(a.channel)}」尝试 ${esc(a.attempted)} 次、送达 0 次`
+      + `${a.top_error ? `（最近失败：${esc(a.top_error)}${a.top_error_count ? ` ×${esc(a.top_error_count)}` : ''}）` : ''}`,
+    gen_silent: (a) => `外部事件命中 ${esc(a.fired)} 次，系统却一条提醒都没生成`,
+  };
   $('neg-alerts').innerHTML = neg.length ? neg.map((a) => {
-    const label = a.type === 'delivery_silent'
-      ? `提醒没送出去：渠道「${esc(a.channel)}」已开启，但窗口内一条都没发出去`
-      : `外部事件命中 ${esc(a.fired)} 次，系统却一条提醒都没生成`;
+    const fn = NEG_TEXT[a.type];
+    const label = fn ? fn(a) : `未知负向判据「${esc(a.type)}」：${esc(JSON.stringify(a))}`;
     return `<div class="sc-alert">${label}</div>`;
   }).join('') : '<p class="sc-ok">暂无</p>';
 

@@ -117,3 +117,40 @@ describe('signal-center 日历入口（ICS 下载）', () => {
     expect(page).toMatch(/closest\('\[data-ics\]'\)/);
   });
 });
+
+// ── 负向判据文案必须与判据语义一对一（2026-09-17 修实体缺陷）────────────────────
+// 缺陷：原实现只有 delivery_silent 一个分支，其余类型一律套用
+//   「外部事件命中 N 次，系统却一条提醒都没生成」（读的是 a.fired）。
+//   而 signalMetrics 的 `delivery_undelivered` 字段是 attempted/top_error —— 被误述为"零提醒生成"
+//   ⇒ 运维拿到的是**错误的故障归因**（该报"渠道尝试过但一次都没送达"，却报"外部事件没生成提醒"）。
+//   实测证据（demo-datadriven，2026-09-17）：/api/monitor/signal-link 返回
+//   [{type:'delivery_undelivered',channel:'im',attempted:3,top_error:'retry_exhausted'},
+//    {type:'delivery_undelivered',channel:'email',attempted:4,top_error:'retry_exhausted'}]
+//   而页面没有任何分支能描述它们（且 a.fired 为 undefined 时会渲染出字面量 "undefined"）。
+//
+// 守卫口径（关键）：**扫描范围必须覆盖全部产生点** —— 从产生方 signalMetrics.js 抽取 type 字面量，
+//   断言页面为每个类型都有一条文案分支。只断言页面自身（如"含 delivery_silent"）会漏掉新类型。
+describe('负向判据文案覆盖（扫描产生方，不扫页面自身）', () => {
+  const producer = fs.readFileSync('src/monitor/signalMetrics.js', 'utf8');
+  const types = [...new Set([...producer.matchAll(/type:\s*'([a-z_]+)'/g)].map((m) => m[1]))];
+
+  it('产生方至少登记了 delivery_silent / delivery_undelivered / gen_silent', () => {
+    for (const t of ['delivery_silent', 'delivery_undelivered', 'gen_silent']) {
+      expect(types, `signalMetrics 未产出 ${t}（若已删类型，请同步本条与页面文案表）`).toContain(t);
+    }
+  });
+
+  it('页面为**每一个**产生方类型都提供文案分支（不得回落到通用话术）', () => {
+    expect(types.length).toBeGreaterThan(0);
+    for (const t of types) {
+      // 以 `t: (a) =>` 形态判定：在该类型名下确实有一条专属文案函数
+      expect(html, `页面缺负向判据「${t}」的专属文案 → 会套用其它判据的文案（错误归因）`)
+        .toMatch(new RegExp(`${t}\\s*:\\s*\\(`));
+    }
+  });
+
+  it('未知类型的兜底必须**原样暴露**类型名，不得借用其它判据文案', () => {
+    expect(html).toContain('未知负向判据');
+    expect(html).toMatch(/JSON\.stringify\(a\)/);
+  });
+});
