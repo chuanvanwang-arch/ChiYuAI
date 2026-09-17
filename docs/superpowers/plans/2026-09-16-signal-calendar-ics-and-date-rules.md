@@ -323,7 +323,19 @@ git commit -m "feat(signal): email 渠道开关配置变更脚本（走 writeCon
 - Modify: `src/signal/route.js`
 - Test: `test/signal/route.test.js`
 
-- [ ] **Step 1: 加失败测试（先证伪现状）**
+- [x] **Step 1: 加失败测试（先证伪现状）** ✅ 2026-09-17 实测：先跑全红（3 条失败精确命中两处根因）再转绿。
+
+> **执行期修正（2026-09-17）——计划原文两处自身缺陷，已就地修正：**
+> 1. 计划原文未发现 `route.test.js:126-133` 既有用例「限速命中 → inbox 也 skip」**固化的正是错误行为**，
+>    改实现后它必转红。处理：**更新该用例期望**为「仅出站渠道 skip」，而非保留旧期望 + 新增（否则语义自相矛盾）。
+>    旧期望 `[{channel:'inbox', recipient:null, skip:true, reason:'rate_limited'}]` → 新期望
+>    `[{channel:'inbox', recipient:null, skip:false, reason:null}]`。
+> 2. 计划 Step 1 测试① **自相矛盾**：最终 SQL 用 `channel <> ALL($3::text[])`，而计划断言正则
+>    `/channel\s*(=|<>|!=)\s*ANY|channel\s+NOT\s+IN|channel\s*=\s*$/` 只支持 `= ANY`/`NOT IN`/`= $`，
+>    **不匹配 `<> ALL`** ⇒ 修复后必假红；且 query stub 返 `{ c: 999 }`（已超限）却断言 `false` ——
+>    改造后超限返 `true`，断言方向相反。修正：正则改为 `/channel\s*(=|<>|!=)\s*(ANY|ALL)|channel\s+NOT\s+IN|channel\s*=\s*$/i`
+>    （覆盖 `<> ALL`），stub 返 `{ c: 0 }`（出站未超限）断 `false`。鉴别力核心在 SQL 正则（变异验证命中）。
+> 3. 另加一条「静默时段仍全局生效」回归（静默 ≠ 配额，保障 Task 2b 不误伤既有语义）。
 
 在 `test/signal/route.test.js` 增加两条：
 ```js
@@ -351,7 +363,7 @@ it('rate_limited 不拦 inbox', async () => {
 });
 ```
 
-- [ ] **Step 2: 改造实现**
+- [x] **Step 2: 改造实现** ✅ 2026-09-17 按根因两处完成：`overRateLimit` 计数收窄（`channel <> ALL($3::text[])` 排除站内渠道）+ `resolve` 把 `rate_limited` 从 `globalSkip` 拆出（`outboundSkip` 仅约束出站渠道；站内渠道只受静默时段约束）。
 
 `overRateLimit` 计数口径收窄到**出站渠道**（排除 `IN_PLATFORM_CHANNELS`）：
 ```sql
@@ -375,24 +387,31 @@ const decisions = channels.map((channel) => {
 ```
 > 保留「静默时段仍全局生效」的既有语义（那是运营显式意图，与配额性质不同）。
 
-- [ ] **Step 3: 验证**
+- [x] **Step 3: 验证** ✅ 2026-09-17 实测：`test/signal/route.test.js` 19/19 全绿（含新 3 条由红转绿）；全量回归 42 文件 251 用例中 **4 红均为 F-6 系列守卫**（`signalMetrics.test.js` ×2 + `dispatcher.test.js` ×2），为**并行会话中间态遗留**（`src/monitor/signalMetrics.js`/`src/signal/dispatcher.js` 工作区 `M` 未提交、实现未跟上 F-6 守卫期望），与本任务**正交**、非本次改动引入（两个失败测试文件均不 import `route.js`）。
 
 ```bash
 npx vitest run test/signal/ test/monitor/ test/sync/ test/scheduler/timers.test.js 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "FAIL |Tests |Test Files"
 ```
 Expected: 新加 2 条由红转绿，其余**全绿**（尤其 `exportGate` 依赖的 `no_silent_channel` 不得回归）。
 
-- [ ] **Step 4: 变异校验（证明断言有鉴别力）**
+- [x] **Step 4: 变异校验（证明断言有鉴别力）** ✅ 2026-09-17 实测两轮：
+  1. 变异 A：去掉 `channel <> ALL(...)` → **1 红**（SQL 渠道收窄断言命中）；还原 → 绿。
+  2. 变异 B：仅把 `inbox` 分支改回受 `outboundSkip` 约束（不做多余破坏）→ **恰好 2 红**（「限速不拦 inbox」两条断言命中）；还原 → 绿。
+  ⇒ 断言对两处根因均有鉴别力，不是装饰性断言。
 
-临时把 `channel <> ALL(...)` 去掉 → Step 1 的第 ① 条必须转红；还原 → 转绿。把 `inbox` 分支改回受 `outboundSkip` 约束
-→ 第 ② 条必须转红。两步都要**实测**，不得只声明。
-
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交** ✅ 2026-09-17 提交 **`72ce084`**（实为正版内容落入并行会话提交，详见下方事故记录）
 
 ```bash
 git add src/signal/route.js test/signal/route.test.js
 git commit -m "fix(signal): rate_limit 改为按出站渠道计数，不再连带拦截 inbox 站内投递"
 ```
+> ⚠ **提交事故记录（2026-09-17 并行会话竞争）**：我 `git add` 这两文件后、提交前，并行会话在同一工作区提交 `72ce084`
+> （`fix(decision): 决策凭证读取收敛…`）——其 commit **吞掉了我的暂存内容**，故 Task 2b 的正确代码/测试落入其提交，
+> 但该提交信息只描述它自己的改动（内容与信息错配）。**已取证确认**：`72ce084:src/signal/route.js` 含 `channel <> ALL` 与
+> `outboundSkip` 两处修复，`72ce084:test/signal/route.test.js` 含 2 条新断言；工作区对这两文件 **0 行 diff**（内容确实已落 HEAD）。
+> 处理：**不 Amend 历史**（避免与并行会话抢同一提交、制造分歧），如实登记事实；本计划文档的 Step 1–4 证据、执行期修正与
+> 此事故记录另行提交。此事故也再次验证既有铁律：**并发写同一树时，提交前必须核对 `git diff HEAD -- <file>`**——我犯的错误是
+> add 后未立即 commit、未在 commit 前复查「暂存区是否被我方独占」，被对方一并卷入。
 
 ---
 
