@@ -1,7 +1,7 @@
 // src/action/seed-actions.js — 种子 Action（平台 substrate + 跨粒子能力 Action）
 // 设计输入：01 粒子设计 §8（R2/R5：资源走 substrate，能力 Action 非粒子 CRUD）
 import { registerAction, listActions } from './registry.js';
-import { query } from '../db.js';
+import { query, pool } from '../db.js';
 import { createParticle, updateParticle, queryParticles, getParticle, createEdge, queryNeighbors } from '../particles/particleRepo.js';
 import { advanceStage } from '../particles/lifecycle.js';
 import { ruleEngine } from '../ruleEngine.js';
@@ -28,6 +28,11 @@ import {
 } from '../particles/dedup.js'; // 2026-09-08 客户去重创建闸（docs/plans/2026-09-07-crm-dedup.md 任务2）
 import { seedProspectingActions } from './prospectingActions.js'; // 2026-09-14 拓客三 Action（T5，装配汇聚 3/3）
 import { seedPreheatActions } from './preheatActions.js'; // 2026-09-15 P1-3 触达前预热（T11，装配汇聚 3/3）
+// 2026-09-17 信号读 Action（P1-4）：MCP 暴露面源头。signalOwnerScope 是**唯一收窄点**（http/tenantScope.js，
+//   纯函数零依赖）——此处复用而非另写谓词，防止「同一隔离语义两处实现」的漂移（HTTP 侧已由静态守卫锚定）。
+import { createSignalStore } from '../signal/store.js';
+import { buildIcs } from '../signal/ics.js';
+import { signalOwnerScope } from '../http/tenantScope.js';
 
 // 商机推进决策沉淀铁律（2026-09-02）：crm-deal-advance 的 last_decision_id 必须 updateParticle 写回，
 //   单纯改内存对象不落库 = 决策断链（审计/决策网络无法从商机追溯决策）。同型缺陷排查：任何
@@ -2235,6 +2240,72 @@ export function seedActions() {
   seedProspectingActions();
   // 2026-09-15 P1-3 触达前预热（T11 装配汇聚 3/3）：preheat-schedule/mark/status 三 Action
   seedPreheatActions();
+
+  // ── 信号读 Action（2026-09-17 前台可见性审计 P1-4）──
+  // 「MCP 工具面由 Action Registry 生成」（src/mcp/tools.js buildMcpTools）——registry 里此前**零 signal action**
+  //   ⇒ 两个专家包（crm-native / crm-platform-admin）经 crm-native-mcp 连上后，工具清单里根本没有信号能力；
+  //   「更新插件」自然无用（暴露面源头未开）。此二 Action 是暴露的前提。
+  // 口径：
+  //   · kind='read' → 走读直连（executor 不触写闸/第0闸）；
+  //   · 身份 fail-closed：MCP 读通道必须带 ctx.actor，缺身份一律拒绝——**不返回全量**
+  //     （不收窄 = 全租户泄漏，是最危险的假绿方向）；
+  //   · 隔离复用唯一收窄点 signalOwnerScope（不另造谓词）；零 DELETE、零写入。
+  registerAction({
+    name: 'crm-signal-list', kind: 'read', permission: 'auth',
+    namespace: 'crm', agentTool: true, needsApproval: false,
+    version: '1.0.0', owner: 'crm-native',
+    description: '列出当前租户的主动运行时信号（销售自动化）：支持按状态/类型/严重度过滤；普通角色自动收窄为「我负责的 + 我的同角色广播」',
+    schema: { status: 'string', kind: 'string', severity: 'string', mine: 'boolean', limit: 'number' },
+    handler: async ({ status = null, kind = null, severity = null, mine = false, limit = 100 } = {}, ctx = {}) => {
+      // 身份闸优先于一切（先闸后读，避免"先查库再判"）
+      if (!ctx.actor) return { ok: false, error: 'auth_required', hint: 'MCP 读通道需要已登录身份（先 crm_login）' };
+      const tenantId = ctx.tenantId || 'system';
+      const ownerScope = signalOwnerScope({ username: ctx.actor, role: ctx.role }, { mine });
+      const store = createSignalStore(pool);
+      const rows = await store.list({ tenant_id: tenantId, status, kind, severity, ownerScope });
+      const items = rows.slice(0, Math.max(1, Number(limit) || 100)).map((r) => ({
+        signal_id: r.signal_id,
+        kind: r.kind,
+        severity: r.severity,
+        status: r.status,
+        target_role: r.target_role,
+        owner_id: r.owner_id,
+        created_at: r.created_at,
+        subject: r.payload?.subject || null,
+        // 有日历时间才可导出（与前端「加入日历」同判据，避免前端有按钮而 MCP 导出失败）
+        has_calendar: typeof r.payload?.event_at === 'string' && !!r.payload.event_at,
+      }));
+      return { ok: true, tenant_id: tenantId, total: rows.length, items };
+    },
+  });
+
+  registerAction({
+    name: 'crm-signal-ics', kind: 'read', permission: 'auth',
+    namespace: 'crm', agentTool: true, needsApproval: false,
+    version: '1.0.0', owner: 'crm-native',
+    description: '把一条带日期语义的信号导出为标准 iCalendar（.ics）文本，供写入外部日历；无日期/非法日期明确失败（不造幽灵日程）',
+    schema: { signal_id: 'string' },
+    parameters: { required: ['signal_id'], properties: { signal_id: { type: 'string' } } },
+    handler: async ({ signal_id: signalId } = {}, ctx = {}) => {
+      if (!ctx.actor) return { ok: false, error: 'auth_required', hint: 'MCP 读通道需要已登录身份（先 crm_login）' };
+      if (!signalId) return { ok: false, error: 'signal_id_required' };
+      const tenantId = ctx.tenantId || 'system';
+      const { rows } = await query(
+        `SELECT * FROM crm.signal WHERE signal_id=$1 AND tenant_id=$2`,
+        [signalId, tenantId],
+      ).catch(() => ({ rows: [] }));
+      if (!rows[0]) return { ok: false, error: 'signal_not_found' };
+      const ics = buildIcs(rows[0]);
+      if (!ics) {
+        return {
+          ok: false, error: 'not_a_calendar_signal',
+          hint: '该信号无 payload.event_at 或日期非法，按设计不生成日程（不造幽灵日程）',
+        };
+      }
+      return { ok: true, signal_id: signalId, filename: `signal-${signalId}.ics`, content_type: 'text/calendar', ics };
+    },
+  });
+
   const RESERVED_NAMES = new Set([
     'crm-quote-estimate', 'crm-review-gate-evaluate', 'crm-followup-schedule', 'crm-stage-progression-evaluate',
     'crm-funnel-classify', 'crm-behavior-check', 'crm-field-permission', 'crm-deal-swas-update',
