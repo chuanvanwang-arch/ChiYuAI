@@ -6,8 +6,11 @@ import { describe, it, expect } from 'vitest';
 import { SYNC_PROVIDER_FACTORY, createGenericRestSyncProvider } from '../../src/sync/factory.js';
 
 describe('sync provider factory（同步 provider 工厂）', () => {
-  it('仅含 generic-rest + neocrm 别名（无产品专属 deep-customization）', () => {
-    expect(Object.keys(SYNC_PROVIDER_FACTORY).sort()).toEqual(['generic-rest', 'neocrm']);
+  it('仅含通用实现 + 通道键，无任何产品专属 deep-customization', () => {
+    // 2026-09-17 设计迭代：需求② §3/§4 增 4 通道键（仍指向唯一通用实现 createGenericRestSyncProvider，
+    //   键值即「按键名注入 kind」的包装，差异全在 descriptor）；红线不破：键集绝不出现产品名。
+    const keys = Object.keys(SYNC_PROVIDER_FACTORY).sort();
+    expect(keys).toEqual(['generic-calendar', 'generic-email', 'generic-meeting', 'generic-rest', 'generic-wechat', 'neocrm']);
   });
 
   it('产出的 provider 满足同步契约三方法', () => {

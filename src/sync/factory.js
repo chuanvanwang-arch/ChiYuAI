@@ -25,6 +25,9 @@
 //             inject 决定 token 注入方式：header（默认 Authorization: Bearer）/ query / none（token 由 body 模板承载）
 //   - request / response：请求与响应形状模板化（urlTemplate / bodyTemplate / rowsPath / cursorPath）
 export function createGenericRestSyncProvider(cfg = {}) {
+  // kind 覆盖：通道键（generic-email/calendar/meeting/wechat）注册本实现时，须以 cfg.kind
+  // 保留真实 kind（否则实例恒为 'generic-rest'，cursor 按 provider.kind 分表会串）。缺省向后兼容。
+  const kind = cfg.kind || 'generic-rest';
   const { endpoint, token, objects = [], method = 'GET', authHeader = 'Authorization', authPrefix = 'Bearer ' } = cfg;
   const cred = cfg.credentials || null;
   const doFetch = cfg.__fetch || ((url, opts) => fetch(url, opts));
@@ -220,7 +223,7 @@ export function createGenericRestSyncProvider(cfg = {}) {
     }
   }
 
-  return { kind: 'generic-rest', verifyAuth, discoverObjects, readIncremental };
+  return { kind, verifyAuth, discoverObjects, readIncremental };
 }
 
 export const SYNC_PROVIDER_FACTORY = {
@@ -228,4 +231,12 @@ export const SYNC_PROVIDER_FACTORY = {
   'generic-rest': createGenericRestSyncProvider,
   // 配置别名：销售易等同样走通用实现，零厂商代码（非深度定制）
   neocrm: createGenericRestSyncProvider,
+  // —— 需求② 通道适配器（2026-09-17，设计 docs/2026-09-17-channel-adapter-unified-design.md §3）——
+  // 4 通道同一通用实现（generic-rest 模板引擎）：差异全在 descriptor（auth 类型 / object /
+  // request/response 模板 / verify 探测），零通道专属代码。channelProvider 在 presets 侧装配
+  // （fetchIncremental → 事件行归一化 → 图谱汇入），工厂只注册键，防「新通道 = 新代码」污染。
+  'generic-email': (cfg) => createGenericRestSyncProvider({ ...cfg, kind: 'generic-email' }),
+  'generic-calendar': (cfg) => createGenericRestSyncProvider({ ...cfg, kind: 'generic-calendar' }),
+  'generic-meeting': (cfg) => createGenericRestSyncProvider({ ...cfg, kind: 'generic-meeting' }),
+  'generic-wechat': (cfg) => createGenericRestSyncProvider({ ...cfg, kind: 'generic-wechat' }),
 };
