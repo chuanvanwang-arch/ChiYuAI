@@ -164,7 +164,7 @@
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
         // missing（缺哪个字段）必须显示：否则用户只知道「不通过」，不知道改哪里
         const miss = Array.isArray(res.missing) && res.missing.length ? `（缺：${res.missing.join('、')}）` : '';
-        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + miss}${guidedHint(res, c)}\n`;
+        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + miss}${guidedHint(res, c.kind)}\n`;
       }
     };
 
@@ -172,10 +172,12 @@
     //   `auth_failed` 对国内邮箱的**真实含义多是「用错凭据类型」**——163/126/QQ 的 IMAP 只接受
     //   邮箱设置里生成的「客户端授权码」，登录密码必被拒（163 原话 `LOGIN Login error or password error`）。
     //   只显示 auth_failed 会把人送去反复改密码，属**假失败**（方向被误导）；这里点明真因与操作路径。
-    function guidedHint(res, c) {
+    //   ⚠ 本函数体与 src/web/channel-config.html 的**逐字一致**（test/web/channelHintParity.test.js 严格相等守卫）：
+    //     两处是同一失败的两个入口，话术漂移 ⇒ 用户在配置台与向导看到不同引导。
+    function guidedHint(res, kind) {
       if (res.ok) return '';
       const h = res.hint ? ' — ' + res.hint : '';
-      if (res.error === 'auth_failed' && c.kind === 'generic-email') {
+      if (res.error === 'auth_failed' && kind === 'generic-email') {
         return h + '\n   ↳ 国内 163/126/QQ 邮箱的 IMAP 只认「客户端授权码」，登录密码必被拒：'
           + '登录网页邮箱 → 设置 → 开启 POP3/SMTP/IMAP 服务 → 生成授权码 → 把授权码填回上面的密码框。';
       }

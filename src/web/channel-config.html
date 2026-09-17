@@ -151,12 +151,26 @@
       }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
       $('out').textContent = res.ok
         ? ('已提交：' + id + '（信任档 ' + trust + '）。' + (res.hint || ''))
-        : ('接入失败：' + (res.error || 'unknown') + (res.hint ? ' — ' + res.hint : ''));
+        : ('接入失败：' + (res.error || 'unknown') + guidedHint(res, kind));
       $('f-cred').value = '';   // 明文不驻留 DOM
       await load();
     };
 
     $('reload').onclick = load;
+
+    // 服务端拒因 → 可执行的下一步。与接入向导 src/web/onboarding-guide.html **同源同文**：
+    //   同一失败在两处出现不同话术（一处只说 auth_failed、一处给授权码路径）会让用户以为
+    //   「这个页面查得更准」，实际是其中一个入口吞了归因（**假失败**）。
+    //   ⚠ 本函数体与 onboarding-guide.html 的**逐字一致**（test/web/channelHintParity.test.js 严格相等守卫）。
+    function guidedHint(res, kind) {
+      if (res.ok) return '';
+      const h = res.hint ? ' — ' + res.hint : '';
+      if (res.error === 'auth_failed' && kind === 'generic-email') {
+        return h + '\n   ↳ 国内 163/126/QQ 邮箱的 IMAP 只认「客户端授权码」，登录密码必被拒：'
+          + '登录网页邮箱 → 设置 → 开启 POP3/SMTP/IMAP 服务 → 生成授权码 → 把授权码填回上面的密码框。';
+      }
+      return h;
+    }
     load();
   </script>
 </body>
