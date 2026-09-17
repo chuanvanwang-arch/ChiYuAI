@@ -8,6 +8,9 @@
 //   本模块即水泵：读 open signal → 经 route 决策 → 调既有 registry.deliver() → 落流水。
 // 铁律：
 //   ① 幂等：同 (signal_id, channel) 已 sent → 不重投（sentChannels）；
+//      ⚠ 该幂等只在 **sent** 维度生效——`skipped`/`failed` 行允许按重试上限重投（设计如此）。
+//      「skipped 每轮新增一行」曾是无界增长的根因，已由**台账侧确定性键**（F-6(b)）而非本层解决：
+//      本层允许重投，台账层收敛为一行并累加 attempts。两层职责不得互相替代。
 //   ② 重试上限来自配置（policy.retryLimit），编排器零阈值字面量；
 //   ③ 不静默：所有 skipped 必带 last_error（no_recipient / quiet_hours / rate_limited / retry_exhausted）；
 //   ④ **防双记**：provider 内部已调 deliveryStore.record()，编排器只在「自身判定 skip」时记录；
@@ -60,10 +63,15 @@ export function createDispatcher({ query, deliveryRegistry, deliveryStore, route
     return new Set((rows || []).map((r) => r.channel));
   }
 
-  // 某渠道已尝试次数（含 failed / skipped 行）
+  // 某渠道已尝试次数。**F-6(b)（2026-09-16）：必须读 `attempts` 列，不得用 `COUNT(*)`** ——
+  //   `signal_delivery` 已收敛为「同 (signal_id, channel) 唯一一行」（见 signalDeliveryStore.deliveryKey，
+  //   含 ON CONFLICT DO UPDATE + attempts 累加）。此时 `COUNT(*)` 恒为 1 ⇒ `attempts > retryLimit`
+  //   只对 `retryLimit < 1` 成立，retry 上限**基本失效** ⇒ 无限重投（新缺陷）。
+  //   ⚠ 本行与 signalDeliveryStore 的幂等键是**成对契约**：任何一侧单独回退都会产生缺陷。
+  //   配套守卫：test/signal/dispatcher.test.js「F-6(b) 守卫」（断言该 SQL 读 attempts 且不含 COUNT(*)）。
   async function attemptCount(signal_id, channel) {
     const { rows: [r] } = await query(
-      `SELECT COUNT(*)::int AS c FROM crm.signal_delivery WHERE signal_id=$1 AND channel=$2`,
+      `SELECT COALESCE(MAX(attempts), 0)::int AS c FROM crm.signal_delivery WHERE signal_id=$1 AND channel=$2`,
       [signal_id, channel],
     );
     return Number(r?.c || 0);
@@ -102,7 +110,12 @@ export function createDispatcher({ query, deliveryRegistry, deliveryStore, route
         continue;
       }
       // ④ 交给 provider：其内部负责 record(sent/failed)，编排器不补记
-      const res = await deliveryRegistry.deliver({ signal, channel: d.channel, store: deliveryStore });
+      // recipient 来自上面 route.resolve 的决策（收件人解析的**唯一**事实源在 route.js）——
+      //   原先此处未传，导致 email provider 只能去读 `signal.payload.to`，而该键**无任何生产者**
+      //   （2026-09-16 实测 grep 0 命中）→ 即使 SMTP 配好也恒以 `to: undefined` 失败。
+      const res = await deliveryRegistry.deliver({
+        signal, channel: d.channel, store: deliveryStore, recipient: d.recipient || null,
+      });
       if (res?.ok && res?.skipped) skipped += 1;
       else if (res?.ok) sent += 1;
       else failed += 1;

@@ -7,12 +7,15 @@ import { createDispatcher } from '../../src/signal/dispatcher.js';
 // 注意：`/FROM crm\.signal\b/` 的 `\b` 是必需的——否则会把 `crm.signal_delivery` 一并匹配，
 //   导致「sent 渠道集合」查询误走 signal 分支（替身形状错误 = 假绿来源之一）。
 // 分支顺序亦为契约：`SELECT DISTINCT channel` 必须先于 `FROM crm.signal` 判定。
+// F-6(b)（2026-09-16）：`attemptCount` 已由 `COUNT(*)` 改为 `MAX(attempts)`（台账合并为一行后
+//   `COUNT(*)` 恒为 1 ⇒ retry 上限失效）。替身**必须跟随被测语义**，否则用例会退化为
+//   「拿旧形状喂新代码」的假绿：匹配不到 → 返回 0 次尝试 → 「已尝试 1 次应跳过」的用例将失效。
 function fakeQuery({ signals = [], sent = [], counts = {} } = {}) {
   return async (sql, params) => {
     if (/SELECT DISTINCT channel/.test(sql)) {
       return { rows: sent.map((c) => ({ channel: c })) };
     }
-    if (/COUNT\(\*\)::int AS c/.test(sql)) {
+    if (/MAX\(attempts\)/.test(sql)) {
       return { rows: [{ c: counts[`${params[0]}|${params[1]}`] ?? 0 }] };
     }
     if (/FROM crm\.signal\b/.test(sql)) return { rows: signals };
@@ -123,6 +126,30 @@ describe('dispatcher 重试上限（retryLimit 来自配置，无配置即 0）'
     const r = await d.pumpOnce({ tenantId: 't1' });
     expect(registry.deliver).toHaveBeenCalledTimes(1);
     expect(r.sent).toBe(1);
+  });
+
+  // ---- F-6(b)（2026-09-16）：台账幂等键与重试计数的**成对契约**守卫 ----
+  // 背景：`signal_delivery` 由「每次调用插新行」收敛为「同 (signal_id, channel) 唯一一行 + attempts 累加」
+  //   （实测 sim-erp email skipped 随泵线性 +95/轮；全库 max(attempts)=1 证明累加语义从未落地）。
+  //   合并后 `COUNT(*)` 恒为 1 ⇒ retry 上限形同虚设（只对 retryLimit<1 生效）⇒ 无限重投。
+  it('F-6(b) 守卫：attemptCount 的 SQL 必须读 attempts 列，不得用 COUNT(*)（防回退致 retry 失效）', async () => {
+    const seen = [];
+    const d = createDispatcher({
+      query: async (sql) => {
+        seen.push(sql);
+        if (/FROM crm\.signal\b/.test(sql)) return { rows: [{ signal_id: 'sX', tenant_id: 't1' }] };
+        return { rows: [] };
+      },
+      deliveryRegistry: { deliver: vi.fn() },
+      deliveryStore: fakeStore(),
+      router: fakeRouter([{ channel: 'email', recipient: 'a@b.c', skip: false, reason: null }],
+        { policy: { channels: ['email'], retryLimit: 2 } }),
+    });
+    await d.pumpOnce({ tenantId: 't1' });
+    const attemptSql = seen.find((s) => /crm\.signal_delivery/.test(s) && /attempts/i.test(s));
+    expect(attemptSql).toBeTruthy();
+    expect(attemptSql).toMatch(/MAX\(attempts\)/);
+    expect(attemptSql).not.toMatch(/COUNT\(\*\)/);
   });
 });
 
@@ -251,5 +278,42 @@ describe('dispatcher 空转可归因（P-5：零投递 ≠ 无事发生）', () 
     expect(r.tenants).toBe(2);
     expect(r.idle).toEqual({ no_channel_enabled: 2 });
     expect(r.sent + r.failed + r.skipped).toBe(0);
+  });
+});
+
+// ---- 收件人贯通（route.resolve → registry.deliver，Task 4：防断链回退） ----
+// 背景：route.resolve 已解析出 decisions[i].recipient，但若 dispatcher 调 deliver 时未透传，
+//   email provider 只能退回到 `signal.payload.to`（全仓 0 生产者）→ 即使 SMTP 配好也恒以
+//   `to: undefined` 失败。「推送每个人的邮箱」永远不可达。本守卫断言透传真实发生（而非仅类型存在）。
+describe('dispatcher 收件人贯通（route → registry.deliver）', () => {
+  it('route 决策含 recipient → 透传给 registry.deliver（防断链回退）', async () => {
+    const captured = [];
+    const registry = {
+      deliver: vi.fn(async (args) => { captured.push(args); return { ok: true }; }),
+    };
+    const d = createDispatcher({
+      query: fakeQuery({ signals: [{ signal_id: 'sR', tenant_id: 't1' }] }),
+      deliveryRegistry: registry,
+      deliveryStore: fakeStore(),
+      router: fakeRouter([{ channel: 'email', recipient: 'bob@corp.com', skip: false, reason: null }]),
+    });
+    await d.pumpOnce({ tenantId: 't1' });
+    expect(registry.deliver).toHaveBeenCalledTimes(1);
+    expect(captured[0].recipient).toBe('bob@corp.com'); // 断链回退（丢弃 recipient）→ undefined → 红
+  });
+
+  it('route 决策无 recipient → 透传 null（provider 不得自行猜测收件人）', async () => {
+    const captured = [];
+    const registry = {
+      deliver: vi.fn(async (args) => { captured.push(args); return { ok: true }; }),
+    };
+    const d = createDispatcher({
+      query: fakeQuery({ signals: [{ signal_id: 'sR2', tenant_id: 't1' }] }),
+      deliveryRegistry: registry,
+      deliveryStore: fakeStore(),
+      router: fakeRouter([{ channel: 'email', recipient: undefined, skip: false, reason: null }]),
+    });
+    await d.pumpOnce({ tenantId: 't1' });
+    expect(captured[0].recipient).toBe(null);
   });
 });

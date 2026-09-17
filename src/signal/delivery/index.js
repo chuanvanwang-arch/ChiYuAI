@@ -27,7 +27,7 @@ export function createDeliveryRegistry(providers = {}, policy = {}) {
     return h >= q.start || h < q.end; // 跨午夜（22:00–06:00）
   }
 
-  async function deliver({ signal, channel, store }) {
+  async function deliver({ signal, channel, store, recipient = null }) {
     if (!channels[channel]) return { ok: false, error: 'unknown_channel' };
     // 静默时段：落 skipped 留痕，不静默（可审计）
     if (policy.quietHours && isQuietHours(policy.now ? new Date(policy.now()) : new Date())) {
@@ -52,7 +52,8 @@ export function createDeliveryRegistry(providers = {}, policy = {}) {
       });
       return { ok: false, error: v.error };
     }
-    return channels[channel].send({ signal, deliveryStore: store });
+    // recipient 由调用方（dispatcher）从 route 决策传入，provider 不得自行猜测收件人
+    return channels[channel].send({ signal, deliveryStore: store, recipient });
   }
 
   return { channels, get, deliver, verify: (c) => channels[c]?.verifyConfig() ?? { ok: false, error: 'unknown_channel' } };
