@@ -22,6 +22,12 @@
     .pg-target-card { margin: 12px 16px; padding: 12px 16px; border: 1px solid var(--panel-bd, rgba(148,163,184,.3)); border-radius: 8px; background: var(--panel); }
     .pg-target-card h4 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
     .pg-target-card p { margin: 0; font-size: 13px; color: var(--ink); }
+    /* 外部沟通维度（需求② §5 通道信号时间线；数据源＝payload.enrichment 四键） */
+    .pg-extcomms-card { margin: 12px 16px; padding: 12px 16px; border: 1px solid var(--panel-bd, rgba(148,163,184,.3)); border-radius: 8px; background: var(--panel); }
+    .pg-extcomms-card h4 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
+    .pg-extcomms-card p { margin: 0 0 8px; font-size: 13px; color: var(--ink); }
+    .pg-extcomms-card .pg-extcomms-sub { color: var(--mut); font-size: 12px; }
+    .pg-extcomms-card a { color: var(--accent, #2563eb); }
   </style>
   <script type="module" src="/portal/components.js"></script>
 </head>
@@ -117,6 +123,56 @@
       }
     }
 
+    // ── 外部沟通维度（需求② §5：通道信号时间线 → 客户图谱的「外部沟通」面）──
+    // 数据源＝CRM_ACCOUNT.payload.enrichment 的**四个通道键**（设计 §3.1–§3.4 逐通道分键；
+    // 单一事实源＝src/channels/kinds.js 的 ENRICHMENT_KEY）。此处键集由
+    // test/web/account360ExternalComms.test.js 与 src 严格比对守卫——漂移即红（防「页面读错键」静默死区）。
+    const CHANNEL_ENRICH_KEYS = [
+      { key: 'email_intent', label: '邮件' },
+      { key: 'schedule', label: '日程' },
+      { key: 'meeting_intents', label: '会议' },
+      { key: 'wechat_intents', label: '企业微信' },
+    ];
+
+    function renderExternalComms(acc) {
+      const enrich = (acc && acc.payload && acc.payload.enrichment) || {};
+      const rows = [];
+      for (const { key, label } of CHANNEL_ENRICH_KEYS) {
+        const list = Array.isArray(enrich[key]) ? enrich[key] : [];
+        for (const it of list) {
+          if (!it || typeof it !== 'object') continue;
+          rows.push({
+            channel: label,
+            ts: it.ts || null,
+            subject: it.subject || null,
+            kind: it.kind || null,
+            domain: it.domain || null,
+            participants: Array.isArray(it.participants) ? it.participants : [],
+          });
+        }
+      }
+      rows.sort((a, b) => (String(b.ts || '') > String(a.ts || '') ? 1 : -1)); // 新 → 旧
+      const card = document.createElement('div');
+      card.className = 'pg-extcomms-card';
+      if (!rows.length) {
+        // 空态**不是死区**：说清「为什么空」＋给可行动入口（未接入不阻塞核心功能）
+        card.innerHTML = '<h4>外部沟通维度</h4>' +
+          '<p class="pg-extcomms-sub">暂无外部沟通信号。未接入邮箱/日历/会议/企业微信<b>不影响核心功能</b>——' +
+          '可在<a href="/channel-config.html">通道配置台</a>随时接入，或在<a href="/onboarding-guide.html">接入向导</a>里一次配好。</p>';
+        return card;
+      }
+      card.innerHTML = '<h4>外部沟通维度（' + rows.length + ' 条）</h4>' +
+        '<p class="pg-extcomms-sub">由外部通道自动汇入的沟通信号；只读观察，系统不写回客户侧系统。</p>' +
+        '<table class="pg-table"><thead><tr>' +
+        '<th>时间</th><th>通道</th><th>主题</th><th>信号</th><th>来源域</th><th>参与人</th>' +
+        '</tr></thead><tbody>' +
+        rows.slice(0, 50).map((r) => '<tr><td>' + esc(fmtTime(r.ts)) + '</td><td>' + esc(r.channel) + '</td>' +
+          '<td>' + esc(r.subject) + '</td><td>' + esc(r.kind) + '</td><td>' + esc(r.domain) + '</td>' +
+          '<td>' + esc(r.participants.slice(0, 3).join('、')) + '</td></tr>').join('') +
+        '</tbody></table>';
+      return card;
+    }
+
     async function loadProfile() {
       const url = '/api/page/account-360' + (accountId ? ('?accountId=' + encodeURIComponent(accountId)) : '');
       try {
@@ -150,6 +206,10 @@
             card.innerHTML = `<h4>目标达标（${tc.tier}）</h4>
               <p>目标频率：${tc.target ?? 1} 次/${tc.window || 'month'}｜实际：近窗口 ${tc.actual ?? 0} 次｜${mark}</p>`;
             profileRoot.appendChild(card);
+          }
+          // 需求②§5：外部沟通维度（通道信号时间线）——同一「renderer 与 JS 注入二选一」防双份范式
+          if (!profileRoot.querySelector('.pg-extcomms-card')) {
+            profileRoot.appendChild(renderExternalComms(cur));
           }
         }
       } catch (e) {
