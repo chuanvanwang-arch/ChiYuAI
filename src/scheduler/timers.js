@@ -26,6 +26,7 @@ import { createDispatcher } from '../signal/dispatcher.js';
 import { createDeliveryRegistry } from '../signal/delivery/index.js';
 import { createDeliveryStore } from '../signal/delivery/signalDeliveryStore.js';
 import { createDeliveryRouter } from '../signal/route.js';
+import { createActivityDerivation } from '../signal/activityDerivation.js';
 
 const timers = new Map();   // name → { handle, intervalMs, kind }
 
@@ -129,7 +130,7 @@ export async function catchUpRetro({ run = runRetroOnce, nowMs = Date.now() } = 
 // recordTokens（可注入；缺省接真 tokenAccounting）按租户聚合本轮 cost 落账（零新表，fail-open 不阻断主流程）
 // 2026-09-16 A-B6（T06）增量分支：同循环内对「同步 descriptor（objects[]）」拉增量 → 同步内核 upsert。
 //   零新增定时器、零调度框架改动；未注入 loadSyncTargets 或租户无 objects[] → no-op（既有行为零变化）。
-export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, emit, recordTokens, loadSyncTargets, runSync, resolveCredentials } = {}) {
+export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, query, runWaterfall, monitorAccount, buildMonitorCtx, mintDecision, emit, recordTokens, loadSyncTargets, runSync, resolveCredentials } = {}) {
   const recTok = recordTokens || realRecordTokens;
   const tenants = listActiveTenants ? await listActiveTenants().catch(() => [{ tenant_id: 'system' }]) : [{ tenant_id: 'system' }];
   for (const t of tenants) {
@@ -192,17 +193,31 @@ export async function runIntegrationPollOnce({ listActiveTenants, loadAdapters, 
       tenantCost += Number(cost) || 0;
       const sigs = Object.entries(values).map(([f, v]) => ({ type: f, provider: v?.provider, ts: v?.ts }));
       if (sigs.length) {
-        // E.2.1 处置①（2026-09-16）：原为 `.catch(() => {})` —— 空吞与「G3 不静默」铁律冲突，
-        //   使「C3 闭环从未执行」这件事在生产上完全不可见（无 trace、无账）。
-        //   ⚠ ctx 四件套（getAccount/rescore/appendMemory/updateParticle）**尚未装配**
-        //     （A-B7 经复核属「新建能力」而非补齐，未立项）→ 本轮**只消除静默**，不伪造成功：
-        //     失败逐条留痕，让缺口显式可见，而不是被静默吞掉。
-        await monitorAccount({ tenantId: tid }, acc.id, sigs).catch((err) => {
-          emit && emit('trace', 'integration-poll-monitor-failed', {
-            tenant_id: tid, account_id: acc.id, signals: sigs.length, error: String(err?.message || err),
+        // E.2.1 处置②（2026-09-16）：根治 ctx 四件套装配缺口（此前只传 {tenantId} → 结构性 TypeError）。
+        //   第 0 闸：monitorAccount 会写回 payload → 每账户本轮先铸一枚决策；**铸不出则不跑**
+        //   （fail-closed：写无决策不落库，宁可 C3 闭环停摆也不产生无源写入）。
+        //   铸出的决策同时供本轮 sync 分支复用（同一租户一次轮询 = 一枚决策，与 mount.js 同语义）。
+        let pollDecisionId = null;
+        if (mintDecision) {
+          const d = await mintDecision('integration-poll', { tenantId: tid, account_id: acc.id }).catch(() => null);
+          pollDecisionId = d?.decisionId || null;
+        }
+        const monitorCtx = buildMonitorCtx ? buildMonitorCtx({ tenantId: tid, decisionId: pollDecisionId }) : null;
+        if (!monitorCtx || !pollDecisionId) {
+          // 缺口显式可见（不伪造成功、不静默）：装配缺失 or 铸决策失败
+          emit && emit('trace', 'integration-poll-monitor-skipped', {
+            tenant_id: tid, account_id: acc.id, signals: sigs.length,
+            reason: monitorCtx ? 'decision_mint_failed' : 'monitor_ctx_not_assembled',
           });
-          recordFailure('integration-poll-monitor-failed', err);
-        });
+          recordFailure('integration-poll-monitor-skipped', new Error(monitorCtx ? 'decision_mint_failed' : 'monitor_ctx_not_assembled'));
+        } else {
+          await monitorAccount(monitorCtx, acc.id, sigs).catch((err) => {
+            emit && emit('trace', 'integration-poll-monitor-failed', {
+              tenant_id: tid, account_id: acc.id, signals: sigs.length, error: String(err?.message || err),
+            });
+            recordFailure('integration-poll-monitor-failed', err);
+          });
+        }
       }
     }
     // 可观测接线（T14）：聚合本轮 cost 落 token_accounting（零新表；fail-open）
@@ -517,7 +532,15 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
       const syncFactories = (await import('../sync/factory.js').catch(() => null))?.SYNC_PROVIDER_FACTORY || {};
       const vault = await import('../connectors/discovery/credentialVault.js').catch(() => null);
       const autonomy = await import('../decision/autonomyEngine.js').catch(() => null);
+      // —— LF-4：第 0 闸铸造器提升到 runPoll 顶层（富化分支与同步分支**共用**，同租户一轮一枚）——
+      const mintDecision = async (scene, ctx) => {
+        const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
+        return { decisionId: autonomy?.decisionIdOf?.(r) ?? null };
+      };
+      const monitorCtxMod = await import('../connectors/discovery/monitorCtx.js').catch(() => null);
       await runIntegrationPollOnce({
+        mintDecision,
+        buildMonitorCtx: monitorCtxMod?.createMonitorCtx,
         listActiveTenants: (await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }))).listActiveTenants,
         loadAdapters: (await import('../connectors/discovery/providerRegistry.js')).loadAdapters,
         query,
@@ -544,13 +567,8 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
               mappings: await mount.loadSyncMappings({ tenantId, readConfig }),
               callWriteback,
               // 第 0 闸：L2/L3 每 run 铸一枚决策；铸不出 → decisionId=null → 内核侧拒写（fail-closed）
-              mintDecision: async (scene, ctx) => {
-                const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
-                // 凭证读取收敛到 autonomyEngine.decisionIdOf（此前按顶层 `r.decision_id` 读 → 恒 undefined
-                //   → 集成同步 L2/L3 被判「无决策」而结构性 fail-closed，且被 .catch(() => null) 掩盖；
-                //   2026-09-16 由「模拟种子」实跑暴露：decision 表已新增行，但 decisionId 仍为 null）
-                return { decisionId: autonomy?.decisionIdOf?.(r) ?? null };
-              },
+              //   复用 runPoll 顶层 mintDecision（与富化分支同源，同租户一轮一枚；收敛到 decisionIdOf）
+              mintDecision,
             },
           });
         } : undefined,
@@ -693,6 +711,40 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   };
   const signalDispatchTimer = setInterval(runSignalDispatch, signalDispatchIntervalMs);
   timers.set('signal-dispatch', { handle: signalDispatchTimer, intervalMs: signalDispatchIntervalMs, kind: 'rule', registeredAt: now });
+
+  // ⑱ 内部客户异动派生扫描（2026-09-16）—— 主张「筛选新客户」的可证伪落地
+  //   存在的理由：该主张此前只有一条权重配置（discoveryRules.js:35 leadership_change），
+  //     全仓无任何产出方 ⇒ 属「配置承诺 ≠ 实现」。本定时器是派生器**唯一**的生产触发点。
+  //   频率取「小时级」：派生依据是粒子 updated_at 的相对天数（窗口 14 天 / 阈值 30 天），
+  //     小时级足够灵敏且不会对 particles 造成压力。
+  //   护栏：VITEST 下不启动（测试进程不得跑真实定时器）；间隔可经环境变量调整（零硬编码）。
+  const activityDerivationIntervalMs = Number(process.env.ACTIVITY_DERIVATION_MS || 3600000);
+  const runActivityDerivation = async () => {
+    if (process.env.VITEST) return;
+    // signalStore 用**动态 import**：与同文件其它扫描器（signal-schedule-scan / prospect-scan /
+    //   research-scheduler）的既有约定一致（timers.js:580/598/619），避免顶层静态引入拉大启动面。
+    const { createSignalStore } = await import('../signal/store.js');
+    const derivation = createActivityDerivation({ query, signalStore: createSignalStore(pool), readConfig });
+    await derivation.deriveAllTenants()
+      .then((r) => {
+        // 不静默：产出、幂等吸收、零命中归因、失败都必须可见——
+        //   否则「派生了但零命中」与「根本没接线」在日志上不可区分（本仓头号假绿形态）。
+        if (r.signals) emit('trace', 'activity-derivation', r);
+        else emit('trace', 'activity-derivation-idle', { tenants: r.tenants, missing: r.missing });
+        for (const f of r.failures) {
+          emit('trace', 'activity-derivation-tenant-failed', f);
+          recordFailure('activity-derivation-tenant-failed', new Error(f.error));
+        }
+      })
+      .catch((err) => {
+        emit('trace', 'activity-derivation-failed', { error: String(err?.message || err) });
+        recordFailure('activity-derivation-failed', err);
+      });
+  };
+  const activityDerivationTimer = setInterval(runActivityDerivation, activityDerivationIntervalMs);
+  timers.set('activity-derivation-scan', {
+    handle: activityDerivationTimer, intervalMs: activityDerivationIntervalMs, kind: 'rule', registeredAt: now,
+  });
 
   return timers.size;
 }

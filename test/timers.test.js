@@ -22,12 +22,13 @@ afterEach(() => { clearTimers(); slaMock.mockClear(); });
 //   / grant-sweep（S6 T19 常驻授权凭证巡检，2026-09-16）
 //   / signal-observability-scan（S7 T20 信号链路观测巡检，2026-09-16）
 //   / signal-dispatch（全链集成 Q1-3 信号投递编排泵，2026-09-16）
+//   / activity-derivation-scan（内部客户异动派生，2026-09-16）
 // 注：decision-retro 与 decision-retro-boot 互斥——boot 是次日志对齐的 setTimeout，
-//     触发后才注册 decision-retro 常驻 interval，故启动瞬间为 17（11 基线 + S5 三定时器 + S6 一定时器 + S7 一定时器 + 全链集成 Q1 一定时器）。
-const EXPECTED_TIMERS = 17;
+//     触发后才注册 decision-retro 常驻 interval，故启动瞬间为 18（11 基线 + S5 三定时器 + S6 一定时器 + S7 一定时器 + 全链集成 Q1 一定时器 + 内部派生 ⑱）。
+const EXPECTED_TIMERS = 18;
 
 describe('定时器（③ 规则驱动）', () => {
-  it('ensureTimers 返回注册数量（17 个：含 ready-queue-pump、C2 审计链巡检、integration-poll、calibration-sla-scan、S5 signal/prospect/research 三定时器、S6 grant-sweep、S7 signal-observability-scan、Q1 signal-dispatch）', async () => {
+  it('ensureTimers 返回注册数量（18 个：含 ready-queue-pump、C2 审计链巡检、integration-poll、calibration-sla-scan、S5 signal/prospect/research 三定时器、S6 grant-sweep、S7 signal-observability-scan、Q1 signal-dispatch、activity-derivation-scan 内部客户异动派生）', async () => {
     const n = await ensureTimers({ now: '2026-08-25T00:00:00Z' });
     expect(n).toBe(EXPECTED_TIMERS);
   });
