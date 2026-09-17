@@ -9,7 +9,8 @@
 --
 -- ⚠ enabled:false + 占位 endpoint = **模板骨架，不是已接通**。接入客户 CRM 时必须由人工（HITL）
 --   在配置中心改 enabled/endpoint/凭据，并把 objects[].name 对齐客户 CRM 的真实对象 API 名。
---   纷享销客需提供 appId/appSecret/permanentCode + corpId + currentOpenUserId（见 src/sync/fxiaoke.js）。
+--   任何产品（含纷享销客/销售易/自建 CRM）的差异只由 descriptor 配置表达，统一走 generic-rest，
+--   零厂商代码（见 src/sync/factory.js）；不得为具体产品写专属适配器。
 --
 -- ⚠ writeback_fields_whitelist 为空 = 拒绝一切回写（fail-closed）。启用回写前必须由人工显式声明
 --   可回写字段；writeback_auto_approved 保持 false（回写逐批人工确认，不得自动放行）。

@@ -529,7 +529,11 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
     import('../connectors/discovery/tenantInstances.js').then(async (m) => {
       // A-B6 同步分支的真实装配（2026-09-16）：descriptor → 同步 provider → 同步内核
       const mount = await import('../sync/mount.js').catch(() => null);
-      const syncFactories = (await import('../sync/factory.js').catch(() => null))?.SYNC_PROVIDER_FACTORY || {};
+      const baseFactories = (await import('../sync/factory.js').catch(() => null))?.SYNC_PROVIDER_FACTORY || {};
+      // 预设工厂（2026-09-17）：Salesforce / 销售易 / 纷享逍客 —— descriptor.kind = 预设名 → 通用 provider。
+      // 守住「零接线即假绿」：并入后 kind=预设名的租户描述符才能真正构造 provider（否则被 mount 静默跳过）。
+      const presetFactories = (await import('../sync/presets/index.js').catch(() => null))?.PRESET_FACTORIES || {};
+      const syncFactories = { ...baseFactories, ...presetFactories };
       const vault = await import('../connectors/discovery/credentialVault.js').catch(() => null);
       const autonomy = await import('../decision/autonomyEngine.js').catch(() => null);
       // —— LF-4：第 0 闸铸造器提升到 runPoll 顶层（富化分支与同步分支**共用**，同租户一轮一枚）——
