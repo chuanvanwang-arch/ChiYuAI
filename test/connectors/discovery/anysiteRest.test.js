@@ -1,5 +1,5 @@
 // test/connectors/discovery/anysiteRest.test.js
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // mock fetch 全局
 const fetches = [];
@@ -18,6 +18,11 @@ const { anysiteAdapter } = await import('../../../src/connectors/discovery/adapt
 
 beforeEach(() => { fetches.length = 0; });
 
+// 环境隔离（2026-09-16）：src/db.js:8 的 dotenv.config() 会把 .env 的真 ANY_SITE_KEY 注入本测试进程，
+//   使「无凭据」用例的前提不成立（实测 envKey:true）→ 该用例**不可能**通过，属系统性假红。
+//   凡断言「无凭据 / fail-closed 返回空」的测试，必须先隔离环境变量（本项目已入长期判据）。
+afterEach(() => { vi.unstubAllEnvs(); });
+
 describe('anysite REST adapter', () => {
   it('enrich by email → access-token header + 字段映射', async () => {
     const a = anysiteAdapter();
@@ -34,10 +39,14 @@ describe('anysite REST adapter', () => {
     expect(list[0].provider).toBe('anysite');
   });
 
-  it('无凭据 → fail-open 返回空，不抛', async () => {
+  it('无凭据 → 零 fetch 且 fail-open 返回空，不抛', async () => {
+    vi.stubEnv('ANY_SITE_KEY', '');            // 前提显式化：本用例只验证"确实无凭据"这一分支
     const a = anysiteAdapter();
     expect(await a.search({ industries: ['x'] }, {})).toEqual([]);
     expect(await a.enrich({ name: 'X' }, ['industry'], {})).toEqual({});
+    // 鉴别力断言：无凭据**不得发起任何网络请求**（仅有返回值断言时，
+    //   "读到真 key → fetch → 404 → 返空" 也会恰好返空 → 假绿）
+    expect(fetches).toHaveLength(0);
   });
 
   it('health() 探活用已验证端点，返回 {ok,valid}', async () => {
