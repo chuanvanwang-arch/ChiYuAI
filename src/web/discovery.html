@@ -24,6 +24,30 @@
     <!-- 运行发现：经 MCP 胶囊注入 prompt（discovery-run）触发，写走两阶段 + 第0闸，本页不裸调写端点 -->
     <button id="run-discovery-btn" type="button" data-page-node-id="fXvkXUDGWyYLo0O4Tij3Vu">运行发现</button>
   </section>
+  <!-- ①b 定向拓客输入（需求① 补齐：输入邮箱/公司名 → 只读 prospecting-lookup 预览候选；确认入池走 MCP 两阶段） -->
+  <section id="directProbe" class="pg-card">
+    <h3 class="pg-title">定向拓客（输入邮箱 / 公司名 / 域名）</h3>
+    <div class="toolbar">
+      <input id="dpName" placeholder="公司名（如：某某科技）" style="min-width:200px">
+      <input id="dpDomain" placeholder="域名（如 acme.com）" style="min-width:160px">
+      <input id="dpEmail" placeholder="邮箱（如 cto@acme.com）" style="min-width:180px">
+      <select id="dpProvider">
+        <option value="">（默认：系统内置）</option>
+        <option value="gaode">高德·地理画像（系统）</option>
+        <option value="qixin">启信慧眼（付费）</option>
+        <option value="anysite">Anysite（付费）</option>
+      </select>
+      <button id="dpSearch" class="btn-primary" type="button">搜索候选</button>
+    </div>
+    <div class="sub">只读画像富集：输入公司名/域名/邮箱 → 返回已知实体的画像字段（行业/注册地址/法人/融资/招聘/招投标）；不写 CRM 粒子。画像用于补全客户主数据：如需落库 → MCP 对话中执行「data-particle-create（CRM_ACCOUNT，两阶段 + 决策第 0 闸）」；批量拓客入池请切「主动拓客」Tab。付费源未配置凭据时返回空为预期 fail-open。</div>
+    <div id="dpStatus" class="sub"></div>
+    <div id="dpResult" class="pg-card" hidden>
+      <table id="dpTable">
+        <thead><tr><th>字段</th><th>值</th><th>置信度</th><th>来源</th></tr></thead>
+        <tbody id="dpTbody"></tbody>
+      </table>
+    </div>
+  </section>
   <!-- ② 候选线索池表 candidatePool：只读 -->
   <section id="candidatePool" class="pg-card" data-page-node-id="zOdsQEL9vM8eNryFsNLKl0">
     <table id="candidate-table" data-page-node-id="EytBBmO8UqafCmhiuqgJtX">
@@ -73,6 +97,47 @@
     }
   }
   load();
+
+  // —— ①b 定向拓客（只读画像富集；语义=对已知实体补全，走 enrich 分支，
+  //      与后端适配器契约一致——qixin/anysite 的 search() 只接受 ICP 批量条件，
+  //      不接受 name/domain/email 定点；定点必须 kind:'enrich'，否则恒空=假绿）——
+  const $ = (id) => document.getElementById(id);
+  function escRow(s) { return esc(s); }
+  async function dpSearch() {
+    const provider = $('dpProvider')?.value || '';
+    const entity = {};
+    if ($('dpName')?.value.trim()) entity.name = $('dpName').value.trim();
+    if ($('dpDomain')?.value.trim()) entity.domain = $('dpDomain').value.trim();
+    if ($('dpEmail')?.value.trim()) entity.email = $('dpEmail').value.trim();
+    if (!Object.keys(entity).length) { alert('请至少输入公司名/域名/邮箱之一'); return; }
+    const token = localStorage.getItem('crm_token');
+    const res = await fetch('/api/action/prospecting-lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({
+        provider, kind: 'enrich',
+        payload: { entity, fields: ['industry', 'registered_address', 'legal_person', 'funding_round', 'hiring_icp_role', 'tender_match'] },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) { alert('画像补全失败：' + (data.error || data.gate || res.status)); return; }
+    // 只读画像渲染（enrich 返回 fieldHit 平铺：{field,value,confidence,provider}）
+    const items = data.items || [];
+    const tbody = $('dpTbody');
+    tbody.innerHTML = items.length
+      ? items.map((it) => `
+        <tr>
+          <td>${escRow(it.field)}</td>
+          <td>${escRow(it.value == null ? '—' : typeof it.value === 'object' ? JSON.stringify(it.value) : it.value)}</td>
+          <td>${it.confidence == null ? '—' : Number(it.confidence).toFixed(2)}</td>
+          <td>${escRow(it.provider || '—')}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="4">未命中画像字段（付费源未配置凭据时为预期 fail-open）</td></tr>';
+    $('dpResult').hidden = false;
+    $('dpResult').dataset.draft = data.draft_id || '';
+    $('dpStatus').textContent = `画像字段 ${items.length} 项（draft_id=${data.draft_id || '-'}）。画像暂存仅供预览，不落入公海候选（防止把画像字段误当线索入池）；如需落客户主数据，请在 MCP 对话中走 data-particle-create 两阶段。`;
+  }
+  $('dpSearch') && $('dpSearch').addEventListener('click', dpSearch);
 </script>
 </body>
 </html>

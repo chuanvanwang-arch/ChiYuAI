@@ -56,4 +56,22 @@ describe('discovery.html 前台线索发现工作台（只读面）', () => {
     expect(html).toContain('/portal/tokens.css');
     expect(html).toContain('/portal/common.css');
   });
+
+  // ── 可达性守卫（2026-09-17 实缺陷回归）────────────────────────────────────
+  // 事实：本页此前有 routes.js:570 的 serve + 上面 7 条契约测试全绿，但**全仓零导航入口**
+  //   —— 菜单（layoutMenu）/ 配置中心（CONFIG_ITEMS）/ 其他页面均无链接指向它。
+  //   即「功能完备、测试全绿、无人可达」：判据⑤的同族形态（绿在测试、死在使用）。
+  //   ⚠ 教训：契约测试若只断言「页面内部有什么」，永远发现不了「没人到得了」。必须把
+  //   「入口存在」本身变成可断言对象，否则补完入口后仍会随下次重构静默脱落。
+  it('可达性：必须有导航入口且与公海池互链（防「页面在但没人到得了」回归）', async () => {
+    const { FULL_MENU } = await import('../../src/portal/layoutMenu.js');
+    const hit = FULL_MENU.find((m) => m.href === '/discovery.html');
+    expect(hit, 'discovery.html 失去导航入口 → 又变孤岛').toBeTruthy();
+    expect(hit.group).toBe('销售');
+    // 与公海池同档 core_crm（同属拓客能力；无权益时整体隐藏，避免「能看不能用」）
+    expect(hit.requiresEntitlement).toEqual(['core_crm']);
+    // 上游↔下游互链：公海池「主动拓客」面板的文案指向本工作台（定点补全画像 / 评分解释）
+    const lp = readFileSync(new URL('../../src/web/lead-pool.html', import.meta.url), 'utf8');
+    expect(lp, 'lead-pool 未链到线索发现工作台').toContain('href="/discovery.html"');
+  });
 });
