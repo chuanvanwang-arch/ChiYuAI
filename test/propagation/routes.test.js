@@ -50,7 +50,10 @@ describe('propagation accept', () => {
     mod.__setDeps({
       requireDecision: async () => {
         calls.decision++;
-        return { decision_id: 'D1' };
+        // F-5（2026-09-16）：桩必须用**真引擎形状**（凭证在 `decision.decision_id`）。
+        //   原桩返回顶层 `{ decision_id: 'D1' }` —— 正是被删掉的本地「多形态兜底」存在的原因，
+        //   属「替身形状掩盖缺陷」：替身形状与生产形状不一致时，删除兜底会被误判为破坏兼容。
+        return { decision: { decision_id: 'D1' } };
       },
       writeConfig: async () => {
         calls.write++;
@@ -74,7 +77,7 @@ describe('propagation accept', () => {
     const { pool } = makeCtx();
     const mod = await import('../../src/http/propagationRoutes.js');
     mod.__setDeps({
-      requireDecision: async () => ({ decision_id: 'D1' }),
+      requireDecision: async () => ({ decision: { decision_id: 'D1' } }), // F-5：真引擎形状
       writeConfig: async () => ({ ok: true }),
     });
     await expect(

@@ -53,7 +53,16 @@ function makeQuery({ tenants = [], signalCount = 0, eventTrigger = 0, landed = 0
     if (/tenant_id=\$1/.test(sql)) scanned.push(params?.[0]);
     if (/source='event-trigger'/.test(sql)) return { rows: [{ c: eventTrigger }] };
     if (/source IN \('rule-scan','agent-research','external'\)/.test(sql)) return { rows: [{ c: landed }] };
-    if (/FROM crm\.signal_delivery/.test(sql)) return { rows: delivery };
+    if (/FROM crm\.signal_delivery/.test(sql)) {
+      // ⚠ F-6(a)（2026-09-16）：替身形状必须与**当前实现同源**。实现按 status 分列读
+      //   `sent` / `attempted`，并在「存在零 sent 渠道」时**另发一条**「非 sent 且 last_error 非空」
+      //   的查询取首位原因。旧替身形状 `{channel, c}`（只有渠道与行数）会让新实现把
+      //   「有 2 条投递行」读成 `sent=undefined→0` ⇒ **凭空多报** delivery_silent ⇒ 假红。
+      //   这是「替身形状掩盖缺陷」的镜像形态：**替身陈旧同样让判据失真**（两个方向都错）。
+      //   下方自检用例把该形状的鉴别力钉住，防止再次退化。
+      if (/last_error IS NOT NULL/.test(sql)) return { rows: delivery.filter((d) => d.last_error) };
+      return { rows: delivery };
+    }
     if (/AS c FROM crm\.signal/.test(sql)) return { rows: [{ c: signalCount }] };
     return { rows: [] };
   };
@@ -81,6 +90,25 @@ describe('替身模型自检（防护栏自身退化为假绿）', () => {
     // 修复后的真实 SQL（不含 'system' 字面量）→ 系统租户必须留下
     expect(candidateTenants(`SELECT DISTINCT tenant_id FROM crm.signal`, T)).toEqual(T);
   });
+
+  // F-6(a)（2026-09-16）：替身形状必须让「零 sent 但有尝试」可表达，否则该形态无法被断言覆盖。
+  it('F-6(a)：渠道有尝试但零 sent → 产出 delivery_undelivered（非 silent）；修正前该形态零告警', async () => {
+    const { impl } = makeQuery({
+      tenants: ['probe-f6a'], signalCount: 2, eventTrigger: 3, landed: 3, // landed=3 → 隔离 gen_silent
+      delivery: [{ channel: 'inbox', sent: 0, attempted: 2, last_error: 'no_recipient' }],
+    });
+    queryMock.mockImplementation(impl);
+
+    await createSignalObservabilitySweep({ windowHours: 1 }).sweepOnce();
+    const alerts = listAlerts({ kind: 'signal-observability' });
+    const preds = alerts.map((a) => a.payload.predicate);
+
+    // ⚠ 鉴别力所在：修正前判据只看「该渠道有没有行」——inbox 有 2 行 ⇒ 判**健康** ⇒ 本断言会红。
+    expect(preds).toContain('delivery_undelivered');
+    // 有尝试 ⇒ 不属于「真静默」（静默的定义是连失败原因都没有）
+    expect(preds).not.toContain('delivery_silent');
+    expect(alerts.find((a) => a.payload.predicate === 'delivery_undelivered').tenant_id).toBe('probe-f6a');
+  });
 });
 
 describe('createSignalObservabilitySweep — D1 同族遗漏 P-2（扫描面含平台租户）', () => {
@@ -103,7 +131,7 @@ describe('createSignalObservabilitySweep — D1 同族遗漏 P-2（扫描面含�
 
   it('正向：system 租户确实进入扫描面，并产出归属 system 的告警（平台告警不得静默）', async () => {
     const { impl, scanned } = makeQuery({
-      tenants: ['system'], signalCount: 2, eventTrigger: 3, landed: 0, delivery: [{ channel: 'inbox', c: 2 }],
+      tenants: ['system'], signalCount: 2, eventTrigger: 3, landed: 0, delivery: [{ channel: 'inbox', sent: 2, attempted: 2 }],
     });
     queryMock.mockImplementation(impl);
 
@@ -134,7 +162,7 @@ describe('createSignalObservabilitySweep — D1 同族遗漏 P-2（扫描面含�
 
   it('边界：多租户混合时平台租户与业务租户同等对待（不因租户名差别处理）', async () => {
     const { impl, scanned } = makeQuery({
-      tenants: ['acme-demo', 'system'], signalCount: 2, eventTrigger: 3, landed: 0, delivery: [{ channel: 'inbox', c: 2 }],
+      tenants: ['acme-demo', 'system'], signalCount: 2, eventTrigger: 3, landed: 0, delivery: [{ channel: 'inbox', sent: 2, attempted: 2 }],
     });
     queryMock.mockImplementation(impl);
 

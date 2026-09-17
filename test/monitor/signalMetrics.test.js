@@ -168,3 +168,49 @@ describe('detectNegativePredicates 配置驱动（Q1-4：消除 enabledChannels 
     await query(`DELETE FROM crm.signal WHERE tenant_id=$1`, [H3]);
   });
 });
+
+// ── F-6(a)（2026-09-16 实测修正）：判据粒度由「有没有行」收紧为「有没有送达」，并分两级 ──
+// 修正前（真实库实测）：`GROUP BY channel` + 只看「有无行」⇒ 配置 on 却**全 skipped** 的渠道被判健康。
+//   实况：全库 15 个租户 `email=on` 且**零 sent 行**（system 1603 / acme-demo 1591 / sim-erp 1505），
+//   本判据对 email 一声不响 ⇒ exportGate 判据③ 以「无本告警」当通过 ⇒ 出口健康度被静默污染。
+// 分级理由：①「零行」是**真静默**（连失败原因都没有）→ 可阻断出口；
+//   ②「有尝试但零 sent」是本就有归因留痕的未送达（no_recipient 等）→ **必须报出**（原判据完全漏报），
+//   但**不阻断** —— 否则「有人打开一个渠道开关」会让全部租户回写被阻断，闸门变噪音。
+describe('detectNegativePredicates F-6(a)：真静默 vs 有归因未送达', () => {
+  it('渠道有尝试但零 sent → delivery_undelivered（原判据漏报）；渠道零行 → delivery_silent', async () => {
+    const H = `f6a-${randomUUID()}`;
+    await query(
+      `INSERT INTO crm.signal (signal_id, tenant_id, source, kind, severity, target_role, status, created_at)
+       VALUES ($1,$2,'rule-scan','f6a-probe','medium','sales','open',now())`,
+      [`sig-${randomUUID()}`, H],
+    );
+    await query(
+      `INSERT INTO crm.config_store (tenant_id, key, value, updated_by, updated_at)
+       VALUES ($1,'signal-delivery',$2::jsonb,'test',now())
+       ON CONFLICT (tenant_id, key) DO UPDATE SET value=$2::jsonb, updated_at=now()`,
+      [H, JSON.stringify({ channels: { inbox: 'on', email: 'on', im: 'off', webhook: 'off' } })],
+    );
+    // inbox：**有尝试、零 sent**（无收件人）—— 这正是修正前被判"健康"的形态
+    await query(
+      `INSERT INTO crm.signal_delivery
+         (delivery_id, signal_id, tenant_id, channel, status, attempts, last_error, created_at)
+       VALUES ($1,$2,$3,'inbox','skipped',1,'no_recipient',now())`,
+      [`d-${randomUUID()}`, `sig-${randomUUID()}`, H],
+    );
+
+    const alerts = await detectNegativePredicates({ tenantId: H, since: new Date(Date.now() - 3600 * 1000) });
+    const silent = alerts.filter((a) => a.type === 'delivery_silent');
+    const undeliv = alerts.filter((a) => a.type === 'delivery_undelivered');
+
+    // email 零行 ⇒ 真静默（参与 exportGate 判据③）
+    expect(silent.map((a) => a.channel)).toEqual(['email']);
+    // inbox 有尝试零 sent ⇒ 未送达但**有归因**（不是静默）。
+    //   ⚠ 本断言即鉴别力所在：若实现回退为「只看有无行」，undeliv 将为空数组 → 本行红。
+    expect(undeliv.map((a) => a.channel)).toEqual(['inbox']);
+    expect(undeliv[0]).toMatchObject({ sent: 0, attempted: 1, top_error: 'no_recipient' });
+
+    await query(`DELETE FROM crm.signal WHERE tenant_id=$1`, [H]);
+    await query(`DELETE FROM crm.signal_delivery WHERE tenant_id=$1`, [H]);
+    await query(`DELETE FROM crm.config_store WHERE tenant_id=$1 AND key='signal-delivery'`, [H]);
+  });
+});
