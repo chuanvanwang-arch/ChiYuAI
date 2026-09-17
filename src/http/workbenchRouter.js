@@ -20,6 +20,7 @@ import { listTasks } from '../kanban/kanban.js';
 import { renderPage } from '../page/renderer.js';
 import { resolveMe } from './auth.js';
 import { scopeTenant, scopeOf, signalOwnerScope } from './tenantScope.js';
+import { normalizeRole, canWriteTenantConfig } from './middleware/rbac.js'; // 角色归一单一事实源（ten_admin 跨租户过滤修复 2026-09-17）
 import { schema as WORKBENCH_SCHEMA } from '../pages/S33-workbench.schema.js';
 import { toStageCode, isOpenStage, isPoolStage } from '../sales/stageTaxonomy.js'; // 阶段归一 + 「在跟=非终态」判定（2026-09-09）+ 公海排除（2026-09-11 T9）
 import { advanceTask } from '../approval/engine.js';
@@ -54,9 +55,12 @@ const defaultDeps = {
   // 参数调优数据源（P1 2026-09-05）：calibration_patch PENDING 处方（assignee 匹配 + tan_admin 限租户）
   // 复用校准 store 直查（对齐 calibrationRouter.listPatches 语义；admin/sysadmin 通配，tan_admin 限本租户）
   queryPatches: async (actor) => {
-    const role = (actor?.roles || [])[0] || '';
-    const isAdminLike = role === 'ADMIN' || role === 'SYSADMIN' || role === 'admin' || role === 'sysadmin';
-    const tenantFilter = role === 'TAN_ADMIN' || role === 'tan_admin' ? scopeOf(actor) : null;
+    // 角色归一（单一事实源 rbac.normalizeRole）：actor.roles 承载的是**裸 me.role**（见上方 currentActor），
+    // 真实租户管理员落库名是 ten_admin —— 若按裸字面量比较（旧实现只列了 'TAN_ADMIN'|'tan_admin'）会漏，
+    // 使 tenantFilter 落 null ⇒ SQL 的 `$1::text IS NULL OR tenant_id=$1` 命中【全部租户】PENDING 处方（越权读）。
+    // 2026-09-17 修复：ten_admin / tan_admin / tan-admin / tenant-admin / TAN_ADMIN 经归一后一律收窄本租户。
+    const nRole = normalizeRole((actor?.roles || [])[0]);
+    const tenantFilter = nRole === 'TAN_ADMIN' ? scopeOf(actor) : null;
     const r = await query(
       `SELECT * FROM crm.calibration_patch
         WHERE status='PENDING'
@@ -195,6 +199,13 @@ async function rowsFrom(view, sources, actor, deps) {
       // 参数调优（P1 2026-09-05 设计 §2.4）：calibration_patch.status='PENDING' 处方
       // 夜间参数体检/路由实验产出 → ADMIN/tan_admin 批准生效（有效闭合「每夜体检→待办→批准」主链路）
       // tuning 不消费审批/看板数据源，直接走校准表（deps.queryPatches）
+      //
+      // §2.4 可见性闸（2026-09-17 补）：设计明定「PENDING 处方视角仅 ADMIN/SYSADMIN/tan_admin 可见，
+      //   普通 sales 不可见」。原实现**缺此闸** ⇒ 任何登录用户 GET ?view=tuning 都能拿到 queryPatches 结果，
+      //   而 queryPatches 对非租户管理员 tenantFilter=null ⇒ 读到【全平台】PENDING 处方（越权）。
+      //   fail-closed 返回空列表（刻意不抛错：badge 端点对本视角同样取数，抛错会让整个角标 500）。
+      //   判定与 queryPatches 同源（canWriteTenantConfig = §15.1 租户级三角色），杜绝两处漂移。
+      if (!canWriteTenantConfig({ role: (actor?.roles || [])[0] })) return [];
       const patches = await deps.queryPatches(actor);
       return patches.map((p) => ({
         id: p.patch_id || p.id,

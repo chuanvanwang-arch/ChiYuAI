@@ -43,7 +43,12 @@ const EXPECTED = { approval: 1, processing: 1, initiated: 1, cc: 1, follow: 1, t
 function makeCountingDeps(over = {}) {
   const calls = Object.fromEntries(TRACKED.map((k) => [k, 0]));
   const raw = {
-    currentActor: async () => ({ username: 'sales', roles: ['sales'] }),
+    // 角色用 ten_admin（租户管理员）：tuning（参数调优）视角按设计
+    // docs/2026-09-05-param-closedloop-adaptive-design.md §2.4 仅 ADMIN/SYSADMIN/tan_admin 可见，
+    // **普通 sales 不可见** —— 原夹具用 roles:['sales'] 却期望 tuning:1，与该设计相悖
+    // （2026-09-17 对齐设计；同时该视角已补可见性闸，不再对业务角色返回全平台处方）。
+    // username 仍保留 'sales'：approval/processing/initiated/cc 四视角按**用户名**匹配，与角色无关。
+    currentActor: async () => ({ username: 'sales', roles: ['ten_admin'] }),
     queryApprovalTasks: async () => FIXTURE.approvalTasks,
     queryApprovalInstances: async () => FIXTURE.instances,
     queryKanbanTasks: async () => FIXTURE.kanbanTasks,
