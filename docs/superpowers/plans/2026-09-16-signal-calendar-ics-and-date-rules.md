@@ -421,9 +421,7 @@ git commit -m "fix(signal): rate_limit 改为按出站渠道计数，不再连�
 - Create: `src/signal/ics.js`
 - Test: `test/signal/ics.test.js`
 
-- [ ] **Step 1: 写失败测试**
-
-Create `test/signal/ics.test.js`:
+- [x] **Step 1: 写失败测试** ✅ 2026-09-17 已建 `test/signal/ics.test.js`（7 条；先证伪：模块不存在 → FAIL）
 ```js
 // test/signal/ics.test.js — 信号 → iCalendar 载体（L2，设计 §3.2）
 // 为什么需要：原主张「建立日历」在全仓 VEVENT/.ics/text/calendar 均为 0 命中（纯零实现）。
@@ -493,14 +491,9 @@ describe('buildIcs（纯函数）', () => {
 });
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败** ✅ 实测 FAIL（模块不存在→无测试可跑），符合预期。
 
-Run: `npx vitest run test/signal/ics.test.js`
-Expected: FAIL — `Failed to resolve import "../../src/signal/ics.js"`（文件不存在）。
-
-- [ ] **Step 3: 实现**
-
-Create `src/signal/ics.js`:
+- [x] **Step 3: 实现** ✅ 2026-09-17 `src/signal/ics.js` 已建（纯函数，零依赖；缺日期/非法→null；UTC 归一；75 字节折叠；RFC 转义序）
 ```js
 // src/signal/ics.js — 信号 → 标准 iCalendar（VEVENT）纯函数
 // 设计输入：docs/2026-09-16-signal-export-calendar-design.md §3.2（L2）
@@ -565,7 +558,7 @@ export function buildIcs(signal = {}, { durationMinutes = 30, now = new Date() }
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//CRM AI Native//Signal//CN',
+    'PRODID:-//ChiYu Enterprise AI Sales//Signal//CN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -583,12 +576,9 @@ export function buildIcs(signal = {}, { durationMinutes = 30, now = new Date() }
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过** ✅ 2026-09-17 实测：`7 passed`。并做**变异校验**（鉴别力实测）——① 去掉 `Number.isNaN` 非法日期检查 → 「event_at 非法 → null」**1 红**；② `foldLine` 改为按**字符**折叠 → 「75 字节折叠」**1 红**；均还原后 7 绿。⇒ 断言对「非法日期不造日程」「字节级折叠」两条核心语义均有鉴别力。
 
-Run: `npx vitest run test/signal/ics.test.js`
-Expected: 7 passed。
-
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交** ✅ 2026-09-17 提交（哈希见下方提交记录）
 
 ```bash
 git add src/signal/ics.js test/signal/ics.test.js
@@ -691,7 +681,7 @@ describe('email 挂 .ics 附件', () => {
 > `createEmailProvider({ smtp: providers.smtp, transport: providers.transport })` 中支持，**无需新增装配**；
 > `smtp` 用于让 `verifyConfig` 与环境解耦，`transport` 用于捕获 `sendMail` 参数（零真实外发）。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败** ✅ 实测 2 红（recipient 未透传、无 .ics 附件），符合预期
 
 Run: `npx vitest run test/signal/emailRecipientAndIcs.test.js`
 Expected: FAIL — `expected undefined to be 'alice@corp.com'`（recipient 未透传）与 `attachments` 断言失败。
@@ -810,7 +800,7 @@ Modify `src/signal/delivery/email.js`：顶部加 `import { buildIcs } from '../
     },
 ```
 
-- [ ] **Step 6: 跑测试确认通过（含既有投递测试零回归）**
+- [x] **Step 6: 跑测试确认通过（含既有投递测试零回归）** ✅ 实测 46 passed（含新增 dispatcher 收件人透传守卫 2 例 + emailRecipientAndIcs 4 例；delivery/route/imDelivery 零回归）
 
 Run: `npx vitest run test/signal/emailRecipientAndIcs.test.js test/signal/delivery.test.js test/signal/imDeliveryNoFalseGreen.test.js test/signal/dispatcher.test.js test/signal/route.test.js`
 Expected: 全部 passed。
@@ -830,7 +820,7 @@ git commit -m "fix(signal): 贯通 route 解析出的收件人 + email 按 event
 - Modify: `src/http/routes.js`（顶部 import + signals 块内新增路由）
 - Test: `test/http/signalIcsEndpoint.test.js`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试** ✅ 2026-09-17 已建 `test/http/signalIcsEndpoint.test.js`（4 例；先证伪：端点不存在 → 3 例全红，唯 401 经全局鉴权中间件已过）
 
 Create `test/http/signalIcsEndpoint.test.js`:
 ```js
@@ -899,12 +889,12 @@ db('跨租户读取 → 404（隔离为硬判据，不返回内容）', async ()
 });
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败** ✅ 实测 3 红（路由不存在 → 404；无日期/跨租户用例因收到 HTML 404 而非 JSON 而红），符合预期
 
 Run: `npx vitest run test/http/signalIcsEndpoint.test.js`
 Expected: FAIL — 401 用例可能已过（未知路由返回 404，非 401），其余 3 例全红。
 
-- [ ] **Step 3: 实现端点**
+- [x] **Step 3: 实现端点** ✅ 2026-09-17 已加 `import { buildIcs }` + `app.get('/api/signals/:id/ics')`（scopeOf 隔离 + buildIcs 缺日期 404 + text/calendar 头）
 
 Modify `src/http/routes.js`：
 ① 顶部 import 区（紧跟既有 signal 相关 import 之后）新增一行：
@@ -935,12 +925,12 @@ import { buildIcs } from '../signal/ics.js'; // L2 日历载体：信号 → 标
     });
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过** ✅ 实测 17 passed（含 signalOwnerScope 13 例零回归）；并做变异校验——去 tenant 谓词→跨租户判据转红；去 not_a_calendar_signal 判据→缺日期用例转红
 
 Run: `npx vitest run test/http/signalIcsEndpoint.test.js test/http/signalOwnerScope.test.js`
 Expected: 全 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交** ✅ 2026-09-17 提交 `64f7775`（2 文件，84 行；暂存区仅含我方文件，无并行污染）
 
 ```bash
 git add src/http/routes.js test/http/signalIcsEndpoint.test.js
@@ -955,7 +945,7 @@ git commit -m "feat(http): 新增 GET /api/signals/:id/ics 日历下载端点（
 - Modify: `src/signal/scheduleScanner.js:8-21`
 - Test: `test/signal/scheduleScanner.test.js`（追加 describe 块）
 
-- [ ] **Step 1: 写失败测试（含旧语义零回归对照）**
+- [x] **Step 1: 写失败测试（含旧语义零回归对照）** ✅ 2026-09-17 已追加 6 例（含模块级 `sc` 新建）
 
 在 `test/signal/scheduleScanner.test.js` 末尾追加：
 ```js
@@ -1006,12 +996,12 @@ describe('hitsRule：due_within_days 前瞻语义 + 旧语义零回归', () => {
 > 若该文件顶部未建模块级 `sc`，则在追加块内新建：
 > `const sc = createScheduleScanner({ query: async () => ({ rows: [] }), signalStore: { create: async () => ({ ok: true }) }, readConfig: async () => ({ value: {} }) });`
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败** ✅ 实测 4 红（5 例 due_within_days 中 4 个「不命中」期望反为 true；负向对照旧 age 语义已绿），符合预期
 
 Run: `npx vitest run test/signal/scheduleScanner.test.js`
 Expected: FAIL — 前 5 例中"命中/不命中"至少一例失败（现有实现对 `op:'due_within_days'` 无分支，直接落到 `threshold_days != null` 判定）。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现** ✅ 2026-09-17 已在 `hitsRule` 的 `ne` 判定之后、`threshold_days` 判定之前插入 `due_within_days` 分支（仅认 `cond.op`，不读 `rule.threshold_days`）
 
 Modify `src/signal/scheduleScanner.js` 的 `hitsRule`，在 `op==='ne'` 判定之后、`threshold_days` 判定之前插入：
 ```js
@@ -1033,12 +1023,12 @@ Modify `src/signal/scheduleScanner.js` 的 `hitsRule`，在 `op==='ne'` 判定�
     }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过** ✅ 实测 11 passed（含新增 6 例）；全 `test/signal` 目录 116/116 绿，零回归
 
 Run: `npx vitest run test/signal/scheduleScanner.test.js`
 Expected: 全部 passed（含既有 5 例）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交** ✅ 2026-09-17 提交 `59f7960`（2 文件 / +64，暂存区仅含我方文件）
 
 ```bash
 git add src/signal/scheduleScanner.js test/signal/scheduleScanner.test.js
@@ -1053,7 +1043,7 @@ git commit -m "feat(signal): scheduleScanner.hitsRule 增 due_within_days 前瞻
 - Modify: `src/signal/scheduleScanner.js`（`scanOnce` + 新增 `hitsPeriodic`/`bucketKey` + 导出）
 - Test: `test/signal/scheduleScanner.test.js`（追加 describe 块）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试** ✅ 2026-09-17 已追加 `describe('scanOnce：periodic 规则')` 4 例（窗口内逐人/非窗口零产出/幂等 dedup_key/纯函数）
 
 追加到 `test/signal/scheduleScanner.test.js`：
 ```js
@@ -1123,12 +1113,12 @@ describe('scanOnce：periodic 规则（不读 particles）', () => {
 > 时区说明：断言用 `+08:00` 字面量并按**本地时区**取值（`getDay/getHours`），
 > 与 `hitsPeriodic` 的实现一致；CI 若为 UTC 需把 `hour` 一并按 UTC 写（本机为 +08:00）。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败** ✅ 实测 3 红（hitsPeriodic 未导出 + 周期信号未产；非窗口用例因 signals=0 同绿），符合预期
 
 Run: `npx vitest run test/signal/scheduleScanner.test.js`
 Expected: FAIL — `sc2.hitsPeriodic is not a function`（未导出）。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现** ✅ 2026-09-17 `src/signal/scheduleScanner.js` 已加 `hitsPeriodic`/`bucketKey` 纯函数 + `scanOnce` 周期分支 + 导出；`particleRules`/`periodicRules` 拆分
 
 Modify `src/signal/scheduleScanner.js`：
 ① 在 `createScheduleScanner` 内、`hitsRule` 之后新增两个纯函数：
@@ -1205,12 +1195,12 @@ Modify `src/signal/scheduleScanner.js`：
   return { scanOnce, hitsRule, hitsPeriodic, bucketKey };
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过** ✅ 实测 scheduleScanner 15 + dispatch-e2e 6 = 21 passed；全 `test/signal` 目录 120/120 绿；变异校验清空 periodicRules 迭代 → 2 个信号产出用例转红
 
 Run: `npx vitest run test/signal/scheduleScanner.test.js test/signal/dispatch-e2e.test.js`
 Expected: 全部 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交** ✅ 2026-09-17 提交 `928a673`（2 文件 / +121，暂存区仅含我方文件，无并行污染）
 
 ```bash
 git add src/signal/scheduleScanner.js test/signal/scheduleScanner.test.js
@@ -1226,7 +1216,7 @@ git commit -m "feat(signal): scanOnce 增 periodic 规则分支（逐用户个�
 - Modify: `db/migrate.js`（`signal-schedule` 播种 try 块之后追加一段）
 - Test: `test/signal/scheduleRulesSeed.test.js`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试** ✅ 2026-09-17 已建 `test/signal/scheduleRulesSeed.test.js`（5 例守卫）
 
 Create `test/signal/scheduleRulesSeed.test.js`:
 ```js
@@ -1273,12 +1263,12 @@ describe('日期规则播种模板', () => {
 });
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败** ✅ 实测 FAIL（ENOENT：SQL 文件不存在 → 0 测试收集）
 
 Run: `npx vitest run test/signal/scheduleRulesSeed.test.js`
 Expected: FAIL — `ENOENT`（SQL 文件不存在）。
 
-- [ ] **Step 3: 写迁移 SQL**
+- [x] **Step 3: 写迁移 SQL** ✅ 2026-09-17 已建 `db/migration-signal-schedule-rules.sql`（两条 UPDATE，键内数组按 rule.id 追加，零 DELETE）
 
 Create `db/migration-signal-schedule-rules.sql`:
 ```sql
@@ -1349,7 +1339,7 @@ UPDATE crm.config_store c
 > 说明：上述两条 UPDATE 天然覆盖**所有**既有租户行（`WHERE c.key='signal-schedule'` 不限 tenant_id），
 > 故无需 `SELECT DISTINCT tenant_id` 子查询；守卫第 5 条断言的正是「WHERE 不得限定 tenant_id」这一不变式。
 
-- [ ] **Step 4: 登记进 migrate 清单（仅追加一段）**
+- [x] **Step 4: 登记进 migrate 清单（仅追加一段）** ✅ 2026-09-17 已在 `signal-schedule` 播种块 `catch` 之后插入 L3 日期规则补充段（pg 多语句返回 Result 数组 → 归并 rowCount）
 
 Modify `db/migrate.js`：在 `signal-schedule 播种跳过` try 块的 `catch` 之后插入：
 ```js
@@ -1368,7 +1358,7 @@ Modify `db/migrate.js`：在 `signal-schedule 播种跳过` try 块的 `catch` �
   }
 ```
 
-- [ ] **Step 5: 跑守卫测试 + 真库执行与直查验证**
+- [x] **Step 5: 跑守卫测试 + 真库执行与直查验证** ✅ 2026-09-17 守卫 5 passed；真库执行采用**定向等价验证**（直接跑本 SQL 文件，等同 migrate.js 内该段，但缩小爆炸半径，避全量 migrate 波及并行会话在途迁移）：14 租户全部 `n=4` 且 `ids` 含 `tender-deadline,report-due`；二次执行受影响 `0` 行（幂等）。注：未跑全量 `node db/migrate.js`（会触发整链路迁移，与并行会话冲突）
 
 Run:
 ```bash
@@ -1387,7 +1377,7 @@ PGDATABASE=crm_native node .tmp-rules.mjs; rm -f .tmp-rules.mjs
 Expected: 守卫 5 passed；每个租户 `n=4`、`ids` 含 `tender-deadline,report-due`；
 **复跑一次 `node db/migrate.js` 后行数不变**（幂等）。
 
-- [ ] **Step 6: 记录「规则就绪 + 真库零命中归因」**
+- [x] **Step 6: 记录「规则就绪 + 真库零命中归因」** ✅ 2026-09-17 真库直查：`tender_deadline` 数据面 **0**（正确，规则就绪≠提醒已发）；`bidding.started_at='2026-11-04 前后'` 自由文本（绑上也 NaN 不命中）；`report_due` 启用用户面存在（system=6、acme-consult2=3 等）→ 该周期规则**实际会产出**。读数已抄入提交信息。
 
 Run:
 ```bash
@@ -1404,7 +1394,7 @@ PGDATABASE=crm_native node .tmp-rules-hit.mjs; rm -f .tmp-rules-hit.mjs
 Expected: `tender_deadline` 计数 **0**（规则就绪、数据面缺失——把该读数抄进提交信息与交付说明）；
 `bidding.started_at` 出现 `2026-11-04 前后` 之类非 ISO 文本（佐证不可绑）。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交** ✅ 2026-09-17 提交 `769ea08`（3 文件 / +117，暂存区仅含我方文件，无并行污染）
 
 ```bash
 git add db/migration-signal-schedule-rules.sql db/migrate.js test/signal/scheduleRulesSeed.test.js
@@ -1423,12 +1413,12 @@ git commit -m "feat(db): 追加 tender_deadline/report_due 日期规则（按 ru
 Run: `npx vitest run test/mcp/confirm-params-merge.test.js`
 Expected: 1 failed —— `协议位键（confirm_token/api_token/choice/force/…）不参与合并与冲突判定`。
 
-- [ ] **Step 2: 核对生产侧决策（不得改生产）**
+- [x] **Step 2: 核对生产侧决策（不得改生产）**
 
 Run: `sed -n '18,30p' src/mcp/gateway.js`
 Expected: 注释明确写「force **不**在此列（2026-09-09 修复）……故 force 作为业务执行参数随 phase2 增补合并」。
 
-- [ ] **Step 3: 改测试期望**
+- [x] **Step 3: 改测试期望**
 
 Modify `test/mcp/confirm-params-merge.test.js`：把该用例整体替换为：
 ```js
@@ -1480,7 +1470,12 @@ git commit -m "test(mcp): 更新 confirm-params-merge 过期期望（force 属�
 **Files:**
 - Modify: `test/connectors/discovery/anysiteRest.test.js`
 
-- [ ] **Step 1: 确认根因（不是适配器缺陷）**
+- [x] **Step 1: 确认根因（不是适配器缺陷）**
+
+> ⚠ 实测偏差：本步跑 `npx vitest run test/connectors/discovery/anysiteRest.test.js` 得 **5 passed（非计划预期的 1 failed）**——
+> 原因是 `search` 在 `anysite.js:127` `return []; // fail-open` 使「真 key→fetch→404→恰好返空」与「真返空」殊途同归，
+> `toEqual([])` 无鉴别力（**假绿**）。`src/db.js:8 dotenv.config()` 注入 `.env` 真 `ANY_SITE_KEY`（实测 442 字符，envKeyPresent:true）已证。
+> 故「红态」未现只是因为旧断言太弱，Step 2/3 的零 fetch 断言正是补该鉴判力缺口。
 
 Run:
 ```bash
@@ -1490,7 +1485,7 @@ sed -n '99,102p' src/connectors/discovery/adapters/anysite.js
 Expected: 1 failed（`无凭据 → fail-open 返回空，不抛`）；生产侧 `const key = ctx.credentials?.anysite || process.env.ANY_SITE_KEY; if (!key) return [];`
 **是正确的 fail-closed**。根因在测试：`src/db.js:8 dotenv.config()` 把 `.env` 的真 `ANY_SITE_KEY` 注入测试进程（与 SMTP 误判同源）。
 
-- [ ] **Step 2: 改测试（隔离 env + 可证伪断言）**
+- [x] **Step 2: 改测试（隔离 env + 可证伪断言）**
 
 Modify `test/connectors/discovery/anysiteRest.test.js`：
 ① 顶部 import 加 `afterEach`：
@@ -1517,12 +1512,12 @@ afterEach(() => { vi.unstubAllEnvs(); });
   });
 ```
 
-- [ ] **Step 3: 跑测试确认通过**
+- [x] **Step 3: 跑测试确认通过**
 
 Run: `npx vitest run test/connectors/discovery/anysiteRest.test.js`
 Expected: 5 passed。
 
-- [ ] **Step 4: 变异验证（证明断言有鉴别力，不是恰好变绿）**
+- [x] **Step 4: 变异验证（证明断言有鉴别力，不是恰好变绿）**
 
 把 `''` 改成假凭据 → 该用例**必须转红**；验证后原样还原（用 `cp` 备份/还原，**不用** `git checkout --`，
 以免连带回退 Step 2 尚未提交的改动）：
@@ -1538,7 +1533,7 @@ npx vitest run test/connectors/discovery/anysiteRest.test.js 2>&1 | sed 's/\x1b\
 Expected: 变异后该用例 **必红**（`fetches` 长度为 1，`toHaveLength(0)` 失败）；
 还原后 **5 passed**。若变异后仍绿 → 断言无鉴别力，必须重写断言（而不是接受"绿"）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add test/connectors/discovery/anysiteRest.test.js
@@ -1665,12 +1660,12 @@ git commit -m "docs(test): mcp-tenant M1 超时归因（定位阻塞点，未以
 - Modify: `test/monitor/syncMetrics.test.js`、`scripts/tmp-debug-engine.mjs`
 - Test: `test/signal/dispatch-e2e.test.js`（参照其真库并发卫生）
 
-- [ ] **Step 1: 清点残留绝对路径**
+- [x] **Step 1: 清点残留绝对路径**
 
 Run: `cd D:/system/CRM-ai-native && grep -rn "file:///D:\|file:///d:" test/ scripts/ src/ --include=*.js --include=*.mjs | head -20`
 Expected: 至少 2 处（`test/monitor/syncMetrics.test.js`、`scripts/tmp-debug-engine.mjs`）。
 
-- [ ] **Step 2: 改相对路径 / 删残留调试脚本**
+- [x] **Step 2: 改相对路径 / 删残留调试脚本**
 
 `test/monitor/syncMetrics.test.js`：把 `file:///D:/system/CRM-ai-native/...` 改为
 `new URL('../../<相对路径>', import.meta.url)`。
@@ -1678,7 +1673,7 @@ Expected: 至少 2 处（`test/monitor/syncMetrics.test.js`、`scripts/tmp-debug
 Run: `grep -rn "tmp-debug-engine" . --include=*.js --include=*.mjs --include=*.json 2>/dev/null | grep -v node_modules | grep -v ".release-wt" | head`
 无引用 → `git rm scripts/tmp-debug-engine.mjs`；有引用 → 同样改相对路径。
 
-- [ ] **Step 3: 清零验证（含扫描方法自证）**
+- [x] **Step 3: 清零验证（含扫描方法自证）**
 
 Run:
 ```bash
@@ -1689,7 +1684,7 @@ grep -rn "file:///D:" /tmp/probe-abs.js | head -2; rm -f /tmp/probe-abs.js
 ```
 Expected: 正向为空；自证命中 1 行（**证明扫描方法有效**——沿用「否定断言须先验证扫描方法」纪律）。
 
-- [ ] **Step 4: `graph-query` 批内稳定取证**
+- [x] **Step 4: `graph-query` 批内稳定取证**
 
 Run:
 ```bash
@@ -1702,7 +1697,7 @@ npx vitest run test/mcp 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "FAIL |Tests 
   检查 `test/mcp/graph-query.test.js` 是否写/删了共享表（`crm.decision_relation`/`crm.decision`），
   若写则须在 `beforeAll`/`afterAll` 按**外键子表先删**顺序清理，且**禁止** `TRUNCATE` 全表。
 
-- [ ] **Step 5: 在 `test/mcp/graph-query.test.js` 补隔离（若第 4 步证明需要）**
+- [x] **Step 5: 在 `test/mcp/graph-query.test.js` 补隔离（若第 4 步证明需要）**
 
 若该测试确有共享表写入，按 `signalOwnerScope.test.js` 范式补：
 ```js
@@ -1725,7 +1720,7 @@ afterAll(async () => {
 ```
 > 若第 4 步未复现批量失败，**不写**本步代码（YAGNI），仅在报告/提交信息中记录「两条件比对读数」作为证据。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add test/monitor/syncMetrics.test.js
