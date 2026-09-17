@@ -111,6 +111,7 @@ import { buildAlertHandlers, ALERT_ENDPOINTS } from '../alerts/alertEndpoints.js
 // 信号端点（2026-09-16 主动运行时 S1）：crm.signal 统一收口列表/确认/否决
 import { createSignalStore } from '../signal/store.js';
 import { createAdoption } from '../signal/adoption.js'; // T18 建议卡采纳/否决（第 0 闸）
+import { buildIcs } from '../signal/ics.js'; // L2 日历载体：信号 → 标准 VEVENT（缺日期返 null）
 // S6 T19-7/T19-8：常驻授权凭证端点（线 B｜写须 decision_id 过第0闸 / 仅 T0/T1 / T3 永久不可 / 零 DELETE）
 import { createGrant, listGrants, revokeGrant, getExecution, recentVerdicts, pauseGrant } from '../authorization/grantStore.js';
 import { loadGrantsPolicy, T3_ACTIONS } from '../authorization/standingAuthorization.js';
@@ -425,6 +426,26 @@ export function createRoutes(app, hub) {
       try {
         const r = await adoption.reject({ signal_id: req.params.id, tenant_id: scopeOf(me), actor: me.username, decision_id, reason });
         res.status(r.ok ? 200 : 400).json(r);
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // L2 日历下载：GET /api/signals/:id/ics → text/calendar
+    //   隔离：与其它信号端点同源收窄（scopeOf(me) 作 tenant 谓词）；跨租户 → 404（不泄漏"存在但无权"）
+    //   缺 event_at → 404 not_a_calendar_signal —— 与 buildIcs 的 null 语义一致（不造假日程）
+    app.get('/api/signals/:id/ics', async (req, res) => {
+      const myMe = requireMe(req, res);
+      if (!myMe) return;
+      try {
+        const { rows } = await pool.query(
+          `SELECT * FROM crm.signal WHERE signal_id=$1 AND tenant_id=$2`,
+          [req.params.id, scopeOf(myMe)],
+        );
+        const signal = rows[0];
+        if (!signal) return res.status(404).json({ ok: false, error: 'signal_not_found' });
+        const ics = buildIcs(signal);
+        if (!ics) return res.status(404).json({ ok: false, error: 'not_a_calendar_signal' });
+        res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${signal.signal_id}.ics"`);
+        res.send(ics);
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
   }
