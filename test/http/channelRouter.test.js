@@ -89,6 +89,36 @@ describe('channelRouter 契约（T6）', () => {
     expect(res.body.error).toBe('approval_required');
   });
 
+  it('verify_only=true → 只探测、零副作用（不落凭据/不写描述符/不铸决策/不过人工闸）', async () => {
+    const { deps, store } = makeDeps({
+      verifyScope: async () => ({ ok: true, probe: 'imap_login' }),
+      reviewGate: { hasApproval: async () => null }, // 人工未批准也不应影响「仅验证」
+      produceDecision: async () => { throw new Error('不应铸决策'); },
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'channel-email-1', kind: 'generic-email', credentials: { user: 'u', pass: 'p' }, verify_only: true },
+    }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.verified).toBe(true);
+    expect(res.body.stored).toBe(false);
+    expect(store['secret:channel-email-1']).toBeUndefined();          // 凭据未落
+    expect(store['t1:integration-providers']).toBeUndefined();        // 描述符未写
+    expect(JSON.stringify(res.body)).not.toContain('secret-pass');
+  });
+
+  it('verify_not_wired：未装配探测时 verify_only 不得谎称已验证（fail-closed）', async () => {
+    const { deps } = makeDeps({ verifyScope: null });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 't1', id: 'ch-1', kind: 'generic-email', verify_only: true },
+    }), res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('verify_not_wired');
+  });
+
   it('kind 判据单一源：generic-rest/mcp/cli 不是通道（不展示、不可接入）', async () => {
     const { deps, store } = makeDeps();
     store['t1:integration-providers'] = [

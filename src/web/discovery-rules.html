@@ -137,6 +137,10 @@
       <tbody id="inst-body" data-page-node-id="sa8u1mmj0b9okwsd7o10oP"></tbody>
     </table>
     <div class="muted" style="margin-top:10px" data-page-node-id="fMciCHIfBbvNHl6qJfTvXT">外部系统同步由定时任务触发（间隔可在系统配置调整，默认 6 小时）；最近同步时间见同步事件记录。</div>
+    <!-- 需求②（2026-09-17）：邮件/日历/会议/微信四类通道 kind 域与本表（generic-rest/mcp/cli）**不相交**，
+         故不在本表登记 → 指向通道专属面（通道配置台 / 首次向导），避免用户在本页找不到入口。 -->
+    <div class="hint" style="margin-top:10px" data-page-node-id="Kt3sWq9nCh2Vd8xLm4RbPe">📮 <b>邮箱 / 日历 / 会议（企微·飞书·钉钉）/ 微信</b>四类通道不在本表（kind 域不同，由 <code>/api/channels</code> 管理）：
+      请用<a href="/channel-config.html">通道配置台</a>；首次接入点此走<a href="/onboarding-guide.html">系统向导</a>（系统主动问，无需自己找配置）。</div>
   </section>
   <!-- 实例编辑对话框（弹层） -->
   <dialog id="inst-dialog" data-page-node-id="rBWphQjYHgZ1jSR3LSDBGA">

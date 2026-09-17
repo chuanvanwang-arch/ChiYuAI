@@ -292,6 +292,9 @@ export function createRoutes(app, hub) {
   app.post('/api/channels/:id/disconnect', (req, res) => channelCfg.handlers.disconnect(req, res));
   app.get('/channel-config.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/channel-config.html', import.meta.url))));
+  // 需求② §4.5.2-B：网页全屏 Onboarding 向导（首次登录检测到 0 通道时系统主动弹出）
+  app.get('/onboarding-guide.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/onboarding-guide.html', import.meta.url))));
   app.use(createFunnelRouter());
   // ─── S05 财务应收聚合端点（T1）───
   // 合同维：应收余额=Σplan−Σpaid；逾期天数=plan_end−today(plan_status≠done)；账龄读 config_store aging_buckets；发票对账状态

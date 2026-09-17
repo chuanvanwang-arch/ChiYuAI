@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>通道配置台</title>
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+  <style>
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 24px; background: var(--bg); color: var(--ink); }
+    .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: middle; }
+    th { color: var(--mut); font-weight: 600; }
+    .chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; border: 1px solid var(--line); }
+    .on { color: var(--ok, #1a7f37); border-color: currentColor; }
+    .off { color: var(--mut); }
+    .card { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 16px 18px; margin-top: 18px; }
+    .field { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: center; margin: 8px 0; font-size: 14px; }
+    input[type=text], input[type=password], select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; width: 100%; }
+    button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+    button.primary { background: var(--ac); border-color: var(--ac); color: #fff; }
+    button.danger { color: var(--err); border-color: var(--err); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .hint { color: var(--mut); font-size: 13px; }
+    .err { color: var(--err); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">通道配置台</h1></div></header>
+  <div class="note">📮 本页自助管理 <b>邮箱 / 日历 / 会议（企微·飞书·钉钉）/ 微信</b> 四类通道：补通道、改凭据、升降信任档、断开（<b>软停用</b>，禁物理删除）。
+    凭据 <b>password 字段直传后端入保险库</b>，前端不落明文、不回显。写经<b>决策第 0 闸</b>；接入过 <b>review-gate 人工闸</b>。
+    ⚠ 首次使用请先走 <a href="/onboarding-guide.html">首次接入向导</a>（系统主导，无需自己找配置）。</div>
+
+  <div class="row" style="margin-bottom:10px">
+    <strong style="font-size:14px">已接入通道</strong>
+    <span class="hint" id="count"></span>
+    <button id="reload" style="margin-left:auto">刷新</button>
+    <a href="/onboarding-guide.html"><button>＋ 新增通道（走向导）</button></a>
+  </div>
+  <table>
+    <thead><tr><th>通道</th><th>kind</th><th>标签</th><th>信任档</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6" class="hint">加载中…</td></tr></tbody>
+  </table>
+  <p class="err" id="err"></p>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 4px">补通道 / 改凭据</h2>
+    <p class="hint">凭据仅用于后端加密落库；本页 <b>不保存、不回显</b> 任何明文。信任档默认 <b>L1 只读</b>。</p>
+    <div class="field"><label for="f-kind">通道类型</label>
+      <select id="f-kind">
+        <option value="generic-email">邮箱</option>
+        <option value="generic-calendar">日历</option>
+        <option value="generic-meeting">会议（企微/飞书/钉钉）</option>
+        <option value="generic-wechat">微信（企业微信）</option>
+      </select></div>
+    <div class="field"><label for="f-label">标签</label><input type="text" id="f-label" placeholder="如：工作邮箱" /></div>
+    <div class="field"><label for="f-cred">凭据（JSON）</label><input type="password" id="f-cred" placeholder='{"user":"you@corp.com","pass":"授权码"}' autocomplete="off" /></div>
+    <div class="field"><label for="f-trust">信任档</label>
+      <select id="f-trust"><option value="L1">L1 只读（默认）</option><option value="L2">L2 批量入库</option><option value="L3">L3 L2+回写</option></select></div>
+    <div class="row"><button class="primary" id="connect">确认接入</button>
+      <span class="hint">提交后后端依次执行：凭据入保险库 → verifyScope 真探测（fail-closed）→ review-gate 人工闸 → 描述符落库。</span></div>
+    <p class="hint" id="out"></p>
+  </div>
+
+  <script type="module">
+    // 需求② §4.5.3「通道配置台」：日常自助面（首次体验走 onboarding-guide.html，不要求用户先找到本页）。
+    //   单源：本页与向导、WorkBuddy 对话入口**共用同一后端**（/api/channels），不另建数据源。
+    import { injectLayout } from '/portal/layout.js';
+    import { get } from '/portal/api.js';
+    injectLayout();
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const tenantId = () => new URLSearchParams(location.search).get('tenant_id') || 'system';
+
+    const KIND_TEXT = { 'generic-email': '邮箱', 'generic-calendar': '日历', 'generic-meeting': '会议', 'generic-wechat': '微信' };
+
+    async function load() {
+      $('err').textContent = '';
+      try {
+        const r = await get('/api/channels?tenant_id=' + encodeURIComponent(tenantId()));
+        const list = (r && r.channels) || [];
+        $('count').textContent = '共 ' + list.length + ' 条';
+        $('rows').innerHTML = list.length
+          ? list.map((c) => `<tr>
+              <td>${esc(KIND_TEXT[c.kind] || c.kind)}</td>
+              <td><code>${esc(c.kind)}</code></td>
+              <td>${esc(c.label || '')}</td>
+              <td>${esc(c.trust_level || 'L1')}</td>
+              <td><span class="chip ${c.enabled ? 'on' : 'off'}">${c.enabled ? '已启用' : '已停用'}</span></td>
+              <td><button class="danger" data-id="${esc(c.id)}">断开</button></td>
+            </tr>`).join('')
+          : '<tr><td colspan="6" class="hint">暂无已接入通道 —— 可点「新增通道（走向导）」开始。</td></tr>';
+      } catch (e) {
+        $('err').textContent = '加载失败：' + (e && e.message ? e.message : e);
+      }
+    }
+
+    // 断开 = 软停用（POST /api/channels/:id/disconnect，enabled=false）；禁物理删除铁律。
+    $('rows').addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button[data-id]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      if (!confirm('确认断开「' + id + '」？将置为停用（软停用，不物理删除）。')) return;
+      const res = await fetch('/api/channels/' + encodeURIComponent(id) + '/disconnect?tenant_id=' + encodeURIComponent(tenantId()), { method: 'POST' })
+        .then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+      $('out').textContent = res.ok ? ('已断开：' + id + '（enabled=false）') : ('断开失败：' + (res.error || 'unknown'));
+      await load();
+    });
+
+    $('connect').onclick = async () => {
+      const kind = $('f-kind').value;
+      const label = $('f-label').value.trim();
+      const trust = $('f-trust').value;
+      const raw = $('f-cred').value.trim();
+      let credentials = null;
+      if (raw) { try { credentials = JSON.parse(raw); } catch { $('out').textContent = '凭据须为合法 JSON'; return; } }
+      const id = 'channel-' + kind.replace('generic-', '') + '-' + tenantId();
+      $('out').textContent = '提交中…';
+      const res = await fetch('/api/channels/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: tenantId(), id, kind, label, credentials, trust_level: trust }),
+      }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+      $('out').textContent = res.ok
+        ? ('已提交：' + id + '（信任档 ' + trust + '）。' + (res.hint || ''))
+        : ('接入失败：' + (res.error || 'unknown') + (res.hint ? ' — ' + res.hint : ''));
+      $('f-cred').value = '';   // 明文不驻留 DOM
+      await load();
+    };
+
+    $('reload').onclick = load;
+    load();
+  </script>
+</body>
+</html>

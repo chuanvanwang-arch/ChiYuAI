@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>首次接入向导</title>
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+  <style>
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+    .steps { display: flex; gap: 8px; margin: 12px 0 20px; }
+    .steps > div { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; color: var(--mut); }
+    .steps > div.on { border-color: var(--ac); color: var(--ink); font-weight: 600; }
+    .card { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 18px 20px; }
+    .card h2 { margin: 0 0 6px; font-size: 18px; }
+    .hint { color: var(--mut); font-size: 13px; margin: 6px 0 14px; }
+    .field { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; margin: 10px 0; font-size: 14px; }
+    input[type=text], input[type=password] { padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; width: 100%; }
+    .toolbar { margin-top: 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+    button.primary { background: var(--ac); border-color: var(--ac); color: #fff; }
+    button.link { border: none; background: none; color: var(--mut); text-decoration: underline; }
+    .ok { color: var(--ok, #1a7f37); }
+    .err { color: var(--err); }
+    pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 12px; overflow: auto; max-height: 220px; }
+    .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><h1 style="font-size:20px">让系统认识你的工作环境</h1></header>
+    <div class="note">🔒 <b>凭据直进保险库（credentialVault）</b>，明文不落会话 / 响应 / 审计；
+      向导<b>全部可跳过</b>——跳过即进入「未接入」态，功能不阻塞，随时可再触发。
+      接入动作属四类动作之一，<b>过 review-gate 人工闸（HITL）</b>；首次接入默认 <b>L1 只读</b>，不会主动写你的系统。</div>
+
+    <div class="steps">
+      <div id="s1" class="on">① 问卷：常用邮箱 / 企业微信·飞书·钉钉 / 个人微信（可选）</div>
+      <div id="s2">② 验证与说明（真实探测）</div>
+      <div id="s3">③ 确认接入</div>
+    </div>
+
+    <div class="card" id="pane">
+      <div id="step1">
+        <h2>① 先认识一下你的工作环境</h2>
+        <p class="hint">填多少算多少，留空即跳过该项。密码字段只用于本机直连邮箱，服务端加密落库。</p>
+        <div class="field"><label for="email">常用邮箱地址</label><input type="text" id="email" placeholder="you@company.com" autocomplete="off" /></div>
+        <div class="field"><label for="pass">邮箱密码 / 授权码</label><input type="password" id="pass" placeholder="（不填则跳过邮箱）" autocomplete="off" /></div>
+        <div class="field"><label for="im">企业微信 / 飞书 / 钉钉</label><input type="text" id="im" placeholder="企微 corpid / 飞书 app_id / 钉钉 appkey（可留空）" autocomplete="off" /></div>
+        <div class="field"><label for="wx">个人微信（可选）</label><input type="text" id="wx" placeholder="未接入不影响核心功能" autocomplete="off" /></div>
+        <div class="field"><label for="cal">日历（可选）</label><input type="text" id="cal" placeholder="CalDAV 地址或账号（可留空）" autocomplete="off" /></div>
+        <div class="toolbar">
+          <button class="primary" id="to2">下一步：验证</button>
+          <button class="link" id="skipAll">全部跳过</button>
+        </div>
+      </div>
+
+      <div id="step2" hidden>
+        <h2>② 验证与说明</h2>
+        <p class="hint">对已填项做 <b>verifyScope 真实探测</b>（<b>fail-closed</b>：探测不通过即不接入，绝不用 mock 代真）。
+          凭据缺失时明确提示 <code>credentials_missing</code>；真实通道连通未交付时如实报 <code>probe_not_implemented</code>，
+          不把「未验证」伪装成「已验证」。</p>
+        <pre id="verifyOut">（点击「开始验证」）</pre>
+        <p class="hint">📖 说明：接入后<b>当前只读（L1）</b>——系统只读取并抽取结构化字段（主题/参与方/时间），
+          不落原始正文；信任档提升到 L2/L3 需<b>独立审批闸</b>，不在本向导范围。</p>
+        <div class="toolbar">
+          <button id="doVerify">开始验证</button>
+          <button class="primary" id="to3">下一步：确认接入</button>
+          <button class="link" id="back1">返回修改</button>
+        </div>
+      </div>
+
+      <div id="step3" hidden>
+        <h2>③ 确认接入</h2>
+        <p class="hint">汇总本次拟接入清单；确认后后端完成「凭据入保险库 → verifyScope 真探测 → review-gate 人工闸 → 描述符落库」。</p>
+        <pre id="planOut">（尚未生成清单）</pre>
+        <div class="toolbar">
+          <button class="primary" id="confirm">确认接入</button>
+          <button class="link" id="skipAll2">暂不接入（跳过）</button>
+        </div>
+        <p class="hint" id="result"></p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // 网页全屏向导（设计 §4.5.2-B）。与 WorkBuddy 对话入口共用**同一后端引擎**（/api/channels/connect），
+    //   本页只做收集与呈现，业务判定（探测 / 人工闸 / 落库）全在后端，前端不落明文。
+    const $ = (id) => document.getElementById(id);
+    const CHANNEL_MAP = [
+      { key: 'email', kind: 'generic-email', label: '邮箱' },
+      { key: 'cal', kind: 'generic-calendar', label: '日历' },
+      { key: 'im', kind: 'generic-meeting', label: '会议（企微/飞书/钉钉）' },
+      { key: 'wx', kind: 'generic-wechat', label: '微信（企业微信）' },
+    ];
+    let collected = []; // [{ key, kind, label, credentials }]
+
+    function show(n) {
+      for (const i of [1, 2, 3]) { $('step' + i).hidden = i !== n; $('s' + i).classList.toggle('on', i <= n); }
+    }
+    function collect() {
+      const email = $('email').value.trim(), pass = $('pass').value, im = $('im').value.trim(),
+        wx = $('wx').value.trim(), cal = $('cal').value.trim();
+      const out = [];
+      if (email && pass) out.push({ key: 'email', kind: 'generic-email', label: '邮箱', credentials: { user: email, pass } });
+      if (cal) out.push({ key: 'cal', kind: 'generic-calendar', label: '日历', credentials: { endpoint: cal } });
+      if (im) out.push({ key: 'im', kind: 'generic-meeting', label: '会议', credentials: { corp_id: im } });
+      if (wx) out.push({ key: 'wx', kind: 'generic-wechat', label: '微信', credentials: { corp_id: wx } });
+      return out;
+    }
+    function tenantId() { return new URLSearchParams(location.search).get('tenant_id') || 'system'; }
+    const cid = (kind) => 'channel-' + kind.replace('generic-', '') + '-' + tenantId();
+
+    $('to2').onclick = () => { collected = collect(); renderPlan(); show(2); };
+    $('back1').onclick = () => show(1);
+    $('to3').onclick = () => show(3);
+
+    // 真实探测：逐条调 /api/channels/connect 的验证前置（后端 verifyScope 为准）。
+    //   ⚠ 前端**不**自行判定「能不能接入」——只呈现后端返回；缺凭据/未实现必须如实显示。
+    $('doVerify').onclick = async () => {
+      const out = $('verifyOut');
+      if (!collected.length) { out.textContent = '未填写任何通道 → 可直接跳过（系统进入「未接入」态，功能不阻塞）'; return; }
+      out.textContent = '';
+      for (const c of collected) {
+        const res = await fetch('/api/channels/connect', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1', verify_only: true }),
+        }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + (res.hint ? ' — ' + res.hint : '')}\n`;
+      }
+    };
+
+    function renderPlan() {
+      $('planOut').textContent = collected.length
+        ? collected.map((c, i) => `${i + 1}. ${c.label}（${c.kind}）→ 信任档 L1 只读`).join('\n')
+        : '（无拟接入项 —— 可整体跳过）';
+    }
+
+    $('confirm').onclick = async () => {
+      const el = $('result');
+      if (!collected.length) { el.textContent = '无拟接入项，无需确认。'; return; }
+      el.textContent = '提交中…';
+      const lines = [];
+      for (const c of collected) {
+        const res = await fetch('/api/channels/connect', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1' }),
+        }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+        lines.push(`[${c.label}] ${res.ok ? '✅ 已提交，待人工闸放行' : '⛔ ' + (res.error || 'failed') + (res.hint ? ' — ' + res.hint : '')}`);
+      }
+      el.textContent = lines.join('\n') + '\n（凭据已入保险库；明文不回显。L1 只读起始，信任提升需独立闸门。）';
+      el.className = 'hint';
+    };
+
+    const skip = () => { location.href = '/channel-config.html?tenant_id=' + encodeURIComponent(tenantId()); };
+    $('skipAll').onclick = skip; $('skipAll2').onclick = skip;
+    renderPlan();
+  </script>
+</body>
+</html>

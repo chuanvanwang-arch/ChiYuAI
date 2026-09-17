@@ -1,0 +1,53 @@
+// test/web/channelConfigPage.test.js — T8：通道配置台（设计 §4.5.3 日常自助面）
+// 判据：
+//   ① 列表唯一数据源＝GET /api/channels（不另建数据源、不直读 config_store）；
+//   ② 凭据表单 password 类型直传后端入 vault，前端不落明文、提交后清空；
+//   ③ 信任档 L1/L2/L3 可选（默认 L1 只读）；
+//   ④ 断开＝POST /api/channels/:id/disconnect（软停用，禁物理删除）；
+//   ⑤ 入口可达性：指向首次接入向导（`/onboarding-guide.html`），且上游页（channel-adapters）有指向本页的链接；
+//   ⑥ 写面单一：不出现 `/api/integration/providers` 写调用（那是通用数据源面，kind 域不相交）。
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+
+const src = readFileSync(new URL('../../src/web/channel-config.html', import.meta.url), 'utf8');
+// 上游入口页：`discovery-rules.html`（「外部数据接入」面板，已提交）——通道 kind 域与该面不相交，故由此互链。
+const upstream = readFileSync(new URL('../../src/web/discovery-rules.html', import.meta.url), 'utf8');
+const routesSrc = readFileSync(new URL('../../src/http/routes.js', import.meta.url), 'utf8');
+
+describe('channel-config.html 配置台', () => {
+  it('列表唯一数据源＝GET /api/channels', () => {
+    expect(src).toContain('/api/channels?tenant_id=');
+    expect(src).not.toContain('/api/integration/providers'); // 不越界到通用数据源面
+  });
+
+  it('凭据 password 直传后端 + 提交后清空（明文不驻留 DOM）', () => {
+    expect(src).toContain('type="password"');
+    expect(src).toContain("$('f-cred').value = ''");
+  });
+
+  it('信任档 L1/L2/L3 可选，默认 L1 只读', () => {
+    expect(src).toContain('value="L1"');
+    expect(src).toContain('value="L2"');
+    expect(src).toContain('value="L3"');
+    expect(src).toContain('L1 只读（默认）');
+  });
+
+  it('断开＝POST /api/channels/:id/disconnect（软停用·禁物理删除）', () => {
+    expect(src).toContain('/disconnect?tenant_id=');
+    expect(src).toContain('软停用');
+    expect(src).toContain('禁物理删除');
+  });
+
+  it('接入调 /api/channels/connect（与向导/WorkBuddy 同一后端引擎）', () => {
+    expect(src).toContain('/api/channels/connect');
+  });
+
+  it('入口可达性：本页链接到首次接入向导；上游页（discovery-rules 外部数据接入）链接到本页', () => {
+    expect(src).toContain('/onboarding-guide.html');
+    expect(upstream).toContain('/channel-config.html');
+  });
+
+  it('routes.js 有 serve（有 serve 才到得了）', () => {
+    expect(routesSrc).toContain('/channel-config.html');
+  });
+});

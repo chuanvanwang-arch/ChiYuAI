@@ -9,6 +9,7 @@
 // 契约：
 //   GET  /api/channels                  → 租户通道列表（来自 integration-providers，含 enabled/trust_level）
 //   POST /api/channels/connect          → 接入向导③确认入库（凭据入 vault→verifyScope 探测→review-gate→描述符 upsert）
+//       body.verify_only=true           → 向导②**只探测、零副作用**（不落凭据/不铸决策/不写描述符/不过人工闸）
 //   POST /api/channels/:id/disconnect   → 软停用（enabled=false）
 // 写闸（与 configRouter 同源，同一键 `integration-providers` 不得两套写语义）：
 //   config-store 写前铸 `config-change` 决策（produceConfigDecision 单一实现）→ decisionId 落 writeConfig。
@@ -46,8 +47,12 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
     const tenantId = req.body?.tenant_id || req.query.tenant_id || 'system';
     const { id, kind, credentials, trust_level = 'L1', objects = [], label } = req.body || {};
     if (!id || !isChannelKind(kind)) return res.status(400).json({ ok: false, error: 'kind_invalid' });
-    // ① 凭据直进 vault（明文不落响应/审计）
-    if (credentials && typeof credentials === 'object' && Object.keys(credentials).length) {
+    // verify_only（向导步骤②）：**只探测、零副作用**——不落凭据、不铸决策、不写描述符、不过人工闸。
+    //   为什么必须显式支持：否则「验证」步骤会真的落库/落密（验证即副作用），与设计 §4.5.1
+    //   「②验证 → ③确认才入库」的两步语义相悖，且会让未确认的凭据提前进入保险库。
+    const verifyOnly = req.body?.verify_only === true;
+    // ① 凭据直进 vault（明文不落响应/审计；verify_only 不落）
+    if (!verifyOnly && credentials && typeof credentials === 'object' && Object.keys(credentials).length) {
       try {
         await saveSecret({ tenantId, providerId: id, raw: credentials });
       } catch (e) {
@@ -57,7 +62,16 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
     // ② verifyScope 真探测（fail-closed；缺凭据→credentials_missing 明确提示）
     if (typeof verifyScope === 'function') {
       const v = await verifyScope({ tenantId, id, kind }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
-      if (!v?.ok) return res.status(400).json({ ok: false, error: v?.error || 'verify_failed', hint: '该通道需补齐凭据（credentials_missing）' });
+      if (!v?.ok) {
+        return res.status(400).json({
+          ok: false, error: v?.error || 'verify_failed', probe: v?.probe || null,
+          hint: v?.hint || '该通道需补齐凭据（credentials_missing）',
+        });
+      }
+      if (verifyOnly) return res.json({ ok: true, verified: true, stored: false, probe: v?.probe || null, hint: '仅验证，未落库（确认后才入库）' });
+    } else if (verifyOnly) {
+      // 未注入 verifyScope 时**不得**谎称已验证（fail-closed：如实报未验证）
+      return res.status(400).json({ ok: false, error: 'verify_not_wired', hint: '未装配探测，不能宣称已验证' });
     }
     // ③ 接入=四类动作 first-connect → 过 review-gate（HITL 人工闸）
     if (reviewGate && typeof reviewGate.hasApproval === 'function') {
