@@ -1,7 +1,8 @@
 // src/monitor/signalMetrics.js — 信号链路观测聚合（T20）
 // 设计输入：docs/2026-09-15-final-design-coexistence-and-proactive.md §T20
 // 指标：delivery_success_rate / avg_latency_ms / conflict / execution_volume（按 tenant_id 隔离）
-// 负向判据：delivery_silent（无投递行但渠道为 on）/ gen_silent（hits>0 而新增 signal=0）
+// 负向判据：delivery_silent（渠道 on 且窗口内**真静默**＝零行）/ delivery_undelivered（渠道 on、
+//   有尝试但**零 sent**，带首位原因）/ gen_silent（hits>0 而新增 signal=0）
 // 降级追溯：getDowngradeEvents（paused 凭证 + rejected 执行）
 // 纪律：全部查询带 tenant_id（租户隔离）；无投递尝试时 success_rate=null（防假绿）；零 DELETE
 import { query } from '../db.js';
@@ -66,9 +67,13 @@ export async function getSignalMetrics({ tenantId, since }) {
 }
 
 // detectNegativePredicates({ tenantId, since, enabledChannels })
-// → [{type:'delivery_silent',channel,tenant_id}] | [{type:'gen_silent',tenant_id,fired}]
+// → [{type:'delivery_silent',channel,tenant_id,sent,attempted}]
+//   | [{type:'delivery_undelivered',channel,tenant_id,sent,attempted,top_error,top_error_count}]
+//   | [{type:'gen_silent',tenant_id,fired}]
 //
-// 判据 A（delivery_silent）：渠道配置为 on 但窗口内零投递行。
+// 判据 A（F-6(a) 修正后分两级，详见下方实现处注释）：
+//   ① delivery_silent      = 渠道配置为 on 且窗口内**零行**（attempted=0，真静默）；参与 exportGate。
+//   ② delivery_undelivered = 渠道配置为 on、有尝试（attempted>0）但 **零 sent**；**不**参与 exportGate。
 //   ⚠ Q1-4 修正（2026-09-16，全链集成设计 v1.1 §3.3）：原实现 `enabledChannels = DEFAULT_CHANNELS`
 //   （四渠道硬编码全开）且定时器⑯ 调用时未传参 → **面板上「渠道『email』已开启」是判据自己
 //   注入的假前提**（一个防假绿的判据自己制造假绿）。现改为从 config_store['signal-delivery'].channels
@@ -116,14 +121,64 @@ export async function detectNegativePredicates({ tenantId, since, enabledChannel
   }
 
   if (signalCount > 0 && channels.length > 0) {
+    // ── F-6(a)（2026-09-16 实测修正）：判据粒度由「有没有行」收紧为「有没有**送达**」，并分两级 ──
+    // 原判据：`SELECT channel, COUNT(*) … GROUP BY channel` → 只要该渠道**存在任何行**即视为已投递。
+    //   缺陷（真实库实测，属**漏报**）：配置为 on 却**全 skipped**（无收件人 / 静默时段 / 超重试）的渠道
+    //   被判**健康** —— 一行都没出去。实况：全库 15 个租户 `email=on` 且**零 sent 行**
+    //   （system 1603 / acme-demo 1591 / sim-erp 1505 条 skipped），而本判据对 email **一声不响**；
+    //   `exportGate` 判据③ 又以「无本告警」当通过 ⇒ 出口健康度被静默污染。
+    //
+    // 修正分两级（**为什么要分级**：把两者混为一谈会让告警失去可处置性——见下）：
+    //   ① `delivery_silent`（**真静默**）：窗口内该渠道**零行**（attempted=0）——投递层毫无动静，
+    //      连"为什么没出去"都没有记录。信息完全缺失 ⇒ 参与 `exportGate` 判据③，**可阻断**出口。
+    //   ② `delivery_undelivered`（**有归因的未送达**）：有尝试（attempted>0）但零 sent。这不是静默
+    //      ——`no_recipient` 等原因是**明确留痕**的（N2/N3 另有判据保证"失败/跳过必带 last_error"）。
+    //      它与①的处置动作完全不同（①查链路是否接通；②补收件人/凭据），故**必须分别报**。
+    //      ⚠ **刻意不参与** `exportGate`：若把"某渠道配了 on 但没配收件人"也判出口不健康，
+    //      则平台上一旦有人把渠道开关打开而尚未配齐收件人，**全部租户的回写/自治都会被阻断**
+    //      ⇒ 闸门变成噪音、被绕过（比漏报更坏的失败模式）。此处保持"真静默才阻断"的原语义。
+    //   附带回报 `attempted` 与首位原因 `top_error`：让读告警的人无需再查库即可判断处置方向。
     const { rows: ch } = await query(
-      `SELECT channel, COUNT(*) AS c FROM crm.signal_delivery
-       WHERE tenant_id=$1 AND created_at >= $2 GROUP BY channel`,
+      `SELECT channel,
+              COUNT(*) FILTER (WHERE status='sent')::int AS sent,
+              COUNT(*)::int AS attempted
+       FROM crm.signal_delivery
+       WHERE tenant_id=$1 AND created_at >= $2
+       GROUP BY channel`,
       [tenantId, sinceTs]
     );
-    const delivered = new Set((ch || []).map(r => r.channel));
-    for (const name of channels) {
-      if (!delivered.has(name)) alerts.push({ type: 'delivery_silent', channel: name, tenant_id: tenantId });
+    const byChannel = new Map((ch || []).map(r => [r.channel, r]));
+
+    // 只为「零 sent」的渠道取首位原因（正常路径下该集合为空 ⇒ 不产生额外查询）
+    const zeroSent = channels.filter(name => Number(byChannel.get(name)?.sent || 0) === 0);
+    const topReason = new Map();
+    if (zeroSent.length > 0) {
+      const { rows: errs } = await query(
+        `SELECT channel, last_error, COUNT(*)::int AS c
+           FROM crm.signal_delivery
+          WHERE tenant_id=$1 AND created_at >= $2 AND status <> 'sent' AND last_error IS NOT NULL
+          GROUP BY channel, last_error`,
+        [tenantId, sinceTs]
+      );
+      for (const r of errs || []) {
+        const cur = topReason.get(r.channel);
+        if (!cur || r.c > cur.c) topReason.set(r.channel, r);
+      }
+    }
+
+    for (const name of zeroSent) {
+      const attempted = Number(byChannel.get(name)?.attempted || 0);
+      if (attempted === 0) {
+        alerts.push({ type: 'delivery_silent', channel: name, tenant_id: tenantId, sent: 0, attempted: 0 });
+      } else {
+        const top = topReason.get(name) || null;
+        alerts.push({
+          type: 'delivery_undelivered', channel: name, tenant_id: tenantId,
+          sent: 0, attempted,
+          top_error: top?.last_error || null,
+          top_error_count: Number(top?.c || 0),
+        });
+      }
     }
   }
 

@@ -12,7 +12,15 @@
 // 三判据（设计 §3.4）：
 //   ① crm.signal_delivery 窗口内存在 status='sent' 行
 //   ② 渠道集合来自 config_store['signal-delivery']（非硬编码）
-//   ③ 无「配置为 on 但零投递行」的渠道（复用 §3.3/Q1-4 修正后的判据 A）
+//   ③ 无「配置为 on 但窗口内**真静默**」的渠道（复用 F-6(a) 修正后的判据 A）
+//
+// ⚠ F-6(a) 联动（2026-09-16，判据 A 已分两级，本闸门**只认第一级**）：
+//   ① `delivery_silent`（该渠道零行 ⇒ attempted=0，连失败原因都没有）→ **参与本判据**。
+//   ② `delivery_undelivered`（有尝试但零 sent，如 `no_recipient` 有明确留痕）→ **刻意不参与**。
+//   为什么②不阻断：渠道开关被打开而收件人/凭据尚未配齐，是**配置未完成**而非链路故障；若把它也判
+//   出口不健康，则「有人打开一个渠道开关」会让**全部租户**的回写/自治一并阻断 ⇒ 闸门变噪音、终被绕过
+//   （比漏报更坏的失败模式）。② 的可观测性由 alerts/面板承担（`top_error` 已带首位原因），不由闸门承担。
+//   注：原（未修正）判据把「有任意行（含 skipped）」都算已投递 ⇒ 连①都漏报，本闸门因此长期"假通过"。
 //
 // 铁律：**fail-closed** —— 任一判据为假或判定抛错，一律 blocked（绝不放行）。
 import { query as realQuery } from '../db.js';
@@ -53,7 +61,8 @@ export function createExportGate({ query = realQuery, readConfig = realReadConfi
       : [];
     checks.channels_from_config = enabled.length > 0;
 
-    // ③ 无「配置为 on 但零投递行」的渠道（复用 Q1-4 修正后的判据 A；不传 enabledChannels → 它自己读配置）
+    // ③ 无「配置为 on 但真静默」的渠道（复用 F-6(a) 修正后的判据 A；只认 delivery_silent，
+    //    不含 delivery_undelivered —— 理由见文件头 F-6(a) 联动说明；不传 enabledChannels → 它自己读配置）
     const detect = await resolveDetect();
     const alerts = await detect({ tenantId, since });
     checks.no_silent_channel = !(alerts || []).some((a) => a.type === EXPORT_PREDICATE);

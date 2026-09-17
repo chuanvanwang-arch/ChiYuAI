@@ -3,7 +3,11 @@
 // 所有写操作经 requireDecision（第0闸，config-change 场景）+ writeConfig（upsert 禁删）。
 // 铁律：绝不 DELETE；readConfig 回退继承；per-tenant 隔离（accept config_store 按 patch.tenant_id 落库）。
 // TDD：测试经 __setDeps 注入 requireDecision/writeConfig，避免依赖真实 PG / 决策链。
-import { requireDecision } from '../decision/autonomyEngine.js';
+// F-5 收敛（2026-09-16）：凭证读取**只经引擎单一入口** `decisionIdOf`——删掉本文件自带的那份
+//   同名「多形态兜底」实现（含 `dec?.id` 兜底，异常输入下可能把**非决策 id** 写进审计链）。
+//   ⚠ 原 `import { requireDecision }`（引擎版）在本文件是**死导入**：全文件零调用点，
+//   本文件实际走的是下方 `requireConfigChangeDecision`。
+import { decisionIdOf } from '../decision/autonomyEngine.js';
 import { recordDecisionEvent } from '../decision/decisionRepo.js';
 import { writeConfig, readConfig } from '../config/configStore.js';
 import { broadcastConfig } from '../config/broadcast.js';
@@ -16,6 +20,15 @@ import { hasRole, hasAnyRole, normalizeRole, TENANT_LEVEL_ROLES } from './middle
 // 第0闸（config 变体）：配置变更不进业务决策引擎（decision_scenario 无 config-change 场景，
 // 对齐 decisionScenario.js produceDecision 先例：决策引擎仅承载 8 个业务决策场景）——
 // 沉淀 config_change 治理事件，以 event_id 作为本次写入的可审计 decision_id 凭证。
+//
+// ⚠ 口径声明（F-5，2026-09-16 登记；「补齐真决策 / 保持降级 / 仅收敛」的裁决权在用户）：
+//   本函数是**平台内第二套第 0 闸语义**——它**不调用决策引擎**，而是以治理事件 `event_id` 充作凭证。
+//   故返回的 `mode='config_change_event'` **既不等于** `autonomous` **也不等于** `escalated`：
+//   它**不能阻断写**，且不在 `crm.decision` 留下决策行。
+//   凡消费本返回值者，**不得**将其读作「第 0 闸已过引擎判定」。
+//   （configRouter / llmConfigRouter / namedAccountAssignRouter + 6 个 portal 的
+//    `catch → recordDecisionEvent → {decisionId:null, ok:true}` 降级分支属**同一族**；
+//    若将来裁决为「配置写铸真决策」，本函数与那一族必须**一次性**收敛，不得单侧改动留半迁移态。）
 async function requireConfigChangeDecision(scenario_id, trigger_context = {}, involved_entities = [], opts = {}) {
   const row = await recordDecisionEvent('config_change', {
     scenario_id: scenario_id || 'config-change',
@@ -23,7 +36,10 @@ async function requireConfigChangeDecision(scenario_id, trigger_context = {}, in
     tenantId: opts.tenantId || 'system',
   });
   const id = row?.event_id || row?.decision_id || null;
-  return { ok: true, mode: 'config_change_event', decision_id: id, decision: { decision_id: id } };
+  // 形状统一为**引擎形状**（凭证在 `decision.decision_id`）：不再同时写顶层 `decision_id` 同义键。
+  //   依据：F-3 已在 `autonomyEngine.requireDecision` 确立「刻意不留顶层别名、避免同义双键」的口径，
+  //   此处必须同口径——否则同一个 `decisionIdOf` 读两种形状，「同名字段解释权」再次分裂。
+  return { ok: true, mode: 'config_change_event', decision: { decision_id: id } };
 }
 
 // 依赖注入点（测试桩；生产用真实实现）
@@ -32,10 +48,8 @@ export function __setDeps(overrides = {}) {
   deps = { ...deps, ...overrides };
 }
 
-// requireDecision 返回 { mode, decision: { decision_id }, ... }（嵌套）；多形态兜底取 decision_id
-function decisionIdOf(dec) {
-  return dec?.decision?.decision_id || dec?.decision_id || dec?.id || null;
-}
+// 凭证读取见顶部 import：`decisionIdOf`（autonomyEngine 单一入口，严格取 `result.decision.decision_id`）。
+//   F-5：此处原有一份本地同名实现（`dec?.decision?.decision_id || dec?.decision_id || dec?.id`），已删除。
 
 // 取最新 report 的 config_store 类候选（未被 action 表标记 acted 者）
 async function openRetroSuggestions(pool) {
