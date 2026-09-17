@@ -88,6 +88,8 @@
   <section class="panel" id="panel-signals" data-page-node-id="5KqxVWpLcHSgE25YMA8jFA">
     <div class="sect-title" data-page-node-id="b03ys4kzcbx3D0ZzJJo1ot">关注信号与权重（0–1）</div>
     <div class="hint" data-page-node-id="hlq5qg6OpraoElUDg1awPB">哪些企业动态更能说明「对方正处在有购买需求的窗口期」。权重越高，命中该信号的企业排序越靠前。</div>
+    <p class="hint">「招聘 / 新战略」类外部情报本平台暂无可信数据源（已标注 <b>无内部数据源</b>，不计入筛选）；
+      内部可观测的客户异动（联系人台账变动、关系冷却）以 <b>内部推断</b> 标注，权重低于实测情报。</p>
     <div id="signals-body" data-page-node-id="2EJafjUTIBsY8NqTgmqMBV"></div>
   </section>
 
@@ -196,6 +198,7 @@ const DEFAULTS = {
     funding_round: { weight: 0.9 }, hiring_icp_role: { weight: 0.7 }, tender_match: { weight: 0.8 },
     leadership_change: { weight: 0.5 }, tech_adopt: { weight: 0.6 }, website_redesign: { weight: 0.3 },
     social_content: { weight: 0.4 },
+    contact_ledger_change: { weight: 0.25 }, relation_cooling: { weight: 0.2 },
   },
   duplicate_criteria: { CRM_ACCOUNT: [['external_id'], ['domain'], ['linkedin_url'], ['name']], CRM_CONTACT: [['external_id'], ['email']] },
   playbooks: [],
@@ -206,6 +209,7 @@ const SIGNAL_LABELS = {
   funding_round: '融资动态', hiring_icp_role: '目标岗位招聘', tender_match: '中标标讯',
   leadership_change: '管理层变动', tech_adopt: '新技术采用', website_redesign: '官网改版',
   social_content: '社媒内容',
+  contact_ledger_change: '客户联系人台账变动（内部推断）', relation_cooling: '客户关系冷却（内部推断）',
 };
 
 // ─── 自动策略（Playbooks）可视化表格编辑器（2026-09-15 方案③）───

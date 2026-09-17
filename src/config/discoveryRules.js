@@ -29,13 +29,22 @@ export const DEFAULT_DISCOVERY_RULES = Object.freeze({
     { id: 'xinbang',      kind: 'social',            scope: 'paid',             costTier: 2, enabled: false },
   ],
   signals: {
+    // coverage 语义（2026-09-16 口径收敛）：
+    //   no_internal_source  —— 本平台**无数据源**。字段保留是为兼容既有读取点（不破坏配置结构），
+    //                          但任何展示/承诺都不得把它说成"可用的筛选能力"（审计 §1.2 的根因）。
+    //   internal_inference  —— 来自**内部可观测数据**的推断（低置信，权重必须低于实测情报）。
+    //   未标注            —— 外部实测情报（融资/标讯/技术采用等，由 discovery 适配器真实产出）。
     funding_round:     { weight: 0.9 },
-    hiring_icp_role:   { weight: 0.7 },
+    hiring_icp_role:   { weight: 0.7, coverage: 'no_internal_source' },
     tender_match:      { weight: 0.8 },
-    leadership_change: { weight: 0.5 },
+    leadership_change: { weight: 0.5, coverage: 'no_internal_source' },
     tech_adopt:        { weight: 0.6 },
     website_redesign:  { weight: 0.3 },
     social_content:    { weight: 0.4 },
+    // ── 内部可观测客户异动（2026-09-16 新增；产出方 src/signal/activityDerivation.js）──
+    //   权重刻意压低：同权会让"联系人台账变动"这类弱代理与"融资/标讯"等实测情报在排序上等价。
+    contact_ledger_change: { weight: 0.25, coverage: 'internal_inference' },
+    relation_cooling:      { weight: 0.2,  coverage: 'internal_inference' },
   },
   // P0-1c（2026-09-15）：信号时间字段映射 + 衰减档（设计 docs/2026-09-15-anysite-borrowing-analysis.md §3）。
   // 发现侧信号在 discoverySchema/buildDiscoveryPayload 里以 provider 类型命名（funding_round/hiring_icp_role/tender_match/social_content），
