@@ -6,6 +6,7 @@ import { listActions } from '../action/registry.js';
 import { seedActions } from '../action/seed-actions.js';
 import { seedDiscoveryActions } from '../action/discoveryActions.js';
 import { seedConnectorActions } from '../connectors/connectorActions.js';
+import { seedChannelActions } from '../action/channelActions.js';
 import { z } from 'zod';
 
 // JSON Schema → Zod shape（MCP SDK 1.x 需要 zod raw shape；仅取 MCP 入参需要的字段）
@@ -53,7 +54,7 @@ export function buildMcpTools({ seed = true } = {}) {
   //   app 进程 `routes.js:616` 调用）→ 独立 MCP 进程（`npm run mcp:http|stdio`；生产 /mcp）
   //   工具面无 `sync-writeback-fields`，「办公智能体经 MCP 交互后回写」链路永久断。
   //   buildMcpTools 是 MCP 暴露面唯一咽喉 → 三族在此一并注册，一处修复覆盖 server.js / 校验脚本 / 探针。
-  if (seed) { seedActions(); seedDiscoveryActions(); seedConnectorActions(); }
+  if (seed) { seedActions(); seedDiscoveryActions(); seedConnectorActions(); seedChannelActions(); }
   // 2026-09-03 方案 A（用户拍板）：MCP 暴露面按 lifecycle 收敛——隐藏 `reserved` 死表面，
   // 仅暴露 active(默认) + engine。注册表全量保留（遵守禁 DELETE 铁律，只收暴露层、不删 action）。
   const all = listActions().filter((a) => a.lifecycle !== 'reserved');
