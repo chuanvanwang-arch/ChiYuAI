@@ -11,6 +11,22 @@ export function createScheduleScanner({ query, signalStore, readConfig = default
     const fieldVal = p[cond.field];
     if (cond.op === 'eq' && fieldVal !== cond.value) return false;
     if (cond.op === 'ne' && fieldVal === cond.value) return false;
+    // L3 前瞻语义（2026-09-16）：'due_within_days' —— 「截止日落在未来 N 天内」
+    //   存在理由：既有实现只支持 threshold_days 的「已逾期 N 天」（age ≥ N），而「投标截止」「汇报到期」
+    //   属**前瞻**型；用 age 语义会得到「截止日过去 N 天之后才提醒」（时机反了）。
+    //   与既有 age 语义互斥且不改后者：本分支只认 condition.op，**不读** rule.threshold_days，
+    //   故旧规则（有 threshold_days、无该 op）走原路径 → 零回归（见测试负向对照）。
+    if (cond.op === 'due_within_days') {
+      // ts_field 必须由规则**显式**声明：回退 updated_at 会把「最近改过」当截止日 → 假提醒
+      if (!rule.ts_field) return false;
+      const ts = p[rule.ts_field];
+      if (!ts) return false;
+      const win = Number(cond.threshold_days);
+      if (!Number.isFinite(win)) return false;
+      const dueInDays = (new Date(ts).getTime() - now) / 86400000;
+      if (Number.isNaN(dueInDays)) return false;   // 非 ISO 文本（实测 payload.bidding.started_at 即此类）
+      return dueInDays >= 0 && dueInDays <= win;   // 已过期（<0）与超窗（>win）均不命中
+    }
     if (rule.threshold_days != null) {
       const ts = p[rule.ts_field || 'updated_at'] || p.approval_requested_at || p.last_activity_at;
       if (!ts) return false;

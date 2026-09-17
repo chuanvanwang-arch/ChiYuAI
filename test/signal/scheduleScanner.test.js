@@ -60,3 +60,51 @@ describe('T15 时间型信号', () => {
     expect(r.signals).toBe(0);
   });
 });
+
+// ── L3 前瞻语义（2026-09-16）：'due_within_days' ──
+// 为什么需要：既有 hitsRule 只支持 threshold_days 的「已逾期 N 天」（age ≥ N）。
+//   而「投标截止」「汇报到期」是**前瞻**型：把 age 语义套上去 → 只在截止日**过去 N 天之后**才提醒，
+//   提醒时机完全反了。两者必须共存，且旧语义零回归。
+const sc = createScheduleScanner({
+  query: async () => ({ rows: [] }),
+  signalStore: { create: async () => ({ ok: true }) },
+  readConfig: async () => ({ value: {} }),
+});
+describe('hitsRule：due_within_days 前瞻语义 + 旧语义零回归', () => {
+  const NOW = Date.parse('2026-11-01T00:00:00Z');
+  const DUE_RULE = {
+    id: 'tender-deadline', kind: 'tender_deadline', entity_type: 'CRM_DEAL',
+    condition: { op: 'due_within_days', threshold_days: 7 },
+    ts_field: 'tender_deadline', severity: 'high', target_role: 'sales',
+  };
+
+  it('截止日在未来 3 天（窗口 7 天）→ 命中', () => {
+    const e = { id: 'd1', payload: { tender_deadline: '2026-11-04T00:00:00Z' } };
+    expect(sc.hitsRule(DUE_RULE, e, NOW)).toBe(true);
+  });
+
+  it('截止日在未来 10 天（超出窗口）→ 不命中', () => {
+    const e = { id: 'd1', payload: { tender_deadline: '2026-11-11T00:00:00Z' } };
+    expect(sc.hitsRule(DUE_RULE, e, NOW)).toBe(false);
+  });
+
+  it('截止日已过 → 不命中（前瞻不承担逾期，逾期由既有 age 语义覆盖）', () => {
+    const e = { id: 'd1', payload: { tender_deadline: '2026-10-30T00:00:00Z' } };
+    expect(sc.hitsRule(DUE_RULE, e, NOW)).toBe(false);
+  });
+
+  it('规则未声明 ts_field → 不命中（禁止回退 updated_at 冒充截止日）', () => {
+    const e = { id: 'd1', payload: { updated_at: '2026-11-04T00:00:00Z' } };
+    expect(sc.hitsRule({ ...DUE_RULE, ts_field: undefined }, e, NOW)).toBe(false);
+  });
+
+  it('实体缺该字段 → 不命中（不抛）', () => {
+    expect(sc.hitsRule(DUE_RULE, { id: 'd1', payload: {} }, NOW)).toBe(false);
+  });
+
+  it('负向对照：旧 age≥ 语义（threshold_days）零回归', () => {
+    const AGE_RULE = { id: 'q', kind: 'quote_approval_timeout', entity_type: 'CRM_DEAL', threshold_days: 3 };
+    expect(sc.hitsRule(AGE_RULE, { payload: { updated_at: '2026-10-20T00:00:00Z' } }, NOW)).toBe(true);  // 12 天前 → 命中
+    expect(sc.hitsRule(AGE_RULE, { payload: { updated_at: '2026-10-31T00:00:00Z' } }, NOW)).toBe(false); // 1 天前 → 不命中
+  });
+});
