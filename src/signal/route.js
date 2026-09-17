@@ -73,7 +73,11 @@ export function createDeliveryRouter({ readConfig = defaultRead, query = default
     return h >= start || h < end;
   }
 
-  // 限速：统计窗口内已 sent 行数；达到上限即拒（跳过并留痕，绝不静默丢弃）
+  // 限速（Task 2b 修正，2026-09-17）：统计窗口内**出站渠道**已 sent 行数；达到上限即拒。
+  //   根因（实测于 Task 2 执行期）：原 SQL 无 channel 过滤，inbox 的 sent 行计入出站配额，
+  //   而 rate_limited 又归 globalSkip → 连带拦截站内投递且 retry=0 不可自愈。
+  //   现在配额只约束出站渠道：exclude 站内渠道（IN_PLATFORM_CHANNELS）的 sent 行。
+  //   修正的同时保留「静默时段全局生效」语义（那是运营显式意图，与配额性质不同）。
   async function overRateLimit(rateLimit, { tenantId, now = new Date() } = {}) {
     if (!rateLimit || typeof rateLimit !== 'object') return false;
     const windows = [
@@ -82,11 +86,14 @@ export function createDeliveryRouter({ readConfig = defaultRead, query = default
     ].filter((w) => Number.isFinite(w.limit) && w.limit > 0);
     if (!windows.length) return false;
     if (typeof query !== 'function') return false; // 未注入 query（纯函数级单测）→ 不限速
+    const excluded = IN_PLATFORM_CHANNELS; // ['inbox'] — 站内渠道不计入出站配额
     for (const w of windows) {
       const { rows: [r] } = await query(
         `SELECT COUNT(*)::int AS c FROM crm.signal_delivery
-         WHERE tenant_id=$1 AND status='sent' AND created_at > now() - make_interval(hours => $2)`,
-        [tenantId, w.hours],
+         WHERE tenant_id=$1 AND status='sent'
+           AND channel <> ALL($3::text[])            -- 出站配额不计站内渠道（Task 2b）
+           AND created_at > now() - make_interval(hours => $2)`,
+        [tenantId, w.hours, excluded],
       );
       if (Number(r?.c || 0) >= w.limit) return true;
     }
@@ -131,14 +138,17 @@ export function createDeliveryRouter({ readConfig = defaultRead, query = default
     const channels = channelsFor(signal, policy);
     if (channels.length === 0) return { configured: true, reason: 'no_channel_for_severity', policy, decisions: [] };
 
-    const globalSkip = inQuietHours(policy.quietHours, now)
-      ? 'quiet_hours'
-      : (await overRateLimit(policy.rateLimit, { tenantId, now })) ? 'rate_limited' : null;
+    // Task 2b：限速从 globalSkip 拆出。静默时段仍全局生效；限速只约束出站渠道。
+    const globalSkip = inQuietHours(policy.quietHours, now) ? 'quiet_hours' : null;
+    const outboundSkip = globalSkip || ((await overRateLimit(policy.rateLimit, { tenantId, now })) ? 'rate_limited' : null);
 
     const { recipients, reason: recipientMiss } = recipientsFor(signal, policy, tenantId);
     const decisions = channels.map((channel) => {
-      if (globalSkip) return { channel, recipient: null, skip: true, reason: globalSkip };
-      if (IN_PLATFORM_CHANNELS.includes(channel)) return { channel, recipient: null, skip: false, reason: null };
+      // 站内渠道受静默时段约束，但**不受限速约束**（Task 2b：rate_limited 不得拦 inbox）
+      if (IN_PLATFORM_CHANNELS.includes(channel)) {
+        return { channel, recipient: null, skip: !!globalSkip, reason: globalSkip };
+      }
+      if (outboundSkip) return { channel, recipient: null, skip: true, reason: outboundSkip };
       if (recipientMiss) return { channel, recipient: null, skip: true, reason: recipientMiss };
       return { channel, recipient: recipients[0], skip: false, reason: null };
     });

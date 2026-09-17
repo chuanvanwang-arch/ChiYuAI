@@ -18,6 +18,14 @@ const ON_ALL = {
 };
 const NO_QUERY = { query: async () => ({ rows: [{ c: 0 }] }) };
 
+// Task 2b fixture：既有 inbox 又有出站渠道，配额已配置（见计划 Task 2b Step 1）
+const CFG_WITH_RATE_LIMIT = {
+  channels: { inbox: 'on', email: 'on' },
+  route: { high: ['inbox', 'email'] },
+  role_recipients: { sales: ['alice'] },
+  rate_limit: { per_hour: 5 },
+};
+
 describe('route.loadPolicy（渠道集合必须来自配置）', () => {
   it('配置存在 → channels 只含值为 on/true 的渠道', async () => {
     const r = createDeliveryRouter({
@@ -123,13 +131,56 @@ describe('route.resolve（逐渠道决策）', () => {
     expect(out.decisions).toEqual([{ channel: 'inbox', recipient: null, skip: true, reason: 'quiet_hours' }]);
   });
 
-  it('超出 per_hour 限速 → 全渠道 skip 且 reason=rate_limited', async () => {
+  it('超出 per_hour 限速 → 仅出站渠道 skip（Task 2b：inbox 不因限速被拦）', async () => {
     const r = createDeliveryRouter({
       readConfig: fakeRead({ channels: { inbox: 'on' }, rate_limit: { per_hour: 5 } }),
       query: async () => ({ rows: [{ c: 5 }] }), // 已用满
     });
     const out = await r.resolve({ signal: { signal_id: 's7', tenant_id: 't1', severity: 'low', target_role: 'sales' }, tenantId: 't1' });
-    expect(out.decisions).toEqual([{ channel: 'inbox', recipient: null, skip: true, reason: 'rate_limited' }]);
+    expect(out.decisions).toEqual([{ channel: 'inbox', recipient: null, skip: false, reason: null }]);
+  });
+
+  // ===== Task 2b：rate_limit 只约束出站渠道，不得连带拦截 inbox 站内投递 =====
+  it('rate_limit 只统计出站渠道（SQL 必须按渠道收窄，inbox sent 行不计入）', async () => {
+    const q = async (sql) => {
+      // 鉴别力断言：计数 SQL 必须含渠道收窄条件（缺 channel 条件即失败）
+      expect(sql).toMatch(/channel\s*(=|<>|!=)\s*(ANY|ALL)|channel\s+NOT\s+IN|channel\s*=\s*\$/i);
+      return { rows: [{ c: 0 }] }; // 出站渠道未超限
+    };
+    const r = createDeliveryRouter({ query: q, readConfig: async () => ({ value: CFG_WITH_RATE_LIMIT }) });
+    const pol = await r.loadPolicy({ tenantId: 't1' });
+    expect(await r.overRateLimit(pol.rateLimit, { tenantId: 't1' })).toBe(false);
+  });
+
+  it('rate_limited 不拦 inbox（限速命中时站内仍投递，出站 skip）', async () => {
+    const r = createDeliveryRouter({
+      query: async () => ({ rows: [{ c: 999 }] }), // 远超限速
+      readConfig: async () => ({ value: CFG_WITH_RATE_LIMIT }),
+    });
+    const res = await r.resolve({ signal: { tenant_id: 't1', severity: 'high', target_role: 'sales' }, tenantId: 't1' });
+    const inbox = res.decisions.find((d) => d.channel === 'inbox');
+    expect(inbox.skip).toBe(false); // 现状为 true → 先红
+    const email = res.decisions.find((d) => d.channel === 'email');
+    expect(email.skip).toBe(true);
+    expect(email.reason).toBe('rate_limited');
+  });
+
+  it('静默时段仍全局生效（Task 2b 保留语义：静默 ≠ 配额）', async () => {
+    const r = createDeliveryRouter({
+      readConfig: fakeRead({ channels: { inbox: 'on', email: 'on' }, quiet_hours: { start: 22, end: 6 }, rate_limit: { per_hour: 5 } }),
+      query: async () => ({ rows: [{ c: 0 }] }),
+    });
+    const out = await r.resolve({
+      signal: { signal_id: 's2b', tenant_id: 't1', severity: 'high', target_role: 'sales' },
+      tenantId: 't1',
+      now: new Date('2026-09-16T23:30:00'),
+    });
+    const inbox = out.decisions.find((d) => d.channel === 'inbox');
+    const email = out.decisions.find((d) => d.channel === 'email');
+    expect(inbox.skip).toBe(true); // 静默全局生效，inbox 也要 skip
+    expect(inbox.reason).toBe('quiet_hours');
+    expect(email.skip).toBe(true);
+    expect(email.reason).toBe('quiet_hours');
   });
 
   it('配置缺失 → reason=delivery_config_missing 且 decisions 为空', async () => {
