@@ -51,6 +51,8 @@ export const INCREMENTAL_SQL = [
   'migration-signal-adoption-trail.sql', // 2026-09-16 采纳血缘：crm.signal 补 decision_id/action_ref/closed_reason 三列（DDL 已入 schema.sql 尾部；本文件幂等叠加防"signal 表已建但缺三列"的旧库漏列）
   'migration-signal-config.sql',         // 2026-09-16 全链集成 Q1 出口接电：signal-delivery（渠道开关，默认仅 inbox）+ signal-dispatch（泵窗口）系统模板。用户裁决「对当前所有租户统一采用」→ 播 system 模板经 autoSeed 覆盖全部租户（含 system）。缺此两键则 signal_delivery 恒 0 行且判据 A 因零渠道而不触发（判据与链路同时静默）
   'migration-internal-signal-derivation-config.sql', // 2026-09-16 内部客户异动派生：internal-signal-derivation 平台模板（新键整键播种）
+  'migration-signal-personal-scope.sql',  // 2026-09-17 行为巡检信号按人隔离：关闭存量 1522 条无主租户级聚合广播行（visit_shortfall/info_collect_lag），交改造后的按 owner 分组巡检接管（零 DELETE；幂等）
+  'migration-signal-contact-owner.sql',   // 2026-09-17 派生信号责任人「父实体穿透」回填：CRM_CONTACT 自身无 owner，须经 payload.account_id 取父账户责任人，否则 owner_id 恒 NULL ⇒ 广播给全体销售（零 DELETE；幂等）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')

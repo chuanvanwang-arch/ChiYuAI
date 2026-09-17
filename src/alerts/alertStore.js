@@ -18,9 +18,9 @@ let persister = null;
 export function setAlertPersister(fn) { persister = typeof fn === 'function' ? fn : null; }
 export function getAlertPersister() { return persister; }
 
-// createAlert({kind, severity, l2c_stage, target_role, tenant_id, particle_id, payload, decision_id}) → {ok, alert}
+// createAlert({kind, severity, l2c_stage, target_role, tenant_id, particle_id, payload, decision_id, owner_id, dedup_key}) → {ok, alert}
 // kind/severity/target_role 必填非法拒绝
-export function createAlert({ kind, severity, l2c_stage, target_role, tenant_id, particle_id, payload, decision_id } = {}) {
+export function createAlert({ kind, severity, l2c_stage, target_role, tenant_id, particle_id, payload, decision_id, owner_id = null, dedup_key = null } = {}) {
   if (!kind || !severity || !target_role) {
     return { ok: false, error: 'required_fields_missing' };
   }
@@ -33,6 +33,17 @@ export function createAlert({ kind, severity, l2c_stage, target_role, tenant_id,
     tenant_id: tenant_id || 'system', // 2026-09-05 G3：告警归属租户（防跨租户泄漏）
     particle_id: particle_id || null,
     payload: payload || {},
+    // ── 2026-09-17 个人隔离：两个字段必须在内存告警上**保留**并向下游透传 ──
+    //   病灶：此前 createAlert 不保留 owner_id / dedup_key，而落库有**两条写路径**
+    //   （① createAlertWithDb 直写 INSERT；② createAlert 的 persister sink →
+    //     signalFromAlert → signalStore.create）。②是 fire-and-forget，往往先落库，
+    //   而它只能从 payload 猜 owner、只在有粒子锚点时才能派生 dedup → 两者皆 NULL。
+    //   于是同一 signal_id 上「谁先 INSERT 谁定内容」→ 落库行有无 owner 变成**随机**
+    //   （真库实测：21:47 那一批全 NULL，21:49 那一批全有主）。
+    //   这不是"某处忘了传参"，而是**两条收窄点各写一份判定**的经典失效形态：
+    //   修直写路径而漏 persister 路径 = 部分假绿，验收会通过而线上仍泄露。
+    owner_id: owner_id || null,      // 责任人（username）；NULL = 无主（团队级/广播）
+    dedup_key: dedup_key || null,    // 去重键；聚合类信号用稳定键（无粒子锚点也要能去重）
     status: 'open',
     decision_id: decision_id || null,  // 处置决策关联（§6.3 决策网络）
     createdAt: new Date().toISOString(),
@@ -103,20 +114,56 @@ export function resetAlertStore() {
 //   createAlertWithDb(pool, params) —— 内存落 alert + DB 落 crm.signal（source=rule-scan）
 // 防假绿核心：createAlert 返回 ok ≠ 已送达；DB 落库由 crm.signal_delivery 流水验证（见 signal/delivery/）
 // ON CONFLICT DO NOTHING：同 alert_id 幂等（巡检重复触发不叠加）
-export async function createAlertWithDb(pool, params = {}) {
-  const mem = createAlert(params);
+export async function createAlertWithDb(pool, params = {}, { refreshOnDedup = true } = {}) {
+  const tenantId = params.tenant_id || 'system';
+  // dedup_key：显式传入优先（聚合类信号传稳定键，见 salesDailyScan）；
+  // 缺省沿用「同一粒子同一 kind 每小时一行」的既有派生规则；
+  // 两者都没有（无粒子锚点的聚合）→ null，不派生假键。
+  const dedupKey = params.dedup_key
+    || (params.particle_id ? `${params.kind}:${params.particle_id}:hour` : null);
+  // 把**归一后**的 dedup_key 一并交给内存告警：persister 路径据此写出完全相同的键，
+  // 两条写路径对同一 signal_id 竞争 INSERT 时内容一致 → 谁先落库都正确（消除随机 NULL）。
+  const mem = createAlert({ ...params, dedup_key: dedupKey });
   if (!mem.ok) return mem;
+
+  // ── 2026-09-17：去重命中 → 刷新既有行的实时指标（不新增行）────────────────────
+  //   为什么必须刷新：聚合类信号（visit_shortfall / info_collect_lag）描述的是**当前状态**。
+  //   稳定 dedup_key 下若只「命中即返回」，表上会长期停留在首次命中时的数值
+  //   （本周拜访 0 次会一直显示，哪怕已回到 2 次）——用陈旧数据冒充现状就是假绿。
+  //   契约保持：去重时 db 仍返回 null（既有断言 test/alerts/alertStoreDb.test.js 不变），
+  //   被刷新的那行以 `signal` 回显并置 refreshed=true，不静默。
+  if (dedupKey && refreshOnDedup) {
+    const { rows: exist } = await pool.query(
+      `SELECT signal_id FROM crm.signal
+        WHERE tenant_id=$1 AND dedup_key=$2 AND status IN ('open','acked') LIMIT 1`,
+      [tenantId, dedupKey],
+    );
+    if (exist[0]) {
+      const { rows: upd } = await pool.query(
+        `UPDATE crm.signal
+            SET severity=$3, payload=$4,
+                target_role=COALESCE($5, target_role),
+                owner_id=COALESCE($6, owner_id)
+          WHERE tenant_id=$1 AND signal_id=$2
+        RETURNING *`,
+        [tenantId, exist[0].signal_id, params.severity, JSON.stringify(params.payload || {}),
+          params.target_role || null, params.owner_id || null],
+      );
+      return { ok: true, alert: mem.alert, db: null, refreshed: true, signal: upd[0] || null };
+    }
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO crm.signal
       (signal_id, tenant_id, source, kind, severity, target_role, owner_id, l2c_stage, particle_id, payload, evidence, dedup_key)
      VALUES ($1,$2,'rule-scan',$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT DO NOTHING RETURNING *`,
     [
-      mem.alert.alert_id, params.tenant_id || 'system', params.kind, params.severity,
+      mem.alert.alert_id, tenantId, params.kind, params.severity,
       params.target_role, params.owner_id || null, params.l2c_stage || null,
       params.particle_id || null, JSON.stringify(params.payload || {}),
       JSON.stringify({ rule_kind: params.kind, decision_id: params.decision_id || null }),
-      params.particle_id ? `${params.kind}:${params.particle_id}:hour` : null,
+      dedupKey,
     ],
   );
   return { ok: true, alert: mem.alert, db: rows[0] || null };

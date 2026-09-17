@@ -136,5 +136,32 @@ export function createSignalStore(pool) {
     return rows[0];
   }
 
-  return { create, list, setStatus, stats, findOpenByDedup };
+  // closeStaleAggregates：关闭同 (tenant_id, kind) 下**已不再命中**的聚合类信号。
+  //
+  // 为什么必须存在（2026-09-17，配套 salesDailyScan 个人化改造）：
+  //   聚合类信号是「当前状态」快照。改用稳定 dedup_key（不含周期戳）后，同一指标只会有一条
+  //   未关闭行——这是为了消灭原实现「每 30 分钟新增一行」的堆积（实测每小时 12–24 行同义信号）。
+  //   代价是：一旦达标，本轮不再产出该 hit，那条旧行会永远停在 open 并继续向责任人展示
+  //   「本周拜访 0 次」——用陈旧快照冒充现状。故必须由调度侧在每轮扫描后显式收口。
+  //
+  // 收窄范围（刻意的）：
+  //   · 仅处理 `dedup_key IS NOT NULL` 的行——历史无键行（本次个人化之前的存量广播）不在此列，
+  //     交由 db/migration-signal-team-scope.sql 显式修正，避免定时器产生批量副作用；
+  //   · 仅处理 open/acked（已 closed/acted 的不再触碰，保留处置留痕）；
+  //   · 零 DELETE —— 只改状态 + 关闭原因，行保留可审计。
+  async function closeStaleAggregates({ tenant_id = 'system', kind, keep = [], reason = null } = {}) {
+    if (!kind || !Array.isArray(keep)) return { ok: false, error: 'invalid_args' };
+    const { rows } = await pool.query(
+      `UPDATE crm.signal
+          SET status='closed', closed_at=COALESCE(closed_at, now()), closed_reason=COALESCE(closed_reason, $4)
+        WHERE tenant_id=$1 AND kind=$2 AND status IN ('open','acked')
+          AND dedup_key IS NOT NULL
+          AND NOT (dedup_key = ANY($3::text[]))
+      RETURNING signal_id, dedup_key, owner_id`,
+      [tenant_id, kind, keep, reason],
+    );
+    return { ok: true, closed: rows };
+  }
+
+  return { create, list, setStatus, stats, findOpenByDedup, closeStaleAggregates };
 }

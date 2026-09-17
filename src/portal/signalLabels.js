@@ -118,22 +118,34 @@ function fmtValue(key, v) {
   return String(v);
 }
 
+// 聚合类信号的作用域词（2026-09-17）：
+//   有责任人 → 「本人」（这是该销售员自己的指标，不是团队口径）
+//   scope=team（无主团队合计）→ 「团队」
+//   其余（历史无主存量行）→ 不加词，与原输出逐字一致（不因本次改造改写既有摘要）
+function scopeWord(sig, p) {
+  if (scopeOwner(sig)) return '本人';
+  if (p && p.scope === 'team') return '团队';
+  return '';
+}
+
 // 各 kind 的专用摘要（按真库实测 payload 形状编写；返回 null 表示走兜底）
 const SUMMARIZERS = {
   // 巡检直写 metric 形状：{dailyVisits,dailyTarget} 或 {weeklyVisits,weeklyTarget}
   // 规则评估器形状：{dailyVisits,weeklyVisits,threshold:{daily,weekly}}
-  visit_shortfall: (p) => {
-    if (isNum(p.dailyTarget)) return `今日拜访 ${num(p.dailyVisits)} 次，未达目标 ${num(p.dailyTarget)} 次`;
-    if (isNum(p.weeklyTarget)) return `本周拜访 ${num(p.weeklyVisits)} 次，未达目标 ${num(p.weeklyTarget)} 次`;
+  // 2026-09-17：前置作用域词区分「本人 / 团队」，消除「人人看到同一句」的误导
+  visit_shortfall: (p, sig) => {
+    const w = scopeWord(sig, p);
+    if (isNum(p.dailyTarget)) return `${w}今日拜访 ${num(p.dailyVisits)} 次，未达目标 ${num(p.dailyTarget)} 次`;
+    if (isNum(p.weeklyTarget)) return `${w}本周拜访 ${num(p.weeklyVisits)} 次，未达目标 ${num(p.weeklyTarget)} 次`;
     const th = p.threshold || {};
-    if (isNum(th.daily)) return `今日拜访 ${num(p.dailyVisits)} 次，未达目标 ${num(th.daily)} 次`;
-    if (isNum(th.weekly)) return `本周拜访 ${num(p.weeklyVisits)} 次，未达目标 ${num(th.weekly)} 次`;
+    if (isNum(th.daily)) return `${w}今日拜访 ${num(p.dailyVisits)} 次，未达目标 ${num(th.daily)} 次`;
+    if (isNum(th.weekly)) return `${w}本周拜访 ${num(p.weeklyVisits)} 次，未达目标 ${num(th.weekly)} 次`;
     return null;
   },
-  info_collect_lag: (p) => {
+  info_collect_lag: (p, sig) => {
     const min = isNum(p.weeklyMin) ? num(p.weeklyMin) : (isNum(p.threshold) ? num(p.threshold) : null);
     if (!isNum(p.weekNew) || min == null) return null;
-    return `本周新增客户 ${num(p.weekNew)} 家，低于周最低要求 ${min} 家`;
+    return `${scopeWord(sig, p)}本周新增客户 ${num(p.weekNew)} 家，低于周最低要求 ${min} 家`;
   },
   coverage_gap: (p) => {
     if (!isNum(p.daysSinceVisit)) return null;
@@ -215,7 +227,7 @@ export function summarizeSignal(sig) {
   return '暂无明细';
 }
 
-// 对象列：粒子锚点 → payload 内实体键 → 「全量」（不拿「—」交白卷）
+// 对象列：粒子锚点 → payload 内实体键 → 责任人 → 「全量」（不拿「—」交白卷）
 const REF_KEYS = ['account_id', 'deal', 'deal_id', 'lead', 'lead_id', 'external_id'];
 export function scopeRef(sig) {
   const p = (sig && sig.payload) || {};
@@ -225,17 +237,31 @@ export function scopeRef(sig) {
   return null;
 }
 
+// 责任人（2026-09-17 个人隔离修正）：
+//   聚合类信号（visit_shortfall / info_collect_lag）没有粒子锚点，但**有责任人**——
+//   责任人就是它的"对象"。原实现此时一律回落「全量」，这正是用户实测
+//   「对象列全是全量、看不出这是谁的事」的直接原因。
+export function scopeOwner(sig) {
+  const v = sig?.owner_id;
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+const ellipsis = (s) => (s.length > 12 ? `${s.slice(0, 8)}…` : s);
+
 export function scopeLabel(sig) {
   const ref = scopeRef(sig);
-  if (!ref) return '全量';
-  return ref.length > 12 ? `${ref.slice(0, 8)}…` : ref;
+  if (ref) return ellipsis(ref);
+  const owner = scopeOwner(sig);
+  if (owner) return ellipsis(owner);
+  return '全量';
 }
 
 export function scopeTitle(sig) {
   const ref = scopeRef(sig);
-  return ref
-    ? `对象 ${ref}`
-    : '该信号针对整体范围（全部客户/商机），非单个对象';
+  if (ref) return `对象 ${ref}`;
+  const owner = scopeOwner(sig);
+  if (owner) return `该信号责任人为 ${owner} —— 个人级指标，仅本人（及管理者）可见`;
+  return '该信号针对整体范围（全部客户/商机），非单个对象';
 }
 
 // 类型列 title：中文名 + 原始码，保证可读的同时可对日志/可溯源

@@ -37,6 +37,96 @@ export function clearTimers() {
   timers.clear();
 }
 
+// ─── ⑤ 三分类 A 类巡检主体（2026-09-17 从 setInterval 体内抽出为可显式调用的函数）───
+// 为什么抽出（两个理由，都不是"为抽而抽"）：
+//   ① **可验证**：原来它只存在于 setInterval 闭包里，外部无法在真库上跑一次取证；
+//   ② **可即时生效**：setInterval 首轮要等满一个周期（30min）。个人隔离修复上线后若只等定时，
+//      页面最长 30 分钟仍是旧广播数据 —— 抽成函数后由 ensureTimers 启动补跑（对齐 ④-b catchUpRetro 的既有范式）。
+// 幂等保证：聚合信号带稳定 dedup_key（重复调用不堆行）+ closeStaleAggregates 幂等，故补跑安全。
+//
+// 巡检口径（2026-08-30 三分类 A 类）：覆盖缺口/流失警戒/漏斗健康/承诺红/拜访达标/信息收集；
+// 只读 + 产出告警清单；落库与 SSE 转播由 createAlertWithDb / emit 承担。
+// 铁律对齐 07 文档 §5-2：巡检只读 + 发射预警事件，处置由 crm-* 写 Action 显式触发（不跨粒子写）。
+export async function runSalesDailyScan({ tenants: tenantsIn = null } = {}) {
+  const { salesDailyScan } = await import('./salesDailyScan.js');
+  const { mergedThresholds } = await import('../sales/salesThresholds.js');
+  const { createAlertWithDb } = await import('../alerts/alertStore.js');
+  const { createSignalStore } = await import('../signal/store.js');
+  // 多租户（T3，P0，设计 §3.3.1）：平台巡检器做租户循环——每租户读自身配置 + 扫描自身粒子。
+  //   listActiveTenants 由 T9 提供（crm.tenants status='active'）；缺失时回退单租户 [{tenant_id:'system'}]（存量兼容）
+  const { listActiveTenants } = await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }));
+  const tenants = tenantsIn || (listActiveTenants
+    ? (await listActiveTenants().catch(() => [{ tenant_id: 'system' }]))
+    : [{ tenant_id: 'system' }]);
+
+  // 聚合类信号的「本轮仍命中」集合 —— 每轮扫描后据此关闭陈旧快照（见 closeStaleAggregates）
+  const AGG_KINDS = ['visit_shortfall', 'info_collect_lag'];
+  const signalStore = createSignalStore(pool);
+
+  let totalScanned = 0, totalHits = 0, totalClosed = 0;
+  for (const t of tenants) {
+    let accRes = { rows: [] }, dealRes = { rows: [] };
+    try {
+      [accRes, dealRes] = await Promise.all([
+        query(`SELECT id, payload, created_at FROM crm.particles WHERE type='CRM_ACCOUNT' AND tenant_id=$1`, [t.tenant_id]),
+        query(`SELECT id, payload FROM crm.particles WHERE type='CRM_DEAL' AND tenant_id=$1`, [t.tenant_id]),
+      ]);
+    } catch { /* 单租户扫描失败留痕继续（巡检不因单租户异常整体中断） */ }
+    const th = mergedThresholds(
+      await readConfig('sales-thresholds', { tenantId: t.tenant_id })
+        .then(r => r?.value || {}).catch(() => ({}))
+    );
+    const annualTarget = Number(
+      await readConfig('named-account-targets', { tenantId: t.tenant_id })
+        .then(r => r?.value?.annual_target || 0).catch(() => 0)
+    ) || 0;
+    const hits = salesDailyScan({
+      accounts: accRes.rows, deals: dealRes.rows, thresholds: th, annualTarget,
+    });
+    totalScanned += accRes.rows.length + dealRes.rows.length;
+    totalHits += hits.length;
+    // 本轮每个聚合 kind 的「仍命中」键集合（含个人级与团队级）
+    const keepByKind = new Map(AGG_KINDS.map((k) => [k, new Set()]));
+    for (const h of hits) {
+      // B-B3（2026-09-16 主动运行时 S1）：createAlertWithDb 双写（内存 + crm.signal DB），
+      //   巡检命中「落库」而非仅内存——销售自动化/工作台第7视角/首页卡才能看到
+      //
+      // 2026-09-17 个人隔离修正（用户实测「没有完全按照销售员隔离，很多信息是相同的」）：
+      //   ① owner_id 必须透传 —— 原实现此处不传，导致 owner_id 恒为 NULL，
+      //      而 store.list 的 ownerScope 谓词把「无主 + 同角色」当广播 → 同租户全体销售
+      //      看到同一张表（真库实测 1013 条 visit_shortfall 无一条有主）。
+      //   ② dedup_key 必须透传 —— 原实现无粒子锚点即落 NULL，每 30 分钟新增一行
+      //      （截图里 21:06:31 与 20:36:33 内容完全相同的两套行即此）。
+      //   ③ target_role 优先用巡检给出的作用域（个人=sales / 团队=manager），
+      //      缺省才回退旧的「高危→exec，其余→sales」——团队级聚合不再广播给销售员。
+      if (h.dedup_key && keepByKind.has(h.kind)) keepByKind.get(h.kind).add(h.dedup_key);
+      const a = await createAlertWithDb(pool, {
+        kind: h.kind, severity: h.severity,
+        target_role: h.target_role || (h.severity === 'high' ? 'exec' : 'sales'),
+        tenant_id: t.tenant_id, particle_id: h.particle_id, payload: h.metric,
+        owner_id: h.owner_id || null,
+        dedup_key: h.dedup_key || null,
+      });
+      if (a.ok) emit('alert', h.kind, { alert_id: a.alert.alert_id, kind: h.kind, metric: h.metric, tenant_id: t.tenant_id, owner_id: h.owner_id || null });
+    }
+    // 达标即解除：关闭本租户不再命中的聚合信号（稳定 dedup_key 的必然配套，
+    //   否则恢复达标后旧快照会永远 open 并继续向责任人展示旧数值 = 假绿）
+    for (const k of AGG_KINDS) {
+      const res = await signalStore.closeStaleAggregates({
+        tenant_id: t.tenant_id, kind: k, keep: [...keepByKind.get(k)], reason: 'recovered',
+      }).catch(() => ({ ok: false, closed: [] }));
+      if (res.ok && res.closed.length) {
+        totalClosed += res.closed.length;
+        emit('trace', 'sales-daily-scan-cleared', { tenant_id: t.tenant_id, kind: k, closed: res.closed.length });
+      }
+    }
+  }
+  if (totalHits || totalClosed) {
+    emit('trace', 'sales-daily-scan', { tenants: tenants.length, scanned: totalScanned, hits: totalHits, closed: totalClosed });
+  }
+  return { tenants: tenants.length, scanned: totalScanned, hits: totalHits, closed: totalClosed };
+}
+
 // ─── 决策复盘调度（模块级：ensureTimers 只负责注册，判定逻辑在此，便于单测注入依赖）───
 const RETRO_HOUR = 2; // 每日跑批时点（运维调度，非业务阈值）
 
@@ -325,58 +415,19 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
   //    铁律对齐 07 文档 §5-2：巡检只读 + 发射预警事件，处置由 crm-* 写 Action 显式触发（不跨粒子写）。
   //    阈值经 config_store['sales-thresholds']（mergedThresholds 动态读），客户可后台直调。
   const sales = setInterval(() => {
-    (async () => {
-      const { salesDailyScan } = await import('./salesDailyScan.js');
-      const { mergedThresholds } = await import('../sales/salesThresholds.js');
-      const { createAlertWithDb } = await import('../alerts/alertStore.js');
-      // 多租户（T3，P0，设计 §3.3.1）：平台巡检器做租户循环——每租户读自身配置 + 扫描自身粒子。
-      //   listActiveTenants 由 T9 提供（crm.tenants status='active'）；缺失时回退单租户 [{tenant_id:'system'}]（存量兼容）
-      const { listActiveTenants } = await import('../tenant/tenantRepo.js').catch(() => ({ listActiveTenants: null }));
-      const tenants = listActiveTenants
-        ? (await listActiveTenants().catch(() => [{ tenant_id: 'system' }]))
-        : [{ tenant_id: 'system' }];
-      let totalScanned = 0, totalHits = 0;
-      for (const t of tenants) {
-        let accRes = { rows: [] }, dealRes = { rows: [] };
-        try {
-          [accRes, dealRes] = await Promise.all([
-            query(`SELECT id, payload, created_at FROM crm.particles WHERE type='CRM_ACCOUNT' AND tenant_id=$1`, [t.tenant_id]),
-            query(`SELECT id, payload FROM crm.particles WHERE type='CRM_DEAL' AND tenant_id=$1`, [t.tenant_id]),
-          ]);
-        } catch { /* 单租户扫描失败留痕继续（巡检不因单租户异常整体中断） */ }
-        const th = mergedThresholds(
-          await readConfig('sales-thresholds', { tenantId: t.tenant_id })
-            .then(r => r?.value || {}).catch(() => ({}))
-        );
-        const annualTarget = Number(
-          await readConfig('named-account-targets', { tenantId: t.tenant_id })
-            .then(r => r?.value?.annual_target || 0).catch(() => 0)
-        ) || 0;
-        const hits = salesDailyScan({
-          accounts: accRes.rows, deals: dealRes.rows, thresholds: th, annualTarget,
-        });
-        totalScanned += accRes.rows.length + dealRes.rows.length;
-        totalHits += hits.length;
-        for (const h of hits) {
-          // B-B3（2026-09-16 主动运行时 S1）：createAlertWithDb 双写（内存 + crm.signal DB），
-          //   巡检命中「落库」而非仅内存——销售自动化/工作台第7视角/首页卡才能看到
-          const a = await createAlertWithDb(pool, {
-            kind: h.kind, severity: h.severity,
-            target_role: h.severity === 'high' ? 'exec' : 'sales',
-            tenant_id: t.tenant_id, particle_id: h.particle_id, payload: h.metric,
-          });
-          if (a.ok) emit('alert', h.kind, { alert_id: a.alert.alert_id, kind: h.kind, metric: h.metric, tenant_id: t.tenant_id });
-        }
-      }
-      if (totalHits) {
-        emit('trace', 'sales-daily-scan', { tenants: tenants.length, scanned: totalScanned, hits: totalHits });
-      }
-    })().catch((err) => {
+    runSalesDailyScan().catch((err) => {
       emit('trace', 'sales-daily-scan-failed', { error: String(err?.message || err) });
       recordFailure('sales-daily-scan-failed', err);
     });
   }, 1800000);
   timers.set('sales-daily-scan', { handle: sales, intervalMs: 1800000, kind: 'rule', registeredAt: now });
+  // ⑤-b 启动补跑（2026-09-17）：setInterval 首轮要等满 30min，个人隔离修复上线后若只等定时，
+  //   页面最长 30 分钟仍显示旧的无主广播数据。与 ④-b catchUpRetro 同范式：fire-and-forget 不阻塞。
+  //   VITEST 下不触发（不打真实 DB）；幂等由稳定 dedup_key + closeStaleAggregates 保证。
+  if (!process.env.VITEST) runSalesDailyScan().catch((err) => {
+    emit('trace', 'sales-daily-scan-failed', { error: String(err?.message || err) });
+    recordFailure('sales-daily-scan-failed', err);
+  });
   // ⑥ 指名客户应访逾期扫描（2026-08-30 指名客户管理 Task6）：每 30 分钟扫有主客户的应访状态
   //    用 namedVisitStatus 判红（窗口内未达应访次数 → overdueDays≥alertDays）→ createAlert(named_visit_overdue) 幂等（已有 open 不复发）
   //    达标自动解除：pass=true → 有 open alert 则 closeAlert（幂等解除铁律）
