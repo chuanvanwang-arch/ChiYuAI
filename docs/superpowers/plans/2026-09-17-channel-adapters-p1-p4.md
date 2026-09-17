@@ -1053,9 +1053,16 @@ git commit -m "feat(channels): 第一小时价值物报告（Rox 价值前置本
 「360 页面读取键集 ＝ 库中实际键集」。
 
 **P4 阻塞项（未接通，不得宣称已接通）**：
-- ⛔ **四个探针未实现**：`verifyScope` 的 `PROBE_REGISTRY` 全 null（`src/channels/verifyScope.js:13-18`）⇒
-  `probe_not_implemented`，接入被 fail-closed 阻塞（需在 P4 实现 `registerChannelProbe` 注入
-  imap_login/caldav_propfind/meeting_api_list/wecom_api）。
+- ✅ **四个探针已交付（2026-09-17，提交 `8846065`）**：`src/channels/probes.js` 实现
+  `imap_login`（TCP/TLS + IMAP4rev1 LOGIN 状态机）/ `caldav_propfind`（真 PROPFIND→判 207）/
+  `meeting_api_list`（真 HTTP + Bearer，回报条数）/ `wecom_api`（企微 gettoken 判 errcode，不回传 token）；
+  零新增依赖、超时受控、错误码可区分。`PROBE_REGISTRY` 不再全 null ⇒ **`probe_not_implemented` 已不是阻塞项**，
+  现在的失败是**真实的** `connect_failed` / `auth_failed` / `credentials_incomplete`。
+  同提交另修两个结构性缺陷：① `verify_only` 只查 vault ⇒ 探针从不执行（验证步骤结构性不可通过）；
+  ② 向导/配置台凭据收集不足（缺 host/url/secret）⇒ 填完仍被拒（详见提交说明）。
+  已在**真实互联网服务**上自证（`scripts/_probe_channel_real_network.mjs`）：企微 API 返回真实
+  `wecom_errcode_40013`；`imap.qq.com:993` TLS 握手 + LOGIN 判定真实可用。
+- ⛔ **仍未实测接通**：缺**租户真实凭据/endpoint**。填入真实凭据即可完成 P4 验收。
 - ⛔ **first-connect 审批缺自助起单路径**（订正：**不是**「无生产者」）——
   `reviewGate` 查 `CRM_APPROVAL_INSTANCE`（business_type='channel' + business_id=通道 id + state='APPROVED'）
   （`src/channels/reviewGate.js:16-21`）；生产者**存在**＝通用 action `crm-approval-start`
