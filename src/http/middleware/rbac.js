@@ -38,8 +38,26 @@ export function hasAnyRole(me, roles, { targetTenantId } = {}) {
 }
 
 // §15.1 两档常量（调用方统一引用，避免各处散写字面量漂移）
+// ⚠ 本数组字面量写的是历史别名 tan_admin；canonical 名 = ten_admin（userManagement ROLE_TAGS 真实落库名），
+//   两者经 normalizeRole 归一为 TAN_ADMIN，故此处写法不影响判定结果。**新代码不要自行写
+//   `role === 'xxx'` 裸比较**，一律改用下方 canWriteTenantConfig(me) / isTenantAdmin(me)。
 export const SYSTEM_LEVEL_ROLES = ['ADMIN'];
 export const TENANT_LEVEL_ROLES = ['tan_admin', 'sysadmin', 'ADMIN'];
+
+// 租户管理员（canonical = ten_admin；历史别名 tan_admin / tan-admin / tenant-admin 同归一为 TAN_ADMIN）
+export function isTenantAdmin(me) {
+  return normalizeRole(me?.role) === 'TAN_ADMIN';
+}
+
+// 租户级配置管理者语义（§15.1 租户级三角色：ten_admin 限本租户 / sysadmin / ADMIN）。
+// **单一事实源**：凡 `level='tenant'` 的配置路由与端点，判定写权限必须消费本函数，
+// 不得自行写 `role === 'admin' || role === 'sysadmin'`——
+// 2026-09-17 实证缺陷：4 处租户级 router 自写裸比较漏掉 ten_admin（真实落库名），
+// 造成「上层 §15 level 闸放行 → 下层 router 闸 403」的闸不一致（同一角色、同一 level、两套结果）。
+// 数据面隔离不依赖本函数：读走 scopeTenant（ten_admin 取自身租户，不通配 '*'），写走 scopeOf（恒自身租户）。
+export function canWriteTenantConfig(me) {
+  return hasAnyRole(me, TENANT_LEVEL_ROLES);
+}
 
 function gateError(res, status, error) {
   res.status(status).json({ error });

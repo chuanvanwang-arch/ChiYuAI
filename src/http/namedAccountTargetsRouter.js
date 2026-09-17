@@ -11,15 +11,19 @@ import { resolveMe as realResolveMe } from './auth.js';
 import { readConfig, writeConfig } from '../config/configStore.js';
 import { scopeTenant, scopeOf } from './tenantScope.js';
 import { DEFAULTS, mergedTargets, metricDimensions } from '../sales/namedAccountTargets.js';
+import { canWriteTenantConfig } from './middleware/rbac.js';
 
 const CONFIG_KEY = 'named-account-targets';
 
-function roleOk(role) { return role === 'admin' || role === 'sysadmin'; }
+// 角色闸（§15.1 租户级三角色）：消费 rbac 单一事实源。
+// 2026-09-17 修复：原 `role === 'admin' || role === 'sysadmin'` 漏掉 ten_admin
+// （userManagement ROLE_TAGS 真实落库名）⇒ 上层 §15 level 闸（本端点 level='tenant'）放行、本闸却 403。
+function roleOk(role) { return canWriteTenantConfig({ role }); }
 
 async function ensureAdmin(req, res) {
   let me = null;
   try { me = await realResolveMe(req); } catch { me = { ok: false }; }
-  if (!me?.ok || !roleOk(me.role)) { res.status(403).json({ error: '需要 sysadmin 权限' }); return null; }
+  if (!me?.ok || !roleOk(me.role)) { res.status(403).json({ error: '租户级配置需 ten_admin(本租户)/sysadmin/ADMIN 权限（§15.1）' }); return null; }
   return me;
 }
 

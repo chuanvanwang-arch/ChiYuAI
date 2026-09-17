@@ -55,15 +55,16 @@
 </div>
 <script type="module">
   import { injectLayout } from '/portal/layout.js';
-  import { me, api } from '/portal/api.js';
+  import { me, api, canEditTenantConfig } from '/portal/api.js';
   injectLayout();
 
   async function guard() {
     try {
       const r = await me();
       // me() 成功响应为 {role, display_name, username}（无 ok 字段）；失败为 {ok:false}
-      // 仅 admin/sysadmin 可编辑（对齐 config.html 铁律：只判 role）
-      if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+      // 租户级配置页角色闸（§15.1）：canonical 落库名 ten_admin + 历史别名，经 canEditTenantConfig 单点判定
+      // （原为裸比较，漏 ten_admin ⇒ 真实租户管理员被整页拦，与后端 level 闸放行结果相悖）
+      if (!canEditTenantConfig(r?.role)) {
         document.getElementById('app').style.display = 'none';
         document.getElementById('forbidden').style.display = 'block';
         return false;

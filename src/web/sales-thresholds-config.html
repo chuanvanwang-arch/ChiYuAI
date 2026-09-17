@@ -35,7 +35,7 @@
 </div>
 <script type="module">
   import { injectLayout } from '/portal/layout.js';
-  import { me, api } from '/portal/api.js';
+  import { me, api, canEditTenantConfig } from '/portal/api.js';
   injectLayout();
 
   const $ = (id) => document.getElementById(id);
@@ -149,7 +149,9 @@
   (async () => {
     let r;
     try { r = await me(); } catch { r = {}; }
-    if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+    // 租户级配置页角色闸（§15.1）：canonical 落库名 ten_admin + 历史别名，经 canEditTenantConfig 单点判定
+    // （原为裸比较，漏 ten_admin ⇒ 后端已放行、前端仍整页显示「无权限」的界面级伪隔离）
+    if (!canEditTenantConfig(r?.role)) {
       $('app').style.display = 'none';
       $('forbidden').style.display = 'block';
       return;

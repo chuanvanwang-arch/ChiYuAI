@@ -63,7 +63,7 @@ describe('GET /api/config/seven-dim', () => {
     const res = fakeRes();
     await router.handlers.get({ headers: {} }, res);
     expect(res.statusCode).toBe(403);
-    expect(res.body.error).toBe('需要 sysadmin 权限');
+    expect(res.body.error).toBe('租户级配置需 ten_admin(本租户)/sysadmin/ADMIN 权限（§15.1）');
   });
 
   // 2026-09-01 回归保护：缺 import { query } 会让 defaultDeps.listScenarios 抛 ReferenceError。

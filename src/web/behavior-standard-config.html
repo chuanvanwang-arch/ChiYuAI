@@ -80,13 +80,15 @@
 </div>
 <script type="module">
   import { injectLayout } from '/portal/layout.js';
-  import { me, api } from '/portal/api.js';
+  import { me, api, canEditTenantConfig } from '/portal/api.js';
   injectLayout();
 
   async function guard() {
     try {
       const r = await me();
-      if (r?.role !== 'admin' && r?.role !== 'sysadmin') {
+      // 租户级配置页角色闸（§15.1）：canonical 落库名 ten_admin + 历史别名，经 canEditTenantConfig 单点判定。
+      // 原为裸比较 `role !== 'admin' && role !== 'sysadmin'` ⇒ 真实租户管理员 ten_admin 打开即被整页拦（伪隔离）。
+      if (!canEditTenantConfig(r?.role)) {
         document.getElementById('app').style.display = 'none';
         document.getElementById('forbidden').style.display = 'block';
         return false;
