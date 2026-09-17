@@ -25,15 +25,25 @@ export function deliveryKey(signal_id, channel) {
 }
 
 export function createDeliveryStore(pool) {
-  async function record({ signal_id, tenant_id = 'system', channel, provider = null, recipient = null, status = 'pending', last_error = null, provider_msg_id = null }) {
+  // countAttempt（2026-09-17 修正）：**只有「真实投递尝试」才累加 attempts**。
+  //   缺陷实证（demo-datadriven 真库，19:55 起每 5 分钟一轮泵）：dispatcher 的 skip 分支
+  //   （含 `retry_exhausted`）也调本函数，而累加**无条件** ⇒ 一旦越过 retryLimit，
+  //   每轮泵都 +1：`retryLimit=1` 的租户看到 `attempts=6`。`attempts` 于是退化为
+  //   「泵轮次计数器」并无界增长 ⇒ ① 判据/告警把它当「尝试次数」读会误判；
+  //   ② 表被每轮无谓 touch。F-6(b) 只治了「每次调用插新行」（行数增长），
+  //   **没治「skip 也累加」**——症状从「行数线性增长」平移成「attempts 线性增长」，
+  //   同一根因的第二种形态（改形状未改语义）。
+  //   skip（no_recipient / quiet_hours / rate_limited / retry_exhausted）**不是投递尝试**：
+  //   不累加才能保证「限速解除 / 补配收件人」后仍可投递，也才不会吃掉重试预算。
+  async function record({ signal_id, tenant_id = 'system', channel, provider = null, recipient = null, status = 'pending', last_error = null, provider_msg_id = null, countAttempt = true }) {
     const delivery_id = deliveryKey(signal_id, channel);
     const { rows } = await pool.query(
       `INSERT INTO crm.signal_delivery
         (delivery_id, signal_id, tenant_id, channel, provider, recipient, status, attempts, last_error, provider_msg_id, delivered_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,CASE WHEN $7 IN ('sent') THEN now() ELSE NULL END)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $10::boolean THEN 1 ELSE 0 END,$8,$9,CASE WHEN $7 IN ('sent') THEN now() ELSE NULL END)
        ON CONFLICT (delivery_id) DO UPDATE SET
          status          = EXCLUDED.status,
-         attempts        = signal_delivery.attempts + 1,
+         attempts        = CASE WHEN $10::boolean THEN signal_delivery.attempts + 1 ELSE signal_delivery.attempts END,
          provider        = COALESCE(EXCLUDED.provider, signal_delivery.provider),
          recipient       = COALESCE(EXCLUDED.recipient, signal_delivery.recipient),
          last_error      = EXCLUDED.last_error,
@@ -44,7 +54,7 @@ export function createDeliveryStore(pool) {
                                 THEN COALESCE(signal_delivery.delivered_at, EXCLUDED.delivered_at)
                                 ELSE signal_delivery.delivered_at END
        RETURNING *`,
-      [delivery_id, signal_id, tenant_id, channel, provider, recipient, status, last_error, provider_msg_id],
+      [delivery_id, signal_id, tenant_id, channel, provider, recipient, status, last_error, provider_msg_id, countAttempt],
     );
     return rows[0];
   }

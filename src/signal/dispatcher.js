@@ -93,18 +93,22 @@ export function createDispatcher({ query, deliveryRegistry, deliveryStore, route
     for (const d of resolved.decisions) {
       if (already.has(d.channel)) continue;              // ① 幂等
       if (d.skip) {                                      // ③ 自身判定 skip → 记录（不静默）
+        // countAttempt:false（2026-09-17 修正）：skip 不是「投递尝试」，不得消耗重试预算。
+        //   否则 no_recipient/quiet_hours/rate_limited 会随泵累加 attempts，把 attempts 变成泵轮次计数器。
         await deliveryStore.record({
           signal_id: signal.signal_id, tenant_id: tenantId,
-          channel: d.channel, status: 'skipped', last_error: d.reason,
+          channel: d.channel, status: 'skipped', last_error: d.reason, countAttempt: false,
         });
         skipped += 1;
         continue;
       }
       const attempts = await attemptCount(signal.signal_id, d.channel);
       if (attempts > retryLimit) {                       // ② 超重试上限 → 放弃（既有 failed 行已留痕）
+        // countAttempt:false 同上：终结态记账本身不是一次尝试。
+        //   否则「已放弃」的 signal 每轮泵都会把 attempts 再 +1（实测 retryLimit=1 的租户累到 attempts=6）→ 无界增长。
         await deliveryStore.record({
           signal_id: signal.signal_id, tenant_id: tenantId,
-          channel: d.channel, status: 'skipped', last_error: 'retry_exhausted',
+          channel: d.channel, status: 'skipped', last_error: 'retry_exhausted', countAttempt: false,
         });
         skipped += 1;
         continue;
