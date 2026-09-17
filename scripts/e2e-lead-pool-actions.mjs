@@ -241,8 +241,11 @@ try {
 
   // ═══ Step 3.5：公海池页面链路（T1/T2 端点真跑）═══
   // 演示数据 alice 为 system 租户；GET 端点经 scopeTenant 走 isWild（可见全部 S0）。
-  // pick 端点 fail-closed 会拦 system 租户（P1-1 残留代价：缺真实租户不静默得全权益）；
-  //   真实租户销售走 actionExecutor 直驱（生产路径）完成认领闭环。
+  // 2026-09-18 修：pick 端点不再对**显式** system 租户 fail-closed（判定改为 resolveMe.hasExplicitTenant），
+  //   与 Action 层「显式 system 租户恒全权益（resolveEntitlements 已豁免）」对齐。
+  //   修前此处 400，导致前台「看得到、认领不了」——alice 属 system 租户，是本地演示的真实业务上下文
+  //   （全库 S0P 恒 0）。故本步改为直接断言**经端点认领成功**，取代原先的
+  //   「actionExecutor 直驱绕过端点」写法（后者恰好掩盖了端点的缺陷）。
   console.log('\n── Step 3.5: 公海池页面链路 (/api/lead-pool + pick) ──');
   const PAGE_KEY = 'e2e-pool-pageflow-s0';
   // alice 为 sales 角色 → scopeTenant 返回 'system'（非 isWild '*'），GET 仅可见 system 租户 S0；
@@ -257,21 +260,16 @@ try {
     `status=${lp1.status} total=${lp1.json?.total} hasItem=${lp1.json?.items?.some((x) => x.id === pageId)} truncated=${lp1.json?.truncated}`);
 
   const pk = await request(PORT, 'POST', `/api/lead-pool/${pageId}/pick`, null, userTok);
-  check('S3.5.2 POST pick（demo system 租户）→ 400 fail-closed（gate=plan_entitlement_missing_tenant）',
-    pk.status === 400 && pk.json?.gate === 'plan_entitlement_missing_tenant',
-    `status=${pk.status} gate=${pk.json?.gate} err=${(pk.json?.error || '').slice(0, 60)}`);
+  check('S3.5.2 POST pick（显式 system 租户）→ 200 认领成功',
+    pk.status === 200 && pk.json?.ok === true,
+    `status=${pk.status} ok=${pk.json?.ok} err=${(pk.json?.error || '').slice(0, 60)}`);
 
-  // 认领闭环：crm-lead-pick 动作（system 租户 ctx 豁免跨租户）S0 → S0P，且从公海列表消失
-  const { seedActions: sa2 } = await import('../src/action/seed-actions.js');
-  const { actionExecutor: ex2 } = await import('../src/action/executor.js');
-  sa2();
-  const pkR = await ex2.dispatch('crm-lead-pick', { deal_id: pageId, owner_id: 'e2e-picker' },
-    { tenantId: 'system', actor: 'e2e-picker', channel: 'mcp' });
+  // 认领闭环：经**端点**（而非 actionExecutor 直驱）S0 → S0P，且从公海列表消失
   const afterPick = await readDeal(PAGE_KEY);
   const lp2 = await request(PORT, 'GET', '/api/lead-pool', null, userTok);
   check('S3.5.3 认领 → S0→S0P 且从公海列表消失（页面链路闭环）',
-    pkR.ok === true && afterPick?.payload?.stage === 'S0P' && !lp2.json?.items?.some((x) => x.id === pageId),
-    `ok=${pkR.ok} stage=${afterPick?.payload?.stage} stillInPool=${lp2.json?.items?.some((x) => x.id === pageId)}`);
+    afterPick?.payload?.stage === 'S0P' && !lp2.json?.items?.some((x) => x.id === pageId),
+    `stage=${afterPick?.payload?.stage} stillInPool=${lp2.json?.items?.some((x) => x.id === pageId)}`);
 
   await upsertDeal(PAGE_KEY, { name: 'E2E页面链路公海', stage: 'S0', owner_id: null, pool_type: 'new' }); // 复位
 } finally {

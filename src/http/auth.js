@@ -59,7 +59,12 @@ export function resolveMe(req) {
   if (!token) return { ok: false, status: 401, error: 'missing token' };
   try {
     const p = verifyToken(token);
-    return { ok: true, status: 200, role: p.role, display_name: p.display_name, username: p.username, tenantId: p.tenantId || 'system' };
+    // hasExplicitTenant：token 里**是否真的带了** tenantId。
+    //   必需性（2026-09-18）：`tenantId` 对缺失情形兜底为 'system'，使调用方**无法区分**
+    //   「显式 system 租户」与「压根没带租户」。二者语义相反（前者是合法租户、后者应 fail-closed），
+    //   合流后只能一刀切 —— 正是 `routes.js:1285` 原写法（`!me.tenantId || me.tenantId === 'system'`）
+    //   把 system 租户的销售也拦掉、导致公海认领闭环不可用的根因。
+    return { ok: true, status: 200, role: p.role, display_name: p.display_name, username: p.username, tenantId: p.tenantId || 'system', hasExplicitTenant: !!p.tenantId };
   } catch {
     return { ok: false, status: 401, error: 'invalid token' };
   }

@@ -1281,8 +1281,15 @@ export function createRoutes(app, hub) {
     try {
       const me = resolveMe(req);
       if (!me?.ok) return res.status(401).json({ error: '未登录' });
-      // 缺真实租户（或 platform/system 视界）→ 无法确定套餐权益（需 core_crm），fail-closed 拒绝
-      if (!me.tenantId || me.tenantId === 'system') return res.status(400).json({ ok: false, gate: 'plan_entitlement_missing_tenant', error: '执行上下文缺租户（或 platform/system 视界），无法确定套餐权益（需 core_crm）' });
+      // 判定用 hasExplicitTenant（token 是否**真的**带 tenantId），不再一刀切拦 'system'。
+      //   · 缺租户（token 无 tenantId）→ fail-closed 拒绝（不静默获得 system 全权益，P1-1 原则）；
+      //   · 显式 system 租户 → 放行：与 Action 层语义对齐（`executor.js:104`「显式 system 租户恒全权益
+      //     （resolveEntitlements 内已豁免）」+ `test/billing/planGate.e2e.test.js`「system 租户豁免权益闸」）。
+      //   修前（2026-09-18）：此处用 `me.tenantId === 'system'` 一刀切，而 resolveMe 又把「缺租户」兜底成
+      //     'system' ⇒ 显式 system 租户（本地演示环境的业务租户，alice/manager/zimeng 皆属之）被误杀：
+      //     同一用户同一动作，POST /api/lead-pool/:id/pick 得 400，而 POST /api/action/crm-lead-pick 得 200
+      //     ⇒ 前台「看得到、认领不了」：12 条 system 公海无人可领（全库 S0P 0 条），需求①闭环从未执行。
+      if (!me.hasExplicitTenant) return res.status(400).json({ ok: false, gate: 'plan_entitlement_missing_tenant', error: '执行上下文缺租户，无法确定套餐权益（需 core_crm）' });
       const owner_id = me.username || me.display_name || 'user';
       const r = await actionExecutor.dispatch('crm-lead-pick',
         { deal_id: req.params.id, owner_id },

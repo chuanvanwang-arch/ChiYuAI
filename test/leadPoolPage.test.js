@@ -97,7 +97,11 @@ describe('POST /api/lead-pool/:id/pick', () => {
     expect(r.status).toBe(401);
   });
 
-  it('缺租户 / system 视界 fail-closed（不静默得 system 全权益）', async () => {
+  // 2026-09-18 收窄断言范围：原测试名把「缺租户」与「system 视界」混为一谈，但其 fixture
+  //   （issueToken 无 tenantId）实际只覆盖前者。显式 system 租户**不应** fail-closed
+  //   —— 它与 Action 层语义一致（executor.js「显式 system 租户恒全权益」），
+  //   专测见 test/http/leadPoolPickTenantGate.test.js（含两层闸一致性）。
+  it('缺租户（token 无 tenantId）fail-closed（不静默得 system 全权益）', async () => {
     const noTenant = issueToken({ username: 'ghost', role: 'sales' }); // 无 tenantId → resolveMe 兜底 system
     const r = await app.fetch('/api/lead-pool/deal_x/pick', {
       method: 'POST', headers: { authorization: `Bearer ${noTenant}` },
