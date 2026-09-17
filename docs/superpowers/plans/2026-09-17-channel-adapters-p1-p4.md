@@ -762,6 +762,11 @@ git commit -m "feat(channels): 图谱汇入接线（命中既有账户 → enric
 - Create: `src/web/channel-config.html`（通道配置台，自助）
 - Create: `src/web/onboarding-guide.html`（网页全屏向导 B 入口）
 - Modify: `src/web/account-insight.html`（360 视图加「外部沟通维度」区块——通道信号时间线）
+  > ⚠ 订正（2026-09-17 实施时发现）：`account-insight.html` **不存在**——S35 客户洞察已合并入
+  > `account-360.html` 成为双 Tab（`src/http/routes.js` 对 `/account-insight` 与
+  > `/accounts/:id/insight` 均 301 重定向到 `/account-360.html`）。故实际落地页为
+  > **`src/web/account-360.html`**（画像 Tab 追加区块），守卫为
+  > `test/web/account360ExternalComms.test.js`。设计文档 §5 的旧页名同属历史遗留，不改动已批准文档正文。
 - Test: `test/web/channelConfigPage.test.js`、`test/web/onboardingGuidePage.test.js`（静态/动态守卫，对齐 portal-page-deadzone 范式）
 
 - [x] **Step 1: 写失败测试（页面含通道 API 接线 + 向导三步 DOM）**
@@ -800,8 +805,10 @@ describe('onboarding-guide.html 向导三步', () => {
 >   顶部含「跳过」按钮（全跳过→ 系统进入未接入态，功能不阻塞）。
 > - `channel-config.html`：通道列表（GET /api/channels）+ 凭据表单（password 字段直传后端入 vault，前端不落明文）+
 >   信任档选择（L1/L2/L3）+ 断开（POST /:id/disconnect 软停用）。
-> - `account-insight.html`：「外部沟通维度」区块 = 通道信号时间线（复用既有 360 视图数据加载，
->   新增区块从 `/api/channels/:tenant/events` 或 enrichment.email_intent 渲染）。
+> - `account-360.html`：「外部沟通维度」区块 = 通道信号时间线（复用既有 360 视图数据加载，
+>   从 `CRM_ACCOUNT.payload.enrichment` 的四个通道分键渲染）。**订正**：数据源键与设计 §3.1–§3.4 一致
+>   （email_intent / schedule / meeting_intents / wechat_intents），单一事实源＝`src/channels/kinds.js`
+>   的 `ENRICHMENT_KEY`；不新增 `/api/channels/:tenant/events` 端点（复用既有数据加载，键由守卫钉住）。
 
 - [x] **Step 4: 运行确认通过**（两页面测试 + portal 既有测试零回归）
 - [x] **Step 4b: 页面接入真实 API 调用**——onboarding-guide.html 的「确认接入」按钮 fetch 到 `/api/channels/connect`（POST；body 含 credentials + tenant_id + id + kind；由后端完成 vault 落密 + verifyScope + review-gate）。channel-config.html 的「断开」调 POST `/api/channels/:id/disconnect`（软停用，禁删铁律）。**守卫：页面测试断言包含这两个 URL 与「只读/credentials_missing」文案（Step 1 已断言 URL，此处断言调用链完整）**。
@@ -1025,6 +1032,40 @@ git commit -m "feat(channels): 第一小时价值物报告（Rox 价值前置本
 
 - [ ] **Step 2: 未接通纪律**——无真实凭据时 P4 不执行、不宣称；结果如实标注「P4 待真实凭据」。
 - [ ] **Step 3: 记录实证**——接通后把真实凭据形态/端点/响应示例（脱敏）写入文档（对齐需求④ Q2-5 口径）。
+
+---
+
+### 实施记录（2026-09-17）
+
+**已落地**：P1–P3 全部 Task（T1–T10）已实现并提交；T8 第三页（`account-360.html`「外部沟通维度」区块）已补。
+
+**执行中发现并修正的真实缺陷（非风格）**：
+1. **enrichment 落点口径偏离设计 §3**（提交 `ef137c7`）：实现曾把四通道事件全部写进
+   `email_intent[]`，与设计 §3.1–§3.4 逐通道分键相悖（日历/会议/企微落进「邮件意图」＝语义错配）。
+   已改按通道分键（`kinds.js` 的 `ENRICHMENT_KEY` 为单一事实源），并加回归守卫。
+2. **`kind.startsWith('generic-')` 判据过宽**（提交 `df372e1`）：会把 `generic-rest/mcp/cli` 误当通道。
+3. **配置写第 0 闸缺失**（提交 `df372e1`）：`/api/channels` 写 `integration-providers` 未铸决策 → 已同源
+   （`src/config/configDecision.js`）。
+4. **向导「验证」即副作用**（提交 `1a93fd0`）：步骤②验证会真落凭据 + 落库 → 已加 `verify_only` 零副作用分支。
+
+**真库反证**：`scripts/_probe_channel_ingest_keys.mjs`（独立探针租户，不触碰真实账户）——四通道事件写入真实 PG
+后键集恰为 4 分键、各键只含本通道事件、幂等不增长、弱边命中既有 CRM_CONTACT，并交叉断言
+「360 页面读取键集 ＝ 库中实际键集」。
+
+**P4 阻塞项（未接通，不得宣称已接通）**：
+- ⛔ **四个探针未实现**：`verifyScope` 的 `PROBE_REGISTRY` 全 null（`src/channels/verifyScope.js:13-18`）⇒
+  `probe_not_implemented`，接入被 fail-closed 阻塞（需在 P4 实现 `registerChannelProbe` 注入
+  imap_login/caldav_propfind/meeting_api_list/wecom_api）。
+- ⛔ **first-connect 审批缺自助起单路径**（订正：**不是**「无生产者」）——
+  `reviewGate` 查 `CRM_APPROVAL_INSTANCE`（business_type='channel' + business_id=通道 id + state='APPROVED'）
+  （`src/channels/reviewGate.js:16-21`）；生产者**存在**＝通用 action `crm-approval-start`
+  （`src/action/seed-actions.js:1579`，business_type 为自由字符串参数，起单走
+  `src/approval/engine.js:157 startInstance`）。缺的是**通道接入专用的自动起单入口**：
+  向导/配置台/MCP 只**校验**审批状态、**不会自动替用户起单** ⇒ 用户自助接入会停在
+  `approval_required`（403），须有人先手动起单并 approve。**待裁决**：是否为通道接入补一条
+  起单路径（或明确「首次接入免闸 + 事后审计」）。
+- ⚠ **`/api/channels` 角色闸待裁决**：任何已登录用户可写 per-tenant `integration-providers`，而同键
+  `/api/integration/providers` 是 ADMIN/sysadmin only（per-user vs per-tenant 语义待拍板）。
 
 ---
 
