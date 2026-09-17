@@ -119,10 +119,14 @@ import { buildAlertHandlers, ALERT_ENDPOINTS } from '../alerts/alertEndpoints.js
 import { createSignalStore } from '../signal/store.js';
 import { createAdoption } from '../signal/adoption.js'; // T18 建议卡采纳/否决（第 0 闸）
 import { buildIcs } from '../signal/ics.js'; // L2 日历载体：信号 → 标准 VEVENT（缺日期返 null）
+// 投递渠道就绪性自检（2026-09-17 前台可见性审计）：配置页要如实区分「凭据未配」与「渠道未实现」——
+//   两者对运营的含义完全不同（前者去补凭据，后者等交付）。CHANNEL_IMPL_STATUS 是该差异的单一事实源。
+import { createDeliveryRegistry, CHANNEL_IMPL_STATUS } from '../signal/delivery/index.js';
 // S6 T19-7/T19-8：常驻授权凭证端点（线 B｜写须 decision_id 过第0闸 / 仅 T0/T1 / T3 永久不可 / 零 DELETE）
 import { createGrant, listGrants, revokeGrant, getExecution, recentVerdicts, pauseGrant } from '../authorization/grantStore.js';
 import { loadGrantsPolicy, T3_ACTIONS } from '../authorization/standingAuthorization.js';
 import { createSignalMetricsRouter } from './signalMetricsRouter.js';
+import { createSyncMetricsRouter } from './syncMetricsRouter.js'; // T07 同步可观测（本次补生产挂载）
 // 门户真实登录认证（v2 双页：Home.html → token → index.html）
 import { login, resolveMe } from './auth.js';
 import { handleRegister } from './selfRegister.js'; // 自助注册（公开，免 admin 闸；按公司名自动判定租户）
@@ -268,6 +272,19 @@ export function createRoutes(app, hub) {
   app.use(createConfigRouter({ key: 'internal-signal-derivation', role: 'sysadmin', decisionScene: 'config-change' }));
   app.get('/signal-config.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/signal-config.html', import.meta.url))));
+  // ─── 信号投递配置后台化（2026-09-17 前台可见性审计，配置中心 id51/id52）───
+  // 两键早已播种（`signal-delivery` 渠道开关+逐级路由+收件人+静默时段+限速+重试；`signal-dispatch` 泵窗口），
+  //   但此前**配置中心零位点 + 生产装配零注入**双重静默：
+  //     · 零位点 → 运营改不了渠道开关（只能改库）；
+  //     · 零注入（`createDeliveryRegistry({})`）→ webhook 渠道**无可配置的 URL 来源**，结构性恒 fail-closed。
+  //   本次补齐两处：① webhook provider 加 `SIGNAL_WEBHOOK_URL` env 兜底（与 email 的 `SMTP_*` 对称）；
+  //                ② 本段开放两键 GET/PUT（写经决策第 0 闸 + sysadmin 闸）。
+  //   ⚠ 页面必须区分「凭据未配」与「渠道未实现」——`im` 属后者（send 恒落 skipped/im_not_implemented），
+  //     故配了凭据也不会送达；该差异由 GET /api/signals/delivery-status 如实返回（CHANNEL_IMPL_STATUS 单一事实源）。
+  app.use(createConfigRouter({ key: 'signal-delivery', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.use(createConfigRouter({ key: 'signal-dispatch', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.get('/signal-delivery-config.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/signal-delivery-config.html', import.meta.url))));
   // 外部数据接入：加密凭据写端点（T13，仅 ADMIN/sysadmin；明文不落库）
   app.use(createIntegrationSecretRouter());
   // 外部数据接入：租户自有实例声明 CRUD（2026-09-14 补充，仅 ADMIN/sysadmin；禁物理删除→enabled 软停用）
@@ -427,6 +444,80 @@ export function createRoutes(app, hub) {
         });
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
+    // 投递渠道就绪性（只读）—— 信号投递配置页「渠道状态」条的数据源。
+    //   必须分开呈现的两件事（2026-09-17 前台可见性审计）：
+    //     ① 凭据是否齐 → 运行时真探测 provider.verifyConfig()（构造方式与生产同源：createDeliveryRegistry）
+    //     ② 渠道是否已实现 → CHANNEL_IMPL_STATUS（代码事实，单一事实源）
+    //   ⚠ 为何非分不可：`im` 渠道**有 verifyConfig、无 send**（恒落 skipped/im_not_implemented）。
+    //     若只显示凭据状态，运营会以为「配好凭据就能送达」＝假绿。
+    //   ⚠ 零写：本端点不落任何 signal_delivery 流水——**探测行为不得制造投递证据**（否则判据 B4/B5 被污染）。
+    //   ⚠ 路径位于 `/api/signals/:id/...` 之前，避免被 `:id` 段吞掉。
+    app.get('/api/signals/delivery-status', async (req, res) => {
+      const me = requireMe(req, res);
+      if (!me) return;
+      try {
+        const cfg = await readTenantConfig('signal-delivery', me);
+        const pump = await readTenantConfig('signal-dispatch', me);
+        const registry = createDeliveryRegistry({});
+        // 真实台账回显（2026-09-17 补，反假绿）：每渠道取**最近一条真实投递行**。
+        //   为什么必须有：`credentials_ok` 只等于「凭据**已配置**（非空）」——
+        //     email.js 的 verifyConfig 是**存在性检查**，不校验有效性。实证（2026-09-17）：
+        //     .env 里 SMTP_PASS=`__REPLACE_WI…`（占位符，非真实 163 授权码）→ verifyConfig 仍返 ok
+        //     → 本端点曾报 `deliverable:true` / 页面显示「可送达」，而真实投递 4/4 全部
+        //     `failed: Invalid login: 550 User has no permission`。
+        //   ⇒ 「配置预测」与「投递事实」必须分开呈现，且**事实优先**。台账是本仓唯一能证伪
+        //     「配好了 = 能送」的依据（sent 行代表真实往返，见 webhook.js 头注）。
+        const { rows: lastRows } = await query(
+          `SELECT DISTINCT ON (channel) channel, status, last_error, recipient, attempts, delivered_at, created_at
+             FROM crm.signal_delivery WHERE tenant_id=$1
+            ORDER BY channel, created_at DESC`,
+          [scopeTenant(me)]
+        ).catch(() => ({ rows: [] }));
+        const lastByChannel = Object.fromEntries((lastRows || []).map((r) => [r.channel, r]));
+        const channels = {};
+        for (const [name, impl] of Object.entries(CHANNEL_IMPL_STATUS)) {
+          const v = registry.verify(name);
+          const raw = (cfg.channels || {})[name];
+          const enabled = raw === 'on' || raw === true;
+          const last = lastByChannel[name] || null;
+          // verdict：以**事实**为准的三态。never_attempted 与 last_sent/last_failed 必须可区分——
+          //   「从没试过」与「试过并且成功」在运维上是完全不同的事（前者是待办，后者是已验证）。
+          const verdict = !last ? 'never_attempted'
+            : last.status === 'sent' ? 'last_sent'
+              : last.status === 'failed' ? 'last_failed' : 'last_skipped';
+          channels[name] = {
+            enabled,
+            // ⚠ 语义：**是否已配置**（存在性），不是「是否有效」。有效性只能由真实投递证明（见 last/verdict）。
+            credentials_ok: !!v.ok,
+            credential_check: impl.needs_credentials ? 'presence_only' : 'n/a',
+            credentials_error: v.ok ? null : v.error,
+            implemented: impl.implemented,
+            needs_credentials: impl.needs_credentials,
+            env: impl.env,
+            note: impl.note,
+            last: last ? {
+              status: last.status, last_error: last.last_error, recipient: last.recipient,
+              attempts: last.attempts, at: last.created_at, delivered_at: last.delivered_at,
+            } : null,
+            verdict,
+            // 三条件同时成立才「预计会外发」：已开启 ∧ 凭据已配置 ∧ 渠道已实现。
+            //   ⚠ 这是**配置层预测**，不是事实——必须以 verdict 为准呈现（上文的 email 占位符即反例）。
+            deliverable: enabled && !!v.ok && impl.implemented,
+          };
+        }
+        res.json({
+          ok: true,
+          tenant_id: scopeTenant(me),
+          channels,
+          route: cfg.route || {},
+          role_recipients: cfg.role_recipients || {},
+          quiet_hours: cfg.quiet_hours || null,
+          rate_limit: cfg.rate_limit || null,
+          retry: Number.isInteger(cfg.retry) ? cfg.retry : 0,
+          pump: { max_age_days: Number.isInteger(pump.max_age_days) ? pump.max_age_days : null },
+        });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
     // 写：scopeOf（永不通配——写不跨租户铁律；admin 也写自身所属租户）
     app.post('/api/signals/:id/ack', async (req, res) => {
       const me = requireMe(req, res);
@@ -493,6 +584,40 @@ export function createRoutes(app, hub) {
 
   // ===== S7 T20 信号链路观测（指标 + 负向判据 + 降级追溯；per-tenant，见 createSignalMetricsRouter）=====
   app.use('/api/monitor', createSignalMetricsRouter());
+  // ===== CRM 同步：可观测上墙 + 映射/信任档后台化（2026-09-17 前台可见性审计·第二轮）=====
+  // 三处缺口一并补齐（每处均已源码取证）：
+  //   ① createSyncMetricsRouter **零生产调用点**（仅定义处 + 单测）⇒ 声称存在的 `GET /api/monitor/sync`
+  //      **实际不存在** —— 「模块已建但零接线」的又一次重演。不挂载则「同步配了但没数据」与
+  //      「同步正常在跑只是无增量」不可区分（正是本项目最危险的组合：面板静默 = 链路静默）。
+  //   ② `sync-mappings`（字段映射，声明式白名单）此前**零配置位点** ⇒ 只能改库、不能改界面。
+  //   ③ `sync-trust`（信任档 L1/L2/L3）同上；信任**只能显式提升、绝不自动提权**，故必须有人工可操作的位点。
+  //   ⚠ 连接描述符（integration-providers）与凭据库（integration/secret）**已有页面**：
+  //     `/discovery-rules.html#integration-sources`（配置中心 #47/#48）——本控制台只读呈现，不重复造第二个编辑面。
+  app.use('/api/monitor', createSyncMetricsRouter({ pool, resolveMe }));
+  app.use(createConfigRouter({ key: 'sync-mappings', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.use(createConfigRouter({ key: 'sync-trust', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.get('/crm-sync-console.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/crm-sync-console.html', import.meta.url))));
+  // 通道接入台（2026-09-17）：需求②（邮箱/日历/会议/微信）的**呈现层**。
+  //   本页只呈现真实状态（kind 是否可构造 / 已声明实例数），不做接入动作——增删改仍在
+  //   `/discovery-rules.html#integration-sources`（配置中心 #47/#48），避免造第二个编辑面（判据⑥单源）。
+  //   ⚠ 设计 §6 的 P1（四通道模板 + 工厂注册）**尚未交付** ⇒ 页面会如实显示「模板未交付 → 接入会被静默跳过」。
+  //     这是**有意的诚实呈现**：若隐藏该事实，运营添加通道后会遇到「配置了但没数据」且无处归因。
+  app.get('/channel-adapters.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/channel-adapters.html', import.meta.url))));
+  // 同步工厂字典（只读）：页面据此做「kind 是否可构造」前置校验。
+  //   为什么必须有：descriptor 的 kind 若不在工厂字典内，`src/sync/mount.js` 会**静默跳过**（零接线）
+  //   ⇒ 现象是「配置了但没数据」。接入手册 §5.3 已把这条列为诊断第一项，但此前只能 node -e 手查。
+  //   本端点把「可构造的 kind 集合」送到前台，让配置者当场看见族是否可构造（不猜）。
+  app.get('/api/sync/factories', async (req, res) => {
+    const me = resolveMe(req);
+    if (!me?.ok) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const base = (await import('../sync/factory.js')).SYNC_PROVIDER_FACTORY || {};
+      const presets = (await import('../sync/presets/index.js')).PRESET_FACTORIES || {};
+      res.json({ ok: true, factories: Object.keys({ ...base, ...presets }).sort() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
 
   app.get('/finance-receivables.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/finance-receivables.html', import.meta.url))));
@@ -1080,6 +1205,72 @@ export function createRoutes(app, hub) {
         items, returned: items.length, total, truncated: items.length >= limit,
         rules, my_pick_today: myPickToday, my_can_pick: myPickToday < rules.daily_limit,
       });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ─── T1b 我的私海（S0P 归属=我）只读端点（需求① 公海认领/回退闭环的前半段：已认领列表）───
+  // 语义：仅返回本租户 stage='S0P' 且 payload.owner_id=me 的 CRM_DEAL —— 认领后的「私海待校验」。
+  // 投影与 T1 同源（in_pool_days 兜底链 pooled_at→returned_at→created_at；freshness 分档 hot/warm/stale），
+  //   保证两条端点在页面渲染口径一致（同一批信号数据不会因端点不同显示不同年龄）。
+  // 只读零写零删（与 T1 同范式）；回退写走 POST /api/action/crm-lead-return（既有 Action，deferDecisionMint 自 mint）。
+  app.get('/api/lead-pool/mine', async (req, res) => {
+    try {
+      const me = resolveMe(req);
+      if (!me?.ok) return res.status(401).json({ error: '未登录' });
+      const tenantId = scopeTenant(me);
+      const who = me.username || me.display_name || null;
+      if (!who) return res.status(400).json({ error: '缺少用户名' });
+      const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+      // 总数（不受 limit 影响，杜绝假绿）
+      const totalRes = await query(
+        `SELECT count(*)::int AS n FROM crm.particles WHERE tenant_id=$1 AND type='CRM_DEAL' AND payload->>'stage'='S0P' AND payload->>'owner_id'=$2`,
+        [tenantId, who]
+      );
+      const total = totalRes.rows[0]?.n || 0;
+      const r = await query(
+        `SELECT id, title, payload, created_at FROM crm.particles
+         WHERE tenant_id=$1 AND type='CRM_DEAL' AND payload->>'stage'='S0P' AND payload->>'owner_id'=$2
+         ORDER BY coalesce(NULLIF(payload->>'picked_at','')::timestamptz, created_at) DESC
+         LIMIT $3`,
+        [tenantId, who, limit]
+      );
+      const now = Date.now();
+      const items = r.rows.map((row) => {
+        const p = row.payload || {};
+        // in_pool_days 兜底链与 T1 同源：pooled_at → returned_at → created_at（恒为数字，杜绝假绿）
+        const anchor = p.pooled_at || p.returned_at || (row.created_at ? String(row.created_at) : null);
+        let inPoolDays = 0;
+        if (anchor) {
+          const t = new Date(anchor).getTime();
+          if (!Number.isNaN(t)) inPoolDays = Math.max(0, Math.floor((now - t) / 86400000));
+        }
+        // freshness 分档与 T1 同源（min ts 年龄；7/30 阈值）
+        let freshness = 'unknown';
+        const sigs = Array.isArray(p.signals) ? p.signals : [];
+        const sigAges = sigs
+          .map((s) => (s && s.ts ? new Date(s.ts).getTime() : NaN))
+          .filter((t) => !Number.isNaN(t))
+          .map((t) => Math.max(0, Math.floor((now - t) / 86400000)));
+        if (sigAges.length) {
+          const minAge = Math.min(...sigAges);
+          freshness = minAge <= 7 ? 'hot' : (minAge <= 30 ? 'warm' : 'stale');
+        }
+        return {
+          id: row.id,
+          name: p.name || row.title || '',
+          source: p.source || p.source_type || null,
+          pool_type: p.pool_type || null,
+          amount: (p.amount ?? p.expected_amount ?? null),
+          owner_id: p.owner_id || null,
+          pooled_at: p.pooled_at || null,
+          picked_at: p.picked_at || null,
+          in_pool_days: inPoolDays,
+          freshness,
+        };
+      });
+      res.json({ items, returned: items.length, total, truncated: items.length >= limit });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }

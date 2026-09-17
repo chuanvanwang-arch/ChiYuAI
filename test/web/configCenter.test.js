@@ -3,9 +3,9 @@ import { readFileSync } from 'fs';
 import { renderConfigCenter, configSummary, CONFIG_ITEMS } from '../../src/portal/configCenter.js';
 
 test('CONFIG_ITEMS 含 37 项配置（数组按组连续排列：G1[11,12,13,27,28,40,41,42]→G2[14,15,16,31,32,33,35,43,36,37,38,44]→G3[17,18,20,22,29,30,34]→G4[21,23,39]→系统日志[19,24,26,45]，不含已删 25；id22 拆为可编辑词汇(租户) + #45 本体只读(系统)；2026-09-10 增 #46 线索发现规则、2026-09-14 增 #47/48 外部数据接入）', () => {
-  expect(CONFIG_ITEMS.length).toBe(39);
+  expect(CONFIG_ITEMS.length).toBe(44);
   const ids = CONFIG_ITEMS.map((i) => i.id);
-  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48,49,50]);
+  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48,49,50,51,52,53,54,55]);
 });
 
 test('id42 全局复用与经验蔓延：propagation 一级分组、深链复用 propagation-hub.html（对齐 id40/41 深链范式）', () => {
@@ -223,4 +223,71 @@ test('纯显示只读项（id19/24/26/45）归入系统级「系统日志」子�
   // id22 业务词汇（可编辑，租户主数据）仍在租户级一级分组内
   const tenHtml = html.match(/data-level="tenant">[\s\S]*?<\/section>/)?.[0] || '';
   expect(tenHtml).toContain('data-id="22"');
+});
+
+// ── §15 闸登记语义守卫（2026-09-17 实缺陷回归）─────────────────────────────
+// 事实：CONFIG_ITEMS[].endpoint 的**唯一消费者**是 createConfigLevelGate（rbac.js:89），
+//   语义 = 「声明该 HTTP 端点受 §15 角色闸」。status:'ready' 项的渲染只读 item.page
+//   （configCenter.js:145），完全不读 endpoint（endpoint 仅被 status:'readable' 的
+//   configSummary/查看按钮使用）。
+// ⇒ 把**只读数据源**（工厂字典/监控指标/描述符查询/状态探测）填进 endpoint，
+//   会把「读」误登记为配置面：普通角色读该端点被 403，页面状态区全空。
+//   实缺陷：id55 曾填 endpoint:'/api/sync/factories' → sales 读工厂字典被判「租户级配置仅
+//   tan_admin/sysadmin/ADMIN 可访问」。修复 = endpoint:null（与 #19/#24/#45 同惯例）。
+const READONLY_SOURCE_PATHS = [
+  '/api/sync/factories',          // 同步工厂字典（只读枚举 kind）
+  '/api/monitor/sync',            // 同步可观测指标（只读）
+  '/api/integration/providers',   // 租户实例描述符列表（只读；写经 #47 的 /api/config/integration-providers）
+  '/api/signals/delivery-status',  // 渠道投递状态探测（只读、零写）
+];
+
+test('§15 闸登记语义：只读数据源不得出现在 CONFIG_ITEMS.endpoint（会被误判为受闸配置面 → 403）', () => {
+  for (const p of READONLY_SOURCE_PATHS) {
+    const hit = CONFIG_ITEMS.filter((it) => it.endpoint === p);
+    expect(hit.map((i) => i.id), `${p} 是只读数据源，不得登记为受闸配置端点`).toEqual([]);
+  }
+});
+
+test('id55 通道接入为只读呈现位点：endpoint 必须为 null（无自有配置端点，接入动作归 #47/#48）', () => {
+  const item = CONFIG_ITEMS.find((i) => i.id === 55);
+  expect(item).toBeTruthy();
+  expect(item.page).toBe('/channel-adapters.html');
+  expect(item.status).toBe('ready');
+  // 只读呈现位点：与 #19/#24/#45 同惯例，endpoint 为空 → 不进 §15 闸表
+  expect(item.endpoint).toBeNull();
+  // 页面仍可从配置中心打开（渲染只依赖 page）
+  const html = renderConfigCenter(CONFIG_ITEMS, {});
+  expect(html).toContain('data-id="55"');
+  expect(html).toContain('href="/channel-adapters.html"');
+});
+
+// ── config.html 白名单完整性守卫（2026-09-17）───────────────────────────────
+// 「三处同步铁律」的自动化守住：新增配置项必须同时改
+//   ① src/portal/configCenter.js 的 CONFIG_ITEMS
+//   ② src/web/config.html 的 LEVEL_GROUPS_MARKUP 白名单
+//   ③ 本测试的 id 序列断言
+// 事实：config.html 的渲染**不遍历 CONFIG_ITEMS**，而是按 LEVEL_GROUPS_MARKUP 的 id 白名单取
+//   （config.html:112-119 `g.items.filter(...)`）⇒ 只改 ① 不改 ②，该项**在配置中心页面上根本不存在**
+//   ——而 ③ 若也只断言 CONFIG_ITEMS，则测试全绿。这是「登记了但看不见」的静默缺陷。
+// 与既有守卫的关系：本文件上方已有「config.html 导航白名单 6 组覆盖全部 CONFIG_ITEMS id」，
+//   两条并非重复登记 —— 本守卫额外检测 **ghost**（白名单有、CONFIG_ITEMS 已删 ⇒ 渲染出空卡片），
+//   且失败信息直接列出遗漏 id 便于定位。2026-09-17 变异验证：删掉白名单里的 55 → 两条均精确命中。
+test('config.html 白名单并集必须恰等于 CONFIG_ITEMS 的 id 集合（防「登记了但页面看不见」）', () => {
+  const html = readFileSync(new URL('../../src/web/config.html', import.meta.url), 'utf8');
+  // 从源码抽取 LEVEL_GROUPS_MARKUP 的 items 数组（{ name: '...', items: [1,2,3] } 形态）
+  const declared = [...html.matchAll(/\{\s*name:\s*'[^']+',\s*items:\s*\[([^\]]*)\]\s*\}/g)]
+    .flatMap((m) => m[1].split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0));
+  expect(declared.length, 'config.html 未解析出白名单（选择器需随源码形态更新）').toBeGreaterThan(30);
+  const missing = CONFIG_ITEMS.map((i) => i.id).filter((id) => !declared.includes(id));
+  expect(missing, '这些 id 已登记进 CONFIG_ITEMS，但 config.html 白名单遗漏 → 配置中心看不到').toEqual([]);
+  const ghost = declared.filter((id) => !CONFIG_ITEMS.some((i) => i.id === id));
+  expect(ghost, '这些 id 在 config.html 白名单里，但 CONFIG_ITEMS 已无此项 → 渲染时空卡片').toEqual([]);
+});
+
+// config.html 页签不得硬编码项数（2026-09-17 实缺陷：写死「30 项」而实为 44 项）
+test('config.html 页签不得硬编码项数（防数字漂移：曾写「30 项」而实为 44 项）', () => {
+  const html = readFileSync(new URL('../../src/web/config.html', import.meta.url), 'utf8');
+  expect(html, '又硬编码了项数 → 每加一个配置项标题就会漂移').not.toMatch(/<title>配置中心\s*·\s*\d+\s*项/);
+  // 正向锚点：项数必须由运行时统计（单一事实源 = 实际渲染的卡片数）
+  expect(html).toMatch(/document\.title\s*=\s*`配置中心 · \$\{n\} 项/);
 });

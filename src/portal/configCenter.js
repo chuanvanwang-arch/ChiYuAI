@@ -79,6 +79,28 @@ export const CONFIG_ITEMS = [
   //   createConfigRouter，写经决策第0闸+sysadmin）。scope=tenant：规则按租户差分，读回退 system 模板。
   { id: 49, name: '信号时间规则配置', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/signal-config.html', endpoint: '/api/config/signal-schedule', scope: 'tenant', resolve: 'tenant-first', note: '时间型/周期型信号规则（tender_deadline 投标截止临近 / report_due 周期报告 / quote_approval_timeout / stage_silence）启停、严重度、窗口与阈值编辑；config_store 键 signal-schedule，写经决策第0闸+sysadmin' },
   { id: 50, name: '内部异动派生配置', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/signal-config.html', endpoint: '/api/config/internal-signal-derivation', scope: 'tenant', resolve: 'tenant-first', note: '内部推断信号规则（contact_change 联系人资料变动 / relation_cooling 客户关系冷却）启停、窗口与停滞阈值编辑；低置信 internal_inference，权重严格低于实测情报；config_store 键 internal-signal-derivation，写经决策第0闸+sysadmin' },
+  // 信号投递后台化（2026-09-17 前台可见性审计，第二组）：两键早已播种（signal-delivery 渠道开关+逐级路由+
+  //   收件人+静默时段+限速+重试；signal-dispatch 投递泵时间窗），但**配置中心零位点 + 生产装配零注入**：
+  //   零位点 → 渠道开关只能改库；零注入 → webhook 渠道无 URL 来源，结构性恒 fail-closed。
+  //   本次一并对齐：webhook provider 补 SIGNAL_WEBHOOK_URL env 兜底 + 本二位点开放 GET/PUT。
+  { id: 51, name: '信号投递渠道配置', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/signal-delivery-config.html', endpoint: '/api/config/signal-delivery', scope: 'tenant', resolve: 'tenant-first', note: '投递渠道开关（inbox/email/im/webhook）+ 严重度逐级路由 + 角色收件人 + 静默时段 + 频次上限 + 重试；config_store 键 signal-delivery（src/signal/route.js 消费）；⚠ 页面状态条区分「凭据未配」与「渠道未实现」（im 属后者），写经决策第0闸+sysadmin' },
+  { id: 52, name: '信号投递泵窗口', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/signal-delivery-config.html', endpoint: '/api/config/signal-dispatch', scope: 'tenant', resolve: 'tenant-first', note: '投递泵候选集时间窗 max_age_days（src/signal/dispatcher.js 消费）；窗口过大补投陈旧信号、过小漏投；config_store 键 signal-dispatch，写经决策第0闸+sysadmin' },
+  // CRM 同步后台化（2026-09-17 前台可见性审计·第二轮）：连接描述符与凭据库**已有页面**
+  //   （#47/#48 → /discovery-rules.html#integration-sources），但「字段映射」与「信任档」此前**零位点**
+  //   ⇒ 接入只能改库，且信任档无人工闸位点。注：`createSyncMetricsRouter` 此前**零生产挂载**
+  //   （声称存在的 GET /api/monitor/sync 实际不存在），本次一并补挂载，使控制台的状态区有真数据源。
+  { id: 53, name: 'CRM 同步字段映射', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/crm-sync-console.html', endpoint: '/api/config/sync-mappings', scope: 'tenant', resolve: 'tenant-first', note: '声明式字段映射白名单（object → particle_type/identity/fields）；仅 direction:in 进读入表，缺映射对象被 mapping 层 fail-closed 拒绝；config_store 键 sync-mappings，写经决策第0闸+sysadmin' },
+  { id: 54, name: 'CRM 同步信任档', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/crm-sync-console.html', endpoint: '/api/config/sync-trust', scope: 'tenant', resolve: 'tenant-first', note: '同步信任分级 default_level（L1 只读 / L2 受控写 / L3 回写），与描述符 trust_level 取 min；提升只能显式操作、绝不自动提权；config_store 键 sync-trust，写经决策第0闸+sysadmin' },
+  // 通道接入台（2026-09-17）：需求②（邮箱/日历/会议/微信）的呈现层。
+  //   ⚠ 本项是**只读**位点（不做接入动作）——通道的增删改仍归 #47/#48，避免第二个编辑面（判据⑥单源）。
+  //   设计 §6 的 P1（四通道模板 + 工厂注册）**已交付**（dbfeee2/2979f49/4dceef8，2026-09-17 并行线）
+  //   ——本页按**工厂字典**动态判定，故四通道自动显示「模板就绪」；仅在 kind 未注册时才提示会被跳过。
+  //   ⚠ endpoint 刻意置 null（与 #19/#24/#45 同惯例）：endpoint 的**唯一消费者**是 §15 注册表闸
+  //     （rbac.js:89 createConfigLevelGate），语义是「声明该端点受角色闸」；status:'ready' 项的渲染
+  //     只用 page（configCenter.js:145），不读 endpoint。本页的只读数据源（工厂字典/描述符/监控）
+  //     属**读**而非配置面，写进 endpoint 会被误登记为租户级 → 普通角色读状态区被 403。
+  //     （2026-09-17 实缺陷：曾填 endpoint:'/api/sync/factories' 导致 sales 读该字典 403）
+  { id: 55, name: '通道接入（邮箱/日历/会议/微信）', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/channel-adapters.html', endpoint: null, scope: 'tenant', resolve: 'tenant-first', note: '四通道（generic-email/calendar/meeting/wechat）接入状态总览 + 契约/descriptor/落点说明；状态判定基于工厂字典（kind 不可构造 → mount 静默跳过）；只读呈现、无自有配置端点（接入动作在「外部数据接入」#47/#48）；设计 docs/2026-09-17-channel-adapter-unified-design.md v1' },
 ];
 
 const GROUP_ORDER = ['平台与访问', '销售方法论与决策治理', '业务对象与流程建模', '智能体与运行', '系统日志'];
