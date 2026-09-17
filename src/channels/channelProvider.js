@@ -8,6 +8,14 @@
 import { createGenericRestSyncProvider } from '../sync/factory.js';
 import { normalizeChannelRow } from './eventNormalizer.js';
 
+// §3.0 契约：事件行 channel 是「真实通道短名」（email/calendar/meeting/wechat），非 provider kind
+const CHANNEL_SHORT = {
+  'generic-email': 'email',
+  'generic-calendar': 'calendar',
+  'generic-meeting': 'meeting',
+  'generic-wechat': 'wechat',
+};
+
 export function createChannelProvider(preset = {}) {
   // 返回工厂（mount 消费）：receive 租户 descriptor cfg → provider 实例
   return function makeProvider(cfg = {}) {
@@ -27,7 +35,10 @@ export function createChannelProvider(preset = {}) {
         const r = await base.readIncremental({ object, cursor });
         if (!r.ok) return r; // fail-closed：上游错误原样返回（含 credentials_missing / http_*）
         const rows = (r.rows || []).map((raw) => normalizeChannelRow({
-          ...raw, channel: kind,
+          ...raw,
+          // §3.0 契约：channel 取「真实通道语义」email/calendar/meeting/wechat（短名），
+          // 不取 provider kind（generic-*）。raw 自带通道名则保留；缺省按 kind 映射回短名。
+          channel: raw.channel || CHANNEL_SHORT[kind] || 'email',
         }));
         return { ok: true, rows, cursor: r.cursor };
       },
