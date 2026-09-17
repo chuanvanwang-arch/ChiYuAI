@@ -734,7 +734,8 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         // 不静默：产出、幂等吸收、零命中归因、失败都必须可见——
         //   否则「派生了但零命中」与「根本没接线」在日志上不可区分（本仓头号假绿形态）。
         if (r.signals) emit('trace', 'activity-derivation', r);
-        else emit('trace', 'activity-derivation-idle', { tenants: r.tenants, missing: r.missing });
+        // tenant_source 一并上墙：否则「扫了 0 个租户」与「扫了全租户但零命中」在日志上不可区分
+        else emit('trace', 'activity-derivation-idle', { tenants: r.tenants, tenant_source: r.tenant_source, missing: r.missing });
         for (const f of r.failures) {
           emit('trace', 'activity-derivation-tenant-failed', f);
           recordFailure('activity-derivation-tenant-failed', new Error(f.error));
