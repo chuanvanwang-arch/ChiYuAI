@@ -1,6 +1,6 @@
 # Q5 · lead-fit 评分器实施计划（discovery 域「认知评分」的真实实现）
 
-> **状态**：⏳ 待批准（批准后按 Task 顺序执行；未批准不写实现代码）
+> **状态**：✅ 已完成（2026-09-17，全部 6 Task 落树并通过验证；执行确认见文末章节）
 > **设计入口**：`docs/2026-09-10-lead-discovery-design.md` §5 数据模型 + §0.5 P1（**已批准设计**，本计划是其「从未落地」部分的补齐，非新能力立项）
 > **前置依赖**：无。可独立于 Q1/Q3 并行实施。
 > **日期**：2026-09-16
@@ -982,3 +982,46 @@ LF-1 (评分器·纯函数)
 - `qixin.js:2` 的注释承诺 → LF-5 ④ 把它变成**可测断言** ✅
 - 陷阱② 的"跨域键恒 0 静默错" → LF-1 测试 ⑦ 做**反证断言**（证明复用 prospecting scorer 会出错）✅
 - 占位 0.5 → LF-2 断言"零信号时 intent=0（**不是** 0.5）" ✅
+
+---
+
+## 执行确认（2026-09-17，全部 6 Task 落树并通过验证）
+
+> 本计划在上一轮已完成 LF-1~LF-6 全部实现与验证（见本会话工作日志 `.workbuddy/memory/2026-09-17.md` 的 Q5 段落），本节为**执行完成确认**收尾。
+
+### 验收结论
+
+| Task | 交付 | 验证 | 状态 |
+|---|---|---|---|
+| LF-1 | `src/connectors/discovery/leadFitScorer.js` + 测试 | 16 测全绿 | ✅ |
+| LF-2 | `src/agent/discoveryOrchestrator.js` ⑦ 段改真评分 | 9 测全绿（含「零信号→0 非 0.5」） | ✅ |
+| LF-3 | `src/connectors/discovery/monitorCtx.js` + 测试 | 6 测全绿 + 既有 7 测零回归 | ✅ |
+| LF-4 | `src/scheduler/timers.js` 富化路径接线 | `timers.test.js` 5 测 + 有界回归 47 文件 299 测全绿 | ✅ |
+| LF-5 | `test/connectors/discovery/wiringGuard.test.js` 假绿反证 | 5 断言全绿（**曾抓出 LF-4 真实未接线**） | ✅ |
+| LF-6 | `scripts/smoke-lead-fit.mjs` 真库冒烟 | 8 断言 PASS（exit 0），含第 0 闸反证 | ✅ |
+
+### 执行中的两处偏差（均已在代码/测试侧修正，非计划错误）
+
+1. **LF-4 真正接线在上一轮才算落地**：计划 Step 2 的「新」代码块在首次实现时只更新了签名（`:132`）与装配点（`:521-528`），**调用点（`:194-206`）仍是旧形态 `monitorAccount({ tenantId }, ...)`**——这正是 LF-5 ② 断言抓出的「生产零接线」假绿。本轮已按计划 Step 2 完整落地：`mintDecision` → `buildMonitorCtx` → `monitorAccount`（第 0 闸；铸不出/未装配走 `integration-poll-monitor-skipped` 留痕）。
+2. **LF-5 ② 断言形态修正**：生产代码经别名 `buildMonitorCtx` 调用（`monitorCtxMod?.createMonitorCtx` 装配），不存在字面量 `createMonitorCtx({` → 断言改为匹配真实形态 `/buildMonitorCtx\(\{\s*tenantId:/` + `/decisionId\s*:\s*pollDecisionId/`（忠实表达「构造方携带 decisionId」这一第 0 闸语义）。
+
+### 提交记录（工作树，按功能线分组；本表为登记用途）
+
+| 提交 | 内容 |
+|---|---|
+| LF-1 | `feat(discovery): lead-fit 双维评分器(确定性权重+时间衰减), 替占位0.5` |
+| LF-2 | `feat(discovery): runDiscovery 用真实 lead-fit 评分替换硬编码占位0.5` |
+| LF-3 | `feat(discovery): monitorCtx 装配层(getAccount/rescore/appendMemory/updateParticle+第0闸fail-closed)` |
+| LF-4 | `feat(scheduler): integration-poll 富化路径接线 monitorCtx(第0闸fail-closed)`（**timers.js 热点，`git add -p` 仅挑 LF-4 hunk**） |
+| LF-5 | `test(discovery): LF-5 生产装配守卫(断言构造方存在/占位0.5消失/rubricScorer不越界)` |
+| LF-6 | `test(discovery): LF-6 lead-fit 端到端冒烟(真库, 含第0闸反证)` |
+
+> ⚠ 本会话遵守本仓铁律：AI 无凭证、沙箱 git 不完整 → **不在此树 commit**；提交由用户在本地执行（命令见本会话汇报）。
+
+### 对外三态口径（计划 §6，不得合并）
+
+| 维度 | 状态 |
+|---|---|
+| 代码侧就绪 | ✅（LF-5 五项断言 + LF-6 真库冒烟） |
+| 本地端到端 | ✅（LF-6 通过） |
+| 云上生产已发布 | 🔴 **否**——需另行发布，且发布≠生效（生产无租户启用富化 provider → 富化路径 `sigs.length=0` 不触发） |
