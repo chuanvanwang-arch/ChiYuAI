@@ -99,3 +99,22 @@ describe('内置适配器启动接线（死接线回归护栏）', () => {
     expect(ids).toEqual(['web-research', 'tender', 'email-verify', 'gaode']);
   });
 });
+
+describe('⑦ 真实评分（LF-2，2026-09-16）：占位 0.5 已被真实评分取代', () => {
+  it('零信号 → intent_score.value 为 0（而非占位 0.5）', async () => {
+    const { deps } = mkDeps({ rules: { signals: { funding_round: { weight: 0.9 } }, icp: { industries: ['chemical'] } }, adapters: [] });
+    const out = await runDiscovery(ctx, { seed: { name: 'XX 化工' } }, deps);
+    expect(out.payload.discovery.intent_score.value).toBe(0); // 关键：不是 0.5
+  });
+
+  it('命中信号 → intent_score.value > 0 且带设计 §5 的 rule_ref', async () => {
+    const stub = {
+      id: 'stub', costTier: 1, coverageFields: ['funding_round'],
+      async enrich() { return { funding_round: { value: true, provider: 'stub', ts: new Date().toISOString() } }; },
+    };
+    const { deps } = mkDeps({ rules: { signals: { funding_round: { weight: 0.9 } } }, adapters: [stub] });
+    const out = await runDiscovery(ctx, { seed: { name: 'XX 化工' } }, deps);
+    expect(out.payload.discovery.intent_score.value).toBeGreaterThan(0);
+    expect(out.payload.discovery.intent_score.judge.rule_ref).toBe('scenario:lead-fit#ruler:hiring_icp_role');
+  });
+});

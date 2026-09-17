@@ -16,6 +16,7 @@ import { resolveAdapters } from '../connectors/discovery/providerRegistry.js';
 import { runWaterfall } from '../connectors/discovery/waterfall.js';
 import { resolveExistingOrCreate } from '../connectors/discovery/dedupResolver.js';
 import { buildEnrichmentPayload, buildDiscoveryPayload, enforceContextByteLimit } from './discoverySchema.js';
+import { scoreLeadFit } from '../connectors/discovery/leadFitScorer.js';
 import { selectPlaybook, compilePlaybook } from '../connectors/discovery/orchestrationCompiler.js';
 import { registerBuiltinAdapters } from '../connectors/discovery/builtinAdapters.js'; // 幂等：确保内置适配器已注册
 import { emit } from '../events/bus.js';
@@ -85,10 +86,19 @@ export async function runDiscovery(ctx = {}, input = {}, deps = {}) {
   const { values, cost, calls } = await runWaterfall(adapters, { ...seed, id: account.id }, fields, { ...ctx, credentials });
   const enrichment = buildEnrichmentPayload(values);
 
-  // ⑦ 评分入 payload：初值占位，真实评分由 lead-fit 场景（Task 6）经 decision 回写（glass-box 见 Task 15）
-  //    decisionId 取**真实**第 0 闸 mint 值（不是 'pending'）→ why_narrative 可溯源到具体决策
+  // ⑦ 评分入 payload：**真实** lead-fit 双维评分（LF-2，2026-09-16）
+  //   此前为硬编码占位 buildDiscoveryPayload(0.5, 0.5, ...) —— 注释承诺「由 lead-fit 场景回写」从未落地；
+  //   判据（可复跑）：旧实现下 grep -n "0.5, 0.5" src/agent/discoveryOrchestrator.js 非 0。
+  //   评分器与 monitorCtx.rescore **共用 scoreLeadFit** ⇒ 两条路径同源，不会出现"发现时 0.3、重评时 0.8"的分裂。
+  //   铁律：不假填充 —— 零信号则 intent=0、缺 ICP 字段则 icp_fit=0 且 degraded，绝不返 0.5 冒充"中等意向"。
   const signals = Object.entries(values).map(([field, v]) => ({ type: field, provider: v?.provider, ts: v?.ts }));
-  const discovery = buildDiscoveryPayload(0.5, 0.5, signals, decisionId || 'pending');
+  const scored = scoreLeadFit({ account: { payload: { ...seed, enrichment } }, signals, rules });
+  const discovery = buildDiscoveryPayload(scored.icp_fit, scored.intent, signals, decisionId || 'pending', {
+    ruleRef: scored.ruleRefs,
+  });
+  // 可解释性与降级必须随 payload 一同落库（否则 UI 无从判断「0 分」是"没意向"还是"没数据"）
+  discovery.score_breakdown = scored.breakdown;
+  discovery.score_degraded = scored.degraded;
 
   // ⑧ 写回客户（只增改，不删除）
   await update(account.id, { enrichment, discovery });
