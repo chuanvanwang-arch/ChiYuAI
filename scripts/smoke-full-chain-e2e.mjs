@@ -61,11 +61,36 @@ check('N10 判据② 不得由 smoke/mock 自证',
   !isSmokeTenant && Number(mockOk.c) === 0,
   isSmokeTenant ? `租户名形如 smoke*（本次运行不构成生产证据）` : `mock_ok=${mockOk.c}`);
 
-// ── 负向判据 N1（防假绿：配置 on 的渠道不得零投递行）──
+// ── 负向判据 N1 / N1b（防假绿：配置 on 的渠道的健康度）──
+//   F-6(a)（2026-09-16 实测修正）：判据 A 已分两级——
+//     `delivery_silent`      = 渠道 on 且窗口内**零行**（真静默：连失败原因都没有）→ 参与 exportGate 判据③；
+//     `delivery_undelivered` = 渠道 on、有尝试但**零 sent**（`no_recipient` 等有明确留痕）→ **不**参与闸门。
+//   N1 断言前者（原语义不变）；N1b 断言后者**从未被漏报**——修正前该形态被完全沉默（属漏报）。
 const alerts = await detectNegativePredicates({ tenantId, since });
-check('N1 无 delivery_silent（配置 on 的渠道均有投递行）',
-  !alerts.some(a => a.type === 'delivery_silent'),
-  JSON.stringify(alerts.filter(a => a.type === 'delivery_silent')));
+const silentAlerts = alerts.filter(a => a.type === 'delivery_silent');
+const undelivAlerts = alerts.filter(a => a.type === 'delivery_undelivered');
+check('N1 无 delivery_silent（配置 on 的渠道无「零行」真静默）',
+  silentAlerts.length === 0,
+  JSON.stringify(silentAlerts));
+
+// N1b：用**独立查询**复算期望集合（不得直接采信 detectNegativePredicates 的自述——
+//   判据必须独立于被测物，否则"判据自证"是本仓已登记的自指仪器反模式）。
+const onChannels = Object.entries(channels).filter(([, v]) => v === 'on' || v === true).map(([k]) => k);
+const { rows: zeroSentRows } = await query(
+  `SELECT channel, COUNT(*)::int AS attempted
+     FROM crm.signal_delivery
+    WHERE tenant_id=$1 AND created_at >= $2
+    GROUP BY channel
+   HAVING COUNT(*) FILTER (WHERE status='sent') = 0`,
+  [tenantId, since]
+);
+const expectUndeliv = zeroSentRows
+  .filter(r => onChannels.includes(r.channel) && Number(r.attempted) > 0)
+  .map(r => r.channel).sort();
+const gotUndeliv = undelivAlerts.map(a => a.channel).sort();
+check('N1b 零 sent 但**有尝试**的 on 渠道必报 delivery_undelivered（F-6(a)：修正前完全漏报）',
+  JSON.stringify(expectUndeliv) === JSON.stringify(gotUndeliv),
+  `期望=${JSON.stringify(expectUndeliv)} 实得=${JSON.stringify(gotUndeliv)} 明细=${JSON.stringify(undelivAlerts)}`);
 
 // ── 负向判据 N2/N3（不静默纪律：失败/跳过必带原因；成功不得携带原因）──
 //   注：原计划此处为 `check(..., true, ...)`（恒真锚点）——已改为**真实不变量**，
