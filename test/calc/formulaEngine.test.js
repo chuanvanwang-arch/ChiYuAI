@@ -3,7 +3,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { evalFormula, runProfileCalculations } from '../../src/calc/formulaEngine.js';
 import { createParticle } from '../../src/particles/particleRepo.js';
-import { seedTrainingProfile, TRAINING_TENANT } from '../../db/seed/tenant-profile-training.js';
+import { seedTrainingProfile } from '../../db/seed/tenant-profile-training.js';
+import { TRAINING_TENANT } from '../fixtures/testTenantIds.js';
 import { queryWrite } from '../../src/db.js';
 
 describe('formulaEngine', () => {

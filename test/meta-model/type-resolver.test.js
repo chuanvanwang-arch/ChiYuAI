@@ -2,7 +2,8 @@
 // P2(G1): resolvePrototype 双源解析（代码基线 ∪ 租户 tenant-profile）+ 培训租户 seed 端到端示例。
 import { describe, it, expect } from 'vitest';
 import { resolvePrototype, isConfigurablePrototype } from '../../src/particles/particleModel.js';
-import { seedTrainingProfile, TRAINING_TENANT } from '../../db/seed/tenant-profile-training.js';
+import { seedTrainingProfile } from '../../db/seed/tenant-profile-training.js';
+import { TRAINING_TENANT } from '../fixtures/testTenantIds.js';
 
 describe('resolvePrototype dual-source', () => {
   it('CRM types resolve from code baseline (no tenant)', async () => {

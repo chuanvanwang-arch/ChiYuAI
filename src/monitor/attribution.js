@@ -61,8 +61,8 @@ export function computeEdgeCompliance(actualEdgeTypes = [], { requiredEdges = nu
 // 写时物化：直接复用拦截引擎判定，不另算
 // T-D4：category 取 CATEGORY_STATES；edge_compliance(E1-E7) 缺省全 missing，
 //   传 decisionId 时查 decision_relation 实存边 → 对应 E present（供闭环巡检卡/closure）。
-export async function computeAttribution({ scenario_id, trigger_context = {}, check = defaultCheck, query, decisionId = null, stale_particle_checks = null } = {}) {
-  const { missing, required, level } = await check(scenario_id, trigger_context, { query });
+export async function computeAttribution({ scenario_id, trigger_context = {}, check = defaultCheck, query, decisionId = null, stale_particle_checks = null, tenantId = 'system' } = {}) {
+  const { missing, required, level } = await check(scenario_id, trigger_context, { query, tenantId });
   const missingDims = new Set(missing.map((m) => m.dim));
   const provided = (required || [])
     .map((r) => (typeof r === 'string' ? r : r?.dim))
@@ -91,7 +91,7 @@ export async function computeAttribution({ scenario_id, trigger_context = {}, ch
   let reqDims = [];
   if (scenario_id && query) {
     try {
-      const sRes = await query(`SELECT required_dims FROM crm.decision_scenario WHERE scenario_id=$1`, [scenario_id]);
+      const sRes = await query(`SELECT required_dims FROM crm.decision_scenario WHERE scenario_id=$1 AND (tenant_id=$2 OR tenant_id='system') ORDER BY (tenant_id=$2) DESC LIMIT 1`, [scenario_id, tenantId]);
       reqDims = sRes.rows[0]?.required_dims || [];
       if (!Array.isArray(reqDims)) reqDims = [];
     } catch { reqDims = []; }

@@ -21,11 +21,19 @@ function extractScenarioInsert(rel) {
   return sql.slice(i, j + TAIL.length);
 }
 
-// 抽取 LEAD_FIT 那一行。约定：追加在 VALUES 段「末尾、ON CONFLICT 之前」→ 直接切到语句尾即该行
+// 抽取 LEAD_FIT 那一行 —— 切到**下一行场景元组**为止。
+// ⚠ 2026-09-17 修：原实现写作 `return stmt.slice(i)`，其隐含约定是「LEAD_FIT 是 VALUES 段的最后一行」。
+//   该约定已被证伪：其后陆续追加了 PROSPECTING_CONFIRM（09-14，2 权重）与 PREHEAT_MARK（09-15，1 权重）
+//   ⇒ 切片把三行一起吞下，`"weight":` 匹配到 5+2+1=**8** 个，断言 `toHaveLength(5)` 报
+//   「expected [Array(8)] to have a length of 5 but got 8」——**看着像种子写错，实为切片依赖了会漂移的位置约定**。
+//   ⇒ 判据：从 SQL 文本里"按位置约定"切片，等价于把「后续追加」变成**隐式破坏**；
+//     必须按**结构边界**（下一个元组起始）切，而不是"切到语句尾"。
 function leadFitRow(stmt) {
   const i = stmt.indexOf("('LEAD_FIT'");
   expect(i, 'LEAD_FIT 行应存在').toBeGreaterThanOrEqual(0);
-  return stmt.slice(i);
+  const rest = stmt.slice(i);
+  const j = rest.indexOf("\n('"); // 下一行场景元组的起始（行首左括号）
+  return j >= 0 ? rest.slice(0, j) : rest;
 }
 
 describe('LEAD_FIT decision_scenario', () => {

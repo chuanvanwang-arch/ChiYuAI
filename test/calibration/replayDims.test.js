@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
 import { withTx, query } from '../../src/db.js';
 import { replayDims } from '../../src/calibration/replayDims.js';
+import { snapshotRequiredDims, restoreRequiredDims } from '../fixtures/scenarioDimsBaseline.js';
 
 // isolation-audit:ignore crm.decision —— 子表清理见下方 purgeScenarioDecisions，
 //   用 DECISION_CHILD_TABLES 表驱动（动态表名 `crm.${table}`），静态扫描无法解析，
@@ -49,11 +50,22 @@ async function purgeScenarioDecisions(client, scenarioId) {
 }
 
 describe('replayDims 量化重放', () => {
+  // 共享库快照/还原（2026-09-17 升级）：本文件原先只有 beforeEach 硬编码 '[]' 且**无 afterEach**，
+  // 跑完把 OPP_QUALIFY 各租户行留在 '[]'（非种子真值），顺序依赖污染后续文件。
+  let baseline;
+  beforeAll(async () => {
+    baseline = await snapshotRequiredDims('OPP_QUALIFY');
+  });
   beforeEach(async () => {
     await withTx(async (client) => {
-      await client.query(`UPDATE crm.decision_scenario SET required_dims='[]'::jsonb WHERE scenario_id='OPP_QUALIFY'`);
+      for (const s of baseline) {
+        await client.query(`UPDATE crm.decision_scenario SET required_dims='[]'::jsonb WHERE scenario_id='OPP_QUALIFY' AND tenant_id=$1`, [s.tenant_id]);
+      }
       await purgeScenarioDecisions(client, 'OPP_QUALIFY');
     });
+  });
+  afterEach(async () => {
+    await restoreRequiredDims('OPP_QUALIFY', baseline);
   });
 
   it('升 block 后历史缺失 ctx 被计入拦截率', async () => {

@@ -1,8 +1,17 @@
 // test/agent/aiFill.test.js
 // P5(T14): AI Fill 引擎只产出草稿（source='ai', enabled=false），不直写。
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { proposeAiFill } from '../../src/agent/aiFillEngine.js';
-import { seedTrainingProfile, TRAINING_TENANT } from '../../db/seed/tenant-profile-training.js';
+import { seedTrainingProfile } from '../../db/seed/tenant-profile-training.js';
+// 测试专用租户 id（不来自被种子模块——见 test/fixtures/testTenantIds.js 的 09-09 重构说明）
+import { TRAINING_TENANT } from '../fixtures/testTenantIds.js';
+
+// 本文件自给自足：proposeAiFill 内部 resolvePrototype(prototype, tenantId) 查租户配置，
+// 配置缺失即返回空草稿。此前只有第 3 个用例 seed，第 1 个用例靠「跑在别人后面」侥幸通过
+// ⇒ 顺序依赖。改为 beforeAll 统一播种（幂等 upsert），消除顺序依赖。
+beforeAll(async () => {
+  await seedTrainingProfile(TRAINING_TENANT);
+});
 
 describe('aiFill engine', () => {
   it('proposes field from raw context (no LLM => deterministic fallback)', async () => {

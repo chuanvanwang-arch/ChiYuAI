@@ -4,7 +4,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { actionExecutor } from '../../src/action/executor.js';
 import { seedActions } from '../../src/action/seed-actions.js';
-import { seedChemicalProfile, CHEM_TENANT } from '../../db/seed/tenant-profile-chemical.js';
+import { seedChemicalProfile } from '../../db/seed/tenant-profile-chemical.js';
+import { CHEM_TENANT } from '../fixtures/testTenantIds.js';
 // Runbook §5 写成 from 'src/particles/particleRepo.js'，实际导出在 particleModel.js（已修正 + 标注）
 import { resolvePrototype, isControlledPredicateConfig } from '../../src/particles/particleModel.js';
 import { createEdge, createParticle } from '../../src/particles/particleRepo.js';
@@ -15,6 +16,15 @@ import { query, queryWrite } from '../../src/db.js';
 beforeAll(async () => {
   seedActions(); // 注册全部 Action（含 crm-import-batch），等价于 server 启动
   await seedChemicalProfile(CHEM_TENANT);
+  // §4 走 actionExecutor → crm-import-batch 声明 autoDecision:true → 会为**本租户** mint decision，
+  //   而 crm.decision 有复合外键 (scenario_id, tenant_id) → 租户须有自身场景行。幂等铺垫，禁 DELETE。
+  // 场景字典**不再由测试铺垫**：改由生产路径按需物化
+  //   （`createDecision` → `ensureTenantScenarioSafely`，E7-2 2026-09-17）。
+  //   ⚠ 准确性限定：本机测试库里这些租户**仍有早前铺垫留下的场景行**（当时用 `query` 走连接池提交，
+  //   无法用回滚消除）⇒ 本文件此刻"绿"不能单独证明物化接线；**接线证据以独立探针为准**：
+  //   `PGDATABASE=crm_native_test node scripts/verify-tenant-scenario-provisioning.mjs`
+  //   （全新租户 + 负向控制）。在**全新测试库**上，本文件才会以 decision_scenario_tenant_fkey 违例
+  //   的形式反映物化缺失。
   await queryWrite(`DELETE FROM crm.particles WHERE tenant_id=$1 AND type LIKE 'CHEM_%'`, [CHEM_TENANT]);
   await queryWrite(`DELETE FROM crm.edges WHERE tenant_id=$1`, [CHEM_TENANT]);
 });

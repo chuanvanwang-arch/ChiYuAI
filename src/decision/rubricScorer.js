@@ -1,4 +1,11 @@
 // src/decision/rubricScorer.js
+// ⚠ 边界声明（R-3，2026-09-17）：本模块的「九尺子」评的是**决策叙述质量**
+//   （clarity/accuracy/precision/relevance/depth/breadth/logic/importance/fairness），
+//   **不是**线索匹配度/意向度。lead-fit（线索判定）**禁用**本模块 —— 那会把
+//   「叙述写得好」当成「客户意向高」（同名异物陷阱）。
+//   lead-fit 的正确评分器 = src/connectors/discovery/leadFitScorer.js（确定性权重表，
+//   ruler 为 industry/hiring_icp_role/funding_round/…）。两模块 rule_ref 前缀同为
+//   `scenario:lead-fit#ruler:*`，但语义完全不同，勿混用、勿互接。
 // 九尺子评分器（P1-B3）：8 项确定性 + 1 项 LLM（默认关）。
 // 设计依据：docs/2026-09-02-cognitive-decision-unified-design.md §6（R3 裁定后 8+1）。
 // 与 Lightfield C4 同构：8 项走代码判定，保证「同一决策重跑得分一致」，趋势与复合效应 Q(Skill,T) 才有意义。

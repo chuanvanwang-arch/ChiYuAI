@@ -7,10 +7,16 @@
 // 无 required_dims 列时（Task 9 迁移前）→ 默认 warn 语义（不阻断，避免误伤既有写流程）
 import { query as defaultQuery } from '../db.js';
 
-export async function sevenDimensionsCheck(scenarioId, ctx = {}, { query: q = defaultQuery } = {}) {
+export async function sevenDimensionsCheck(scenarioId, ctx = {}, { query: q = defaultQuery, tenantId = ctx?.tenantId || 'system' } = {}) {
   let required = [];
   try {
-    const r = await q(`SELECT required_dims FROM decision_scenario WHERE scenario_id=$1`, [scenarioId]);
+    // 【按租户 2026-09-17】required_dims 为租户级配置：读本租户行，缺则回退 system 模板
+    //   （与 executor.js:27 / loadScenarioConfig 同款 `OR tenant_id='system' ORDER BY (tenant_id=$2) DESC LIMIT 1`）。
+    //   此前 `WHERE scenario_id=$1` 任取 rows[0] ⇒ 复合主键落地后跨租户读配置（E7-2 同族遗漏）。
+    const r = await q(
+      `SELECT required_dims FROM decision_scenario WHERE scenario_id=$1 AND (tenant_id=$2 OR tenant_id='system') ORDER BY (tenant_id=$2) DESC LIMIT 1`,
+      [scenarioId, tenantId]
+    );
     required = r.rows[0]?.required_dims || [];
     if (!Array.isArray(required)) required = [];
   } catch {

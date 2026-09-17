@@ -121,7 +121,7 @@ export async function traceRootCause(decisionId, { query: q = defaultQuery } = {
   //   fail-safe：场景不存在/读失败 → 空必填维 → known=false（不臆断 E 缺）
   let reqDims = [];
   try {
-    const sRes = await q(`SELECT required_dims FROM crm.decision_scenario WHERE scenario_id=$1`, [d.scenario_id]);
+    const sRes = await q(`SELECT required_dims FROM crm.decision_scenario WHERE scenario_id=$1 AND (tenant_id=$2 OR tenant_id='system') ORDER BY (tenant_id=$2) DESC LIMIT 1`, [d.scenario_id, d.tenant_id || 'system']);
     reqDims = sRes.rows[0]?.required_dims || [];
     if (!Array.isArray(reqDims)) reqDims = [];
   } catch { reqDims = []; }

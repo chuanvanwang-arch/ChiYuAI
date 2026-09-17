@@ -1,12 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import { withTx, query } from '../../src/db.js';
 import { getStrategy } from '../../src/calibration/knobs/index.js';
 import { readConf } from '../../src/calibration/store.js';
+import { snapshotRequiredDims, restoreRequiredDims } from '../fixtures/scenarioDimsBaseline.js';
 
-// 共享库卫生（2026-08-30）：RequiredDimsStrategy.apply 写 OPP_QUALIFY.required_dims 后不还原，
-// 单进程顺序下污染后续依赖 OPP_QUALIFY 的测试（decision.test.js / decision-gate.test.js）。
+// 共享库卫生（2026-08-30 起因 → 2026-09-17 升级）：RequiredDimsStrategy.apply 写
+// OPP_QUALIFY.required_dims 后不还原，单进程顺序下污染后续依赖 OPP_QUALIFY 的测试
+// （decision.test.js / decision-gate.test.js）。原先还原值硬编码 '[]' —— 那不是种子真值
+// （真值 = 4 个 warn 维，见主库 system 行），且整场景 UPDATE 无租户谓词 = 跨租户写全部行。
+// 改为「开跑前快照各租户现值 → afterEach 按租户还原」。
+let baseline;
+beforeAll(async () => {
+  baseline = await snapshotRequiredDims('OPP_QUALIFY');
+});
 afterEach(async () => {
-  await query(`UPDATE crm.decision_scenario SET required_dims='[]'::jsonb WHERE scenario_id='OPP_QUALIFY'`);
+  await restoreRequiredDims('OPP_QUALIFY', baseline);
 });
 
 describe('旋钮策略 · 接口与落点', () => {

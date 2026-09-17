@@ -4,7 +4,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { actionExecutor } from '../../src/action/executor.js';
 import { seedActions } from '../../src/action/seed-actions.js';
-import { seedInsMediProfile, INSMEDI_TENANT } from '../../db/seed/tenant-profile-insmedi.js';
+import { seedInsMediProfile } from '../../db/seed/tenant-profile-insmedi.js';
+import { INSMEDI_TENANT } from '../fixtures/testTenantIds.js';
 // Runbook §5 写成 from 'src/particles/particleRepo.js'，实际导出在 particleModel.js（已修正 + 标注）
 import { resolvePrototype, isControlledPredicateConfig } from '../../src/particles/particleModel.js';
 import { createEdge, createParticle } from '../../src/particles/particleRepo.js';
@@ -15,6 +16,9 @@ import { query, queryWrite } from '../../src/db.js';
 beforeAll(async () => {
   seedActions(); // 注册全部 Action（含 crm-import-batch），等价于 server 启动
   await seedInsMediProfile(INSMEDI_TENANT);
+  // §4 走 actionExecutor → crm-import-batch 声明 autoDecision:true → 会为**本租户** mint decision，
+  //   而 crm.decision 有复合外键 (scenario_id, tenant_id) → 租户须有自身场景行。幂等铺垫，禁 DELETE。
+  // 场景字典**不再由测试铺垫**：改由生产路径按需物化（E7-2 2026-09-17，同 chemical 用例说明）
   await queryWrite(`DELETE FROM crm.particles WHERE tenant_id=$1 AND type LIKE 'INSMEDI_%'`, [INSMEDI_TENANT]);
   await queryWrite(`DELETE FROM crm.edges WHERE tenant_id=$1`, [INSMEDI_TENANT]);
 });

@@ -16,7 +16,7 @@ function makeReplayQuery(toRequiredDims, realQ) {
 }
 
 // 对窗口内该 scenario 的历史决策 trigger_context，用 toRequiredDims 重算 missing，统计 block 后拦截率
-export async function replayDims(scenarioId, toRequiredDims, windowDays = 30) {
+export async function replayDims(scenarioId, toRequiredDims, windowDays = 30, tenantId = 'system') {
   const r = await query(
     `SELECT decision_id, trigger_context FROM crm.decision
      WHERE scenario_id=$1 AND created_at >= now() - ($2::int || ' days')::interval
@@ -29,8 +29,8 @@ export async function replayDims(scenarioId, toRequiredDims, windowDays = 30) {
   let intercepted_after = 0;
   for (const row of rows) {
     const ctx = row.trigger_context && typeof row.trigger_context === 'object' ? row.trigger_context : {};
-    const before = await sevenDimensionsCheck(scenarioId, ctx);
-    const after = await sevenDimensionsCheck(scenarioId, ctx, { query: makeReplayQuery(toRequiredDims, query) });
+    const before = await sevenDimensionsCheck(scenarioId, ctx, { tenantId });
+    const after = await sevenDimensionsCheck(scenarioId, ctx, { query: makeReplayQuery(toRequiredDims, query), tenantId });
     if (!before.allowed) intercepted_before += 1;
     if (!after.allowed) intercepted_after += 1;
   }

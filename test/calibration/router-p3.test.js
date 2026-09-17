@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
 import { createApp } from '../../src/http/server.js';
 import { query, withTx } from '../../src/db.js';
 import { issueToken } from '../../src/http/auth.js';
+import { snapshotRequiredDims, restoreRequiredDims } from '../fixtures/scenarioDimsBaseline.js';
 
 function appWith(role = 'sysadmin') {
   const app = createApp();
@@ -10,11 +11,24 @@ function appWith(role = 'sysadmin') {
 }
 
 describe('校准路由 · 手动发起 required_dims 处方', () => {
+  // 共享库快照/还原（2026-09-17 修复）：本文件原先**无 afterEach**，测试 4 的「降级前置」
+  // UPDATE 又是无租户谓词的整场景写（PK=(scenario_id,tenant_id) 落地后 = 跨租户写全部行），
+  // 文件跑完把 OPP_QUALIFY 全部租户行留在 block → 顺序依赖污染 decision-gate 等后续文件。
+  let baseline;
+  beforeAll(async () => {
+    baseline = await snapshotRequiredDims('OPP_QUALIFY');
+  });
   beforeEach(async () => {
     await withTx(async (client) => {
-      await client.query(`UPDATE crm.decision_scenario SET required_dims='[]'::jsonb WHERE scenario_id='OPP_QUALIFY'`);
+      // 按快照内租户逐个清空（带 tenant_id 谓词），不再整场景写
+      for (const s of baseline) {
+        await client.query(`UPDATE crm.decision_scenario SET required_dims='[]'::jsonb WHERE scenario_id='OPP_QUALIFY' AND tenant_id=$1`, [s.tenant_id]);
+      }
       await client.query(`DELETE FROM crm.calibration_patch WHERE scenario_id='OPP_QUALIFY' AND knob='required_dims'`);
     });
+  });
+  afterEach(async () => {
+    await restoreRequiredDims('OPP_QUALIFY', baseline);
   });
 
   it('POST generate 带 required_dims_draft → 生成 PENDING 处方 + risk', async () => {

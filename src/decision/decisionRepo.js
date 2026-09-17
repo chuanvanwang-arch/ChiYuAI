@@ -32,21 +32,83 @@ import { jaccardConditions, categoryMatch, graphDepthOf, normalizeWeights, simil
 // HUMAN/REQUIRED 仍排除（待人工确认/待触发，无终态结论，入池会污染先例+误导置信度）。
 export const DECISION_DECIDED_STATES = ['CONFIRMED', 'AUTONOMOUS', 'DECIDED', 'PROCESSED'];
 
+// 【E7-2 2026-09-17】租户维度场景字典的**按需物化**（第 0 闸外键供给；幂等、无 DELETE）。
+// 背景（三方事实）：
+//   ① `crm.decision_scenario` PK=`(scenario_id, tenant_id)`（migration-decision-scenario-tenant-pk.sql:32）；
+//   ② `crm.decision` / `crm.calibration_patch` / `crm.outcome_event_map` **三表**均有复合外键
+//      `(scenario_id, tenant_id) → crm.decision_scenario`（同文件 :51/:53/:55）；
+//   ③ 但 `db/seed-decision-scenarios.sql` 的 INSERT 列清单**只有 8 列、不含 tenant_id** ⇒ 字典只落 `system`。
+// 缺陷形态：`requireDecision`（autonomyEngine.js）读侧对「本租户无场景行」**回退 system 模板**，
+//   而落库侧仍写**调用方租户** ⇒ **解析有回退、落库没有回退**：
+//   任何 `autoDecision` 写路径（如 `crm-import-batch`）对**尚无决策行的租户**必违外键；
+//   migration 步骤 3.5 的回填依赖「该租户已有 decision 行」＝**鸡生蛋**。
+//   旧行为"能用"纯属巧合：测试写死 `acme-*`，而该租户恰有历史 decision 行（被 3.5 回填过）。
+// ⚠ 物化必须与**读取谓词成对**：物化后同名场景多租户并存（库内现状：`PARTICLE_CREATE` 已存于 2 个租户），
+//   若读取侧无租户过滤，`rows[0]` 任取 = 跨租户读配置（多租户纯度红线）。故本次**同时**为
+//   `loadScenarioConfig` 补 tenant 谓词 + system 回退（与 requireDecision 的解析口径对齐）。
+// 克隆列 = 除 `tenant_id` / `created_at` 外的全部列（后者刻意不复制：租户行的物化时刻就是现在）。
+// ⚠ 新增列须同步本清单——`test/decision/tenantScenarioProvisioning.test.js` 有「列集漂移守卫」自动比对。
+export const SCENARIO_CLONE_COLUMNS = [
+  'scenario_id', 'stage', 'description', 'trigger', 'methodology_ids', 'eval_dimensions',
+  'default_tier', 'autonomous_allowed', 'dispositions', 'required_dims', 'stage_code',
+  'focus_elements', 'focus_rulers', 'rubric_pass_line', 'retro_required', 'enabled_rulers',
+];
+
+export async function ensureTenantScenario(tenantId, scenario_id, writer = queryWrite) {
+  if (!tenantId || tenantId === 'system' || !scenario_id) return 0;
+  const cols = SCENARIO_CLONE_COLUMNS.join(', ');
+  const src = SCENARIO_CLONE_COLUMNS.map((c) => `s.${c}`).join(', ');
+  const r = await writer(
+    `INSERT INTO crm.decision_scenario (tenant_id, ${cols})
+     SELECT $1, ${src}
+       FROM crm.decision_scenario s
+      WHERE s.scenario_id = $2 AND s.tenant_id = 'system'
+     ON CONFLICT (scenario_id, tenant_id) DO NOTHING`,
+    [tenantId, scenario_id]
+  );
+  return r.rowCount || 0;
+}
+
+// 【E7-2】「物化或留痕」的单一入口（供所有共享复合外键的写路径复用）。
+// ⚠ 此处 catch **不掩盖故障**：物化失败后故障必然在紧随其后的 INSERT 以
+//   `decision_scenario_tenant_fkey` 违例**原样抛出**（`insertDecisionFailOpen:111` 对非维度错不降级、
+//   原样 throw；`calibration/store.js:createPatch` 亦无 catch）⇒ 本 try 只避免"双份报错"，
+//   不是把外键故障吞掉。若将来该 insert 被改成吞异常，本 catch 就会退化为**静默容忍**——
+//   故 `test/decision/tenantScenarioProvisioning.test.js` 对「缺行必违外键」单独留了一条复现断言。
+export async function ensureTenantScenarioSafely({ tenantId, scenario_id, where = 'unknown' } = {}) {
+  if (!tenantId || tenantId === 'system' || !scenario_id) return 0;
+  try {
+    return await ensureTenantScenario(tenantId, scenario_id);
+  } catch (e) {
+    emit('trace', 'tenant-scenario-ensure-failed', {
+      tenantId, scenario_id, where, error: String(e?.message || e),
+    });
+    recordFailure('tenant-scenario-ensure-failed', e);
+    return 0;
+  }
+}
+
 // B4 2026-09-02：读场景行聚焦配置（required_dims/focus_rulers/rubric_pass_line/enabled_rulers）供评分线使用。
 // 返回 null = 场景行不存在或读取失败 → 调用方保持 null 口径（设计 §6.3「无证据计 0 不假填充」的配置侧同构）。
-export async function loadScenarioConfig(scenario_id) {
+// 【E7-2 2026-09-17】补 tenant 谓词 + system 回退：此前无租户过滤（`WHERE scenario_id=$1`），
+//   而物化后同名场景多租户并存 ⇒ `rows[0]` 任取（实测本地主库 `PARTICLE_CREATE` 已有 2 个租户的行）。
+//   当前各租户行内容相同故未显形，但一旦某租户按后台配置校准自己的场景行（default_tier / eval_dimensions /
+//   focus_rulers 正是行业差异化载体），本函数就会读到**别的租户**的配置 ⇒ 跨租户读配置。
+//   口径与 `requireDecision` 一致：本租户优先 → 缺行回退 system 模板 → 都没有才返回 null。
+export async function loadScenarioConfig(scenario_id, tenantId = 'system', reader = query) {
   if (!scenario_id) return null;
-  try {
-    const r = await query(
-      `SELECT scenario_id, stage, stage_code, focus_elements, focus_rulers, required_dims,
+  const SELECT_SQL = `SELECT scenario_id, stage, stage_code, focus_elements, focus_rulers, required_dims,
               rubric_pass_line, retro_required, methodology_ids, enabled_rulers
-       FROM crm.decision_scenario WHERE scenario_id=$1`,
-      [scenario_id]
-    );
+       FROM crm.decision_scenario`;
+  try {
+    let r = await reader(`${SELECT_SQL} WHERE scenario_id=$1 AND tenant_id=$2`, [scenario_id, tenantId]);
+    if (!r.rows[0] && tenantId !== 'system') {
+      r = await reader(`${SELECT_SQL} WHERE scenario_id=$1 AND tenant_id='system'`, [scenario_id]);
+    }
     if (!r.rows[0]) return null;
     return r.rows[0];
   } catch (e) {
-    emit('trace', 'scenario-config-load-failed', { scenario_id, error: String(e?.message || e) });
+    emit('trace', 'scenario-config-load-failed', { scenario_id, tenantId, error: String(e?.message || e) });
     recordFailure('scenario-config-load-failed', e);
     return null;
   }
@@ -167,6 +229,14 @@ export async function createDecision(input = {}) {
   // 【T-D5】写时上下文守卫（配置化，非硬编码）：trigger_context/conditions_evaluated 缺失时，
   // block 模式拒写（抛 missing_context）；warn 模式仅 trace 留痕。默认 warn（详见 contextGuard.js）。
   await checkContextGuard({ scenario_id, trigger_context, conditions_evaluated });
+  // 【E7-2 2026-09-17】第 0 闸外键供给：本租户场景行缺失则**按需物化**（幂等，见 ensureTenantScenario 注释）。
+  //   落库点设在 createDecision 而非只设在 mintDecision：`crm.decision` 的插入在本模块唯一，
+  //   故此处即「该外键可被违反」的唯一入口 ⇒ 一处收敛覆盖所有铸决策通道
+  //   （mintDecision / standing-auth / MCP / 定时器……）。
+  //   ⚠ 「传了≠接了」：本行是否真的被生产路径执行，由
+  //   `scripts/verify-tenant-scenario-provisioning.mjs`（真实 createDecision + 全新租户）取证，
+  //   不靠 grep 本行存在。（脚本名用 verify- 前缀：`probe-*.mjs` 在 .gitignore 内，会不入库。）
+  await ensureTenantScenarioSafely({ tenantId, scenario_id, where: 'createDecision' });
   // 【T-D1/G5】置信度反算（单一事实源）：业务结果信号优先于即时人工判；无信号回退 0.6。
   const confidence = computeConfidence({
     outcomeVerified: outcome_verified, humanDisposition: human_disposition, engineConfidence: engine_confidence,
@@ -191,7 +261,7 @@ export async function createDecision(input = {}) {
   let attribution = null;
   try {
     const { computeAttribution } = await import('../monitor/attribution.js');
-    attribution = await computeAttribution({ scenario_id, trigger_context, query });
+    attribution = await computeAttribution({ scenario_id, trigger_context, query, tenantId });
   } catch (e) {
     emit('trace', 'attribution-materialize-failed', { scenario_id, error: String(e?.message || e) });
     recordFailure('attribution-materialize-failed', e);
@@ -316,7 +386,7 @@ export async function createDecision(input = {}) {
   if (decision?.decision_id) {
     try {
       const { scoreDecision, persistRubric } = await import('../decision/rubricScorer.js');
-      const sc = await loadScenarioConfig(scenario_id);
+      const sc = await loadScenarioConfig(scenario_id, tenantId);
       // pre_context.dim_coverage 可能是「对象 {dim:{supplied,ops}}」或「数组 [{dim,supplied}]」形态，双形态兼容
       const cov = preContext?.dim_coverage || {};
       const suppliedDims = Array.isArray(cov)

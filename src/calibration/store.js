@@ -6,7 +6,7 @@
 //   ② 回滚 = 恢复 from_value（同样经第0闸），patch 置 ROLLED_BACK
 //   ③ 缺省回退：config_store 无 autonomy-conf 时返回 DEFAULT_CONF（与 autonomyEngine.js:8 逐字一致，parity 由 test/calibration/parity.test.js 锁死）
 import { query, withTx } from '../db.js';
-import { createDecision } from '../decision/decisionRepo.js';
+import { createDecision, ensureTenantScenarioSafely } from '../decision/decisionRepo.js';
 import { getStrategy } from './knobs/index.js';
 
 // 与 autonomyEngine.js DEFAULT_CONF 逐字对齐（parity 守卫见 parity.test.js）
@@ -89,6 +89,10 @@ export async function produceDecision(ctx = {}) {
 export async function createPatch({ scenario_id = null, knob, target, from_value, to_value, evidence, expected_impact = null, risk, decision_id = null, assignee = 'ADMIN', tenant_id = 'system' }) {
   if (!KNOBS.includes(knob)) throw new Error(`createPatch: knob 须为 ${KNOBS.join('/')}`);
   if (!['LOW', 'MEDIUM', 'HIGH'].includes(risk)) throw new Error('createPatch: risk 须为 LOW/MEDIUM/HIGH');
+  // 【E7-2 同族 2026-09-17】calibration_patch 与 crm.decision **共用同一条复合外键**
+  //   `(scenario_id, tenant_id) → crm.decision_scenario`（migration-decision-scenario-tenant-pk.sql:51/53）：
+  //   本租户缺该场景行时此处同样违例 ⇒ 同法按需物化（幂等、无 DELETE）。
+  await ensureTenantScenarioSafely({ tenantId: tenant_id, scenario_id, where: 'createPatch' });
   const r = await query(
     `INSERT INTO crm.calibration_patch
        (scenario_id, knob, target, from_value, to_value, evidence, expected_impact, risk, status, decision_id, assignee, tenant_id, sla_due_at)

@@ -7,7 +7,8 @@ import { actionExecutor } from '../../src/action/executor.js';
 // 副作用引入：seed-actions.js 模块顶层 registerAction(...) 注册全部 Action（含 crm-import-batch），
 // 等价于 server 启动时的注册；不引入则 actionExecutor.dispatch 找不到 Action（返回未知 Action）。
 import { seedActions } from '../../src/action/seed-actions.js';
-import { seedTrainingProfile, TRAINING_TENANT } from '../../db/seed/tenant-profile-training.js';
+import { seedTrainingProfile } from '../../db/seed/tenant-profile-training.js';
+import { TRAINING_TENANT } from '../fixtures/testTenantIds.js';
 import { resolvePrototype, isControlledPredicateConfig } from '../../src/particles/particleModel.js';
 import { createEdge } from '../../src/particles/particleRepo.js';
 import { listMetaAttr, ensureAdaptiveRegistration } from '../../src/metaAttr/metaAttrRepo.js';
@@ -16,6 +17,9 @@ import { query, queryWrite } from '../../src/db.js';
 beforeAll(async () => {
   seedActions(); // 注册全部 Action（含 crm-import-batch），等价于 server 启动
   await seedTrainingProfile(TRAINING_TENANT);
+  // 用例 1 走 actionExecutor → crm-import-batch 声明 autoDecision:true → 会为**本租户** mint decision，
+  //   而 crm.decision 有复合外键 (scenario_id, tenant_id) → 租户须有自身场景行。幂等铺垫，禁 DELETE。
+  // 场景字典**不再由测试铺垫**：改由生产路径按需物化（E7-2 2026-09-17，同 chemical 用例说明）
   await queryWrite(`DELETE FROM crm.particles WHERE tenant_id=$1 AND type LIKE 'TRAINING_%'`, [TRAINING_TENANT]);
   await queryWrite(`DELETE FROM crm.edges WHERE tenant_id=$1`, [TRAINING_TENANT]);
 });

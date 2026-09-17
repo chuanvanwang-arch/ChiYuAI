@@ -44,7 +44,7 @@ async function buildMZone(decision) {
   const relTypes = runtime.map((e) => e.rel_type);
   let reqDims = [];
   try {
-    const sRes = await query(`SELECT required_dims FROM crm.decision_scenario WHERE scenario_id=$1`, [decision.scenario_id]);
+    const sRes = await query(`SELECT required_dims FROM crm.decision_scenario WHERE scenario_id=$1 AND (tenant_id=$2 OR tenant_id='system') ORDER BY (tenant_id=$2) DESC LIMIT 1`, [decision.scenario_id, decision.tenant_id || 'system']);
     reqDims = sRes.rows[0]?.required_dims || [];
     if (!Array.isArray(reqDims)) reqDims = [];
   } catch { reqDims = []; }

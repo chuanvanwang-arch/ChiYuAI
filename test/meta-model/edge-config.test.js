@@ -3,7 +3,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createEdge } from '../../src/particles/particleRepo.js';
 import { isControlledPredicateConfig } from '../../src/particles/particleModel.js';
-import { seedTrainingProfile, TRAINING_TENANT } from '../../db/seed/tenant-profile-training.js';
+import { seedTrainingProfile } from '../../db/seed/tenant-profile-training.js';
+import { TRAINING_TENANT } from '../fixtures/testTenantIds.js';
 import { queryWrite, query } from '../../src/db.js';
 
 describe('edge predicate config (P3)', () => {
@@ -13,7 +14,9 @@ describe('edge predicate config (P3)', () => {
   const Y = '44444444-4444-4444-4444-444444444444';
   beforeEach(async () => {
     await seedTrainingProfile(TRAINING_TENANT);
-    await queryWrite(`DELETE FROM crm.edges WHERE tenant_id IN ('acme-training','crm')`);
+    // 清理本用例会写入的两个租户的边；租户 id 走参数绑定（此前硬编码 'acme-training'，
+    // 与 TRAINING_TENANT 脱钩 → 常量变更后清理会静默失效、残留污染后续用例）
+    await queryWrite(`DELETE FROM crm.edges WHERE tenant_id IN ($1, 'crm')`, [TRAINING_TENANT]);
   });
 
   it('rejects edge_type not in baseline ∪ tenant profile', async () => {
