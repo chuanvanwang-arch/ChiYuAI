@@ -111,7 +111,7 @@ def main():
     step("安装插件到本地 WorkBuddy" + ("（DRY-RUN）" if DRY else ""))
     step("=" * 60)
 
-    # ---- 1. crm-native-agent：更新市场源 + 已装实例 ----
+    # ---- 1. sales-decision-platform：更新市场源 + 已装实例 ----
     existing = [d for d in os.listdir(CUSTOM)
                 if os.path.exists(os.path.join(CUSTOM, d, ".codebuddy-plugin", "plugin.json"))]
     crm_dir = None
@@ -119,33 +119,38 @@ def main():
         with open(os.path.join(CUSTOM, d, ".codebuddy-plugin", "plugin.json"),
                   encoding="utf-8") as f:
             j = json.load(f)
-        if j.get("name") in ("crm-native", "crm-native-agent"):
+        # 兼容旧名：2026-09-17 平台报「crm-native 已被占用」后更名为 sales-decision-platform，
+        # 本机若已装旧名实例（包名 crm-native / 历史市场源名 crm-native-agent）须被识别并覆盖更新，
+        # 而非与新名实例并存。范式同下方 crm-platform-admin -> sales-decision-admin。
+        if j.get("name") in ("sales-decision-platform", "crm-native", "crm-native-agent"):
             crm_dir = os.path.join(CUSTOM, d)
             break
 
-    step(f"[1/2] crm-native-agent (zip: {os.path.basename('plugin/crm-native-plugin.zip')})")
+    step(f"[1/2] sales-decision-platform (zip: {os.path.basename('plugin/crm-native-plugin.zip')})")
     if not crm_dir:
         crm_dir = os.path.join(CUSTOM, str(uuidlib.uuid4()))
         step(f"  ! 未找到既有实例，将新建: {crm_dir}")
-    install("plugin/crm-native-plugin.zip", "crm-native-agent",
-            normalize_name="crm-native-agent", custom_dir=crm_dir,
+    install("plugin/crm-native-plugin.zip", "sales-decision-platform",
+            normalize_name="sales-decision-platform", custom_dir=crm_dir,
             create_custom=False)
 
-    # ---- 2. crm-platform-admin：更新市场源 + 新建已装实例 ----
+    # ---- 2. sales-decision-admin：更新市场源 + 新建已装实例 ----
     pa_dir = None
     for d in existing:
         with open(os.path.join(CUSTOM, d, ".codebuddy-plugin", "plugin.json"),
                   encoding="utf-8") as f:
             j = json.load(f)
-        if j.get("name") == "crm-platform-admin":
+        # 兼容旧名：2026-09-17 平台报「crm-platform-admin 已被占用」后更名为 sales-decision-admin，
+        # 本机若已装旧名实例须被识别并覆盖更新，而非并存（范式同上方 crm-native / crm-native-agent）。
+        if j.get("name") in ("sales-decision-admin", "crm-platform-admin"):
             pa_dir = os.path.join(CUSTOM, d)
             break
     if not pa_dir:
         pa_dir = os.path.join(CUSTOM, str(uuidlib.uuid4()))
         step(f"  ! 未找到既有实例，将新建: {os.path.basename(pa_dir)}")
 
-    step("[2/2] crm-platform-admin (zip: plugin-platform-admin.zip)")
-    install("plugin-platform-admin.zip", "crm-platform-admin",
+    step("[2/2] sales-decision-admin (zip: plugin-platform-admin.zip)")
+    install("plugin-platform-admin.zip", "sales-decision-admin",
             normalize_name=None, custom_dir=pa_dir,
             create_custom=True, experts_json=["platform-admin"])
 

@@ -1,17 +1,17 @@
-# 企业AI销售决策管理专家 · 插件包（crm-platform-admin）
+# 企业AI销售决策管理专家 · 插件包（sales-decision-admin）
 
-> **行业自适应过程全监控** —— 面向平台管理员 / `sysadmin` 的治理插件。与业务销售助手 `crm-native`（L2C 全链路）互补：本插件只管**平台底座治理**，不碰业务销售。
+> **行业自适应过程全监控** —— 面向平台管理员 / `sysadmin` 的治理插件。与业务销售助手 `sales-decision-platform`（L2C 全链路）互补：本插件只管**平台底座治理**，不碰业务销售。
 
 ## 1. 定位与边界
 
-| 维度 | crm-native（已发布） | **crm-platform-admin（本插件）** |
+| 维度 | sales-decision-platform（已发布） | **sales-decision-admin（本插件）** |
 |---|---|---|
 | 面向角色 | 销售 / 经理 / 售前 / 高管 / 财务 | **平台管理员 / `sysadmin`** |
 | 能力域 | 线索→客户→商机→报价→合同→回款（L2C 业务） | **行业上线 / 用户权限 / 系统初始化（平台治理）** |
 | 准入 | `crm_login` + 五角色自适应 | **`crm_login` 登录验证 + 仅 `sysadmin` 角色**（双闸，缺一不可） |
 | 分发 | 独立插件包 `plugin/` | 独立插件包 `plugin-platform-admin/`（本目录） |
 
-> 两包**独立安装、互不依赖**：业务助手走 `crm-native`，平台治理走 `crm-platform-admin`。共享同一 `crm-native-mcp` 后端与同一套红线。
+> 两包**独立安装、互不依赖**：业务助手走 `sales-decision-platform`，平台治理走 `sales-decision-admin`。共享同一 `crm-native-mcp` 后端与同一套红线。
 
 ## 2. 三大能力（领域 SKILL）
 
@@ -73,7 +73,7 @@ plugin-platform-admin/                 # 包根（上传单元）
 
 ## 7. 接入与分发
 
-### 7.1 本地 MCP 接入（与 crm-native 同后端）
+### 7.1 本地 MCP 接入（与 sales-decision-platform 同后端）
 
 ```
 npm run mcp:http     # StreamableHTTP @3001 /mcp
@@ -113,3 +113,22 @@ npm run mcp:stdio    # stdio（本地 Agent 子进程）
 > python scripts/pack-platform-admin-plugin.py
 > python scripts/verify-plugin-zips.py     # 含版本一致性守卫
 > ```
+
+## 11. 平台名称占用订正（2026-09-17 晚）
+
+> **触发**：上传平台报错「专家名称 `crm-platform-admin` 已被占用，请修改 plugin.json 中的 name 字段后重新打包上传」。
+> 同批上传的企业AI销售决策专家亦报「`crm-native` 已被占用」⇒ 两包 `name` 唯一键均更名。
+
+| 项 | 旧 | 新 |
+|---|---|---|
+| 本包 `name` / `plugin` | `crm-platform-admin` | **`sales-decision-admin`** |
+| 专家包（企业AI销售决策专家）`name` | `crm-native` | **`sales-decision-platform`** |
+| 本包 npm 包名 | `@chuanvanwang-arch/crm-platform-admin` | `@chuanvanwang-arch/sales-decision-admin` |
+| 本包 `openclaw.plugin.json` 的 `id` | `crm-platform-admin` | `sales-decision-admin` |
+
+**版本保持 1.3.0**：包内容（技能 / agent / prompt）**零变更**，仅改平台可见的技术标识；版本号描述内容版本，内容未变即不 bump。
+
+⛔ **有意未改**：`agentName: platform-admin`（与 `agents/platform-admin.md` 文件名绑定）、
+技能名 `industry-onboarding` 等（独立命名空间）、`connector/mcp.json` 的 server 名（连接器已上线，改则断链）。
+
+> ⚠ 平台把新 `name` 视为**另一个专家**：旧 `crm-platform-admin` 实例不会自动更新，需重新导入或先下架旧实例。

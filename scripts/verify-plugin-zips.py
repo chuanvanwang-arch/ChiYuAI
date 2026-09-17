@@ -131,10 +131,10 @@ def check_zip(path, expect_name, expect_version, skill_names, content_rules):
     print(f"  文件总数: {len(inner)}")
 
 
-# ---- crm-native ----
+# ---- sales-decision-platform（原 crm-native）----
 check_zip(
     os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
-    expect_name="crm-native",
+    expect_name="sales-decision-platform",
     expect_version="1.12.0",
     skill_names=["crm-native", "crm-query", "crm-write", "crm-risk", "decision-retrospective",
                  "method-bant", "method-meddicc", "method-opportunity-matrix", "method-role-map",
@@ -204,7 +204,7 @@ check_zip(
 # ---- platform-admin ----
 check_zip(
     os.path.join(REPO, "plugin-platform-admin.zip"),
-    expect_name="crm-platform-admin",
+    expect_name="sales-decision-admin",
     expect_version="1.3.0",
     skill_names=["industry-onboarding", "user-rbac-admin", "system-bootstrap", "platform-ops-insight"],
     content_rules={
@@ -412,10 +412,10 @@ def check_expert_display_fields():
     print(f"\n{'=' * 60}\n专家卡片字段 源清单 ↔ 包内  (小标题漂移守卫)\n{'=' * 60}")
     pairs = [
         (os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
-         os.path.join(REPO, ".workbuddy-plugin", "plugin.json"), "crm-native"),
+         os.path.join(REPO, ".workbuddy-plugin", "plugin.json"), "sales-decision-platform"),
         (os.path.join(REPO, "plugin-platform-admin.zip"),
          os.path.join(REPO, "plugin-platform-admin", ".codebuddy-plugin", "plugin.json"),
-         "crm-platform-admin"),
+         "sales-decision-admin"),
     ]
     for zip_path, src_path, label in pairs:
         if not (os.path.exists(zip_path) and os.path.exists(src_path)):
@@ -431,9 +431,10 @@ def check_expert_display_fields():
                 ok(f"{label}.{field} 源↔包一致（zh={a.get('zh')!r}）")
             else:
                 bad(f"{label}.{field} 源↔包不一致：源 {a} vs 包 {b}"
-                    f" → 跑 `python scripts/pack-{'crm' if label == 'crm-native' else 'platform-admin'}-plugin.py` 重打包")
+                    f" → 跑 `python scripts/pack-{'crm' if label == 'sales-decision-platform' else 'platform-admin'}-plugin.py` 重打包")
         # 小标题禁为空 / 禁回退成技术 ID（早期值形态）
         dz = (inner_pj.get("displayName") or {}).get("zh", "")
+        # 黑名单＝全部技术 ID 形态（含 2026-09-17 前的旧 name），displayName 退化为其中任一即判失败
         if dz and dz not in (label, "crm-native", "crm-platform-admin"):
             ok(f"{label}.displayName.zh 非空且非技术 ID（{dz}）")
         else:
@@ -447,13 +448,13 @@ def check_expert_display_fields():
 #   `plugin/.workbuddy-plugin/plugin.json`（历史嵌套副本，不参与分发）更长期停在 1.5.0，
 #   属同族漂移噪声。本守卫把「版本一致」变成可断言对象。
 VERSION_GROUPS = [
-    ("crm-native", [
+    ("sales-decision-platform", [
         ".workbuddy-plugin/plugin.json",                 # 权威源（pack-crm-plugin.py 读它）
         "plugin/openclaw.plugin.json",                   # ClawHub 清单
         "plugin/package.json",                           # npm 清单
         "plugin/.workbuddy-plugin/plugin.json",          # 历史嵌套副本（不参与分发，仅防漂移噪声）
     ]),
-    ("crm-platform-admin", [
+    ("sales-decision-admin", [
         "plugin-platform-admin/.codebuddy-plugin/plugin.json",   # 权威源
         "plugin-platform-admin/openclaw.plugin.json",            # ClawHub 清单
         "plugin-platform-admin/package.json",                    # npm 清单
@@ -496,10 +497,10 @@ def check_version_consistency():
     pairs = [
         (os.path.join(REPO, "plugin", "crm-native-plugin.zip"),
          os.path.join(REPO, ".workbuddy-plugin", "plugin.json"),
-         "crm-native", "crm"),
+         "sales-decision-platform", "crm"),
         (os.path.join(REPO, "plugin-platform-admin.zip"),
          os.path.join(REPO, "plugin-platform-admin", ".codebuddy-plugin", "plugin.json"),
-         "crm-platform-admin", "platform-admin"),
+         "sales-decision-admin", "platform-admin"),
     ]
     for zip_path, src_path, label, packer in pairs:
         if not (os.path.exists(zip_path) and os.path.exists(src_path)):
@@ -521,11 +522,57 @@ def check_version_consistency():
         print(f"  [INFO] connector 独立版本线：connector-meta.json version = {mv}")
 
 
+# ---- 专家包 name 源↔包一致守卫 ----
+# 为什么需要：`check_zip(expect_name=...)` 断言的是**包内** name；源清单 name 若被改动而
+#   忘记重打包，`expect_name` 仍会通过（包内根本没变）⇒ 用户上传的包与源不一致，
+#   属「改了源忘重打包」同族假绿。2026-09-17 平台报「专家名称已被占用」而更名时暴露此空白。
+# 另断言两条：① 两包 name 互不相同（平台要求全局唯一，复制建包易撞）；② 不回退到历史技术 ID。
+EXPERT_NAME_PAIRS = [
+    ("plugin/crm-native-plugin.zip", ".workbuddy-plugin/plugin.json",
+     "企业AI销售决策专家", "crm"),
+    ("plugin-platform-admin.zip", "plugin-platform-admin/.codebuddy-plugin/plugin.json",
+     "企业AI销售决策管理专家", "platform-admin"),
+]
+# 历史技术 ID（更名前的 name + 历史市场源名）：禁止回退，否则平台必判占用
+LEGACY_NAMES = {"crm-native", "crm-platform-admin", "crm-native-agent"}
+
+
+def check_expert_name_consistency():
+    print(f"\n{'=' * 60}\n专家包 name 源↔包  (身份标识漂移守卫)\n{'=' * 60}")
+    seen = {}
+    for zip_rel, src_rel, display, packer in EXPERT_NAME_PAIRS:
+        zp = os.path.join(REPO, zip_rel.replace("/", os.sep))
+        sp = os.path.join(REPO, src_rel.replace("/", os.sep))
+        if not (os.path.exists(zp) and os.path.exists(sp)):
+            bad(f"{display}: 包或源清单缺失（{zip_rel} / {src_rel}）")
+            continue
+        with zipfile.ZipFile(zp) as z:
+            zname = json.loads(z.read(".codebuddy-plugin/plugin.json")).get("name")
+        sname = json.load(open(sp, encoding="utf-8")).get("name")
+        if not zname or not sname:
+            bad(f"{display}: name 缺失（包 {zname!r} / 源 {sname!r}）")
+            continue
+        if zname == sname:
+            ok(f"{display}: 包内 name = 源 name = {zname}")
+        else:
+            bad(f"{display}: 包内 name {zname!r} ≠ 源 name {sname!r}"
+                f" → 跑 `python scripts/pack-{packer}-plugin.py` 重打包")
+        if zname in LEGACY_NAMES:
+            bad(f"{display}: name 回退到历史技术 ID {zname!r}（平台会判为已被占用）")
+        if zname in seen:
+            bad(f"{display} 与 {seen[zname]} 的 name 相同（{zname!r}）—— 平台要求专家名全局唯一")
+        else:
+            seen[zname] = display
+    for n, d in sorted(seen.items()):
+        print(f"  [INFO] {d} name = {n}")
+
+
 check_connector()
 check_skill_mirrors()
 check_preview_artifacts()
 check_expert_display_fields()
 check_version_consistency()
+check_expert_name_consistency()
 
 print("\n" + "=" * 60)
 if FAIL:

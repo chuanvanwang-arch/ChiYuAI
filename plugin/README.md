@@ -79,8 +79,8 @@ npm run mcp:stdio     # stdio（供本地 Agent 子进程调用）
 ### 技能市场 / ClawHub 安装
 
 1. 将整个 `plugin/` 包根（含 `.workbuddy-plugin/` + 包根 `agents/ skills/ avatars/` + `README.md`）整体打包为 zip 上传。
-2. 在 WorkBuddy「技能市场 → 上传插件」，或 ClawHub（`openclaw skills install @<you>/crm-native`）提交该 zip（外部发布操作，需用户在对应平台侧完成）。
-3. 安装后，办公智能体挂载 `crm-native` 即获得一句话查询 / 两阶段写入 / 链断裂预警能力。
+2. 在 WorkBuddy「技能市场 → 上传插件」，或 ClawHub（`openclaw skills install @<you>/sales-decision-platform`）提交该 zip（外部发布操作，需用户在对应平台侧完成）。
+3. 安装后，办公智能体挂载 `sales-decision-platform` 即获得一句话查询 / 两阶段写入 / 链断裂预警能力。
 
 > 注意：`plugin/skills/` 是分发副本（源事实在仓库根 `skills/`）。源侧更新后需重新执行打包；跨会话维护以仓库根 `skills/` 为准。包结构已对齐 `@fit2-zhao/cordys-crm` 的 ClawHub 发布格式（agents/skills/avatars 与 `.workbuddy-plugin/` 同级）。
 
@@ -327,6 +327,10 @@ python scripts/verify-plugin-zips.py
 
 > 本轮**无新增工具、无协议变更**，属**对外标识（品牌 / 专家名 / 卡片小标题）变更**，
 > 故记 minor bump。技术代号 `CRM-AI-Native` 与 npm 包名 `@chuanvanwang-arch/crm-native` **保留不变**。
+>
+> ⚠ **订正（2026-09-17 晚）**：上句「npm 包名保留不变」已被后续变更推翻 —— 平台上传报
+> 「专家名称 `crm-native` 已被占用」，`name` 已更名为 `sales-decision-platform`，npm 包名同步为
+> `@chuanvanwang-arch/sales-decision-platform`。详见文末「平台名称占用订正」章节。
 
 ### 对外名称变更
 
@@ -372,4 +376,51 @@ python scripts/verify-plugin-zips.py
 python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
 python scripts/verify-plugin-zips.py     # 期望 version = 1.12.0 且版本一致性守卫 ok
 ```
+
+---
+
+## 2026-09-17 平台名称占用订正：`name` 更名（版本保持 1.12.0）
+
+> **触发**：上传平台报错「专家名称 `crm-native` 已被占用，请修改 plugin.json 中的 name 字段后重新打包上传」。
+> 同批上传的平台管理专家亦报「`crm-platform-admin` 已被占用」⇒ 两个包的 `name` 唯一键均更名为新名。
+>
+> **版本不变**：包内容（技能 / agent / prompt / 工具面）**零变更**，仅改平台可见的技术标识。
+> 版本号描述**内容版本**，内容未变则版本不 bump（与「不给 1.1.2 内容的旧包标 1.12.0」同一条纪律）。
+
+### 更名映射
+
+| 包 | 旧 `name` | 新 `name` |
+|---|---|---|
+| 本包（企业AI销售决策专家） | `crm-native` | **`sales-decision-platform`** |
+| 平台管理专家 | `crm-platform-admin` | **`sales-decision-admin`** |
+
+### 改动落点（本包）
+
+| 文件 | 改动 |
+|---|---|
+| `.workbuddy-plugin/plugin.json` | `name` + `plugin` → 新名（权威源） |
+| `plugin/.workbuddy-plugin/plugin.json` | 同上（历史嵌套副本，防漂移） |
+| `plugin/openclaw.plugin.json` | `id` → 新名（该文件 `name` 是**小标题**，未动） |
+| `plugin/package.json` | npm 包名 → `@chuanvanwang-arch/sales-decision-platform` |
+| `scripts/verify-plugin-zips.py` | `expect_name` / 组 label / **打包脚本名提示分支** → 新名 |
+| `scripts/install-plugins-to-workbuddy.py` | 市场源名 + 实例识别（**兼容旧名 `crm-native` / `crm-native-agent`**） |
+
+### ⛔ 有意未改（防止打断既有契约）
+
+| 未改项 | 原因 |
+|---|---|
+| `agentName: crm-native` | 与 `agents/crm-native.md` **文件名绑定**，打包脚本硬编码该路径；平台报错仅指向 `name` |
+| 技能名 `skills/crm-native/`（`registry.json` 的 `name` / `skill_id`） | 技能是**独立命名空间**；BUDDY 应用 `industry-config.json` 以技能 ID 引用（74 处），改则断链 |
+| `connector/mcp.json` 的 server 名 / `connector-meta.json` 的 `source` | **连接器已上线**，属运行时标识；改则要求用户重新配置连接器 |
+| 产物名 `crm-native-plugin.zip` | 构建产物（`.gitignore`），改则牵动脚本路径 |
+| 技术代号 `CRM-AI-Native` | 保留 |
+
+### 打包与校验
+
+```bash
+python scripts/pack-crm-plugin.py --out plugin/crm-native-plugin.zip
+python scripts/verify-plugin-zips.py     # 期望 name = sales-decision-platform，version = 1.12.0
+```
+
+> ⚠ **改 `name` 后必须重新导入**：平台把新 `name` 视为**另一个专家**，旧实例不会自动更新。
 

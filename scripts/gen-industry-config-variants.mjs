@@ -35,7 +35,7 @@ const META = {
   type: 'industry-config',
   schemaVersion: '1.0',
   version: '1.0.0',
-  name: 'AI 原生销售管理助手',
+  name: '企业AI销售决策专家',
   industry: { code: 'b2b-sales', name: 'B2B 销售管理', domain: 'CRM' },
   connectors: m.home.connectors,
 };
@@ -87,7 +87,7 @@ const C = {
   type: 'industry-config',
   schema_version: '1.0',
   version: '1.0.0',
-  name: 'AI 原生销售管理助手',
+  name: '企业AI销售决策专家',
   industry: { code: 'b2b-sales', name: 'B2B 销售管理', domain: 'CRM' },
   slogan: m.home.slogan,
   connectors: m.home.connectors,

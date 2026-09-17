@@ -1,5 +1,5 @@
 {
-  "id": "crm-platform-admin",
+  "id": "sales-decision-admin",
   "name": "Industry-Adaptive, Full-Process Monitoring",
   "description": "AI-native sales platform governance assistant: industry tenant onboarding (config profile), user & RBAC provisioning, system bootstrap. Inherits CRM-ai-native red lines: no-delete, decision-gated writes, per-tenant isolation, zero-trust.",
   "version": "1.3.0",

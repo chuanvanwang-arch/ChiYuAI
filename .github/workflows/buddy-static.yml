@@ -7,11 +7,13 @@ on:
     paths:
       - 'src/**'
       - 'scripts/buddy-capsule-binding-check.mjs'
+      - 'buddy-crm-manifest.json'
       - 'package.json'
   pull_request:
     paths:
       - 'src/**'
       - 'scripts/buddy-capsule-binding-check.mjs'
+      - 'buddy-crm-manifest.json'
       - 'package.json'
 
 jobs:

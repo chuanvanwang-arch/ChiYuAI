@@ -1,5 +1,5 @@
 {
-  "name": "@chuanvanwang-arch/crm-platform-admin",
+  "name": "@chuanvanwang-arch/sales-decision-admin",
   "version": "1.3.0",
   "type": "module",
   "description": "AI-native sales platform admin assistant — industry onboarding, user & RBAC provisioning, system bootstrap",

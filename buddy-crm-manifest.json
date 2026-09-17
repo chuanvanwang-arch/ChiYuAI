@@ -2,7 +2,7 @@
   "app": {
     "appId": "cb_FOxvB7l9dSOVv4ziL408",
     "name": "CRM 销售智能工作台",
-    "intro": "AI 原生销售管理垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。",
+    "intro": "企业AI销售决策平台垂直工作台：客户洞察、商机推进、报价折扣、决策审批、业绩治理、平台管理，一键直达既有能力。",
     "icon": "assets/app-icon.svg",
     "oauth": {
       "scopes": [],
@@ -13,7 +13,7 @@
     }
   },
   "home": {
-    "slogan": "AI原生销售管理平台·ChiYu青羽",
+    "slogan": "企业AI销售决策平台·ChiYu青羽",
     "workModes": [
       {
         "id": "sales",
@@ -32,7 +32,7 @@
             "name": "客户360",
             "en": "Customer 360",
             "icon": "assets/capsules/customer-360.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query",
@@ -54,7 +54,7 @@
             "name": "商机推进",
             "en": "Deal Progression",
             "icon": "assets/capsules/deal-progression.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "method-stage-progression",
@@ -76,7 +76,7 @@
             "name": "生成报价",
             "en": "Quote Generation",
             "icon": "assets/capsules/quote-generation.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-write",
@@ -98,29 +98,50 @@
             "name": "今日跟进",
             "en": "Daily Follow-up",
             "icon": "assets/capsules/daily-followup.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query",
               "method-behavior-standard"
             ],
-            "systemPrompt": "汇总今日/本周待跟进客户与商机，按紧急度排序（临近决策、承诺到期、长期静默）。每条给出：跟进对象、上次承诺、本次目的、建议动作要点。拜访记录须符合 TAORAN 六要素，缺要素提示补齐。只读为主，写入须确认。\n\n【方法论内核】\n【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。\n【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。\n【行为标准】21 条合格线（BH-01~07 有/无检查）+ TAORAN 六要素拜访记录：时间、地点、人物、议题、结论、下一步。",
+            "systemPrompt": "汇总今日/本周待跟进客户与商机，按紧急度排序（临近决策、承诺到期、长期静默）。每条给出：跟进对象、上次承诺、本次目的、建议动作要点。拜访记录须符合 TAORAN 六要素，缺要素提示补齐。只读为主，写入须确认。\n\n【方法论内核】\n【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。\n【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。\n【行为标准】21 条合格线（BH-01~07 有/无检查）+ TAORAN 六要素拜访记录：时间、地点、人物、议题、结论、下一步。\n【主动提醒】回答「今天有什么要跟的」时，**先调 `crm-signal-list`（status=open）** 取系统已识别的待处理信号（来源三路：规则扫描 / 外部事件 / 内部异动派生），再叠加客户与商机的人工待跟进项；按 severity（high/medium/low）排序呈现，每条标注 kind 与来源。⚠ 标 internal_inference 的（`contact_change` 联系人资料变动 / `relation_cooling` 客户关系冷却）属**内部推断（低置信）**，必须与实测情报**分开表述**，不得同权。要落进外部日历的，转「提醒日历」场景用 `crm-signal-ics` 导出。",
             "prompts": [
+              "今天系统给我报了哪些待处理提醒？按紧急度排一下，并说清哪些是内部推断的",
               "列出我今天待跟进的客户与商机，按紧急度排序并给出跟进要点",
-              "帮我写一条符合 TAORAN 六要素的拜访记录（客户：M 涂料科技）",
-              "检查我本周拜访记录，标出缺要素或话术化的条目"
+              "帮我写一条符合 TAORAN 六要素的拜访记录（客户：M 涂料科技）"
             ],
             "inspirations": [
-              "TAORAN 六要素",
-              "承诺到期优先",
-              "行为合格线 21 条"
+              "信号优先：先看系统提醒，再看人工清单",
+              "内部推断低置信须与实测情报分开表述",
+              "TAORAN 六要素"
+            ]
+          },
+          {
+            "name": "提醒日历",
+            "en": "Reminder Calendar",
+            "icon": "assets/capsules/signal-calendar.svg",
+            "expert": "企业AI销售决策专家",
+            "skills": [
+              "crm-native",
+              "crm-query"
+            ],
+            "systemPrompt": "把带日期语义的提醒排进外部日历。步骤：① 调 `crm-signal-list`（status=open）取信号；② 筛出有日期含义的 kind（`tender_deadline` 投标截止 / `report_due` 周期报告 / `quote_approval_timeout` 报价审批超时 / `stage_silence` 阶段停滞 / `contact_change` 联系人资料变动 / `relation_cooling` 客户关系冷却）；③ 对 `has_calendar=true` 的条目调 `crm-signal-ics` 取标准 iCalendar 文本，交给用户导入或订阅日历。本技能**不代替用户写外部日历**，也不改系统数据。⚠ 无 `payload.event_at` 或日期非法时 `crm-signal-ics` 会明确失败，此时**如实告知缺日期并请用户补**，严禁凭推测编造日程（不造幽灵日程）；标 `internal_inference` 的条目属**内部推断（低置信）**，排期须标注来源与置信度。\n\n【方法论内核】\n【编排】先识别意图（查询 / 写入 / 风险 / 方法论），再分发到对应能力；意图不明时先向用户澄清再执行，不臆测。\n【检索】跨模块推理四通道：粒子图关系遍历、多跳路径、语义相似检索、历史决策先例。返回结构化结果，并标注数据来源与时间口径。\n【时间纪律】一切日期以**系统字段**为准（信号的 `payload.event_at`、规则的窗口/阈值天数），不采信对话中的口头日期；字段缺失即提示补齐，不用默认值顶替。",
+            "prompts": [
+              "看看这周有哪些截止日要到了（投标、报告），帮我排进日历",
+              "导出我名下所有带日期的提醒，给我 .ics 文件",
+              "哪些提醒是系统推断出来的？和实测情报分开列一下"
+            ],
+            "inspirations": [
+              "不造幽灵日程：无日期即失败，不猜",
+              "内部推断低置信须标注来源",
+              "日期一律以系统字段为准"
             ]
           },
           {
             "name": "风险预警",
             "en": "Risk Alert",
             "icon": "assets/capsules/risk-alert.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-risk",
@@ -142,7 +163,7 @@
             "name": "线索发现",
             "en": "Lead Discovery",
             "icon": "assets/capsules/discovery.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query",
@@ -164,7 +185,7 @@
             "name": "主动拓客",
             "en": "Proactive Prospecting",
             "icon": "assets/capsules/prospecting.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query",
@@ -202,7 +223,7 @@
             "name": "管道看板",
             "en": "Pipeline Board",
             "icon": "assets/capsules/pipeline-board.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query",
@@ -224,7 +245,7 @@
             "name": "漏斗诊断",
             "en": "Funnel Diagnosis",
             "icon": "assets/capsules/funnel-diagnosis.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "method-funnel-classification",
@@ -246,7 +267,7 @@
             "name": "商机复盘",
             "en": "Deal Retrospective",
             "icon": "assets/capsules/deal-retrospective.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "decision-retrospective",
@@ -268,7 +289,7 @@
             "name": "团队业绩",
             "en": "Team Performance",
             "icon": "assets/capsules/team-performance.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query",
@@ -290,7 +311,7 @@
             "name": "审批决策",
             "en": "Approval Decision",
             "icon": "assets/capsules/approval-decision.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "method-risk-tradeoff",
@@ -326,7 +347,7 @@
             "name": "行业上线",
             "en": "Industry Onboarding",
             "icon": "assets/capsules/industry-onboarding.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "method-funnel-classification",
@@ -348,7 +369,7 @@
             "name": "权限管理",
             "en": "Access Control",
             "icon": "assets/capsules/access-control.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query"
@@ -369,7 +390,7 @@
             "name": "计费套餐",
             "en": "Billing Plans",
             "icon": "assets/capsules/billing-plans.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native",
               "crm-query"
@@ -390,7 +411,7 @@
             "name": "技能开关",
             "en": "Skill Switch",
             "icon": "assets/capsules/skill-switch.svg",
-            "expert": "AI 原生销售管理助手",
+            "expert": "企业AI销售决策专家",
             "skills": [
               "crm-native"
             ],

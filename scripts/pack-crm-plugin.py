@@ -45,7 +45,7 @@ DEFAULT_OUT = os.path.join(REPO_ROOT, "plugin", "crm-native-plugin.zip")
 
 # displayDescription.zh 合规区间
 DESC_MIN, DESC_MAX = 40, 50
-DESC_ZH_FIXED = "角色自适应的 CRM 原生销售助手：一句话查询、两阶段对话式写入、链断裂主动预警。"
+DESC_ZH_FIXED = "角色自适应的企业AI销售决策专家：一句话查询、两阶段对话式写入、链断裂主动预警。"
 
 
 def _fit_desc(zh: str) -> str:
@@ -159,7 +159,7 @@ def build_zip(out_zip: str, pj_normalized: dict) -> dict:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Pack crm-native expert into a compliant WorkBuddy zip")
+    ap = argparse.ArgumentParser(description="Pack sales-decision-platform expert into a compliant WorkBuddy zip")
     ap.add_argument("--out", default=DEFAULT_OUT, help="输出 zip 路径")
     args = ap.parse_args()
 

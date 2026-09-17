@@ -1,5 +1,5 @@
 {
-  "name": "crm-platform-admin",
+  "name": "sales-decision-admin",
   "version": "1.3.0",
   "description": "企业AI销售决策管理专家——面向平台管理员 / sysadmin 的治理插件。覆盖行业租户上线（tenant-profile 配置化）、用户与 RBAC 权限新增、系统初始化（数据库迁移 + 种子 + 配置引导）三大平台治理面。继承 CRM-ai-native 同一套红线：绝对禁 DELETE、写必经决策第 0 闸、per-tenant 隔离、零信任。",
   "author": {
@@ -35,7 +35,7 @@
     "zh": "帮我新增一个行业租户",
     "en": "Onboard a new industry tenant"
   },
-  "plugin": "crm-platform-admin",
+  "plugin": "sales-decision-admin",
   "tags": [
     {
       "en": "Tenant Onboarding",

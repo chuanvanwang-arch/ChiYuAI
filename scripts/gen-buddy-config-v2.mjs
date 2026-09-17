@@ -107,7 +107,7 @@ cfg.authConfig = {
   mcpOnly: true,
   skipJump: false,
   capabilityDescription:
-    'AI 原生销售管理：客户 360、商机阶段推进、报价与折扣审批、风险预警、复盘归因，经 crm-native MCP 连接器接入。',
+    '企业AI销售决策平台：客户 360、商机阶段推进、报价与折扣审批、风险预警、复盘归因，经 crm-native MCP 连接器接入。',
 };
 
 // ---------- market.json ----------
@@ -115,7 +115,7 @@ cfg.authConfig = {
 const mkt = structuredClone(sampleMarket);
 mkt.templateId = APP_ID;
 mkt.body.id = APP_ID;
-mkt.body.name = { zh: sampleIndustry.i18n?.source?.['zh-CN']?.['brand.title'] || 'AI 原生销售管理助手' };
+mkt.body.name = { zh: sampleIndustry.i18n?.source?.['zh-CN']?.['brand.title'] || '企业AI销售决策专家' };
 mkt.body.description = {
   zh: '销售方法即问即得、阶段自动推进、AI 自主销售决策、客户永久记忆；内置 BANT / MEDDICC / 漏斗分类 / 止损等方法论。',
 };
