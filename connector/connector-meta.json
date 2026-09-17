@@ -1,13 +1,13 @@
 {
-  "name": "AI 原生销售管理助手",
-  "name_zh": "AI 原生销售管理助手",
-  "name_en": "AI-Native Sales Management Assistant",
+  "name": "企业AI销售决策专家",
+  "name_zh": "企业AI销售决策专家",
+  "name_en": "Enterprise AI Sales Decision Expert",
   "description": "通过自然语言查询并推进 CRM：商机阶段、客户 360、回款风险、销售方法论。只读直连，写入两阶段确认，一切留痕可追溯。",
   "description_zh": "通过自然语言查询并推进 CRM：商机阶段、客户 360、回款风险、销售方法论。只读直连，写入两阶段确认，一切留痕可追溯。",
   "description_en": "Query and advance your CRM in natural language: opportunity stages, customer 360, receivables risk, and sales methodology. Read-only by default; writes require two-phase confirmation.",
   "source": "crm-native",
   "type": "mcp",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "auth_mode": "oauth",
   "minWorkbuddyVersion": "4.23.0",
   "examples_zh": [
