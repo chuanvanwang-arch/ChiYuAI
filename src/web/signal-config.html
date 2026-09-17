@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>信号规则配置</title>
+  <link rel="stylesheet" href="/portal/tokens.css" />
+  <link rel="stylesheet" href="/portal/common.css" />
+  <script type="module" src="/portal/components.js"></script>
+  <style>
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 24px; background: var(--bg); color: var(--ink); }
+    .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tabs button { padding: 6px 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; cursor: pointer; }
+    .tabs button.on { background: var(--ac); color: #fff; border-color: var(--ac); }
+    .rule { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; background: var(--panel); }
+    .rule h4 { margin: 0 0 6px; font-size: 14px; }
+    .rule .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px; }
+    .rule label { display: flex; gap: 6px; align-items: center; color: var(--mut); }
+    input[type=number], input[type=text], select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; }
+    input[type=number] { width: 90px; }
+    input[type=text] { width: 90px; }
+    .toolbar { margin: 14px 0; }
+    button.save { padding: 6px 14px; border: none; border-radius: 6px; background: var(--ac); color: #fff; cursor: pointer; }
+    .summary { color: var(--mut); font-size: 13px; margin-left: 10px; }
+    .err { color: var(--err); font-size: 13px; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <header class="page-head"><div class="ph-main"><h1 class="page-title">信号规则配置</h1></div></header>
+  <div class="note">⚠️ 本页读写 <code>config_store</code> 两个键：<b>signal-schedule</b>（日期 / 周期规则）与
+    <b>internal-signal-derivation</b>（内部异动派生规则）。阈值 / 窗口 / 启停 100% 配置化，改后由定时器下一轮生效。
+    写经决策第 0 闸（无决策不写）；规则只增改、不物理删除。</div>
+
+  <div class="tabs">
+    <button data-tab="schedule" class="on">时间规则（signal-schedule）</button>
+    <button data-tab="derivation">内部派生（internal-signal-derivation）</button>
+  </div>
+  <div id="app">加载中…</div>
+  <div class="toolbar">
+    <button class="save" id="save">保存当前页</button>
+    <span class="summary" id="summary"></span>
+    <span class="err" id="err"></span>
+  </div>
+
+  <script type="module">
+    import { injectLayout } from '/portal/layout.js';
+    import { get, put } from '/portal/api.js';
+    injectLayout();
+
+    // 两个配置键的唯一映射（改键名只改这里）
+    const KEYS = { schedule: 'signal-schedule', derivation: 'internal-signal-derivation' };
+    const app = document.getElementById('app');
+    let tab = 'schedule';
+    let current = null;
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    // 规则卡片：只暴露安全可调旋钮（启停 / 严重度 / 窗口 / 阈值 / 去重桶），
+    //   kind / entity_type 等语义字段只读展示——改它们等于改业务语义，不在本页范围。
+    function ruleHtml(r, i) {
+      const isPeriodic = r.schedule_kind === 'periodic';
+      return `<div class="rule" data-idx="${i}" data-rid="${esc(r.id || '')}">
+        <h4>${esc(r.id || '(未命名)')} <span style="color:var(--mut);font-weight:400">${esc(r.kind || '')}</span></h4>
+        <div class="row">
+          <label><input type="checkbox" class="r-enabled" ${r.enabled === false ? '' : 'checked'}/> 启用</label>
+          <label>严重度 <select class="r-severity">${['high', 'medium', 'low'].map((s) => `<option value="${s}" ${r.severity === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+          ${isPeriodic ? '' : `<label>窗口天数 <input type="number" class="r-window" value="${r.window_days ?? ''}"/></label>
+          <label>停滞阈值 <input type="number" class="r-threshold" value="${r.threshold_days ?? ''}"/></label>`}
+          <label>去重桶 <input type="text" class="r-bucket" value="${esc(r.bucket || 'day')}"/></label>
+        </div>
+        <div class="row" style="margin-top:6px;color:var(--mut)">
+          <span>entity_type=${esc(r.entity_type ?? 'null')}</span>
+          ${isPeriodic ? `<span>weekday=${esc(r.weekday ?? '')} hour=${esc(r.hour ?? '')}</span>` : ''}
+          ${r.ts_field ? `<span>ts_field=${esc(r.ts_field)}</span>` : ''}
+        </div>
+      </div>`;
+    }
+
+    async function load() {
+      app.textContent = '加载中…';
+      document.getElementById('err').textContent = '';
+      try {
+        const d = await get(`/api/config/${KEYS[tab]}`);
+        current = d.value || {};
+        const rules = Array.isArray(current.rules) ? current.rules : [];
+        app.innerHTML = rules.length
+          ? rules.map(ruleHtml).join('')
+          : '<p class="summary">无规则（该键尚未播种或规则为空）</p>';
+        document.getElementById('summary').textContent = `共 ${rules.length} 条规则 · 键 ${KEYS[tab]}`;
+      } catch (e) {
+        current = null;
+        app.innerHTML = `<p class="err">读取失败：${esc(e.message)}（配置键可能尚未播种）</p>`;
+      }
+    }
+
+    // 以「服务端读到的原始规则」为底本，仅覆盖本页可编辑字段（不丢未展示字段，如 ts_field）
+    function collect() {
+      const base = current && typeof current === 'object' ? { ...current } : { rules: [] };
+      const srcRules = Array.isArray(base.rules) ? base.rules : [];
+      base.rules = [...app.querySelectorAll('.rule')].map((el, i) => {
+        const next = { ...(srcRules[i] || {}) };
+        next.enabled = !!el.querySelector('.r-enabled')?.checked;
+        const sev = el.querySelector('.r-severity')?.value;
+        if (sev) next.severity = sev;
+        const w = el.querySelector('.r-window');
+        if (w && w.value !== '') next.window_days = Number(w.value);
+        const th = el.querySelector('.r-threshold');
+        if (th && th.value !== '') next.threshold_days = Number(th.value);
+        const b = el.querySelector('.r-bucket');
+        if (b) next.bucket = b.value || 'day';
+        return next;
+      });
+      return base;
+    }
+
+    document.getElementById('save').addEventListener('click', async () => {
+      if (!app.querySelector('.rule')) { alert('当前页无规则可保存'); return; }
+      try {
+        await put(`/api/config/${KEYS[tab]}`, { value: collect() });
+        alert(`已保存 ${KEYS[tab]}（写经决策第 0 闸）`);
+        load();
+      } catch (e) {
+        document.getElementById('err').textContent = `保存失败：${e.message}`;
+      }
+    });
+
+    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+      tab = b.dataset.tab;
+      document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+      load();
+    }));
+
+    load();
+  </script>
+</body>
+</html>

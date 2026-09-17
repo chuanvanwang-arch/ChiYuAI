@@ -3,9 +3,9 @@ import { readFileSync } from 'fs';
 import { renderConfigCenter, configSummary, CONFIG_ITEMS } from '../../src/portal/configCenter.js';
 
 test('CONFIG_ITEMS 含 37 项配置（数组按组连续排列：G1[11,12,13,27,28,40,41,42]→G2[14,15,16,31,32,33,35,43,36,37,38,44]→G3[17,18,20,22,29,30,34]→G4[21,23,39]→系统日志[19,24,26,45]，不含已删 25；id22 拆为可编辑词汇(租户) + #45 本体只读(系统)；2026-09-10 增 #46 线索发现规则、2026-09-14 增 #47/48 外部数据接入）', () => {
-  expect(CONFIG_ITEMS.length).toBe(37);
+  expect(CONFIG_ITEMS.length).toBe(39);
   const ids = CONFIG_ITEMS.map((i) => i.id);
-  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48]);
+  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48,49,50]);
 });
 
 test('id42 全局复用与经验蔓延：propagation 一级分组、深链复用 propagation-hub.html（对齐 id40/41 深链范式）', () => {

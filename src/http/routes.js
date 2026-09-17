@@ -253,6 +253,14 @@ export function createRoutes(app, hub) {
   app.use(createConfigRouter({ key: 'discovery-rules', role: 'sysadmin', decisionScene: 'config-change' }));
   app.get('/discovery-rules.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/discovery-rules.html', import.meta.url))));
+  // ─── 信号规则配置后台化（2026-09-17 前台可见性审计，配置中心 id49/id50）───
+  // 两键早已播种（signal-schedule 时间/周期规则、internal-signal-derivation 内部异动派生规则），
+  //   但此前**配置中心零位点** → 只能改库、不能改界面（用户感知不到）。此处用通用工厂开放 GET/PUT。
+  // scope 默认 tenant：规则按租户差分（读 scopeTenant(me) 回退 system 模板）。
+  app.use(createConfigRouter({ key: 'signal-schedule', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.use(createConfigRouter({ key: 'internal-signal-derivation', role: 'sysadmin', decisionScene: 'config-change' }));
+  app.get('/signal-config.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/signal-config.html', import.meta.url))));
   // 外部数据接入：加密凭据写端点（T13，仅 ADMIN/sysadmin；明文不落库）
   app.use(createIntegrationSecretRouter());
   // 外部数据接入：租户自有实例声明 CRUD（2026-09-14 补充，仅 ADMIN/sysadmin；禁物理删除→enabled 软停用）

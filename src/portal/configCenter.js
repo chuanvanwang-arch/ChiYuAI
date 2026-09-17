@@ -74,6 +74,11 @@ export const CONFIG_ITEMS = [
   // 外部数据接入（2026-09-14）：租户自有系统实例声明 + 加密凭据库（platform/system 级闸，sales 访问 403）
   { id: 47, name: '接入数据源（租户实例）', group: '智能体与运行', level: 'system', status: 'ready', page: '/discovery-rules.html#integration-sources', endpoint: '/api/config/integration-providers', scope: 'platform', resolve: 'system-only', note: '租户声明的自有系统实例（generic-rest/mcp/cli + field_map）；平台级声明，写经决策第0闸' },
   { id: 48, name: '接入凭据库（加密）', group: '智能体与运行', level: 'system', status: 'ready', page: '/discovery-rules.html#integration-sources', endpoint: '/api/integration/secret', scope: 'platform', resolve: 'system-only', note: 'per-tenant pgcrypto 加密凭据；写经专用加密端点（禁明文落库），读返回脱敏；平台级仅 ADMIN' },
+  // 信号规则后台化（2026-09-17 前台可见性审计）：两键早已播种（Plan A 时间/周期规则、Plan B 内部异动派生），
+  //   但配置中心零位点 → 只能改库、不能改界面。此二项把「信号规则」纳入后台可配（读写经通用工厂
+  //   createConfigRouter，写经决策第0闸+sysadmin）。scope=tenant：规则按租户差分，读回退 system 模板。
+  { id: 49, name: '信号时间规则配置', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/signal-config.html', endpoint: '/api/config/signal-schedule', scope: 'tenant', resolve: 'tenant-first', note: '时间型/周期型信号规则（tender_deadline 投标截止临近 / report_due 周期报告 / quote_approval_timeout / stage_silence）启停、严重度、窗口与阈值编辑；config_store 键 signal-schedule，写经决策第0闸+sysadmin' },
+  { id: 50, name: '内部异动派生配置', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/signal-config.html', endpoint: '/api/config/internal-signal-derivation', scope: 'tenant', resolve: 'tenant-first', note: '内部推断信号规则（contact_change 联系人资料变动 / relation_cooling 客户关系冷却）启停、窗口与停滞阈值编辑；低置信 internal_inference，权重严格低于实测情报；config_store 键 internal-signal-derivation，写经决策第0闸+sysadmin' },
 ];
 
 const GROUP_ORDER = ['平台与访问', '销售方法论与决策治理', '业务对象与流程建模', '智能体与运行', '系统日志'];
