@@ -304,6 +304,19 @@ async function main() {
   } catch (e) {
     console.log('[migrate] signal-schedule 播种跳过：', String(e.message || e).slice(0, 100));
   }
+  // ─── L3 日期规则补充（2026-09-16）：tender_deadline（前瞻）+ report_due（周期）───
+  // 与上方 signal-schedule 不同：那是「整键播种（键不存在才写）」，本段是「键内数组按 rule.id 追加」。
+  //   原因见 db/migration-signal-schedule-rules.sql 头注（键已存在 → 整键播种对存量租户失效）。
+  //   幂等：仅追加缺失 id 的规则；零 DELETE；不覆盖运营改过的既有规则。
+  try {
+    const rulesSql = readFileSync(new URL('./migration-signal-schedule-rules.sql', import.meta.url), 'utf8');
+    const rres = await pool.query(rulesSql);
+    // ⚠ pg 对多语句 simple query 返回 **Result 数组**（非单个 Result）→ 须归并（同 sync-config 踩坑）
+    const touched = Array.isArray(rres) ? rres.reduce((a, x) => a + (x?.rowCount || 0), 0) : (rres?.rowCount ?? 0);
+    console.log(`[migrate] 日期规则补充已确保（tender_deadline/report_due，本次更新 ${touched} 行）`);
+  } catch (e) {
+    console.log('[migrate] 日期规则补充跳过：', String(e.message || e).slice(0, 120));
+  }
   // ─── S2 外部数据接入配置模板三键（2026-09-16 P0-3）───
   // 背景：crm_native 的 config_store 从无 sync-mappings / sync-trust / integration-providers
   //   → loadSyncMappings 返 {} → mapping.apply 恒 object_not_mapped → 全部 skipped；
