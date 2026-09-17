@@ -50,6 +50,7 @@ export const INCREMENTAL_SQL = [
   'migration-signal-owner-index.sql',    // 2026-09-16 T21 个人隔离：crm.signal(tenant_id, owner_id, created_at DESC) 索引（owner_id 成为读路径过滤列）
   'migration-signal-adoption-trail.sql', // 2026-09-16 采纳血缘：crm.signal 补 decision_id/action_ref/closed_reason 三列（DDL 已入 schema.sql 尾部；本文件幂等叠加防"signal 表已建但缺三列"的旧库漏列）
   'migration-signal-config.sql',         // 2026-09-16 全链集成 Q1 出口接电：signal-delivery（渠道开关，默认仅 inbox）+ signal-dispatch（泵窗口）系统模板。用户裁决「对当前所有租户统一采用」→ 播 system 模板经 autoSeed 覆盖全部租户（含 system）。缺此两键则 signal_delivery 恒 0 行且判据 A 因零渠道而不触发（判据与链路同时静默）
+  'migration-internal-signal-derivation-config.sql', // 2026-09-16 内部客户异动派生：internal-signal-derivation 平台模板（新键整键播种）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
@@ -316,6 +317,23 @@ async function main() {
     console.log(`[migrate] 日期规则补充已确保（tender_deadline/report_due，本次更新 ${touched} 行）`);
   } catch (e) {
     console.log('[migrate] 日期规则补充跳过：', String(e.message || e).slice(0, 120));
+  }
+  // ─── 内部客户异动派生配置（2026-09-16）：internal-signal-derivation 平台模板 ───
+  // 新键 → 整键播种（WHERE NOT EXISTS）。消费方 src/signal/activityDerivation.js。
+  // 缺此键：派生器 loadConfig 返 null → fail-closed 零产出（不会静默产假信号，但也无信号）。
+  try {
+    const hasDeriv = await pool.query(
+      `SELECT 1 FROM crm.config_store WHERE tenant_id='system' AND key='internal-signal-derivation' LIMIT 1`
+    );
+    if (!hasDeriv.rowCount) {
+      const derivSql = readFileSync(new URL('./migration-internal-signal-derivation-config.sql', import.meta.url), 'utf8');
+      await pool.query(derivSql);
+      console.log('[migrate] 内部客户异动派生配置已播种（internal-signal-derivation）');
+    } else {
+      console.log('[migrate] internal-signal-derivation 已存在，跳过');
+    }
+  } catch (e) {
+    console.log('[migrate] 内部客户异动派生配置播种跳过：', String(e.message || e).slice(0, 120));
   }
   // ─── S2 外部数据接入配置模板三键（2026-09-16 P0-3）───
   // 背景：crm_native 的 config_store 从无 sync-mappings / sync-trust / integration-providers
