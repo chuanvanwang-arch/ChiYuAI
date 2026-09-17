@@ -39,6 +39,19 @@
 
 ### 1.2 筛选新客户（新战略 / 高层变动 / 人员招聘）— ⚠️ 配置齐 / 数据面缺 2/3
 
+> **口径修正（2026-09-16，用户批准）**：原表述「可以筛选新客户，比如新战略、高层变动、人员招聘」
+> 与平台数据面不符——「人员招聘」「新战略」在本平台**无数据源**（无 HR、无战略情报面）。
+> 现口径为：**可识别「内部可观测」的客户异动**——客户侧联系人台账变动（`CRM_CONTACT` 近 14 天内更新，
+> 属"关键人变动"的弱代理）、客户关系冷却（`CRM_ACCOUNT` 停滞超 30 天）、商机停滞（既有 `deal_stuck`）。
+> **不覆盖**外部招聘 / 战略情报（待 S2 外部数据接入）。
+> 实现：`src/signal/activityDerivation.js`（`source='derived'` + `confidence_basis='internal_inference'`，
+> 权重低于实测情报）+ 定时器⑱；口径标注见 `src/config/discoveryRules.js` 与拓客规则配置页。
+>
+> **⚠ 实测补充（2026-09-17）**：`contact_ledger_change` 真库产出 2 条（可证伪通过）；
+> `relation_cooling` **零命中**——根因＝`crm.particles.updated_at` 在**列**不在 `payload`，
+> 派生器读 `payload.updated_at` ⇒ 该规则在当前数据面永不可能命中（详见
+> `docs/2026-09-16-internal-signal-derivation-design.md` §8）。修复前不得宣称「关系冷却」已可产出。
+
 | 信号 | 配置位点 | 数据面实现 | 判定 |
 |---|---|---|---|
 | 人员招聘 `hiring_icp_role` | `discoveryRules.js:33` 权重 0.7；岗位层级加权 `prospectingRules.js:65-95` | `qixin.js:27` coverageFields 含该字段；`prospectScanner.js` 未见产出 | ✅ 配置+采集 |
