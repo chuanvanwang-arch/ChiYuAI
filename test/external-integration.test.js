@@ -385,6 +385,80 @@ describe('T14 · 可观测接线', () => {
   });
 });
 
+// ─── P-4 修复（2026-09-16）：A-B2 第二消费面——凭据必须经 ctx.credentials 到达 adapter ───
+// 背景（Q3 计划 §0 遗留登记 P-4）：`runIntegrationPollOnce` 签名不接收 `resolveCredentials`，
+//   调用方（定时器⑩）注入后被**静默丢弃**；且 `runWaterfall` 的 ctx 仅 `{ tenantId }`
+//   ⇒ 四个消费 `ctx.credentials[pid]` 的 adapter（anysite / qixin / genericRest / genericMcp）凭据恒空，
+//   退化为「无 Authorization 的请求」→ 表现为"没有数据"而非"凭据没送到"（典型假绿）。
+// 断言口径：**真 runWaterfall + 真 adapter 消费形状**——证明凭据到达消费点，而非"函数被调用过"。
+describe('P-4 · integration-poll 凭据透传（A-B2 第二消费面）', () => {
+  it('注入 resolveCredentials → 按本租户 adapter ids 解析 → 经 ctx.credentials 到达 adapter', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const { runWaterfall } = await import('../src/connectors/discovery/waterfall.js');
+    const seen = [];
+    let asked = null;
+    // 真 adapter 消费形状：读 ctx.credentials[this.id]，读到即产出字段（可断言）
+    const adapter = {
+      id: 'qixin', coverageFields: ['funding_round'], costTier: 0,
+      async enrich(entity, fields, ctx = {}) {
+        const cred = ctx.credentials && ctx.credentials[this.id];
+        seen.push(cred);
+        return cred ? { funding_round: { value: 'B轮', confidence: 0.8, cost: 0, provider: this.id } } : {};
+      },
+    };
+    await runIntegrationPollOnce({
+      listActiveTenants: async () => [{ tenant_id: 't1' }],
+      loadAdapters: async () => [adapter],
+      query: async () => ({ rows: [{ id: 'acc1', payload: { name: 'X' } }] }),
+      runWaterfall,                                     // 真瀑布：ctx 是否透传由 enrich 实证
+      monitorAccount: async () => {},
+      emit: () => {},
+      resolveCredentials: async (args) => { asked = args; return { qixin: 'api-qx' }; },
+    });
+    expect(asked).toMatchObject({ tenantId: 't1' });
+    expect(asked.providerIds).toEqual(['qixin']);       // 断点①守卫：providerIds 取自本租户 adapter
+    expect(seen).toEqual(['api-qx']);                  // 断点②守卫：凭据到达消费点
+  });
+
+  it('resolveCredentials 抛错 → 留痕（trace + recordFailure）且不阻断富化轮次', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    const { getFailures, resetFailures } = await import('../src/monitor/monitorStore.js');
+    resetFailures();
+    const traces = [];
+    await runIntegrationPollOnce({
+      listActiveTenants: async () => [{ tenant_id: 't1' }],
+      loadAdapters: async () => [{ id: 'qixin', coverageFields: ['x'] }],
+      query: async () => ({ rows: [{ id: 'acc1', payload: {} }] }),
+      runWaterfall: async () => ({ values: {}, cost: 0 }),
+      monitorAccount: async () => {},
+      emit: (k, name, p) => traces.push({ name, p }),
+      resolveCredentials: async () => { throw new Error('decrypt failed'); },
+    });
+    const hit = traces.find((x) => x.name === 'integration-poll-credentials-failed');
+    expect(hit).toBeTruthy();
+    expect(hit.p).toMatchObject({ tenant_id: 't1' });
+    expect(hit.p.error).toContain('decrypt failed');
+    expect(getFailures()['integration-poll-credentials-failed']).toBe(1);
+    // 负向对照：留痕 ≠ 阻断——缺凭据不把「整轮富化」升级为归零
+    expect(traces.map((x) => x.name)).toContain('integration-poll-done');
+  });
+
+  it('无 adapter → 不解析凭据（零多余 IO；providerIds 无从取得）', async () => {
+    const { runIntegrationPollOnce } = await import('../src/scheduler/timers.js');
+    let called = 0;
+    await runIntegrationPollOnce({
+      listActiveTenants: async () => [{ tenant_id: 't1' }],
+      loadAdapters: async () => [],
+      query: async () => ({ rows: [] }),
+      runWaterfall: async () => ({ values: {}, cost: 0 }),
+      monitorAccount: async () => {},
+      emit: () => {},
+      resolveCredentials: async () => { called += 1; return {}; },
+    });
+    expect(called).toBe(0);
+  });
+});
+
 
 
 // ─── A-B6（T06）：integration-poll 同步增量分支——线A 挂载点（2026-09-16）───
