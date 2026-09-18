@@ -22,7 +22,7 @@ const MAX_PARTICIPANTS = 20;
 function noop() {}
 
 export async function ingestChannelEvent(ev = {}, deps = {}) {
-  const { findAccountByDomain, appendEnrichment, addWeakEdge, trustLevel, emit } = deps;
+  const { findAccountByDomain, appendEnrichment, addWeakEdge, trustLevel, emit, matchedOnly = true } = deps;
   const trace = typeof emit === 'function' ? emit : noop;
 
   // ① 企业归属识别：事件行 domain 优先，兜底实体抽取（domain/参与者 corp）
@@ -40,10 +40,15 @@ export async function ingestChannelEvent(ev = {}, deps = {}) {
   }
 
   // ③ 只命中既有账户（不入新图）
+  //   P0-4（2026-09-18，ATTIO 事实标准）：matched_only（默认 true，config_store['sync-ingest'] 可配）
+  //   下未匹配到既有客户粒子 → 不落 enrichment，并计 discard（ingest_skipped_unmatched）。
+  //   判据是「拦下了几条」而非「配了几条规则」——丢弃计数必须可见，防「数据变少」被误读为故障。
   const acc = typeof findAccountByDomain === 'function'
     ? await findAccountByDomain(domain).catch(() => null)
     : null;
-  if (!acc) return { ok: true, written: false, reason: 'account_not_found' };
+  if (!acc) {
+    return { ok: true, written: false, reason: 'account_not_found', skipped_unmatched: matchedOnly === true };
+  }
   if (!WRITE_LEVELS.has(level)) return { ok: true, written: false, reason: 'read_only_l1' };
 
   // ④ 落点键（按通道分键；短名优先，kind 亦可判定）

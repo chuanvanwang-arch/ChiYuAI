@@ -86,7 +86,7 @@ export function createChannelIngestDeps(deps = {}) {
 }
 
 // —— 包装 provider：单一读入 → 逐行归一化 → 汇入（仅通道 kind 生效）——
-export function wrapProviderForIngest({ provider, kind, tenantId = 'system', trustLevel, deps, emit, privacy = null } = {}) {
+export function wrapProviderForIngest({ provider, kind, tenantId = 'system', trustLevel, deps, emit, privacy = null, readConfig } = {}) {
   if (!provider || !CHANNEL_KINDS.has(kind)) return provider; // 非通道 kind：原样返回（零行为变化）
   const orig = provider.readIncremental;
   if (typeof orig !== 'function') return provider;
@@ -96,16 +96,33 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
   // P1 隐私排除（§8.1）：判定在**归一化之后、汇入之前**——被排除的行不进 enrichment，
   //   而不是「进了 enrichment 再隐藏」（后者只是查询层看不见，数据仍在库里）。
   const pf = privacy && typeof privacy.evaluate === 'function' ? privacy : null;
+  // P0-4（2026-09-18，ATTIO 事实标准）：matched_only 默认 true（Q2 已决收窄）。
+  //   真读 config_store['sync-ingest'].matched_only；读不到 → 默认严格（true），绝不静默放宽为全量汇入。
+  //   注意：本函数保持**同步**返回（既有同步调用方 + privacyWiring 测试依赖同步契约），
+  //   故 matchedOnly 的 async 解析推迟到 readIncremental（已是 async 上下文）内执行。
+  const resolveMatchedOnly = async () => {
+    if (typeof readConfig === 'function') {
+      try {
+        const r = await readConfig('sync-ingest', { tenantId });
+        return r?.value?.matched_only !== false; // 缺省 true（严格）
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  };
 
   return {
     ...provider,
     kind: provider.kind || kind,
     async readIncremental(opts = {}) {
+      const matchedOnly = await resolveMatchedOnly();
       const inc = await orig.call(provider, opts);
       const rows = Array.isArray(inc?.rows) ? inc.rows : [];
       let ingested = 0;
       let failed = 0;
       let dropped = 0;
+      let skippedUnmatched = 0; // P0-4：未匹配既有客户粒子、不落 enrichment 的丢弃计数（可见，防误读为故障）
       const byReason = {};
       const keys = new Set(); // 本轮实际落到的 enrichment 键（落点可观测：不静默）
       for (const row of rows) {
@@ -122,11 +139,14 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
           const r = await ingestChannelEvent(ev, {
             ...ingestDeps,
             trustLevel: async () => level,
+            matchedOnly, // P0-4：未匹配不落库（ATTIO：不匹配 Person 的邮件不落库）
             emit: trace,
           });
           if (r?.written) {
             ingested++;
             if (r.enrichment_key) keys.add(r.enrichment_key);
+          } else if (r?.skipped_unmatched) {
+            skippedUnmatched++; // 未匹配既有账户 → 不落 enrichment，仅计数（P0-4）
           }
         } catch (e) {
           // ⑤ 行级失败不阻断读入链路，但留痕（不静默）
@@ -136,12 +156,13 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
           });
         }
       }
-      // 不静默：本轮「读入 N 行 / 汇入 M 条 / 失败 K 条 / 隐私排除 P 条 / 落到哪些键」上墙——
+      // 不静默：本轮「读入 N 行 / 汇入 M 条 / 失败 K 条 / 隐私排除 P 条 / 未匹配丢弃 U 条 / 落到哪些键」上墙——
       // 「零汇入」与「没接线」可区分，且落点键可核对（防「写进了错的键」这类静默错配）。
       if (rows.length) {
         trace('trace', 'channel-ingest-done', {
           tenant_id: tenantId, kind, read: rows.length, ingested, failed, enrichment_keys: [...keys],
           ...(dropped ? { privacy_dropped: dropped, privacy_dropped_by_reason: byReason } : {}),
+          ...(skippedUnmatched ? { ingest_skipped_unmatched: skippedUnmatched } : {}),
           ...(pf && pf.config_ok === false ? { privacy_config_ok: false } : {}),
         });
       }
