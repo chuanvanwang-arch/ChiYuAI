@@ -212,7 +212,7 @@
 
 | # | 判据 | 反证方式 |
 |---|---|---|
-| 1 | A 形态：用户侧 Agent 调一次**只读**工具成功 → 回写 `{source_kind:'connector', tool, verified_at, ok}`；响应**不含**凭据或正文 | 让工具返回邮件正文 → 断言响应里不出现正文（回传即红） |
+| 1 | A 形态：用户侧 Agent 调一次**只读**工具成功 → 回写 `{source_kind:'connector', tool, verified_at, ok}`；响应**不含**凭据或正文（**归属阶段：P2.5，未开工**） | 让工具返回邮件正文 → 断言响应里不出现正文（回传即红） |
 | 2 | B 形态：本机桥探针通过；**平台侧 vault 里不得出现该通道凭据** | 走 B 后查 vault → 出现凭据即红 |
 | 3 | C 形态：既有 `verifyScope` 三层透传（`missing`/`hint`/`detail`）不变 | 沿用 §4.5.4 守卫 |
 | 4 | 三形态不互相冒充：验证通过只写 `(channel_id, source_kind)` 对应记录，其余形态仍为「未验证」 | 用同一 `verified` 字段覆盖 → 必须变红 |
@@ -416,6 +416,7 @@ ROX 原文：*"The agent's credentials cannot express confirmation."*（agent �
 |---|---|---|---|
 | **P1** ✅ | 隐私排除清单：`sync-privacy` 配置 + `privacyFilter.js`（双线共用）+ 界面 + 丢弃计数 | 无 | 低 |
 | **P2** ✅ | 接入三形态：`sourceKinds.js` + 描述符 `source_kind` + 向导 A/B/C + 分路验证 + 防双写 + 运行期校验器 | P1 | 低 |
+| **P2.5** ⛔ **未开工** | **入口集成最后一公里：用户侧确认回写**。A 形态：在对话中调一次**只读**工具成功 → 回写 `verifications.connector = {ok:true, tool, verified_at}`；B 形态：本机自检命令通过后由用户确认 → 回写 `verifications['local-bridge']`。**此阶段落地前，connector / local-bridge 通道永远停在「待确认」，§5.4 判据①不可验收** —— 入口集成只完成了「配置通了」，没完成「确认通了」 | P2 | 低 |
 | **P3** | **评审闸接线**：`enable-writeback` / `mapping-change` / `trust-elevate` 接入生产路径 + 扫「零消费点」守卫；`sync/trust.js` 与 `mount.js:21` 逻辑收敛到单一事实源 | 无（**必须先于 P5**） | 中 |
 | **P4** | 出向集合确定性：字段级 `direction` + `mapping.outboundFields()` + 双闸；`target` 参数（默认 `internal`，零行为变化） | P3 | 中 |
 | **P5** | 待写队列 + 快照对账（先 `target='internal'`，验证「不丢意图」） | P4 | 中 |
