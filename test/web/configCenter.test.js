@@ -2,10 +2,30 @@ import { test, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { renderConfigCenter, configSummary, CONFIG_ITEMS } from '../../src/portal/configCenter.js';
 
-test('CONFIG_ITEMS 含 37 项配置（数组按组连续排列：G1[11,12,13,27,28,40,41,42]→G2[14,15,16,31,32,33,35,43,36,37,38,44]→G3[17,18,20,22,29,30,34]→G4[21,23,39]→系统日志[19,24,26,45]，不含已删 25；id22 拆为可编辑词汇(租户) + #45 本体只读(系统)；2026-09-10 增 #46 线索发现规则、2026-09-14 增 #47/48 外部数据接入）', () => {
-  expect(CONFIG_ITEMS.length).toBe(44);
+test('CONFIG_ITEMS 含 46 项配置（数组按组连续排列；2026-09-18 增 #56 通道配置台 + #57 经销商门户开关）', () => {
+  expect(CONFIG_ITEMS.length).toBe(46);
   const ids = CONFIG_ITEMS.map((i) => i.id);
-  expect(ids).toEqual([11,12,13,27,28,40,41,42,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48,49,50,51,52,53,54,55]);
+  expect(ids).toEqual([11,12,13,27,28,40,41,42,57,14,15,16,17,18,19,20,21,22,23,24,26,29,30,31,32,33,35,43,34,36,37,38,39,44,45,46,47,48,49,50,51,52,53,54,55,56]);
+});
+
+test('id57 经销商门户开关：平台级总闸（系统级·平台与访问·kill-switch），深链渠道门户页总览', () => {
+  const item = CONFIG_ITEMS.find((i) => i.id === 57);
+  expect(item).toBeTruthy();
+  expect(item.name).toBe('经销商门户开关');
+  expect(item.group).toBe('平台与访问');
+  expect(item.level).toBe('system');   // 平台级 kill-switch，仅 ADMIN 可见/翻转
+  expect(item.page).toBe('/channel-admin.html#overview');
+  expect(item.endpoint).toBe('/api/config/feature:dealer-portal');
+  expect(item.scope).toBe('platform');
+  expect(item.resolve).toBe('system-only');
+  expect(item.status).toBe('ready');
+  const html = renderConfigCenter(CONFIG_ITEMS, {});
+  expect(html).toContain('data-id="57"');
+  expect(html).toContain('经销商门户开关');
+  expect(html).toContain('href="/channel-admin.html#overview"');
+  // §15.2：id57 属系统级一级分组（平台治理，仅 ADMIN）
+  const sysSec = html.match(/data-level="system">[\s\S]*?<\/section>/);
+  expect(sysSec ? sysSec[0] : '').toContain('data-id="57"');
 });
 
 test('id42 全局复用与经验蔓延：propagation 一级分组、深链复用 propagation-hub.html（对齐 id40/41 深链范式）', () => {

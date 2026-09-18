@@ -43,6 +43,11 @@ export const FULL_MENU = [
   { group: '财务', label: '财务应收', href: '/receivables.html', roles: ['finance', 'admin'] },
   // 多租户计费（T6）：全员可见；数据面按租户隔离（API 经 applyTenantOverride/scopeTenant 强制本租户）
   { group: '洞察', label: '账单', href: '/billing.html' },
+  // 渠道门户（2026-09-18 经销商联邦 T8→当日归位）：用户裁定「放后台配置、前台叫渠道门户」。
+  //   ★不再占左侧菜单（与 channel-config / crm-sync-console 同范式——入口死区修复后归位配置中心）。
+  //   ★承载位置 = 配置中心「系统级 → 平台与访问」#57 经销商门户开关卡片（深链 /channel-admin.html#overview）。
+  //   ★页面自身仍可经 #57 卡片 deep-link 到达（防孤岛：test/portal/layoutMenu.test.js 入口可达性守卫锁定）。
+  //   ★落点页 src/web/channel-admin.html title/h1=「渠道门户」（前台名，与 Buddy 模式 channel 同名）。
 ];
 export const ADMIN_MENU = [
   { group: '系统', label: '配置中心', href: '/config' },

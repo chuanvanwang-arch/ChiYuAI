@@ -37,6 +37,23 @@ describe('menuFor 角色可见性', () => {
     expect(it41.level).toBe('system');
     expect(it41.page).toBe('/admin-billing-console.html#plans');
   });
+
+  // 渠道门户（2026-09-18 经销商联邦 T8→当日归位）：用户裁定「放后台配置、前台叫渠道门户」。
+  //   ★不再占左侧菜单（entry 从 FULL_MENU/ADMIN_MENU 移除），承载 = 配置中心「系统级→平台与访问」#57 卡片。
+  //   ★防孤岛：断言「移出菜单 + 仍经 #57 deep-link 到达」——页面在、入口在，二者一致（同 channel-config/crm-sync-console 范式）。
+  it('渠道门户已移出左侧菜单，但仍经配置中心 #57 卡片 deep-link 可达（T8 经销商联邦归位）', () => {
+    // 不再作为全员菜单项、也不落在系统菜单
+    expect(FULL_MENU.some((m) => m.href === '/channel-admin.html')).toBe(false);
+    expect(ADMIN_MENU.some((m) => m.href === '/channel-admin.html')).toBe(false);
+    // 落点页存在（页面在）
+    const file = new URL('../../src/web/channel-admin.html', import.meta.url);
+    expect(fs.existsSync(file)).toBe(true);
+    // 仍经配置中心 #57 经销商门户开关卡片到达（deep-link /channel-admin.html#overview）
+    const cc = fs.readFileSync(new URL('../../src/portal/configCenter.js', import.meta.url), 'utf8');
+    expect(cc).toContain('id: 57');
+    expect(cc).toContain("'/channel-admin.html#overview'");
+    expect(cc).toContain('经销商门户开关');
+  });
 });
 
 // ── 入口可达性（2026-09-17 实缺陷回归 · 需求②④ · 2026-09-18 调整）────────────

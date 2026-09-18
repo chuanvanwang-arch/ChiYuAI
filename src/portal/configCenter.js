@@ -24,6 +24,12 @@ export const CONFIG_ITEMS = [
   // 写 API 经 gateAccept 收紧（跨租户/系统级记忆推广仅 ADMIN，见 §3.2）。
   //   「保持原值不动」待裁决项已关闭（2026-09-06 复勘确认 UI 闸 + 写 API 均已 ADMIN-only）。
   { id: 42, name: '全局复用与经验蔓延', group: '平台与访问', level: 'propagation', status: 'ready', page: '/propagation-hub.html', endpoint: '/api/propagation/suggestions', scope: 'platform', resolve: 'system-only', note: '系统配置向租户成批复用（强制下发 fill-only/override）+ 租户经验上行推广（复盘候选采纳/记忆→租户先例）；写经决策第0闸，上下贯通仅 ADMIN，禁删只增改' },
+  // 经销商门户平台总闸（2026-09-18 T8 补充）：feature:dealer-portal 是**平台级 kill-switch**（system 键，默认 off）。
+  //   · 深链复用渠道门户页 channel-admin.html 总览（页内可读/翻转总闸，见下）；
+  //   · 开关 endpoint = /api/config/feature:dealer-portal（routes.js 挂载，GET 未配置→404=off，PUT value={enabled} 写经第0闸+sysadmin）；
+  //   · level='system' ⇒ 仅 ADMIN/sysadmin 可见卡片（平台治理），ten_admin 在渠道门户页总览亦只读不翻转（不越权翻平台开关）。
+  //   消费端 src/federation/{scope,config}.js 的 isFeatureOn() 恒读该键；开启后厂商 ten_admin 才可管理经销商（canManageDealers 首闸）。
+  { id: 57, name: '经销商门户开关', group: '平台与访问', level: 'system', status: 'ready', page: '/channel-admin.html#overview', endpoint: '/api/config/feature:dealer-portal', scope: 'platform', resolve: 'system-only', note: '平台总闸（kill-switch，默认关）：开启后厂商租户可准入经销商并建 1:N 联邦（跨租户只读）；关闭则全平台退化为单租户（纯自营零侵入）；深链渠道门户页总览查看/翻转，写经决策第0闸+ADMIN' },
   { id: 14, sRef: 'S19', name: '销售决策场景配置', group: '销售方法论与决策治理', level: 'tenant', status: 'ready', page: '/decision-scenarios.html', endpoint: '/api/decision-scenarios', scope: 'tenant', resolve: 'tenant-first', note: '8 场景可编辑（描述/方法论/评估维/默认分级/自主开关/处置集/聚焦尺子/及格线/启用尺子子集），写经决策第0闸' },
   { id: 15, name: '七维设计', group: '销售方法论与决策治理', level: 'tenant', status: 'ready', page: '/seven-dim.html', endpoint: '/api/config/seven-dim', scope: 'tenant', resolve: 'tenant-first', note: '七维评估维度 0–5 编辑（scene-quote 拦截依赖）；消费方读按租户（T5），写侧仍落 system 基线' },
   { id: 16, sRef: 'S21', name: '方法论 SKILL 注册表', group: '销售方法论与决策治理', level: 'system', status: 'ready', page: '/skills.html', endpoint: '/api/config/skill-registry', scope: 'platform', resolve: 'system-only', note: '11 SKILL 启停开关编辑（DB 持久化，写经决策第0闸+sysadmin，禁删只改 enabled；平台级声明）' },
@@ -89,6 +95,12 @@ export const CONFIG_ITEMS = [
   //   （#47/#48 → /discovery-rules.html#integration-sources），但「字段映射」与「信任档」此前**零位点**
   //   ⇒ 接入只能改库，且信任档无人工闸位点。注：`createSyncMetricsRouter` 此前**零生产挂载**
   //   （声称存在的 GET /api/monitor/sync 实际不存在），本次一并补挂载，使控制台的状态区有真数据源。
+  // CRM 同步后台化（2026-09-17 前台可见性审计·第二轮 → 2026-09-18 租户级归位）：
+  //   页面 src/web/crm-sync-console.html 原为「原系统集成·控制台」形态——顶部连接清单区直读系统级
+  //   /api/integration/providers（仅 ADMIN/sysadmin 可读，ten_admin 打开即 403），与「租户级配置」语义冲突。
+  //   2026-09-18 用户裁定「更像是原系统集成配置，删除无用描述后放入配置中心的租户级」→ 已删除连接清单区
+  //   （连接/凭据编辑归「外部数据接入」#47/#48 与通道接入台 /channel-adapters.html 单一事实源），
+  //   页内仅保留租户级可编辑内容：同步状态 T07 实测（/api/monitor/sync 按租户隔离）+ 两键读写。
   { id: 53, name: 'CRM 同步字段映射', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/crm-sync-console.html', endpoint: '/api/config/sync-mappings', scope: 'tenant', resolve: 'tenant-first', note: '声明式字段映射白名单（object → particle_type/identity/fields）；仅 direction:in 进读入表，缺映射对象被 mapping 层 fail-closed 拒绝；config_store 键 sync-mappings，写经决策第0闸+sysadmin' },
   { id: 54, name: 'CRM 同步信任档', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/crm-sync-console.html', endpoint: '/api/config/sync-trust', scope: 'tenant', resolve: 'tenant-first', note: '同步信任分级 default_level（L1 只读 / L2 受控写 / L3 回写），与描述符 trust_level 取 min；提升只能显式操作、绝不自动提权；config_store 键 sync-trust，写经决策第0闸+sysadmin' },
   // 通道接入台（2026-09-17）：需求②（邮箱/日历/会议/微信）的呈现层。
@@ -101,6 +113,16 @@ export const CONFIG_ITEMS = [
   //     属**读**而非配置面，写进 endpoint 会被误登记为租户级 → 普通角色读状态区被 403。
   //     （2026-09-17 实缺陷：曾填 endpoint:'/api/sync/factories' 导致 sales 读该字典 403）
   { id: 55, name: '通道接入（邮箱/日历/会议/微信）', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/channel-adapters.html', endpoint: null, scope: 'tenant', resolve: 'tenant-first', note: '四通道（generic-email/calendar/meeting/wechat）接入状态总览 + 契约/descriptor/落点说明；状态判定基于工厂字典（kind 不可构造 → mount 静默跳过）；只读呈现、无自有配置端点（接入动作在「外部数据接入」#47/#48）；设计 docs/2026-09-17-channel-adapter-unified-design.md v1' },
+  // 通道配置台（2026-09-18）：需求② 的**管理面**（与 #55 只读状态总览互补）。
+  //   ⚠ 本项与 #55 的差异（单源/职责分离，判据⑥）：
+  //     · #55 channel-adapters.html = 只读状态总览（看「接了没、通没通」）；
+  //     · #56 channel-config.html   = 管理动作面（补通道/改凭据/升降信任档/断开）。
+  //   二者 page 不同、职责不重叠，故各占一张卡片，避免「一张卡片两个入口」的歧义。
+  //   ⚠ 租户隔离（2026-09-18 实修）：此前 channel-config.html 仅靠 URL ?tenant_id= 透传、缺省回退 'system'
+  //     ⇒ ten_admin 直开看到 platform 通道实例（误导）。现后端 channelRouter 改经 resolveMe 会话租户
+  //     （scopeTenant 读 / scopeOf 写，与 §15 配置中心同源），前端不再依赖 URL 参数；
+  //     卡片从配置中心「租户级」进入即天然落在当前会话租户，杜绝误落 platform。
+  { id: 56, name: '通道配置（邮箱/日历/会议/微信）', group: '智能体与运行', level: 'tenant', status: 'ready', page: '/channel-config.html', endpoint: null, scope: 'tenant', resolve: 'tenant-first', note: '四通道（generic-email/calendar/meeting/wechat）接入管理：补通道、改凭据、升降信任档、软停用断开（禁物理删除）；凭据 password 直传后端入保险库、前端不落明文；写经决策第 0 闸 + review-gate 人工闸；租户级配置，数据按会话租户隔离（后端 scopeTenant/scopeOf 强制）；与 #55 通道接入台（只读状态总览）互补' },
 ];
 
 const GROUP_ORDER = ['平台与访问', '销售方法论与决策治理', '业务对象与流程建模', '智能体与运行', '系统日志'];
