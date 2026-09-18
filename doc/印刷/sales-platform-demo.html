@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 原生 CRM · 第一次交流（本质差异与信息收集）</title>
+<title>销售决策平台 · 第一次交流（不替换原有 CRM 的本质差异与信息收集）</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -207,26 +207,26 @@
 <!-- ========== SIDEBAR ========== -->
 <aside class="sidebar">
   <div class="sidebar-header">
-    <h1>AI 原生 CRM <span class="badge">第一次交流</span></h1>
-    <div class="sidebar-sub">本质差异 · 三支柱 · 场景 · 信息收集</div>
+    <h1>销售决策平台 <span class="badge">第一次交流</span></h1>
+    <div class="sidebar-sub">不替换原有 CRM · 叠加决策智能层 · 渠道与拓客 · 自动执行</div>
   </div>
   <div class="nav-section">演示导航</div>
   <div class="nav-list">
-    <div class="nav-item active" onclick="switchNav(this, 'essence')"><span class="icon">🔍</span><div class="txt">本质差异<div class="sub">传统 CRM vs AI 原生 CRM</div></div></div>
+    <div class="nav-item active" onclick="switchNav(this, 'essence')"><span class="icon">🔍</span><div class="txt">本质差异<div class="sub">原有 CRM 继续用 · 叠加决策智能层</div></div></div>
     <div class="nav-item" onclick="switchNav(this, 'pillars')"><span class="icon">🧭</span><div class="txt">三大支柱<div class="sub">智能体为核心 / 越用越聪明 / 销售减负</div></div></div>
     <div class="nav-item" onclick="switchNav(this, 'scenario')"><span class="icon">🎬</span><div class="txt">一个场景演示<div class="sub">零填表接诊 → 越用越聪明</div></div></div>
     <div class="nav-item" onclick="switchNav(this, 'collect')"><span class="icon">📋</span><div class="txt">第一次交流 · 信息收集<div class="sub">现场填写 · 一键生成纪要</div></div></div>
   </div>
   <div class="sidebar-footer">
     <span>简版 v1</span>
-    <span>CRM AI-native</span>
+    <span>销售决策平台</span>
   </div>
 </aside>
 
 <!-- ========== MAIN ========== -->
 <div class="main">
   <div class="chat-header">
-    <div class="title" id="headerTitle">🔍 <b>本质差异</b> · 传统 CRM 记"发生了什么"，AI 原生 CRM 记"为什么被允许发生"</div>
+    <div class="title" id="headerTitle">🔍 <b>本质差异</b> · 原有 CRM 记"发生了什么"，叠加的决策智能层记"为什么被允许发生"</div>
     <div class="status"><span class="status-dot"></span> 记忆系统就绪</div>
   </div>
 
@@ -434,11 +434,11 @@ function switchNav(el, section) {
   msgContainer.style.display = 'flex';
   clearMessages();
   var labels = {
-    essence: '🔍 <b>本质差异</b> · 传统 CRM 记"发生了什么"，AI 原生 CRM 记"为什么被允许发生"',
+    essence: '🔍 <b>本质差异</b> · 原有 CRM 记"发生了什么"，决策层记"为什么被允许发生"',
     pillars: '🧭 <b>三大支柱</b> · 智能体为核心 / 越用越聪明 / 销售员减负',
     scenario: '🎬 <b>一个场景演示</b> · 零填表接诊 → 调用记忆出单（越用越聪明）'
   };
-  headerTitle.innerHTML = labels[section] || 'AI 原生 CRM';
+  headerTitle.innerHTML = labels[section] || '销售决策平台';
   if (section === 'essence') demoEssence();
   else if (section === 'pillars') demoPillars();
   else if (section === 'scenario') demoScenario();
@@ -454,7 +454,7 @@ function replayCurrent() {
 /* ============ 本质差异 ============ */
 function demoEssence() {
   var steps = [
-    { type: 'bot', content: '<div class="feature-banner"><span class="ico">🔍</span><div><div class="txt">本质差异｜传统 CRM 与 AI 原生 CRM 不是"功能多少"的差别</div><div class="sub">而是"系统记什么"的根本不同——这决定了它能不能越用越聪明</div></div></div>' +
+    { type: 'bot', content: '<div class="feature-banner"><span class="ico">🔍</span><div><div class="txt">本质差异｜我们不替换原有 CRM，而是叠加"决策智能层"</div><div class="sub">原有 CRM 记"发生了什么"，决策层记"为什么被允许发生"——这决定了它能不能越用越聪明</div></div></div>' +
       '<div class="text">先立一个总前提：企业 AI 的重点是<strong>记忆</strong>，不是界面。很多公司一谈 AI 就想要漂亮系统、加几个功能；真正用 AI 重塑企业的公司，想的是把 AI 当成企业的<strong>操作系统</strong>——所有工作流、决策都流经智能层，系统持续学习、自我迭代。而这个操作系统的<strong>内核是记忆系统</strong>。</div>' },
 
     { type: 'bot', content: '<div class="text"><strong>传统系统记什么？</strong></div><div class="compare-table"><table class="compare-table">' +
@@ -464,7 +464,7 @@ function demoEssence() {
       '<tr><td>流程文档</td><td>规则上怎么说（标准做法）</td><td>真实业务里规则怎么被解释、被例外</td></tr>' +
       '</table></div><div class="mini">一句话：传统系统把"结果"和"规则"记下来了，却把<strong>"判断"</strong>丢了。</div>' },
 
-    { type: 'bot', content: '<div class="text"><strong>AI 原生 CRM 记什么？</strong>它把每个重要决定当成一个完整的<strong>记忆颗粒</strong>存下来，让系统能回答"为什么"：</div><div class="compare-table"><table class="compare-table">' +
+    { type: 'bot', content: '<div class="text"><strong>叠加的决策智能层记什么？</strong>它把每个重要决定当成一个完整的<strong>记忆颗粒</strong>存下来，让系统能回答"为什么"：</div><div class="compare-table"><table class="compare-table">' +
       '<tr><th>决策事件包含的</th><th>含义</th></tr>' +
       '<tr><td>在什么业务情境下触发</td><td>为什么会走到要拍板这一步</td></tr>' +
       '<tr><td>涉及了谁 / 当时满足什么条件</td><td>客户、订单、政策、岗位</td></tr>' +
@@ -475,7 +475,7 @@ function demoEssence() {
 
     { type: 'user', content: '<div class="text">📋 所以本质区别到底是什么？</div>' },
 
-    { type: 'bot', content: '<div class="highlight-box" style="border-left-color:var(--accent-cyan)"><div class="quote" style="color:var(--accent-cyan);font-style:normal">传统系统让你知道<strong>"发生了什么"</strong>；<br>AI 原生 CRM 让你知道<strong>"为什么被允许发生"</strong>，以及它如何影响以后的判断。</div><div class="source">—— 引自《把记忆当资产来治理，而不是堆成一堆乱账》</div></div>' +
+    { type: 'bot', content: '<div class="highlight-box" style="border-left-color:var(--accent-cyan)"><div class="quote" style="color:var(--accent-cyan);font-style:normal">原有 CRM 让你知道<strong>"发生了什么"</strong>；<br>叠加的决策智能层让你知道<strong>"为什么被允许发生"</strong>，以及它如何影响以后的判断。</div><div class="source">—— 引自《把记忆当资产来治理，而不是堆成一堆乱账》</div></div>' +
       '<div class="text" style="margin-top:10px">更关键的是：决策与决策会<strong>互相引用</strong>——这次判断引用哪次先例，这次例外成为什么依据。先例就这么长出来，企业的"判断力"变成一张越织越密的决策网。<strong>这就是"越用越聪明"的底层机制。</strong></div>' },
 
     { type: 'bot', content: '<div class="text"><strong>落到销售场景的三个直接好处</strong>（下一页展开）：</div><div class="pillar-grid">' +
@@ -492,7 +492,7 @@ function demoPillars() {
   var steps = [
     { type: 'bot', content: '<div class="feature-banner"><span class="ico">🧭</span><div><div class="txt">三大支柱｜把"本质差异"翻译成销售能感知的三件事</div><div class="sub">智能体为核心 · 越用越聪明 · 销售员减负</div></div></div>' },
 
-    { type: 'bot', content: '<div class="text"><span class="tag cyan">支柱一</span> <strong>智能体为核心</strong></div><div class="flow-step"><div class="step-num">①</div><div class="content"><div class="who">传统 CRM</div><div class="action">以"表单 / 字段"为核心，人先填表系统才有数据</div><div class="result">销售 80% 精力在维护系统，而非做业务</div></div></div><div class="flow-step"><div class="step-num">②</div><div class="content"><div class="who">AI 原生 CRM</div><div class="action">以"智能体"为核心：统一对话入口接收一切商机，Agent 自动接诊、分级、建档、出单</div><div class="result">人从"维护系统"变成"定规矩、把关口"</div></div></div><div class="mini">对应机制：统一入口 + 客户记忆层 + 专家 Agent + 经理驾驶舱（HITL 决策闸门不代批）。</div>' },
+    { type: 'bot', content: '<div class="text"><span class="tag cyan">支柱一</span> <strong>不替换原有 CRM，叠加决策智能层</strong></div><div class="flow-step"><div class="step-num">①</div><div class="content"><div class="who">原有 CRM</div><div class="action">继续做它擅长的事：记客户、订单、流程状态；数据与我们的决策层双向打通、回流</div><div class="result">已有投资不浪费，销售不用重新录入</div></div></div><div class="flow-step"><div class="step-num">②</div><div class="content"><div class="who">决策智能层</div><div class="action">以"智能体"为核心：统一对话入口接收一切商机，Agent 自动接诊、分级、建档、出单</div><div class="result">人从"维护系统"变成"定规矩、把关口"</div></div></div><div class="mini">对应机制：主流 CRM 双向打通 + 客户记忆层 + 专家 Agent + 经理驾驶舱（HITL 决策闸门不代批）。</div>' },
 
     { type: 'bot', content: '<div class="text"><span class="tag green">支柱二</span> <strong>越用越聪明</strong></div><div class="lane-flow">' +
       '<div class="lane-step hit"><div class="st-agent">记忆</div><div class="st-name">捕获判断</div><div class="st-detail">自动记"为什么"</div></div>' +
@@ -502,7 +502,7 @@ function demoPillars() {
       '</div><div class="text">每次判断都沉淀成新先例：这个例外为什么能被批准、当时满足什么条件、谁拍的板，下次相似情形直接参照。<strong>AI 越用越聪明，决策背景不随人走。</strong></div>' },
 
     { type: 'bot', content: '<div class="text"><span class="tag amber">支柱三</span> <strong>销售员减负</strong></div><div class="compare-table"><table class="compare-table">' +
-      '<tr><th>环节</th><th>传统 CRM（人做）</th><th>AI 原生 CRM（Agent 做）</th></tr>' +
+      '<tr><th>环节</th><th>原有 CRM（人做）</th><th>决策智能层（Agent 做）</th></tr>' +
       '<tr><td>建档</td><td>手动建客户、填字段</td><td>对话自动捕获建档，零填表</td></tr>' +
       '<tr><td>跟进</td><td>自己写跟进记录</td><td>自动生成跟进提醒与草稿</td></tr>' +
       '<tr><td>报价</td><td>翻历史、算毛利</td><td>调用记忆出单，经理抽检</td></tr>' +
@@ -510,7 +510,7 @@ function demoPillars() {
       '</table></div><div class="highlight-box" style="border-left-color:var(--accent-amber)"><div class="quote" style="color:var(--accent-amber);font-style:normal">记忆生命周期治理：记全（自动捕获、不靠人填）→ 连起来（引用关系）→ 治理（分层存放、写前过滤、定期提炼）。记忆不是越堆越多，而是越用越精。</div></div>' },
 
     { type: 'user', content: '<div class="text">📋 一句话总结这三支柱？</div>' },
-    { type: 'bot', content: '<div class="stats-row"><div class="stat-card"><div class="val" style="font-size:14px">🤖</div><div class="lbl">智能体为核心<br>系统围着 Agent 转</div></div><div class="stat-card"><div class="val" style="font-size:14px">📈</div><div class="lbl">越用越聪明<br>判断沉淀成先例</div></div><div class="stat-card"><div class="val" style="font-size:14px">🪶</div><div class="lbl">销售员减负<br>零填表·只把关口</div></div><div class="stat-card"><div class="val" style="font-size:14px;color:var(--accent-green)">✓</div><div class="lbl">本质差异<br>记"为什么"而非"什么"</div></div></div><div class="mini">下一页用一个场景，把三支柱连起来看一次。</div>' },
+    { type: 'bot', content: '<div class="stats-row"><div class="stat-card"><div class="val" style="font-size:14px">🔗</div><div class="lbl">不替换原 CRM<br>双向打通·数据回流</div></div><div class="stat-card"><div class="val" style="font-size:14px">🤖</div><div class="lbl">智能体为核心<br>系统围着 Agent 转</div></div><div class="stat-card"><div class="val" style="font-size:14px">📈</div><div class="lbl">越用越聪明<br>判断沉淀成先例</div></div><div class="stat-card"><div class="val" style="font-size:14px">🪶</div><div class="lbl">销售员减负<br>零填表·只把关口</div></div></div><div class="mini">下一页用一个场景，把三支柱连起来看一次。</div>' },
   ];
   addMessages(steps);
 }
@@ -554,7 +554,7 @@ function generateSummary() {
   var src = chkList([{id:'c_src_wx',label:'微信'},{id:'c_src_tel',label:'电话'},{id:'c_src_mail',label:'邮件'},{id:'c_src_mt',label:'会议/拜访'},{id:'c_src_erp',label:'ERP/订单'},{id:'c_src_xls',label:'Excel'},{id:'c_src_paper',label:'纸质/合同'}]);
 
   var s = '';
-  s += '【第一次交流纪要 · AI 原生 CRM 前期沟通】\n';
+  s += '【第一次交流纪要 · 销售决策平台前期沟通】\n';
   s += '生成时间：' + new Date().toLocaleString('zh-CN') + '\n\n';
   s += '— 0 客户与行业背景 —\n';
   s += '客户/行业：' + (val('c_customer') || '（待填）') + '\n';
