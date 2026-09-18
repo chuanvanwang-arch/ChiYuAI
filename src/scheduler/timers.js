@@ -605,6 +605,7 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
       //   仅通道 kind（generic-email/calendar/meeting/wechat）生效；非通道 provider 原样返回（零行为变化）。
       //   未加载到 → 钩子为 undefined → mount 侧跳过包装（汇入缺席会被 channel-ingest-done 缺失暴露，非静默）。
       const channelIngest = (await import('../channels/channelIngestWiring.js').catch(() => null))?.wrapProviderForIngest;
+      // 注：channelIngestWiring 内部按 readConfig('sync-ingest') 读 matched_only（P0-4），此处透传 readConfig。
       // —— LF-4：第 0 闸铸造器提升到 runPoll 顶层（富化分支与同步分支**共用**，同租户一轮一枚）——
       const mintDecision = async (scene, ctx) => {
         const r = autonomy?.requireDecision ? await autonomy.requireDecision(scene, ctx).catch(() => null) : null;
@@ -643,6 +644,8 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
               // 第 0 闸：L2/L3 每 run 铸一枚决策；铸不出 → decisionId=null → 内核侧拒写（fail-closed）
               //   复用 runPoll 顶层 mintDecision（与富化分支同源，同租户一轮一枚；收敛到 decisionIdOf）
               mintDecision,
+              // P3：enable-writeback 评审闸（注入生产路径，消除零消费点；fail-closed：无审批实例 → 回写被拦）
+              syncGate: createSyncGate({ reviewGate: createChannelReviewGate() }),
             },
           });
         } : undefined,
@@ -650,6 +653,23 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         emit('trace', 'integration-poll-failed', { error: String(err?.message || err) });
         recordFailure('integration-poll-failed', err);
       });
+      // P0-2（2026-09-18）：同步结束后 drain 待写队列（挂既有 ⑩ poll，零新增定时器）。
+      //   写失败已入队 crm.sync_pending_write；此处重放 callWriteback + 对账（不丢意图、不用 wall clock 判胜负）。
+      try {
+        const pw = await import('../sync/pendingWrite.js').catch(() => null);
+        const store = pw?.createPendingWriteStore ? pw.createPendingWriteStore({ pool }) : null;
+        if (store) {
+          const wb = await import('../sync/writeback.js').catch(() => null);
+          const exec = await import('../action/executor.js').catch(() => null);
+          const callWriteback = (wb?.createWritebackDispatcher && exec?.actionExecutor?.dispatch)
+            ? wb.createWritebackDispatcher({ dispatch: exec.actionExecutor.dispatch, readConfig })
+            : undefined;
+          await store.drain({ callWriteback, emit });
+        }
+      } catch (e) {
+        emit('trace', 'sync-pending-drain-failed', { error: String(e?.message || e) });
+        recordFailure('sync-pending-drain-failed', e);
+      }
     });
   };
   const pollTimer = setInterval(runPoll, pollIntervalMs);

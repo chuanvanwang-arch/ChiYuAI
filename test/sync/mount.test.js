@@ -185,7 +185,7 @@ describe('runTenantSyncOnce（L1 只读 / L2 决策 / 失败不静默）', () =>
   it('零目标 → 全零结果（no-op，既有租户零行为变化）', async () => {
     const out = await runTenantSyncOnce({ tenantId: 't1', targets: [], deps: mkDeps() });
     // privacy_dropped（P1 §8.1）同为零：零目标时隐私过滤不可能拦下任何行
-    expect(out).toEqual({ runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, privacy_dropped: 0 });
+    expect(out).toEqual({ runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, writeback_blocked: 0, privacy_dropped: 0, echo: 0, pending_write: 0 });
   });
 });
 

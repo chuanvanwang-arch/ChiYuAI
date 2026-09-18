@@ -7,7 +7,7 @@
 // 幂等前提：resolver.upsert 按 external_id 对齐，二次同步不新建粒子
 import { signalsFromSyncRow } from '../channels/privacyFilter.js';
 
-export function createSyncEngine({ provider, mapping, resolver, cursor, trust = { level: () => 'L1' }, callWriteback, privacy = null } = {}) {
+export function createSyncEngine({ provider, mapping, resolver, cursor, trust = { level: () => 'L1' }, callWriteback, privacy = null, pendingWrite = null } = {}) {
   async function runOnce({ object, tenantId = 'system', decisionId = null } = {}) {
     if (!provider) return { ok: false, error: 'provider_missing' };
     const auth = await provider.verifyAuth().catch(() => ({ ok: false }));
@@ -39,7 +39,7 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
       return { ok: false, error: errMsg, ...zeroCounts };
     }
     const read = (inc.rows || []).length;
-    const counts = { read, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, privacy_dropped: 0 };
+    const counts = { read, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, writeback_blocked: 0, privacy_dropped: 0, echo: 0, pending_write: 0 };
     if (!allowWrite) {
       await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null, decisionId });
       return { ok: true, ...counts, readOnly: true };
@@ -68,17 +68,31 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
         tenantId, provider: provider.kind || 'mock', object,
         externalId: extId, particleType: m.particle_type, payload: m.payload,
       });
-      if (u.created) counts.created++;
+      if (u.echo) counts.echo++; // P0-3 回声：我方写出的被读回，不计 created/updated（防回环）
+      else if (u.created) counts.created++;
       else if (u.updated) counts.updated++;
       else counts.skipped++;
       // L3 回写：把判定字段（白名单内的 AI 结论）写回客户侧（callWriteback 注入，带字段级 CAS）
       if (allowWriteback && typeof callWriteback === 'function') {
         const w = await callWriteback({
-          tenantId, object, externalId: extId, particleId: u.particle_id,
-          row, level, counts,
+          tenantId, provider: provider.kind || 'mock', object, externalId: extId, particleId: u.particle_id,
+          payload: m.payload, row, level, counts,
         }).catch(() => ({ ok: false }));
-        if (w?.ok) counts.writeback++;
-        else counts.conflicted++; // 回写失败（CAS 拒绝/外部已改）计入 conflicted，不静默
+        if (w?.gate_blocked) counts.writeback_blocked++; // 被 enable-writeback 评审闸拦（fail-closed，见 mount 包裹层）
+        else if (w?.ok) counts.writeback++;
+        else {
+          counts.conflicted++; // 回写失败（CAS 拒绝/外部已改）计入 conflicted，不静默
+          // P0-2（ROX 立身之本）：写失败**不丢意图**——入待写队列，由 drain 重试/对账（防丢失）
+          if (pendingWrite && typeof pendingWrite.enqueue === 'function') {
+            await pendingWrite.enqueue({
+              tenantId, provider: provider.kind || 'mock', object, externalId: extId, particleId: u.particle_id,
+              target: level === 'L3' ? 'internal' : 'internal', // v1 默认落 internal；external 由 P6 放开
+              fields: row,
+              args: { tenantId, provider: provider.kind || 'mock', object, externalId: extId, particleId: u.particle_id, row, level },
+            }).catch(() => {});
+            counts.pending_write++;
+          }
+        }
       }
     }
     // P1 落痕：① 按原因的丢弃分组（界面/报告可解释「为什么少了」）；② 配置形状异常时显式记账

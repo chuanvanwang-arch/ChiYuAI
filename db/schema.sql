@@ -1105,6 +1105,7 @@ CREATE TABLE IF NOT EXISTS crm.external_ref (
   last_synced_at        TIMESTAMPTZ,
   last_direction        TEXT,                       -- in | out（最近一次同步方向，供冲突定位）
   last_hash             TEXT,                       -- 上次同步内容哈希（变更检测 / 冲突比对）
+  outbound_at           TIMESTAMPTZ,                -- P0-3：我方回写成功时间（last_direction='out' 时有效）
   external_deleted_at   TIMESTAMPTZ,                -- 软态：客户侧已删除（绝不物理删我方粒子）
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1134,6 +1135,30 @@ CREATE TABLE IF NOT EXISTS crm.sync_cursor (
 );
 CREATE INDEX IF NOT EXISTS idx_sync_cursor_health
   ON crm.sync_cursor(tenant_id, last_status, last_run_at);
+
+-- P0-2（2026-09-18）回写待写队列：写失败不丢意图，由 drain 重试 + 快照对账（禁用 wall clock）。
+-- 状态四态：pending（待重试）/ applied（已应用）/ skipped_stale（快照比对判定被后改覆盖，跳过）/ failed（超重试上限）。
+CREATE TABLE IF NOT EXISTS crm.sync_pending_write (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       TEXT NOT NULL DEFAULT 'system',
+  provider        TEXT NOT NULL,
+  external_object TEXT NOT NULL,
+  external_id     TEXT NOT NULL,
+  particle_id     UUID,
+  target          TEXT NOT NULL DEFAULT 'internal',  -- internal（我方粒子）/ crm（客户侧 CRM，P6 放开）
+  args            JSONB NOT NULL,                    -- 重放 callWriteback 所需的完整参数（含 row）
+  baseline_hash   TEXT,                              -- 写前快照哈希（对账基准）
+  status          TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','applied','skipped_stale','failed')),
+  attempts        INT NOT NULL DEFAULT 0,
+  max_attempts    INT NOT NULL DEFAULT 5,
+  last_error      TEXT,
+  applied_at      TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sync_pending_write_status
+  ON crm.sync_pending_write(tenant_id, status, created_at);
 
 -- ── 建议运行态（2026-09-16 E3）──────────────────────────────────────────────
 -- 「AI 曾建议过什么」的可观测留痕。**刻意不落 crm.decision**：该表读取点众多（含日报/复盘/

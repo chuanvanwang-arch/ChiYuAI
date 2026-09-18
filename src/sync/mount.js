@@ -12,12 +12,21 @@ import { createSyncEngine } from './engine.js';
 import { createMappingResolver } from './mapping.js';
 import { createEntityResolver } from './resolver.js';
 import { createCursorStore } from './cursor.js';
+import { createPendingWriteStore } from './pendingWrite.js';
 // A-B1 单一事实源：描述符的解释权归 providerDescriptor.js（本文件与 enrich 侧共用同一判据）
 import { normalizeProviderDescriptors, inboundObjects } from '../connectors/discovery/providerDescriptor.js';
 // P1 隐私排除清单（§8.1）：纯函数模块，双线共用同一判定实现
 import { createPrivacyFilter, signalsFromSyncRow, PRIVACY_CONFIG_KEY } from '../channels/privacyFilter.js';
+import { createSyncGate } from './gate.js';
+import { createChannelReviewGate } from '../channels/reviewGate.js';
+import { allowWritebackForLevel } from './trust.js';
 
 export const SYNC_TRUST_ORDER = ['L1', 'L2', 'L3'];
+
+// P3 默认评审闸：生产路径对**外部(target=crm)回写**过 enable-writeback 评审闸（fail-closed：无审批实例 → 拦）。
+// ⚠ v1 内部(internal)回写（我方粒子）不受此外部闸约束（直通）；闸仅对 P6 启用的外部回写生效。
+// 调用方可注入自定义 syncGate（connectorRouter/timers 已在装配层注入）；未注入则用它，确保外部路径不零消费点。
+const DEFAULT_SYNC_GATE = createSyncGate({ reviewGate: createChannelReviewGate() });
 
 /**
  * P1 隐私过滤器装配（per-tenant 读一次）。
@@ -119,7 +128,7 @@ export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, r
       //   包装失败不阻断目标装配（留痕后回落原 provider）。
       if (typeof channelIngest === 'function') {
         try {
-          provider = channelIngest({ provider, kind: d.kind, tenantId, trustLevel, emit, privacy }) || provider;
+          provider = (await channelIngest({ provider, kind: d.kind, tenantId, trustLevel, emit, privacy, readConfig })) || provider;
         } catch (e) {
           if (typeof emit === 'function') {
             emit('trace', 'channel-ingest-wrap-failed', { tenant_id: tenantId, provider: d.id, error: String(e?.message || e) });
@@ -148,20 +157,51 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
     createEngine, pool, mappings = {}, createResolver, createCursor,
     mintDecision, emit, recordFailure, callWriteback, decisionScene = 'integration-sync',
   } = deps;
-  const buildEngine = createEngine || (({ provider, trust, privacy }) => createSyncEngine({
+  const buildEngine = createEngine || (({ provider, trust, privacy, callWriteback: cb, pendingWrite: pw }) => createSyncEngine({
     provider,
     mapping: createMappingResolver({ mappings }),
     resolver: (createResolver || ((p) => createEntityResolver({ pool: p })))(pool),
     cursor: (createCursor || ((p) => createCursorStore(p)))(pool),
     trust,
-    callWriteback,
+    callWriteback: cb,
+    pendingWrite: pw, // P0-2 待写队列：引擎内写失败入队（不丢意图）
     privacy, // P1 隐私排除（§8.1）：不注入即零行为变化（既有调用方/测试不受影响）
   }));
-  const out = { runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, privacy_dropped: 0 };
+  const out = { runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, writeback_blocked: 0, privacy_dropped: 0, echo: 0, pending_write: 0 };
+  // P0-2/P0-3：per-tenant 一个 resolver + pendingWrite 实例（pool 存在时；测试可注入替身或留空）
+  const resolver = pool ? createEntityResolver({ pool }) : null;
+  const pendingWrite = pool ? createPendingWriteStore({ pool }) : null;
+  // P3 默认评审闸：生产路径对**外部(target=crm)回写**过 enable-writeback 评审闸（fail-closed：无审批实例 → 拦）。
+  // ⚠ 关键修正（2026-09-18）：v1 内部(internal)回写（我方粒子）**不受外部闸约束**，直接直通——
+  // 否则"v1 只落 internal"会被自己人的闸拦成 0 条（假红）。闸只对外部回写生效（P6 启用 target=crm 时）。
+  // 调用方可注入自定义 syncGate（connectorRouter/timers 已在装配层注入）；未注入则用它，确保外部路径不零消费点。
+  const gate = deps.syncGate || DEFAULT_SYNC_GATE;
   for (const t of targets) {
     // 防御性再过滤：targets 亦可能来自调用方直接构造（非 loadTenantSyncTargets）→ 共用同一方向判据
-    const inbound = inboundObjects(t);
-    for (const obj of inbound) {
+      const inbound = inboundObjects(t);
+      // P3 回写过闸：仅「外部(target=crm)回写」过 enable-writeback 评审闸；internal 直通（v1 默认落点）。
+      // gate 默认 DEFAULT_SYNC_GATE 为 fail-closed：无审批实例即拦（仅拦外部，不误伤 internal）。
+      const gatedCallWriteback = (typeof gate?.check === 'function')
+        ? async (args) => {
+            const isExternal = t.target === 'crm' || !!t.outbound;
+            if (!isExternal) return callWriteback ? callWriteback(args) : { ok: false, error: 'writeback_missing' };
+            const gr = await gate
+              .check({ action: 'enable-writeback', tenantId, ctx: { id: t.id } })
+              .catch(() => null);
+            if (!gr?.ok) return { ok: false, error: 'writeback_not_approved', gate_blocked: true };
+            const w = callWriteback ? await callWriteback(args).catch(() => ({ ok: false })) : { ok: false, error: 'writeback_missing' };
+            // P0-3（ROX §1.3③）：外部回写成功 → 记 external_ref.last_direction='out' + last_hash，
+            //   供后续读回时 classifyOrigin 识别「回声」防回环。internal 回写写的是我方粒子，无外部回声，不记。
+            if (w?.ok && isExternal && resolver && args?.payload) {
+              await resolver.markOutbound({
+                tenantId, provider: args.provider, object: obj?.name || args.object,
+                externalId: args.externalId, fields: args.payload,
+              }).catch(() => {});
+            }
+            return w;
+          }
+        : callWriteback;
+      for (const obj of inbound) {
       out.runs++;
       try {
         // 有效信任档已由 loadTenantSyncTargets 取 min；此处作为定值注入内核（无提权路径）
@@ -179,19 +219,22 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
           decisionId = d?.decisionId || null;
           if (!decisionId) throw new Error(`decision_required: ${t.trustLevel} 写路径无决策不落库`);
         }
-        const engine = buildEngine({ tenantId, target: t, object: obj, provider: t.provider, trust, privacy: t.privacy || deps.privacy || null });
+        const engine = buildEngine({ tenantId, target: t, object: obj, provider: t.provider, trust, privacy: t.privacy || deps.privacy || null, callWriteback: gatedCallWriteback, pendingWrite });
         const r = await engine.runOnce({ object: obj.name, tenantId, decisionId });
         out.created += r?.created || 0;
         out.updated += r?.updated || 0;
         out.skipped += r?.skipped || 0;
+        out.echo += r?.echo || 0; // P0-3 回声计数（我方写出被读回，不重复计入）
         out.conflicted += r?.conflicted || 0;
         out.writeback += r?.writeback || 0;
+        out.writeback_blocked += r?.writeback_blocked || 0;
         out.privacy_dropped += r?.privacy_dropped || 0;
+        out.pending_write += r?.pending_write || 0; // P0-2 待写队列入队计数
         if (emit) {
           emit('trace', 'sync-run-done', {
             tenant_id: tenantId, provider: t.id, object: obj.name, trust_level: t.trustLevel,
             read: r?.read || 0, created: r?.created || 0, updated: r?.updated || 0,
-            skipped: r?.skipped || 0, decision_id: decisionId,
+            skipped: r?.skipped || 0, writeback: r?.writeback || 0, writeback_blocked: r?.writeback_blocked || 0, decision_id: decisionId,
             // 隐私排除可见：否则「同步条数变少」会被读成同步故障
             privacy_dropped: r?.privacy_dropped || 0,
             ...(r?.privacy_dropped_by_reason ? { privacy_dropped_by_reason: r.privacy_dropped_by_reason } : {}),
@@ -214,9 +257,9 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
 
 // —— A-B5：单条对象变化事件 → 内核 upsert（admin/sysadmin 闸由路由层把守）——
 export async function handleObjectChanged({
-  tenantId = 'system', provider, object, row = {}, deps = {},
+  tenantId = 'system', provider, object, row = {}, deps = {}, target,
 } = {}) {
-  const { mappings = {}, readConfig, createResolver, pool, mintDecision, emit, callWriteback, privacy } = deps;
+  const { mappings = {}, readConfig, createResolver, pool, mintDecision, emit, callWriteback, privacy, syncGate } = deps;
   const def = mappings[object];
   if (!def?.particle_type) return { ok: false, error: 'object_not_mapped' }; // fail-closed：不越权建粒子
   const extId = row.id || row.external_id || (def.identity?.external_id_field ? row[def.identity.external_id_field] : null);
@@ -264,16 +307,29 @@ export async function handleObjectChanged({
   //   → 事件路径的 L3 永远不可达（counts.writeback 恒 0）。语义与 engine.js 的 L3 分支同源：
   //   仅 L3 回写；失败留痕（writeback_error）不静默、也不阻断读入链路（事件已入库，回写是可补偿步骤）。
   let wb = null;
+  const gate = syncGate || DEFAULT_SYNC_GATE;
+  // P3 回写过闸：仅「外部(target=crm)回写」过 enable-writeback 评审闸；internal 直通（v1 默认落点，不误伤）。
+  const isExternal = target === 'crm' || !!deps.outbound;
   if (level === 'L3' && typeof callWriteback === 'function') {
-    wb = await callWriteback({
-      tenantId, object, externalId: extId, particleId: u?.particle_id, row, level, decisionId,
-    }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
+    // P3：外部回写前过 enable-writeback 评审闸（按 provider 定位审批实例）。未批准 → 不调用真实回写。
+    let blocked = false;
+    if (isExternal && typeof gate?.check === 'function') {
+      const gr = await gate.check({ action: 'enable-writeback', tenantId, ctx: { id: provider } }).catch(() => null);
+      if (!gr?.ok) blocked = true;
+    }
+    if (blocked) {
+      wb = { ok: false, error: 'writeback_not_approved', gate_blocked: true };
+    } else {
+      wb = await callWriteback({
+        tenantId, object, externalId: extId, particleId: u?.particle_id, row, level, decisionId,
+      }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
+    }
   }
   return {
     ok: true, readOnly: false, created: !!u?.created, particle_id: u?.particle_id, decisionId,
     // 未进入回写路径（L1/L2 或未注入）时**不落这两个键**——避免把「未接线」伪造成「回写 0 条成功」
     ...(level === 'L3' && typeof callWriteback === 'function'
-      ? { writeback: wb?.ok ? 1 : 0, writeback_error: wb?.ok ? null : (wb?.error || null) }
+      ? { writeback: wb?.ok ? 1 : 0, writeback_blocked: wb?.gate_blocked ? 1 : 0, writeback_error: wb?.ok ? null : (wb?.error || null) }
       : {}),
   };
 }
