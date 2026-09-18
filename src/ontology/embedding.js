@@ -4,6 +4,13 @@ import { createHash } from 'node:crypto';
 
 export const DIM = 384;
 
+// 存储列维度：crm.particles.embedding 与 crm.decision.embedding 均为 vector(1024)（db/schema.sql:19,182）。
+// 查询侧向量必须与此对齐才能参与 pgvector `<=>`：hash 路径产物（DIM=384）与真模型向量不在同一空间，
+//   既不能混算、也不能互为排序依据（decisionRepo.js:624 实测：hash 相似度无区分度，排序≈随机取）。
+// 2026-09-18 实证：assembler.js 的 L1 召回曾固定用 hashVector(q)(384) 查 vector(1024) 列 ⇒ PG 抛
+//   `different vector dimensions 1024 and 384`，异常被装配层 catch 吞成 missing.L1 ⇒ L1 100% 静默失效。
+export const STORED_EMBED_DIM = 1024;
+
 // 同文本 → 同向量（确定性），无外部调用即可跑测试
 export function hashVector(text) {
   const h = createHash('sha256').update(String(text || '')).digest();

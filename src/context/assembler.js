@@ -1,7 +1,7 @@
 // src/context/assembler.js — L1知识底座 / L2历史决策 / L3执行协同 / L4治理决策 装配 + 降级链
 // 任一检索层失效 → 标记 missing + degraded，下层继续；agent 永不因检索崩
 import { query } from '../db.js';
-import { hashVector } from '../ontology/embedding.js';
+import { embedText, EMBED_PROVIDER, STORED_EMBED_DIM } from '../ontology/embedding.js';
 import { loadProfile } from './roleProfiles.js';
 import { actorRole, scopePredicateFor } from './scope.js';
 import { retrieveMemory } from '../memory/memoryLog.js';
@@ -11,6 +11,12 @@ import { readConfig } from '../config/configStore.js';
 import { emit } from '../events/bus.js';
 
 const L1_TIMEOUT = 200;
+// L1 需要额外一次**查询侧 embedding 网络调用**才能与存储侧同维参与 `<=>`：
+//   2026-09-18 实测 SiliconFlow 136–466ms（首次含 TLS 握手）⇒ 200ms 装不下，会退化成「改了 provider
+//   但 L1 恒超时判 missing」——同一根因换形态。故 L1 用独立上界；向量化自身另有更小预算，
+//   超时只降级为「非语义召回」（精确归位仍可用），不整体判 missing。
+const L1_TIMEOUT_SEMANTIC = 1200;   // L1 总预算（含查询向量化 + DB 检索）
+const L1_EMBED_TIMEOUT = 800;       // 查询向量化独立预算
 
 // P0-② 租户级 Knowledge 注入（docs/2026-09-03-tenant-knowledge-design.md §6）
 // scenario → kind 映射：出厂默认；config_store['knowledge-injection-map']（tenant 可覆盖）优先（禁散点硬编码）
@@ -68,25 +74,96 @@ export function retrieveEntityProfile(particle) {
   return profile;
 }
 
+// 查询侧向量缓存（进程内、有界）：embedText 对同文本确定性输出 ⇒ 可缓存，避免同一请求多场景装配重复付费调用。
+//   只缓存**真模型向量**：降级/超时结果不留缓存，使下一次调用保留自愈机会。
+const L1_QUERY_VEC_CACHE = new Map();
+const L1_QUERY_VEC_CACHE_MAX = 64;
+
+/**
+ * L1 查询向量：必须与**存储列**同源同维，否则不得参与 `<=>`。
+ * 返回 vector(number[]) 或 null（null = 当前无法做语义召回，由精确归位兜底）。
+ */
+async function l1QueryVector(q, actor) {
+  const key = String(q);
+  const hit = L1_QUERY_VEC_CACHE.get(key);
+  if (hit) return hit;
+  try {
+    const emb = await withTimeout(
+      embedText(key, {
+        metering: {
+          tenantId: (actor && (actor.tenantId || actor.tenant_id)) || 'system',
+          actor: String(actor ?? 'system'),
+          action: 'l1-query-embed',
+        },
+      }),
+      L1_EMBED_TIMEOUT
+    );
+    if (emb?.provider === EMBED_PROVIDER.MODEL && Array.isArray(emb.vector) && emb.vector.length === STORED_EMBED_DIM) {
+      if (L1_QUERY_VEC_CACHE.size >= L1_QUERY_VEC_CACHE_MAX) L1_QUERY_VEC_CACHE.clear();
+      L1_QUERY_VEC_CACHE.set(key, emb.vector);
+      return emb.vector;
+    }
+    // 降级留痕（不静默）：hash 向量(384) 与存储列(1024) 不同空间，参与排序等于随机取
+    emit('trace', 'l1-query-vector-unavailable', {
+      provider: emb?.provider ?? 'none',
+      got_dim: emb?.vector?.length ?? null,
+      expect_dim: STORED_EMBED_DIM,
+    });
+  } catch (e) {
+    emit('trace', 'l1-query-embed-failed', {
+      timeout_ms: L1_EMBED_TIMEOUT,
+      error: String(e?.message || e).slice(0, 200),
+    });
+  }
+  return null;
+}
+
 async function retrieveL1(actor, q, profile = null) {
   if (!q) return [];
-  const qvec = hashVector(q);
-  const vecLit = `[${qvec.join(',')}]`; // PG vector 文本字面量（vector_in 不接受 JS 数组字符串传参）
+  // P0（2026-09-18 实证）：查询侧向量必须与存储侧同源同维。
+  //   旧实现固定 `hashVector(q)`（DIM=384），而 crm.particles.embedding 自 2026-09-14 起为 vector(1024)
+  //   ⇒ PG 必抛 `different vector dimensions 1024 and 384`（本机与生产容器内均已实跑复现）；
+  //   该异常被 assembleContext 的 `catch { missing.L1 = true }` 吞掉 ⇒ L1 实体召回 100% 静默失效，
+  //   而 D1/D3 只看存储面（向量真伪/池大小）恒报健康 ——「数据健康 ≠ 可被检索」的典型假绿。
   // P0① 注入前置 data_scope 裁剪：复用 scopePredicateFor（与列表谓词同源），非 all 模型时 SQL 追加谓词
   const sc = await scopePredicateFor(profile, actor).catch(() => ({ clause: '', params: [] }));
-  const r = await query(
-    `SELECT id, type, title, payload FROM crm.particles WHERE embedding IS NOT NULL${sc.clause} ORDER BY embedding <=> $1::vector LIMIT 5`,
-    sc.params.length ? [...sc.params, vecLit] : [vecLit]
-  );
-  const rows = [...r.rows];
-  // L1 精确归位兜底：查询含实体名（title/name 精确匹配）时，把命中实体并入 TOP5（向量距离远也能定位当前上下文实体）
+  // ⚠ sc.clause 以**别名 p** 引用列（scope.js:152）且占位符从 $1 起编号 ⇒ 本函数所有查询必须
+  //   (a) 给表取别名 p、(b) 把自己的参数挂在 sc.params 之后（动态编号）。
+  //   2026-09-18 实证：原实现表无别名 + 向量/名字参数追加在末尾 ⇒ 传入 scoped profile（非 all）时
+  //   立即抛 `missing FROM-clause entry for table "p"`，与维度错叠加被 catch 吞成 missing.L1
+  //   —— L1 在 all 与 scoped 两种模式下**都是死的**，只是死法不同。
+  const P = (n = 1) => `$${sc.params.length + n}`;
+  const rows = [];
+  // ① 语义召回：仅当查询向量与存储列同维（真模型路径可用）才执行；否则**不做**向量排序
+  //    （hash 签名向量与真向量混算 = 随机排序，decisionRepo.js:624 同款结论），交由 ② 兜底
+  const qvec = await l1QueryVector(q, actor);
+  if (qvec) {
+    const vecLit = `[${qvec.join(',')}]`; // PG vector 文本字面量（vector_in 不接受 JS 数组字符串传参）
+    const r = await query(
+      `SELECT id, type, title, payload FROM crm.particles p WHERE p.embedding IS NOT NULL${sc.clause} ORDER BY p.embedding <=> ${P()}::vector LIMIT 5`,
+      [...sc.params, vecLit]
+    );
+    rows.push(...r.rows);
+  }
+  // ② L1 精确归位兜底：查询含实体名（title/name 命中）时，把命中实体并入 TOP5（向量距离远也能定位当前上下文实体）
   // 语义：L1 是知识底座，当前对话上下文实体必须可被找到（ATTIO T10 验收：刚建 ACCOUNT 通过 name 检索须返回）
+  // 2026-09-18 修正两处：
+  //   (a) 此处**不得**以 `embedding IS NOT NULL` 为门 —— 名称查找与向量无关，原实现把两者绑在一起，
+  //       导致「向量缺失 ⇒ 连按名字都找不到」（门覆盖范围 ≫ 语义所需）。
+  //   (b) 原实现仅做**整名等值**匹配，而查询按空白分词后逐词比对 ⇒ 名字含空格的实体（如 "X 科技"）
+  //       永远匹配不上（ATTIO T10 契约测试因此长期红）。补子串兜底，等值结果排在前。
   const names = q.split(/[\s,，、]+/).filter((w) => w.length >= 2);
   if (names.length) {
     const exact = await query(
-      `SELECT id, type, title, payload FROM crm.particles
-       WHERE (payload->>'name' = ANY($1) OR title = ANY($1)) AND embedding IS NOT NULL${sc.clause} LIMIT 3`,
-      sc.params.length ? [...sc.params, names] : [names]
+      `SELECT id, type, title, payload FROM crm.particles p
+        WHERE (p.payload->>'name' = ANY(${P()}) OR p.title = ANY(${P()})
+               OR EXISTS (SELECT 1 FROM unnest(${P()}::text[]) AS t(tok)
+                           WHERE coalesce(p.payload->>'name','') LIKE '%'||t.tok||'%'
+                              OR coalesce(p.title,'')            LIKE '%'||t.tok||'%'))
+              ${sc.clause}
+        ORDER BY (p.payload->>'name' = ANY(${P()}) OR p.title = ANY(${P()})) DESC, p.updated_at DESC
+        LIMIT 3`,
+      [...sc.params, names]
     );
     for (const row of exact.rows) {
       if (!rows.some((x) => x.id === row.id)) rows.push(row);
@@ -263,7 +340,7 @@ export async function assembleContext({ actor, intent, query: q, tenantId = 'sys
   const callLK = async (a, intent2) => (LK.length >= 3 ? LK(a, intent2, profile) : LK(a, intent2));
   const missing = {};
   const layers = {};
-  try { layers.L1 = await withTimeout(callL1(actor, q), L1_TIMEOUT); } catch { missing.L1 = true; }
+  try { layers.L1 = await withTimeout(callL1(actor, q), L1_TIMEOUT_SEMANTIC); } catch { missing.L1 = true; }
   try { layers.L2 = await L2(actor, intent, actorTenant); } catch { missing.L2 = true; }
   try { layers.L3 = await L3(actor); } catch { missing.L3 = true; }
   try { layers.L4 = await L4(actor, actorTenant); } catch { missing.L4 = true; }
