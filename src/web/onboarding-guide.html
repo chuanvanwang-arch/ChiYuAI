@@ -26,40 +26,88 @@
     .err { color: var(--err); }
     pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 12px; overflow: auto; max-height: 220px; }
     .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
+    /* 接入路径三卡（P2 §5.4）：让「凭据保存在谁那里」成为用户看得见、选得到的一件事 */
+    .modes { display: flex; gap: 10px; margin: 12px 0 18px; flex-wrap: wrap; }
+    .mode { flex: 1 1 210px; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.45; }
+    .mode small { display: block; margin-top: 4px; font-weight: 400; font-size: 12px; color: var(--mut); }
+    .mode.on { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
+    .checks { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 4px; font-size: 13px; }
+    .checks label { display: flex; align-items: center; gap: 5px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header><h1 style="font-size:20px">让系统认识你的工作环境</h1></header>
-    <div class="note">🔒 <b>凭据直进保险库（credentialVault）</b>，明文不落会话 / 响应 / 审计；
+    <div class="note">🔒 本向导的第一步是<b>选一条接入路径</b>，三条路的区别只有一件事：<b>凭据保存在谁那里</b>。
+      A 连接官方连接器（凭据在你的应用/客户端）· B 本机桥接（凭据只在你本机）· C 平台直连（凭据加密存于平台，兜底）。
       向导<b>全部可跳过</b>——跳过即进入「未接入」态，功能不阻塞，随时可再触发。
       接入动作属四类动作之一，<b>过 review-gate 人工闸（HITL）</b>；首次接入默认 <b>L1 只读</b>，不会主动写你的系统。</div>
 
     <div class="steps">
-      <div id="s1" class="on">① 问卷：常用邮箱 / 企业微信·飞书·钉钉 / 个人微信（可选）</div>
-      <div id="s2">② 验证与说明（真实探测）</div>
+      <div id="s1" class="on">① 选接入路径：连接器 / 本机桥 / 平台直连</div>
+      <div id="s2">② 验证与说明（按路径分路）</div>
       <div id="s3">③ 确认接入</div>
     </div>
 
     <div class="card" id="pane">
       <div id="step1">
-        <h2>① 先认识一下你的工作环境</h2>
-        <p class="hint">填多少算多少，留空即跳过该项。密码字段只用于本机直连邮箱，服务端加密落库。</p>
-        <div class="field"><label for="email">常用邮箱地址</label><input type="text" id="email" placeholder="you@company.com" autocomplete="off" /></div>
-        <div class="field"><label for="pass">邮箱密码 / 授权码</label><input type="password" id="pass" placeholder="（不填则跳过邮箱）" autocomplete="off" /></div>
-        <div class="field"><label for="wx">企业微信 corpid</label><input type="text" id="wx" placeholder="（不填则跳过企微）" autocomplete="off" /></div>
-        <div class="field"><label for="wxsecret">企业微信密钥 corpsecret</label><input type="password" id="wxsecret" placeholder="企微后台获取；与 corpid 成对" autocomplete="off" /></div>
-        <!-- 高级项默认折叠：保持「系统问、用户答」的极简三步；多数租户留空即可 -->
-        <details id="adv">
-          <summary>高级：邮箱服务器 / 日历 / 会议接口（多数情况可留空）</summary>
-          <div class="field"><label for="host">邮箱服务器 host</label><input type="text" id="host" placeholder="留空则按邮箱域名推导为 imap.&lt;域名&gt;" autocomplete="off" /></div>
-          <div class="field"><label for="cal">日历 CalDAV 地址</label><input type="text" id="cal" placeholder="https://cal.example.com/dav/" autocomplete="off" /></div>
-          <div class="field"><label for="caluser">日历账号（可选）</label><input type="text" id="caluser" placeholder="多数日历需登录" autocomplete="off" /></div>
-          <div class="field"><label for="calpass">日历密码（可选）</label><input type="password" id="calpass" placeholder="可留空" autocomplete="off" /></div>
-          <div class="field"><label for="im">会议接口地址（企微/飞书/钉钉）</label><input type="text" id="im" placeholder="https://api.example.com/v1/meetings" autocomplete="off" /></div>
-          <div class="field"><label for="imtoken">会议接口令牌</label><input type="password" id="imtoken" placeholder="Bearer token" autocomplete="off" /></div>
-        </details>
-        <p class="hint">ℹ️ <b>个人微信</b>：无开放 API，系统<b>不做假接通</b>（未接入不影响核心功能）——本向导只接<b>企业微信</b>。</p>
+        <h2>① 选一条接入路径</h2>
+        <p class="hint">不是「做一个本站网页去连接」，而是<b>引导你打开自己已经在用的应用/工具</b>，由你在那里面确认。三条路的区别只有一件事：<b>凭据保存在谁那里</b>。</p>
+        <div class="modes">
+          <button type="button" class="mode on" id="m-connector">A　连接官方连接器<small>推荐 · 凭据在你自己的应用/客户端里，我方不持有</small></button>
+          <button type="button" class="mode" id="m-local-bridge">B　本机桥接<small>该通道没有官方套件时 · 凭据只留在你本机</small></button>
+          <button type="button" class="mode" id="m-direct">C　平台直连<small>兜底 · 凭据加密后存于平台</small></button>
+        </div>
+
+        <!-- A：连接器（推荐默认） -->
+        <div id="panel-connector">
+          <p class="hint">在<b>你自己的应用</b>里完成授权，<b>不要把密码填到本页</b>：</p>
+          <ol class="hint" style="margin-left:-8px">
+            <li>打开 WorkBuddy 的「连接器」，添加 <b>企业微信 / 飞书 / 钉钉</b>（任选你公司在用的那一个），按提示在<b>你自己的客户端</b>登录授权；</li>
+            <li>回到本页勾选要接入的通道，点「下一步」；</li>
+            <li>接入后状态是「<b>待确认</b>」而不是「已验证」——在对话里让我读取一次日程或邮件，成功才算确认（平台拿不到你的凭据，无从代验）。</li>
+          </ol>
+          <div class="checks">
+            <label><input type="checkbox" class="mk" value="generic-email" checked /> 邮箱</label>
+            <label><input type="checkbox" class="mk" value="generic-calendar" checked /> 日历</label>
+            <label><input type="checkbox" class="mk" value="generic-meeting" checked /> 会议</label>
+            <label><input type="checkbox" class="mk" value="generic-wechat" checked /> 微信（企业微信）</label>
+          </div>
+        </div>
+
+        <!-- B：本机桥（无官方套件时） -->
+        <div id="panel-local-bridge" hidden>
+          <p class="hint">凭据留在<b>你的机器</b>上：复制下面命令在本机执行，授权码由你在本机输入（不会上传到平台）：</p>
+          <pre id="localCmd"></pre>
+          <div class="toolbar" style="margin-top:6px"><button type="button" class="link" id="copyCmd">复制命令</button><span class="hint" id="copyOut" style="margin:0"></span></div>
+          <div class="checks">
+            <label><input type="checkbox" class="mk" value="generic-email" checked /> 邮箱</label>
+            <label><input type="checkbox" class="mk" value="generic-calendar" /> 日历</label>
+          </div>
+          <p class="hint">会议 / 微信<b>暂无等价本机工具</b> —— 这两项请改用 A 或 C。<b>不提供假入口</b>（给了命令却连不上，比没有更糟）。</p>
+        </div>
+
+        <!-- C：平台直连（兜底，显式声明凭据去向） -->
+        <div id="panel-direct" hidden>
+          <p class="hint">⚠ 走这条路意味着<b>凭据会上传到我方平台</b>（credentialVault 加密落库、明文不落响应/会话/审计、首次只读）。
+            只有在「该通道没有官方连接器」且「你不愿用本机命令」时才选它。</p>
+          <div class="field"><label for="email">常用邮箱地址</label><input type="text" id="email" placeholder="you@company.com" autocomplete="off" /></div>
+          <div class="field"><label for="pass">邮箱密码 / 授权码</label><input type="password" id="pass" placeholder="（不填则跳过邮箱）" autocomplete="off" /></div>
+          <div class="field"><label for="wx">企业微信 corpid</label><input type="text" id="wx" placeholder="（不填则跳过企微）" autocomplete="off" /></div>
+          <div class="field"><label for="wxsecret">企业微信密钥 corpsecret</label><input type="password" id="wxsecret" placeholder="企微后台获取；与 corpid 成对" autocomplete="off" /></div>
+          <!-- 高级项默认折叠：保持「系统问、用户答」的极简三步；多数租户留空即可 -->
+          <details id="adv">
+            <summary>高级：邮箱服务器 / 日历 / 会议接口（多数情况可留空）</summary>
+            <div class="field"><label for="host">邮箱服务器 host</label><input type="text" id="host" placeholder="留空则按邮箱域名推导为 imap.&lt;域名&gt;" autocomplete="off" /></div>
+            <div class="field"><label for="cal">日历 CalDAV 地址</label><input type="text" id="cal" placeholder="https://cal.example.com/dav/" autocomplete="off" /></div>
+            <div class="field"><label for="caluser">日历账号（可选）</label><input type="text" id="caluser" placeholder="多数日历需登录" autocomplete="off" /></div>
+            <div class="field"><label for="calpass">日历密码（可选）</label><input type="password" id="calpass" placeholder="可留空" autocomplete="off" /></div>
+            <div class="field"><label for="im">会议接口地址（企微/飞书/钉钉）</label><input type="text" id="im" placeholder="https://api.example.com/v1/meetings" autocomplete="off" /></div>
+            <div class="field"><label for="imtoken">会议接口令牌</label><input type="password" id="imtoken" placeholder="Bearer token" autocomplete="off" /></div>
+          </details>
+        </div>
+
+        <p class="hint">ℹ️ <b>个人微信</b>：无开放 API，系统<b>不做假接通</b>（未接入不影响核心功能）——只接<b>企业微信</b>。</p>
         <div class="toolbar">
           <button class="primary" id="to2">下一步：验证</button>
           <button class="link" id="skipAll">全部跳过</button>
@@ -68,9 +116,12 @@
 
       <div id="step2" hidden>
         <h2>② 验证与说明</h2>
-        <p class="hint">对已填项做 <b>verifyScope 真实探测</b>（<b>fail-closed</b>：探测不通过即不接入，绝不用 mock 代真）。
-          凭据不全 → <code>credentials_incomplete</code>（列出缺哪个字段）；连不通 → <code>connect_failed</code>；
-          账号/密码错 → <code>auth_failed</code>。<b>不把「未验证」伪装成「已验证」</b>。</p>
+        <p class="hint"><b>验证方式按路径分路</b>（三条路各自 fail-closed，互不冒充）：
+          <b>C 平台直连</b> → 平台侧 <b>verifyScope 真实探测</b>（探测不通过即不接入，绝不用 mock 代真；
+          凭据不全 → <code>credentials_incomplete</code> 并列出缺哪个字段，连不通 → <code>connect_failed</code>，账号/密码错 → <code>auth_failed</code>）；
+          <b>A 连接器 / B 本机桥</b> → 平台<b>拿不到</b>你的凭据，因此<b>无法代验</b>：接入后状态为「<b>待确认</b>」，
+          须由你在自己那侧确认（连接器：让我读取一次日程/邮件；本机桥：在本机跑通自检命令）。
+          <b>三种情况都不会被显示成「已验证」</b>。</p>
         <pre id="verifyOut">（点击「开始验证」）</pre>
         <p class="hint">📖 说明：接入后<b>当前只读（L1）</b>——系统只读取并抽取结构化字段（主题/参与方/时间），
           不落原始正文；信任档提升到 L2/L3 需<b>独立审批闸</b>，不在本向导范围。</p>
@@ -105,6 +156,56 @@
       { key: 'wx', kind: 'generic-wechat', label: '微信（企业微信）' },
     ];
     let collected = []; // [{ key, kind, label, credentials }]
+    // 接入路径（P2 §5.4）：A connector（默认，凭据在对方/本机）· B local-bridge（凭据在本机）· C direct（兜底）
+    //   ⚠ 界面首选 A，但提交时**显式**带 source_kind；接口缺省是 direct（向后兼容），不靠界面默认值兜。
+    let mode = 'connector';
+    const KIND_LABEL = { 'generic-email': '邮箱', 'generic-calendar': '日历', 'generic-meeting': '会议', 'generic-wechat': '微信（企业微信）' };
+    const MODE_NAME = { connector: 'A 官方连接器', 'local-bridge': 'B 本机桥接', direct: 'C 平台直连' };
+    const MODE_NOTE = {
+      connector: '（凭据在你的应用里，平台不持有）',
+      'local-bridge': '（凭据只在你本机）',
+      direct: '（凭据加密存于平台）',
+    };
+
+    function setMode(m) {
+      mode = m;
+      for (const k of ['connector', 'local-bridge', 'direct']) {
+        $('m-' + k).classList.toggle('on', k === m);
+        // 只显示当前路径的表单：三条路并存会让用户在 A 路径下把密码填进 C 的表单（凭据去向被误判）
+        $('panel-' + k).hidden = k !== m;
+      }
+      if (m === 'local-bridge') renderLocalCmd();
+    }
+    $('m-connector').onclick = () => setMode('connector');
+    $('m-local-bridge').onclick = () => setMode('local-bridge');
+    $('m-direct').onclick = () => setMode('direct');
+
+    // 本机桥命令：用**成熟 CLI**（不自研 MCP server），命令可复制、授权码由用户在本机输入。
+    //   为什么不自研：本机桥的价值在「凭据不离开用户机器」，自研一个服务端只会把维护成本搬进来；
+    //   等确实需要稳定接口时再包一层。
+    function renderLocalCmd() {
+      const el = $('email');
+      const email = (el && el.value.trim()) || 'you@163.com';
+      const host = deriveImapHost(email) || 'imap.163.com';
+      $('localCmd').textContent =
+        '# 1) 安装（一次性）\n'
+        + '#    Windows: winget install --id pimalaya.himalaya\n'
+        + '#    macOS:   brew install himalaya\n\n'
+        + '# 2) 在本机配置账号（凭据写进你本机配置，不上传）\n'
+        + 'himalaya account configure\n'
+        + `#    IMAP 服务器: ${host}    端口: 993（TLS）\n`
+        + `#    账号: ${email}          密码: <客户端授权码>\n`
+        + '#    注意：163/126/QQ 的 IMAP 只认「客户端授权码」，登录密码必被拒\n\n'
+        + '# 3) 自检（能列出收件箱即连通）\n'
+        + 'himalaya envelope list -s 1';
+    }
+    $('copyCmd').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText($('localCmd').textContent);
+        $('copyOut').textContent = '已复制';
+      } catch { $('copyOut').textContent = '复制失败，请手动选中'; }
+    };
+    $('email').addEventListener('input', () => { if (mode === 'local-bridge') renderLocalCmd(); });
 
     function show(n) {
       for (const i of [1, 2, 3]) { $('step' + i).hidden = i !== n; $('s' + i).classList.toggle('on', i <= n); }
@@ -124,6 +225,13 @@
       return d ? 'imap.' + d.trim().toLowerCase() : '';
     }
     function collect() {
+      // A/B：**不在本页收集任何凭据**（这正是这两种形态的意义所在）——只登记「要接入哪个通道」。
+      //   若这里顺手把表单拼进去，A/B 就退化回「网页收密码」，形态只剩一个标签（假形态）。
+      if (mode !== 'direct') {
+        return [...document.querySelectorAll('#panel-' + mode + ' .mk:checked')].map((cb) => ({
+          key: cb.value, kind: cb.value, label: KIND_LABEL[cb.value] || cb.value, credentials: null,
+        }));
+      }
       const out = [];
       const email = $('email').value.trim(), pass = $('pass').value;
       if (email) {
@@ -147,7 +255,12 @@
     function tenantId() { return new URLSearchParams(location.search).get('tenant_id') || 'system'; }
     const cid = (kind) => 'channel-' + kind.replace('generic-', '') + '-' + tenantId();
 
-    $('to2').onclick = () => { collected = collect(); renderPlan(); show(2); };
+    $('to2').onclick = () => {
+      // 本机桥命令按当前邮箱重算：用户通常是先填邮箱再点下一步，而 input 事件在
+      //   「粘贴/自动填充」等场景不一定触发 —— 不在这一步刷新，用户复制的就是示例命令（照抄必然失败）。
+      if (mode === 'local-bridge') renderLocalCmd();
+      collected = collect(); renderPlan(); show(2);
+    };
     $('back1').onclick = () => show(1);
     $('to3').onclick = () => show(3);
 
@@ -160,11 +273,16 @@
       for (const c of collected) {
         const res = await fetch('/api/channels/connect', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1', verify_only: true }),
+          body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1', verify_only: true, source_kind: mode }),
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
         // missing（缺哪个字段）必须显示：否则用户只知道「不通过」，不知道改哪里
         const miss = Array.isArray(res.missing) && res.missing.length ? `（缺：${res.missing.join('、')}）` : '';
-        out.textContent += `[${c.label}] ${res.ok ? '✅ 探测通过' : '⛔ ' + (res.error || 'failed') + miss}${guidedHint(res, c.kind)}\n`;
+        // 三形态的成功语义**不同**，不能都写「✅ 通过」：
+        //   direct 是平台实测；connector/local-bridge 平台无从代验 ⇒ 如实显示「待你在自己那侧确认」。
+        const state = !res.ok
+          ? '⛔ ' + (res.error || 'failed') + miss
+          : (res.verified ? '✅ 平台侧探测通过' : (res.pending ? '⏳ 已受理，待你在自己那侧确认' : '✅ 已受理'));
+        out.textContent += `[${c.label}] ${state}${guidedHint(res, c.kind)}\n`;
       }
     };
 
@@ -193,12 +311,13 @@
       try { return new URL(/^https?:\/\//i.test(raw) ? raw : `imap://${raw}`).host || String(raw); } catch { return String(raw); }
     }
     function renderPlan() {
+      const head = `接入路径：${MODE_NAME[mode]}${MODE_NOTE[mode] || ''}`;
       $('planOut').textContent = collected.length
-        ? collected.map((c, i) => {
+        ? head + '\n' + collected.map((c, i) => {
           const t = targetOf(c);
           return `${i + 1}. ${c.label}（${c.kind}）→ 信任档 L1 只读${t ? `｜连接目标 ${t}` : ''}`;
         }).join('\n')
-        : '（无拟接入项 —— 可整体跳过）';
+        : head + '\n（无拟接入项 —— 可整体跳过）';
     }
 
     $('confirm').onclick = async () => {
@@ -209,16 +328,25 @@
       for (const c of collected) {
         const res = await fetch('/api/channels/connect', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1' }),
+          body: JSON.stringify({ tenant_id: tenantId(), id: cid(c.kind), kind: c.kind, credentials: c.credentials, trust_level: 'L1', source_kind: mode }),
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
-        lines.push(`[${c.label}] ${res.ok ? '✅ 已提交，待人工闸放行' : '⛔ ' + (res.error || 'failed') + (res.hint ? ' — ' + res.hint : '')}`);
+        lines.push(`[${c.label}] ${res.ok
+          ? (res.pending_user_side ? '⏳ 已受理（待你在自己那侧确认，尚未验证）' : '✅ 已提交，待人工闸放行')
+          : '⛔ ' + (res.error || 'failed') + (res.hint ? ' — ' + res.hint : '')}`);
       }
-      el.textContent = lines.join('\n') + '\n（凭据已入保险库；明文不回显。L1 只读起始，信任提升需独立闸门。）';
+      // 结尾说明按形态区分：direct 才是「凭据已入保险库」，A/B 说这句就是谎报凭据去向
+      el.textContent = lines.join('\n') + (mode === 'direct'
+        ? '\n（凭据已入保险库；明文不回显。L1 只读起始，信任提升需独立闸门。）'
+        : '\n（本形态下平台**未接收**任何凭据；接入状态为「待确认」，在你那侧确认后才算连通。）');
       el.className = 'hint';
     };
 
     const skip = () => { location.href = '/channel-config.html?tenant_id=' + encodeURIComponent(tenantId()); };
     $('skipAll').onclick = skip; $('skipAll2').onclick = skip;
+    // 显式初始化路径状态，而不是依赖 HTML 上的 `class="mode on"` 静态属性：
+    //   静态类只有一处来源（HTML），一旦有人改了 HTML 或加了路径（如 D），JS 状态与界面就会不一致；
+    //   显式调用后，「当前路径」只有 JS 一个事实源（也才能被运行期探针断言）。
+    setMode(mode);
     renderPlan();
   </script>
 </body>

@@ -168,6 +168,15 @@
 
 **守卫（可测）**：`sourceKind` 取值必须 ∈ `SOURCE_KINDS`；三形态各自验证通过**不得**写入其它形态的 `verified` 记录（按 `(channel_id, source_kind)` 联合键判定）。
 
+**⚠ 实现期事实（P2 已落地，必须如实记住）**：connector / local-bridge 的凭据**不在我方平台**，因此平台侧没有可用探针。
+- 对这两形态**不跑** `verifyScope`（跑只有两种结局：恒失败＝用户永远接不进来；或假装成功＝假绿）；
+- 接入后描述符记录 `verifications[source_kind] = { ok:false, pending:true, method:'user_side_*' }` —— **pending 不等于已验证**，`verifiedKindsOf` 会把它排除在「已生效形态」之外；
+- 界面必须显示「**待确认**」而非「已验证」；**真正的验证回写**（用户侧 Agent 调一次只读工具后回写 `{ok:true, tool}`）属 **P3**，未做之前不得把 pending 说成已验证。
+
+**两个「默认值」不是同一个值**（易错点，已由单测锁定）：
+- `PREFERRED_SOURCE_KIND = 'connector'`：**向导界面**默认选中的卡（用户看得见、选得到，选择是显式的）；
+- `DEFAULT_SOURCE_KIND = 'direct'`：**接口缺省**（未声明 `source_kind` 时按 direct 处理）——若把接口缺省也设成 connector，一次既有调用就会「形态升级」为连接器并**跳过平台侧校验**，而界面显示「凭据不在我方平台」（与事实相反）。
+
 ### §5.3 向导与配置台
 
 - `onboarding-guide.html`：由「凭据表单」改为 **A/B/C 三卡**（A 连接官方连接器 / B 本机桥命令 / C 兜底表单折叠 + 显式声明凭据去向）。
@@ -405,8 +414,8 @@ ROX 原文：*"The agent's credentials cannot express confirmation."*（agent �
 
 | 阶段 | 内容 | 依赖 | 风险 |
 |---|---|---|---|
-| **P1** | 隐私排除清单：`sync-privacy` 配置 + `privacyFilter.js`（双线共用）+ 界面 + 丢弃计数 | 无 | 低 |
-| **P2** | 接入三形态：`sourceKinds.js` + 描述符 `source_kind` + 向导 A/B/C + 分路验证 + 运行期校验器 | P1 | 低 |
+| **P1** ✅ | 隐私排除清单：`sync-privacy` 配置 + `privacyFilter.js`（双线共用）+ 界面 + 丢弃计数 | 无 | 低 |
+| **P2** ✅ | 接入三形态：`sourceKinds.js` + 描述符 `source_kind` + 向导 A/B/C + 分路验证 + 防双写 + 运行期校验器 | P1 | 低 |
 | **P3** | **评审闸接线**：`enable-writeback` / `mapping-change` / `trust-elevate` 接入生产路径 + 扫「零消费点」守卫；`sync/trust.js` 与 `mount.js:21` 逻辑收敛到单一事实源 | 无（**必须先于 P5**） | 中 |
 | **P4** | 出向集合确定性：字段级 `direction` + `mapping.outboundFields()` + 双闸；`target` 参数（默认 `internal`，零行为变化） | P3 | 中 |
 | **P5** | 待写队列 + 快照对账（先 `target='internal'`，验证「不丢意图」） | P4 | 中 |

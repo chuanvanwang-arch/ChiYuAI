@@ -53,8 +53,8 @@
     <a href="/onboarding-guide.html"><button>＋ 新增通道（走向导）</button></a>
   </div>
   <table>
-    <thead><tr><th>通道</th><th>kind</th><th>标签</th><th>信任档</th><th>状态</th><th>操作</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="6" class="hint">加载中…</td></tr></tbody>
+    <thead><tr><th>通道</th><th>kind</th><th>标签</th><th>接入形态（凭据在谁那里）</th><th>信任档</th><th>状态</th><th>验证</th><th>操作</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
   </table>
   <p class="err" id="err"></p>
 
@@ -146,15 +146,26 @@
         const list = (r && r.channels) || [];
         $('count').textContent = '共 ' + list.length + ' 条';
         $('rows').innerHTML = list.length
-          ? list.map((c) => `<tr>
+          ? list.map((c) => {
+            // 接入形态（P2 §5.4）：**凭据保存在谁那里**是本页最该说清的一件事；
+            //   「待确认」与「已验证」必须分开显示 —— 三形态的成功语义不同，混用一句「已接入」＝谎报。
+            const sk = c.source_kind || 'direct';
+            const skText = { connector: '连接器（我方不持有凭据）', 'local-bridge': '本机桥（凭据在你本机）', direct: '平台直连（凭据加密存于平台）' }[sk] || sk;
+            const vk = Array.isArray(c.verified_kinds) ? c.verified_kinds : [];
+            const pend = c.verifications && c.verifications[sk] && c.verifications[sk].pending;
+            const vText = vk.length ? '<span class="chip on">已验证</span>' : (pend ? '<span class="chip off">待确认</span>' : '<span class="chip off">未验证</span>');
+            return `<tr>
               <td>${esc(KIND_TEXT[c.kind] || c.kind)}</td>
               <td><code>${esc(c.kind)}</code></td>
               <td>${esc(c.label || '')}</td>
+              <td>${esc(skText)}</td>
               <td>${esc(c.trust_level || 'L1')}</td>
               <td><span class="chip ${c.enabled ? 'on' : 'off'}">${c.enabled ? '已启用' : '已停用'}</span></td>
+              <td>${vText}</td>
               <td><button class="danger" data-id="${esc(c.id)}">断开</button></td>
-            </tr>`).join('')
-          : '<tr><td colspan="6" class="hint">暂无已接入通道 —— 可点「新增通道（走向导）」开始。</td></tr>';
+            </tr>`;
+          }).join('')
+          : '<tr><td colspan="8" class="hint">暂无已接入通道 —— 可点「新增通道（走向导）」开始。</td></tr>';
       } catch (e) {
         $('err').textContent = '加载失败：' + (e && e.message ? e.message : e);
       }
@@ -236,7 +247,10 @@
       try {
         res = await fetch('/api/channels/connect', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenant_id: tenantId(), id, kind, label, credentials, trust_level: trust }),
+          // source_kind 必须**显式**声明：本表单是「平台直连」路径（凭据进我方 vault）。
+          //   若省略，接口缺省也是 direct，但一旦接口缺省将来改动，这里就会静默漂移成别的形态 ——
+          //   而页面上方那句「凭据 password 字段直传后端入保险库」就变成谎报（凭据去向与形态不符）。
+          body: JSON.stringify({ tenant_id: tenantId(), id, kind, label, credentials, trust_level: trust, source_kind: 'direct' }),
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
       } finally {
         btn.disabled = false;          // 无论成功失败都必须恢复可点（否则按钮变砖 = 更彻底的「没反应」）
