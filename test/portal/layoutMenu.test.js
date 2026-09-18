@@ -38,17 +38,32 @@ describe('menuFor 角色可见性', () => {
     expect(it41.page).toBe('/admin-billing-console.html#plans');
   });
 
-  // 渠道门户（2026-09-18 经销商联邦 T8→当日归位）：用户裁定「放后台配置、前台叫渠道门户」。
-  //   ★不再占左侧菜单（entry 从 FULL_MENU/ADMIN_MENU 移除），承载 = 配置中心「系统级→平台与访问」#57 卡片。
-  //   ★防孤岛：断言「移出菜单 + 仍经 #57 deep-link 到达」——页面在、入口在，二者一致（同 channel-config/crm-sync-console 范式）。
-  it('渠道门户已移出左侧菜单，但仍经配置中心 #57 卡片 deep-link 可达（T8 经销商联邦归位）', () => {
-    // 不再作为全员菜单项、也不落在系统菜单
-    expect(FULL_MENU.some((m) => m.href === '/channel-admin.html')).toBe(false);
+  // 渠道门户（2026-09-18 经销商联邦 T8→当日归位→当日修正）：
+  //   ★修正（2026-09-18 22:0x 用户反馈「菜单没有看到」）：前台入口**保留在侧边栏**（渠道经理日常工作台不能只藏配置中心）。
+  //   ★职责分离双入口：菜单「渠道门户」= 前台业务面（ten_admin/channel_manager）；
+  //      配置中心 #57 经销商门户开关 = 后台治理面（系统级、仅 ADMIN 翻转）。
+  //   ★守卫：入口存在 + 双角色可见 + 其余角色隐藏 + 落点页存在 + title/h1=「渠道门户」跨层一致。
+  it('渠道门户入口存在：ten_admin/channel_manager 可见，其余角色隐藏，落点页跨层名一致（T8 归位修正）', () => {
+    // 入口在全员/系统菜单之一（恢复后落在 FULL_MENU「渠道」组）
+    expect(FULL_MENU.some((m) => m.href === '/channel-admin.html')).toBe(true);
     expect(ADMIN_MENU.some((m) => m.href === '/channel-admin.html')).toBe(false);
-    // 落点页存在（页面在）
+    // 角色可见性（与 T8 同契约：厂商侧两角色可见，其余隐藏）
+    const ALLOWED = ['ten_admin', 'channel_manager'];
+    const DENIED = ['admin', 'sysadmin', 'sales', 'manager', 'finance', 'dealer_user'];
+    for (const r of ALLOWED) {
+      expect(menuFor(r).some((x) => x.href === '/channel-admin.html'), `角色 ${r} 应可见渠道门户入口`).toBe(true);
+    }
+    for (const r of DENIED) {
+      expect(menuFor(r).some((x) => x.href === '/channel-admin.html'), `角色 ${r} 不应见渠道门户入口`).toBe(false);
+    }
+    // 落点页存在（页面在、入口在，二者一致）
     const file = new URL('../../src/web/channel-admin.html', import.meta.url);
     expect(fs.existsSync(file)).toBe(true);
-    // 仍经配置中心 #57 经销商门户开关卡片到达（deep-link /channel-admin.html#overview）
+    // 落点页 title/h1 = 「渠道门户」（与菜单名跨层一致）
+    const html = fs.readFileSync(file, 'utf8');
+    const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+    expect(title).toContain('渠道门户');
+    // 配置中心 #57 仍承载后台治理面（deep-link /channel-admin.html#overview）
     const cc = fs.readFileSync(new URL('../../src/portal/configCenter.js', import.meta.url), 'utf8');
     expect(cc).toContain('id: 57');
     expect(cc).toContain("'/channel-admin.html#overview'");

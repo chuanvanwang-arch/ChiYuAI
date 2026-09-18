@@ -43,11 +43,14 @@ export const FULL_MENU = [
   { group: '财务', label: '财务应收', href: '/receivables.html', roles: ['finance', 'admin'] },
   // 多租户计费（T6）：全员可见；数据面按租户隔离（API 经 applyTenantOverride/scopeTenant 强制本租户）
   { group: '洞察', label: '账单', href: '/billing.html' },
-  // 渠道门户（2026-09-18 经销商联邦 T8→当日归位）：用户裁定「放后台配置、前台叫渠道门户」。
-  //   ★不再占左侧菜单（与 channel-config / crm-sync-console 同范式——入口死区修复后归位配置中心）。
-  //   ★承载位置 = 配置中心「系统级 → 平台与访问」#57 经销商门户开关卡片（深链 /channel-admin.html#overview）。
-  //   ★页面自身仍可经 #57 卡片 deep-link 到达（防孤岛：test/portal/layoutMenu.test.js 入口可达性守卫锁定）。
-  //   ★落点页 src/web/channel-admin.html title/h1=「渠道门户」（前台名，与 Buddy 模式 channel 同名）。
+  // 渠道门户（2026-09-18 经销商联邦 T8→当日归位→当日修正）：用户裁定「放后台配置、前台叫渠道门户」。
+  //   ★修正（2026-09-18 22:0x 用户反馈「菜单没有看到」）：**前台入口保留在侧边栏**——「渠道门户」是渠道经理
+  //      （ten_admin / channel_manager）的日常业务工作台，不能只藏在配置中心（否则渠道经理两个地方都到不了）。
+  //   ★职责分离：菜单「渠道门户」= 前台业务面（经销商准入/共享视图/撞单仲裁，ten_admin/channel_manager）；
+  //      配置中心「系统级 → 平台与访问」#57 经销商门户开关 = 后台治理面（平台总闸 kill-switch，仅 ADMIN 翻转）。
+  //   ★角色限定 ten_admin + channel_manager（dealer_user 走独立租户，不进本厂商菜单）。
+  //   ★落点页 src/web/channel-admin.html title/h1=「渠道门户」，与菜单名跨层一致（守卫同文件锁定）。
+  { group: '渠道', label: '渠道门户', href: '/channel-admin.html', roles: ['ten_admin', 'channel_manager'] },
 ];
 export const ADMIN_MENU = [
   { group: '系统', label: '配置中心', href: '/config' },
