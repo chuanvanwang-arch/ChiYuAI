@@ -20,10 +20,38 @@ export function createEntityResolver({ pool } = {}) {
     return rows[0] || null;
   }
 
+  async function markOutbound({ tenantId = 'system', provider, object, externalId, fields = {} } = {}) {
+    const existing = await findRef({ tenantId, provider, object, externalId });
+    if (!existing) return { ok: false, error: 'ref_not_found' };
+    // P0-3（2026-09-18，ROX §1.3③）：我方回写成功 → 记 last_direction='out' + last_hash（写入内容哈希）。
+    //   供 upsert 前置 classifyOrigin 判定「读回的是我方写出的回声」→ 不计 created/updated、不触发下游信号。
+    const h = hash({ ...fields });
+    const { rows } = await pool.query(
+      `UPDATE crm.external_ref SET last_direction='out', last_hash=$2, outbound_at=now(), last_synced_at=now(), updated_at=now() WHERE id=$1 RETURNING *`,
+      [existing.id, h],
+    );
+    return { ok: true, direction: 'out', hash: h, external_ref: rows[0] };
+  }
+
+  // —— P0-3 classifyOrigin：回声（我方此前回写成功且内容未变）识别 ——
+  // 判据：existing.last_direction==='out' && existing.last_hash===本次写入哈希。
+  //   命中即「我方写出被读回」，视为回声：不计 created/updated、不触发下游信号、只刷新 last_synced_at。
+  function isEcho(existing, h) {
+    return !!existing && existing.last_direction === 'out' && existing.last_hash === h;
+  }
+
   async function upsert({ tenantId = 'system', provider, object, externalId, particleType, payload = {} }) {
     const existing = await findRef({ tenantId, provider, object, externalId });
     const h = hash({ ...payload });
     if (existing) {
+      // P0-3 回声检测前置：我方写出的被读回 → 落回声分支（防 ROX 回环），不进正常更新。
+      if (isEcho(existing, h)) {
+        await pool.query(
+          `UPDATE crm.external_ref SET last_synced_at=now(), updated_at=now() WHERE id=$1`,
+          [existing.id],
+        );
+        return { created: false, updated: false, echo: true, particle_id: existing.particle_id, external_ref: existing };
+      }
       // 已有：更新粒子 payload + external_ref（幂等：last_hash 同则仍更新，无副作用）
       const { rows: pRows } = await pool.query(
         `UPDATE crm.particles SET payload=$2, updated_at=now() WHERE id=$1 RETURNING id`,
@@ -64,5 +92,5 @@ export function createEntityResolver({ pool } = {}) {
     return { ok: true, particle_id: existing.particle_id, external_ref: existing };
   }
 
-  return { upsert, markDeleted, findRef };
+  return { upsert, markOutbound, markDeleted, findRef };
 }
