@@ -4,6 +4,7 @@ import express from 'express';
 import http from 'node:http';
 import { createRoutes } from './routes.js';
 import { createTenantRouter } from './tenantRouter.js'; // T6 租户管理面（admin 闸 + 第0闸）
+import { createDealerRouter } from './dealerRoutes.js'; // 经销商渠道门户接入面（第0闸 + federationReadScope 只读）
 import { createSseHub } from '../events/sse.js';
 import { ensureGraph } from '../decision/ageGraph.js';
 // SKILL 注册表持久化启动接线（第 16 项）：首启幂等灌种子 + 引擎 DB 启停态应用（D2/D3）
@@ -45,14 +46,12 @@ import { ensureTimers } from '../scheduler/timers.js';
 //   自动 EMBEDDING_PROVIDER='model'，searchPrecedents 走真语义向量；未配置/测试环境保持 hash，零风险。
 //   运行时亦可用显式 EMBEDDING_PROVIDER 覆盖。NODE_ENV=test 跳过（保证测试确定性、零外部依赖）。
 if (process.env.NODE_ENV !== 'test' && !process.env.EMBEDDING_PROVIDER) {
-  import('../llm/llmConfigStore.js').then(async (m) => {
-    try {
-      const cfg = m.hydrate(await m.getDefault());
-      if (cfg && cfg.apiKey) {
-        process.env.EMBEDDING_PROVIDER = 'model';
-        console.log('[embedding] 真向量已启用（EMBEDDING_PROVIDER=model，来源 llm_config）');
-      }
-    } catch { /* 保持 hash（默认降级） */ }
+  // 判据已抽到 src/llm/embeddingBootstrap.js（2026-09-18）：KMD 探针 D15 需与运行时**同源**解析，
+  //   否则探针看不到运行时真实 provider，测不出「存储有真向量但查询侧拿不到」这一缺陷形态。
+  import('../llm/embeddingBootstrap.js').then(async (m) => {
+    if (await m.ensureEmbeddingProvider() === 'model') {
+      console.log('[embedding] 真向量已启用（EMBEDDING_PROVIDER=model，来源 llm_config）');
+    }
   }).catch(() => {});
 }
 
@@ -72,6 +71,8 @@ export function createApp() {
   createRoutes(app, hub);
   // T6 租户管理面（GET/POST /api/tenants；admin/sysadmin 闸 + 决策第0闸）
   app.use(createTenantRouter());
+  // 经销商渠道门户接入面（厂商准入/冲突仲裁 + 经销商共享视图；第0闸 + federationReadScope 只读）
+  app.use(createDealerRouter());
 
   // 启动接线（异步，不阻塞 listen；对齐 ensureGraph 先例——失败仅日志不阻断主服务）
   // 第一步必须 seedSkills()：内存 skills Map 注册（否则 applySkillRegistryToMemory 无对象可同步，DB 启停态落空）

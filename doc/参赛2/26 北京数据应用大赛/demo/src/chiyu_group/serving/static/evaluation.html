@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>群诉智能发现 DEMO · 评测报告</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f5f6fa;margin:0;padding:24px}
+  nav a{margin-right:12px;color:#2469e8;text-decoration:none}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+  .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .card .k{color:#666;font-size:13px}.card .v{font-size:24px;font-weight:700;margin-top:6px}
+</style>
+</head>
+<body>
+<nav><a href="/">总览</a><a href="/static/replay.html">流式回放</a><a href="/static/cluster.html">簇详情</a>
+<a href="/static/merge.html">跨日合并</a><a href="/static/audit.html">裁决可解释</a>
+<a href="/static/evaluation.html">评测报告</a><a href="/static/settings.html">数据与参数</a></nav>
+<h2>评测报告（客观四指标）</h2>
+<div id="view">
+  <div class="cards" id="cards"></div>
+</div>
+<script>
+async function loadEval(){
+  const r = await (await fetch('/api/evaluate', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+  const cards = [
+    {k:'宏平均F1', v:r.macro_f1},
+    {k:'跨日合并准确率', v:r.cross_day_acc},
+    {k:'最小成诉敏感度', v:r.min_sensitivity},
+    {k:'单条耗时P50/P95', v: `${r.latency_ms?.p50}/${r.latency_ms?.p95}ms`},
+  ];
+  document.getElementById('cards').innerHTML = cards.map(c=>
+    `<div class="card"><div class="k">${c.k}</div><div class="v">${c.v}</div></div>`).join('');
+}
+loadEval(); setInterval(loadEval, 5000);
+</script>
+</body>
+</html>

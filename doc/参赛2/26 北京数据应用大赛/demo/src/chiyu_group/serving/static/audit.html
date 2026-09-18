@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>群诉智能发现 DEMO · 裁决可解释</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f5f6fa;margin:0;padding:24px}
+  nav a{margin-right:12px;color:#2469e8;text-decoration:none}
+  table{border-collapse:collapse;width:100%;background:#fff}
+  th,td{border:1px solid #e3e6ef;padding:6px 10px;font-size:13px;text-align:left}
+  .bar{display:inline-block;height:10px;background:#2469e8;border-radius:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<nav><a href="/">总览</a><a href="/static/replay.html">流式回放</a><a href="/static/cluster.html">簇详情</a>
+<a href="/static/merge.html">跨日合并</a><a href="/static/audit.html">裁决可解释</a>
+<a href="/static/evaluation.html">评测报告</a><a href="/static/settings.html">数据与参数</a></nav>
+<h2>裁决可解释（审计明细）</h2>
+<div id="view">
+  <p>8 项确定性评分 + RRF 融合 + 红线优先，每条裁决留审计痕迹（可回溯）。</p>
+  <table id="grid"><thead><tr><th>工单ID</th><th>动作</th><th>簇ID</th><th>融合分</th><th>置信度</th><th>红线</th></tr></thead><tbody></tbody></table>
+</div>
+<script>
+async function loadAudit(){
+  // P5 挂载点：接入审计接口后替换为真实数据（当前展示结构示例）
+  const s = await (await fetch('/api/state')).json();
+  const sample = [{
+    order_id:"T1", action:"join", cluster_id:"C1", fused:0.95, confidence:0.83, redline:""
+  }];
+  const rows = sample.map(r => `<tr><td>${r.order_id}</td><td>${r.action}</td><td>${r.cluster_id}</td><td>${r.fused}</td><td>${r.confidence}</td><td>${r.redline||'无'}</td></tr>`).join('');
+  document.querySelector('#grid tbody').innerHTML = rows;
+}
+loadAudit();
+</script>
+</body>
+</html>

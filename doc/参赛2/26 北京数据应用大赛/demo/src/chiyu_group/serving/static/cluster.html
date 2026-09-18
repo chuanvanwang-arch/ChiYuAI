@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>群诉智能发现 DEMO · 簇详情</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f5f6fa;margin:0;padding:24px}
+  nav a{margin-right:12px;color:#2469e8;text-decoration:none}
+  table{border-collapse:collapse;width:100%;background:#fff}
+  th,td{border:1px solid #e3e6ef;padding:6px 10px;font-size:13px;text-align:left}
+</style>
+</head>
+<body>
+<nav><a href="/">总览</a><a href="/static/replay.html">流式回放</a><a href="/static/cluster.html">簇详情</a>
+<a href="/static/merge.html">跨日合并</a><a href="/static/audit.html">裁决可解释</a>
+<a href="/static/evaluation.html">评测报告</a><a href="/static/settings.html">数据与参数</a></nav>
+<h2>簇详情</h2>
+<div id="view">
+  <button onclick="loadClusters()">刷新</button>
+  <table id="grid"><thead><tr><th>簇ID</th><th>状态</th><th>工单数</th><th>最近活动</th></tr></thead><tbody></tbody></table>
+</div>
+<script>
+async function loadClusters(){
+  const s = await (await fetch('/api/state?detail=full')).json();
+  const rows = (s.clusters||[]).map(c => `<tr><td>${c.id||c.cluster_id||'-'}</td><td>${c.state||c.status||'-'}</td><td>${c.size||c.count||0}</td><td>${c.last_seen||c.last_activity||'-'}</td></tr>`).join('');
+  document.querySelector('#grid tbody').innerHTML = rows;
+}
+loadClusters(); setInterval(loadClusters, 5000);
+</script>
+</body>
+</html>

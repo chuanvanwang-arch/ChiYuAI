@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>群诉智能发现 DEMO · 跨日合并</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f5f6fa;margin:0;padding:24px}
+  nav a{margin-right:12px;color:#2469e8;text-decoration:none}
+  .tl{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<nav><a href="/">总览</a><a href="/static/replay.html">流式回放</a><a href="/static/cluster.html">簇详情</a>
+<a href="/static/merge.html">跨日合并</a><a href="/static/audit.html">裁决可解释</a>
+<a href="/static/evaluation.html">评测报告</a><a href="/static/settings.html">数据与参数</a></nav>
+<h2>跨日合并时间轴</h2>
+<div id="view">
+  <button onclick="loadMerges()">刷新</button>
+  <div id="timeline"></div>
+</div>
+<script>
+async function loadMerges(){
+  const s = await (await fetch('/api/state')).json();
+  const evs = s.revival_events || [];
+  const html = evs.map(e => `<div class="tl"><strong>${e.cluster_id||e.id||'-'}</strong> · ${e.date||e.time||'-'} · ${e.reason||''}</div>`).join('') || '<div class="tl">暂无跨日合并事件</div>';
+  document.getElementById('timeline').innerHTML = html;
+}
+loadMerges(); setInterval(loadMerges, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>群诉智能发现 DEMO · 数据与参数</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f5f6fa;margin:0;padding:24px}
+  nav a{margin-right:12px;color:#2469e8;text-decoration:none}
+  table{border-collapse:collapse;width:100%;background:#fff}
+  th,td{border:1px solid #e3e6ef;padding:6px 10px;font-size:13px;text-align:left}
+</style>
+</head>
+<body>
+<nav><a href="/">总览</a><a href="/static/replay.html">流式回放</a><a href="/static/cluster.html">簇详情</a>
+<a href="/static/merge.html">跨日合并</a><a href="/static/audit.html">裁决可解释</a>
+<a href="/static/evaluation.html">评测报告</a><a href="/static/settings.html">数据与参数</a></nav>
+<h2>数据与参数配置</h2>
+<div id="view">
+  <h3>数据三通道</h3>
+  <table><thead><tr><th>通道</th><th>路径</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>内置样例</td><td>data/sample/</td><td>50 条脱敏样例（默认演示）</td></tr>
+    <tr><td>上传</td><td>data/uploaded/</td><td>POST /api/upload</td></tr>
+    <tr><td>真实挂载</td><td>data/real/</td><td>1 万条真实数据（竞赛环境覆盖）</td></tr>
+  </tbody></table>
+  <h3>参数（阈值可配置）</h3>
+  <pre id="cfg"></pre>
+</div>
+<script>
+async function loadCfg(){
+  const c = await (await fetch('/api/config')).json();
+  document.getElementById('cfg').textContent = JSON.stringify(c, null, 2);
+}
+loadCfg();
+</script>
+</body>
+</html>
