@@ -242,6 +242,14 @@
 | 回写内部再受第 3 闸约束 | `writeback.js:44-45` | 默认 `approval_required`；仅显式配置 `writeback_auto_approved=true` 才放行 |
 | 读失败必留痕（防假健康） | `engine.js:26-36` | ROX 未提此约束；我方明确区分「同步在跑」与「一条没读到」 |
 
+> ### ⚠ 本表第一行的自我更正（2026-09-18 晚，源码复核）
+> 本表原写「接入/映射/信任/回写**四类**动作 HITL 闸门」为独有强项。复核生产消费点后**只有 1/4 成立**：
+> - `first-connect` ✅ 真接线（`routes.js:304` → `channelRouter.js:88-90` / `channelActions.js:66-69`，实现落在 `channels/reviewGate.js`）
+> - `mapping-change` / `trust-elevate` / `enable-writeback` ⛔ **零生产消费点**——三个字符串在全仓库只出现在 `sync/gate.js:5` 的常量数组、`exportGate.js:4-5` 的注释、以及各自的单测里
+> - 同族 `src/sync/trust.js`（`createTrustManager`）**同样零生产消费**，其判定逻辑在 `mount.js:21-26 effectiveTrustLevel` 被重新实现了一遍
+> ⇒ 按 13 判据最高频项「**生产零接线**」：这三道闸属**纸面闸门**。**结论修正为**：我方真实接线的闸是 `executor.js:157` 第 3 闸、通道 `reviewGate`、`exportGate` 三道；「启用回写」这道闸**在生产路径上并不存在**。
+> **对结论的影响**：§7 建议动作中「重开 `writeback.js:15` 红线③、放开客户侧回写」**必须先接线 `enable-writeback`**，否则是无闸放行——已写入 `docs/2026-09-18-unified-integration-design-v2.md` §0-1 与 P3，并把它排在回写放开（P6）之前。
+
 ---
 
 ## §6 该学什么 / 不学什么
