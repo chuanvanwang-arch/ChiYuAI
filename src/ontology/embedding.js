@@ -47,6 +47,22 @@ export async function embedText(text, opts = {}) {
       // 降级留痕（禁静默）：明确告知本次退化为哈希签名，下游须丢弃向量分量
       const { emit } = await import('../events/bus.js');
       emit('trace', 'embedding-provider-degraded', { provider: 'model', error: String(e?.message || e) });
+      // ⚠ trace 域被 memory capture 白名单阻断（capture.js BLOCKED_DOMAINS）⇒ **不落库、生产不可观测**。
+      //   2026-09-18 实证：SiliconFlow 账户欠费(402) 导致本机+生产 embedding 全失效，
+      //   却因「HTTP body 被吞 + trace 不落库 + recordFailure 仅内存计数」三层衰减而无人知晓。
+      //   按 provenance.js:115 既有范式（"走可落库域以便留痕"）另写 monitor_event 持久面。
+      try {
+        const { queryWrite } = await import('../db.js');
+        await queryWrite(
+          `INSERT INTO crm.monitor_event (domain, event_type, payload) VALUES ('system','embedding-degraded',$1::jsonb)`,
+          [JSON.stringify({
+            provider: 'model',
+            httpStatus: e?.httpStatus ?? null,
+            providerMessage: e?.providerMessage ?? null,
+            error: String(e?.message || e).slice(0, 300),
+          })]
+        );
+      } catch { /* 观测面失败不得反噬主流程（fail-open） */ }
     }
   }
   return { vector: hashVector(text), provider: EMBED_PROVIDER.HASH, dim: DIM };

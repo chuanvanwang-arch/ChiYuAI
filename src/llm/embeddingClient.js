@@ -54,7 +54,22 @@ export async function embed(text, { model, metering } = {}) {
       body: JSON.stringify({ model: m, input }),
       signal: ctrl.signal,
     });
-    if (!r.ok) throw new Error(`Embedding HTTP ${r.status}`);
+    if (!r.ok) {
+      // 拒因透明（铁律「拒因不得被中间层吞掉」）：必须带出服务端原话。
+      // 2026-09-18 实证：仅回 `Embedding HTTP 402` 时，「账户余额不足」与
+      // 「模型不存在 400」「鉴权失败 401」「限流 429」不可区分，排查须手工复现 API。
+      const raw = await r.text().catch(() => '');
+      let detail = '';
+      try {
+        const j = JSON.parse(raw);
+        detail = j?.message || j?.error?.message || '';
+      } catch { detail = String(raw || '').trim(); }
+      detail = String(detail).replace(/\s+/g, ' ').trim().slice(0, 180);
+      const err = new Error(`Embedding HTTP ${r.status}${detail ? `：${detail}` : ''}`);
+      err.httpStatus = r.status;      // 供上层区分「凭据失效(401/402/403)」与「瞬态(429/5xx)」
+      err.providerMessage = detail;   // 服务端原话，供降级留痕与告警面使用
+      throw err;
+    }
     const j = await r.json();
     const v = j?.data?.[0]?.embedding;
     if (!Array.isArray(v) || !v.length) throw new Error('embedding 返回空向量');
@@ -66,7 +81,14 @@ export async function embed(text, { model, metering } = {}) {
     return v.map(Number);
   } catch (e) {
     if (e?.isQuota) throw e; // quota 错误透传，不被降级吞掉
-    throw new Error(`Embedding 失败: ${e.message}`);
+    // ⚠ 重新包装时必须**保留拒因属性**：否则上层（embedText 降级留痕 / D14 探针）
+    //   无法区分「凭据失效(401/402/403)」与「瞬态(429/5xx)」。
+    //   2026-09-18 实证：本函数内层已回传 httpStatus，却在此处被二次吞掉，
+    //   导致 D14 把账户欠费 402 误判为「疑瞬态 WARN」—— 同一根因换形态的典型。
+    const err = new Error(`Embedding 失败: ${e.message}`);
+    if (e?.httpStatus != null) err.httpStatus = e.httpStatus;
+    if (e?.providerMessage != null) err.providerMessage = e.providerMessage;
+    throw err;
   } finally {
     clearTimeout(timer);
   }
