@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>渠道门户</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  /* 仅本页私有布局类（ch- 前缀）；设计系统保留类 card/table/btn/tabs/badge 一律复用 common.css，不重声明 */
+  .ch-sec { margin-top: 8px; }
+  .ch-hint { color: var(--mut); font-size: 12px; margin: 4px 0 10px; }
+  .ch-form { display: grid; grid-template-columns: max-content 1fr; gap: 10px 12px; align-items: center; max-width: 720px; }
+  .ch-form > label { font-size: 13px; color: var(--mut); }
+  .ch-form .ch-full { grid-column: 1 / -1; }
+  .ch-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .ch-kv { font-size: 13px; line-height: 1.9; }
+  .ch-kv b { color: var(--ink); }
+  .ch-view { display: none; }
+  .ch-view.on { display: block; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 999;
+    padding: 10px 18px; border-radius: 8px; font-size: 13px; color: #fff; background: var(--panel);
+    border: 1px solid var(--line); border-left: 3px solid var(--ac); box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none; transition: opacity .22s; }
+  #toast.show { opacity: 1; }
+  .ch-deny { padding: 24px; }
+</style>
+</head>
+<body>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">渠道门户</h1></div></header>
+<p class="page-sub" title="厂商侧渠道经理面板（ten_admin / channel_manager）">管理经销商准入、政策/价表推送、跨经销商撞单与渠道归属仲裁。所有写操作经决策第 0 闸并留痕。</p>
+<p class="hint tenant-iso" title="读按 federationReadScope(me)、写按 scopeOf(me)；厂商永不写经销商租户（守 cross_tenant_write_denied）"><span class="badge">跨租户只读</span> 厂商只读各经销商报备/订单做聚合与冲突检测；经销商只读厂商下发的政策视图。任一方向写入恒被物理拦截。</p>
+
+<div id="guard"></div>
+
+<crm-tabs id="tabs">
+  <crm-tab data-view="overview" active title="渠道总览与功能状态">总览</crm-tab>
+  <crm-tab data-view="onboard" title="建经销商独立租户 + 1:N 联邦">经销商准入</crm-tab>
+  <crm-tab data-view="dealers" title="联邦内经销商列表">经销商列表</crm-tab>
+  <crm-tab data-view="shared" title="厂商→经销商只读共享视图（政策/价表/返利）">共享视图</crm-tab>
+  <crm-tab data-view="conflicts" title="跨经销商撞单/窜货冲突与仲裁">撞单监控</crm-tab>
+</crm-tabs>
+
+<div id="app">
+  <section class="ch-view ch-sec on" data-view="overview" id="view-overview"></section>
+  <section class="ch-view ch-sec" data-view="onboard" id="view-onboard"></section>
+  <section class="ch-view ch-sec" data-view="dealers" id="view-dealers"></section>
+  <section class="ch-view ch-sec" data-view="shared" id="view-shared"></section>
+  <section class="ch-view ch-sec" data-view="conflicts" id="view-conflicts"></section>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+  import { get, post, put, me } from '/portal/api.js';
+  import { canEditTenantConfig } from '/portal/api.js';
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const toast = (t) => { const el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2600); };
+
+  let me_ = null;       // 当前用户 { tenantId, role, ... }
+  let enabled = false; // 渠道门户是否已启用（GET /api/dealers 能否读 = 闸通过）
+  let featureOn = false; // 平台总闸 feature:dealer-portal（admin/sysadmin 可读真实值；其余角色按本地探测）
+  const isPlatformAdmin = () => me_ && (me_.role === 'admin' || me_.role === 'sysadmin' || (me_.roles || []).includes('ADMIN'));
+
+  // ── tab 切换（事件委托：crm-tab 内按钮 click composed 冒泡到宿主）──
+  $('tabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('crm-tab'); if (!tab) return;
+    const view = tab.getAttribute('data-view');
+    document.querySelectorAll('#tabs crm-tab').forEach((t) => t.toggleAttribute('active', t === tab));
+    document.querySelectorAll('.ch-view').forEach((v) => v.classList.toggle('on', v.getAttribute('data-view') === view));
+    loadView(view);
+  });
+
+  async function loadView(view) {
+    if (!me_ || !canEditTenantConfig(me_.role)) return;
+    if (view === 'overview') return renderOverview();
+    if (view === 'onboard') return renderOnboard();
+    if (view === 'dealers') return renderDealers();
+    if (view === 'shared') return renderShared();
+    if (view === 'conflicts') return renderConflicts();
+  }
+
+  // ── 总览 ──
+  async function renderOverview() {
+    const box = $('view-overview');
+    const pAdmin = isPlatformAdmin();
+    const toggleHtml = pAdmin
+      ? `<div class="row" style="margin-top:10px">
+          <crm-button id="feat-toggle" class="${featureOn ? 'btn danger' : 'btn-primary'}">${featureOn ? '关闭经销商门户（平台总闸）' : '开启经销商门户（平台总闸）'}</crm-button>
+          <span class="hint" style="margin-left:8px">平台级操作：写 /api/config/feature:dealer-portal，经决策第 0 闸 + ADMIN 鉴权。</span>
+        </div>
+        <div class="err" id="feat-err"></div>`
+      : `<p class="ch-hint" title="平台总闸由 ADMIN/sysadmin 在配置中心系统级翻转">总闸状态由平台治理角色维护；当前角色（ten_admin/channel_manager）可管理经销商但不可翻平台总闸。</p>`;
+    box.innerHTML = `<div class="card"><div class="sect-title">渠道总览</div>
+      <div class="ch-kv">
+        <div>当前租户：<b class="ch-mono">${esc(me_.tenantId)}</b></div>
+        <div>当前角色：<b>${esc(me_.role)}</b></div>
+        <div>平台总闸（feature:dealer-portal）：<b class="${featureOn ? 'good' : 'warnc'}">${featureOn ? '已开启' : '未开启'}</b>
+          ${pAdmin ? `<span class="hint">真实读 /api/config/feature:dealer-portal</span>` : ''}</div>
+        <div>渠道门户功能：<b class="${enabled ? 'good' : 'warnc'}">${enabled ? '已启用（可管理经销商）' : '未启用 / 无权限'}</b></div>
+      </div>
+      <p class="ch-hint" title="feature:dealer-portal 默认 off；开启后十_admin 才能准入首个经销商并自动建 1:N 联邦">未开启时经销商准入不可用；开启后「经销商准入」将建独立租户并自动生成 1:N 联邦与双向只读共享视图。</p>
+      ${toggleHtml}
+    </div>`;
+    if (pAdmin) {
+      const btn = $('feat-toggle');
+      if (btn) btn.addEventListener('click', async () => {
+        const err = $('feat-err'); if (err) err.textContent = '';
+        const next = !featureOn;
+        try {
+          const r = await put('/api/config/feature:dealer-portal', { value: { enabled: next } });
+          featureOn = next;
+          toast(`总闸已${next ? '开启' : '关闭'}，decision=${r.decision || '—'}`);
+          renderOverview();
+        } catch (e) { if (err) err.textContent = '翻转失败：' + e.message; }
+      });
+    }
+  }
+  }
+
+  // ── 经销商准入 ──
+  function renderOnboard() {
+    const box = $('view-onboard');
+    box.innerHTML = `<div class="card"><div class="sect-title">经销商准入（建独立租户 + 1:N 联邦）</div>
+      <div class="ch-form">
+        <label>厂商租户</label><crm-input id="ob-vendor" value="${esc(me_.tenantId)}"></crm-input>
+        <label>经销商租户 ID</label><crm-input id="ob-tenant" placeholder="如 acme-mfg-dl-03"></crm-input>
+        <label>经销商登录账号</label><crm-input id="ob-user" placeholder="如 dl03"></crm-input>
+        <label>登录密码</label><crm-input id="ob-pass" type="password"></crm-input>
+        <label>经销商名称</label><crm-input id="ob-name" placeholder="如 苏州XX科技"></crm-input>
+        <label>区域</label><crm-input id="ob-region" placeholder="如 华东-苏州"></crm-input>
+        <label>级别</label><crm-input id="ob-level" placeholder="如 gold（可选）"></crm-input>
+        <label>返利政策引用</label><crm-input id="ob-ref" placeholder="MFG_DEALER#slug（可选）"></crm-input>
+        <crm-button id="ob-submit" class="btn-primary ch-full">准入经销商（建租户 + 联邦 + 双向视图）</crm-button>
+      </div>
+      <p class="ch-hint" title="该写操作经决策第0闸 mint decision_id 透传，留痕可溯源">提交后将：① 建经销商独立租户（dealer_user 账号）；② 写 tenant-federation（1:N）；③ 建双向 shared-view-grant（push 政策/价表/返利 → 经销商只读；reflow 报备/订单 → 厂商只读聚合）。</p>
+      <p class="err" id="ob-err"></p>
+    </div>`;
+    $('ob-submit').addEventListener('click', async () => {
+      $('ob-err').textContent = '';
+      const b = {
+        vendorTenant: $('ob-vendor').value?.trim(),
+        dealerTenant: $('ob-tenant').value?.trim(),
+        dealerUser: $('ob-user').value?.trim(),
+        dealerPass: $('ob-pass').value,
+        dealerName: $('ob-name').value?.trim(),
+        region: $('ob-region').value?.trim(),
+        level: $('ob-level').value?.trim() || undefined,
+        rebatePolicyRef: $('ob-ref').value?.trim() || undefined,
+      };
+      if (!b.vendorTenant || !b.dealerTenant || !b.dealerUser || !b.dealerPass || !b.dealerName || !b.region) {
+        $('ob-err').textContent = '厂商租户 / 经销商租户 / 账号 / 密码 / 名称 / 区域 均为必填'; return;
+      }
+      try {
+        const r = await post('/api/dealers/onboard', b);
+        toast('准入成功，decision_id=' + (r.decisionId || '—'));
+        renderDealers();
+      } catch (e) { $('ob-err').textContent = '准入失败：' + e.message; }
+    });
+  }
+
+  // ── 经销商列表 ──
+  async function renderDealers() {
+    const box = $('view-dealers');
+    try {
+      const r = await get(`/api/dealers?vendorTenant=${encodeURIComponent(me_.tenantId)}`);
+      const ds = r.dealers || [];
+      box.innerHTML = `<div class="card"><div class="sect-title">联邦内经销商（${ds.length}）</div>
+        ${ds.length ? `<table class="table"><thead><tr><th>经销商租户</th><th>状态</th><th>合同引用</th><th>加入时间</th></tr></thead><tbody>${
+          ds.map((d) => `<tr><td class="ch-mono">${esc(d.dealer_tenant)}</td><td class="${d.status === 'active' ? 'good' : 'warnc'}">${esc(d.status)}</td><td>${esc(d.contract_ref || '—')}</td><td>${esc((d.joined_at || '').slice(0, 19).replace('T', ' '))}</td></tr>`).join('')}</tbody></table>`
+          : `<p class="ch-hint">暂无经销商。前往「经销商准入」建首个经销商后将自动生成 1:N 联邦。</p>`}
+      </div>`;
+    } catch (e) { box.innerHTML = `<div class="card"><p class="err">读取失败：${esc(e.message)}</p></div>`; }
+  }
+
+  // ── 共享视图（厂商侧已下发配置，只读展示）──
+  async function renderShared() {
+    const box = $('view-shared');
+    try {
+      const r = await get(`/api/dealers/shared-views?vendorTenant=${encodeURIComponent(me_.tenantId)}`);
+      const gs = r.grants || [];
+      box.innerHTML = `<div class="card"><div class="sect-title">厂商→经销商只读共享视图（${gs.length}）</div>
+        <p class="ch-hint" title="direction=push 为厂商下发的政策/价表/返利视图；reflow 为经销商报备回流（厂商只读聚合数据源）">push=厂商下发的只读政策视图；reflow=经销商报备回流（厂商侧只读聚合）。经销商账号在自身租户经 federationReadScope 只读拉取，绝不写厂商。</p>
+        ${gs.length ? `<table class="table"><thead><tr><th>方向</th><th>来源</th><th>目标</th><th>粒子类型</th><th>只读</th></tr></thead><tbody>${
+          gs.map((g) => `<tr><td class="${g.direction === 'push' ? 'good' : 'warnc'}">${esc(g.direction)}</td><td class="ch-mono">${esc(g.from_tenant)}</td><td class="ch-mono">${esc(g.to_tenant)}</td><td>${esc((g.particle_types || []).join(', '))}</td><td>${g.read_only ? '是' : '否'}</td></tr>`).join('')}</tbody></table>`
+          : `<p class="ch-hint">暂无共享视图授权。准入经销商时自动建双向视图；如需调整政策下发范围，由联邦后端 grantSharedView 承载。</p>`}
+      </div>`;
+    } catch (e) { box.innerHTML = `<div class="card"><p class="err">读取失败：${esc(e.message)}</p></div>`; }
+  }
+
+  // ── 撞单监控 ──
+  async function renderConflicts() {
+    const box = $('view-conflicts');
+    try {
+      const r = await get(`/api/dealers/conflicts?vendorTenant=${encodeURIComponent(me_.tenantId)}`);
+      const cs = r.conflicts || [];
+      box.innerHTML = `<div class="card"><div class="sect-title">跨经销商撞单 / 窜货冲突（${cs.length}）</div>
+        ${cs.length ? `<table class="table"><thead><tr><th>状态</th><th>经销商A</th><th>经销商B</th><th>区域</th><th>类型</th><th>检测时间</th><th>裁决</th></tr></thead><tbody>${
+          cs.map((c) => `<tr data-id="${esc(c.detected_at)}"><td class="${c.status === 'open' ? 'bad' : 'good'}">${esc(c.status)}</td><td class="ch-mono">${esc(c.dealer_a)}</td><td class="ch-mono">${esc(c.dealer_b)}</td><td>${esc(c.territory)}</td><td>${esc(c.type)}</td><td>${esc((c.detected_at || '').slice(0, 19).replace('T', ' '))}</td><td>${esc(c.resolution || '—')}</td></tr>`).join('')}</tbody></table>
+          <div id="ch-resolve" class="ch-form" style="margin-top:12px">
+            <label>冲突检测时间</label><crm-input id="rs-id" placeholder="选 above 行的 detected_at"></crm-input>
+            <label>仲裁结论</label><crm-textarea id="rs-text" rows="2" placeholder="如：归属先报备方 / 按区域拆分"></crm-textarea>
+            <crm-button id="rs-submit" class="btn-primary ch-full">提交仲裁（HITL 第0闸）</crm-button>
+          </div>
+          <p class="err" id="rs-err"></p>`
+          : `<p class="ch-hint">暂无冲突。经销商报备回流后，detectTerritoryConflict 会在同区域跨经销商命中并写入 dealer-conflict-log。</p>`}
+      </div>`;
+      const sb = $('rs-submit');
+      if (sb) sb.addEventListener('click', async () => {
+        $('rs-err').textContent = '';
+        const id = $('rs-id').value?.trim(); const resolution = $('rs-text').value?.trim();
+        if (!id || !resolution) { $('rs-err').textContent = '检测时间与仲裁结论均为必填'; return; }
+        try {
+          const r2 = await post(`/api/dealers/conflicts/${encodeURIComponent(id)}/resolve`, { resolution });
+          toast('仲裁已提交，decision_id=' + (r2.decisionId || '—'));
+          renderConflicts();
+        } catch (e) { $('rs-err').textContent = '仲裁失败：' + e.message; }
+      });
+    } catch (e) { box.innerHTML = `<div class="card"><p class="err">读取失败：${esc(e.message)}</p></div>`; }
+  }
+
+  // ── 启动：鉴权 + 功能启用探测 ──
+  (async () => {
+    try { me_ = await me(); } catch { me_ = null; }
+    if (!me_?.ok) { $('guard').innerHTML = `<div class="card ch-deny"><p class="err">未登录或会话失效，请重新登录。</p></div>`; return; }
+    if (!canEditTenantConfig(me_.role)) {
+      $('guard').innerHTML = `<div class="card ch-deny"><p class="warnc">当前角色（${esc(me_.role)}）无渠道门户权限。本面板仅对厂商 ten_admin / channel_manager 开放。</p></div>`;
+      return;
+    }
+    // 探测渠道门户是否已启用（闸通过才能读经销商列表）
+    try { const r = await get(`/api/dealers?vendorTenant=${encodeURIComponent(me_.tenantId)}`); enabled = Array.isArray(r.dealers); }
+    catch { enabled = false; }
+    // 平台总闸真实状态（仅 admin/sysadmin 可读 /api/config/feature:dealer-portal，403/404 按 off 处理）
+    if (isPlatformAdmin()) {
+      try {
+        const f = await get('/api/config/feature:dealer-portal');
+        featureOn = !!(f.value && f.value.enabled === true);
+      } catch { featureOn = false; }
+    } else {
+      // ten_admin/channel_manager 无法读平台键：以「渠道门户是否可读」近似（enabled 依赖总闸开，能读到 dealers=总闸已开）
+      featureOn = enabled;
+    }
+    renderOverview();
+  })();
+</script>
+</body>
+</html>
