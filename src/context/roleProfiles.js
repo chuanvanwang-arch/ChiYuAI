@@ -29,6 +29,8 @@ export const SEED_PROFILES = [
     //   形状/可枚举性不变，求值推迟到模块图初始化完成之后。
     get data_scope() { return { model: 'all', write_scope: { model: 'governance', exclude_types: BUSINESS_PARTICLE_TYPES } }; }, retrieval_cfg: DEFAULT_RETRIEVAL },
   { role_tag: 'ten_admin', seven_elements: SEVEN('租户内管理与开通', '本租户', '用户管理+本租户计费/阈值', '租户内用户活跃/席位', '→平台 sysadmin', '仅本租户管理读写', '租户管理员'), data_scope: { model: 'tenant' }, retrieval_cfg: DEFAULT_RETRIEVAL },
+  { role_tag: 'channel_manager', seven_elements: SEVEN('渠道与经销商管理', '本厂商租户 + 联邦只读聚合', '经销商准入+政策下发+返利结算+冲突仲裁', '渠道管道健康/返利支出/冲突数', '→销售 商机支持 / →财务 返利', '仅本厂商租户经销商管理读写（跨经销商只读）', '厂商渠道经理'), data_scope: { model: 'tenant' }, retrieval_cfg: DEFAULT_RETRIEVAL },
+  { role_tag: 'dealer_user', seven_elements: SEVEN('经销商销售执行', '本经销商租户 + 厂商只读视图', '终端报备+报价+提货+库存动销+政策查看', '报备命中率/返利测算/提货量', '→厂商 报备回流', '仅本经销商租户读写 + 厂商 push 只读视图', '经销商销售'), data_scope: { model: 'tenant' }, retrieval_cfg: DEFAULT_RETRIEVAL },
 ];
 
 export async function loadProfile(roleTag) {

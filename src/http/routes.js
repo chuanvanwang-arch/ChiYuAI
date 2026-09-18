@@ -317,6 +317,17 @@ export function createRoutes(app, hub) {
   app.post('/api/channels/:id/confirm-user-side', (req, res) => channelCfg.handlers.confirmUserSide(req, res));
   app.get('/channel-config.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/channel-config.html', import.meta.url))));
+  // ─── 经销商门户平台总闸（2026-09-18 T8 补充，配置中心 id57）───
+  // feature:dealer-portal 是**平台级 kill-switch**（system 租户键，默认 off，新租户不自动开）：
+  //   · 消费端 src/federation/{scope,config}.js 的 isFeatureOn() 恒读该键；
+  //   · 本段开放 GET/PUT /api/config/feature:dealer-portal（写经决策第0闸 + sysadmin 平台治理闸，
+  //     level:'system' ⇒ 仅 ADMIN/sysadmin 可读写，ten_admin 不可翻——总闸是平台治理不是租户设置）；
+  //   · GET 未配置 → 404（前端按 off 渲染）；PUT value={enabled:true|false} 翻转。
+  // ⚠ 路由路径含冒号：Express 5 仅把「路径段以 : 开头」识别为参数，feature:dealer-portal 中冒号是字面字符，
+  //   与既有 key 惯例一致；测试 test/http/routes.test.js 若有 path 断言须同步。
+  app.use(createConfigRouter({ key: 'feature:dealer-portal', role: 'sysadmin', level: 'system', decisionScene: 'config-change', scope: 'platform' }));
+  app.get('/channel-admin.html', (req, res) =>
+    res.sendFile(fileURLToPath(new URL('../web/channel-admin.html', import.meta.url))));
   // 需求② §4.5.2-B：网页全屏 Onboarding 向导（首次登录检测到 0 通道时系统主动弹出）
   app.get('/onboarding-guide.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/onboarding-guide.html', import.meta.url))));

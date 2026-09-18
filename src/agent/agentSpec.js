@@ -104,4 +104,22 @@ export const agentSpecs = {
     evaluation: { metricTemplate: 'prospecting_quality', evaluator: 'stage2' },
     governance: { approvals: ['critical'], concurrency: 3, profile: 'full' },
   },
+  // 经销商渠道门户：厂商侧 channel_manager 角色承载的渠道经理 agent
+  // 设计输入：docs/2026-09-18-dealer-portal-design.md（v2 §4）
+  // 职责：经销商准入编排、跨 N 经销商撞单/窜货冲突检测与仲裁、返利结算、政策下发。
+  // 闭环铁律：skillCalls ⊆ actions（仅用真实已注册原语）；跨租户只读经 federationReadScope，写经 federation 模块+第0闸。
+  'channel-agent': {
+    identity: { name: 'channel-agent', derivedFrom: 'taskFlow:crm-channel-management', autonomy: 'recommend' },
+    capabilities: {
+      // 真实已注册原语；经销商专属写逻辑复用 data-particle-create（写 dealer_conflict_log 等厂商租户粒子），
+      // 经 federation 模块（src/federation/*）+ dealerRoutes 服务端实现，不新增 Action Registry 条目。
+      actions: ['data-particle-read', 'data-particle-create'],
+      skillCalls: ['data-particle-read', 'data-particle-create'],
+      knowledgeScope: { layers: ['L1', 'L2'], maxHops: 4 },
+    },
+    context: { knowledgeLevel: 3, coverage: '>=80%', coldStart: 'adaptive' },
+    memory: { read: ['channel-agent'], write: ['channel-agent'] },
+    evaluation: { metricTemplate: 'channel_conflict_precision', evaluator: 'stage2' },
+    governance: { approvals: ['critical'], concurrency: 2, profile: 'full' },
+  },
 };

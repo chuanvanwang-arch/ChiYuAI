@@ -1,6 +1,23 @@
-// src/rbac.js — RBAC 辅助：解析平台责任 sysadmin 归属（设计 §D2）
-// 解析 用户名/邮箱 → 一个已存在的 role='sysadmin' 用户；非 sysadmin / 不存在均返回 null。
+// src/rbac.js — RBAC 辅助：经销商联邦闸 + 平台责任 sysadmin 归属
 import { query } from './db.js';
+import { readConfig as _readConfig } from './config/configStore.js';
+
+// 平台级 kill-switch：feature:dealer-portal.enabled（默认 false，新租户不自动开）
+export async function isFeatureOn({ readConfig = _readConfig } = {}) {
+  const row = await readConfig('feature:dealer-portal', { tenantId: 'system' });
+  return !!(row && row.value && row.value.enabled === true);
+}
+
+// canManageDealers(actor, vendorTenant):
+//   仅厂商租户的 channel_manager / ten_admin 可管经销商；功能总闸关闭 → false；跨租户 → false。
+export async function canManageDealers(actor, vendorTenant, { readConfig = _readConfig } = {}) {
+  if (!actor) return false;
+  if (!(await isFeatureOn({ readConfig }))) return false;
+  const role = actor.role || (Array.isArray(actor.roles) ? actor.roles[0] : null);
+  if (role !== 'channel_manager' && role !== 'ten_admin') return false;
+  if (actor.tenantId && vendorTenant && actor.tenantId !== vendorTenant) return false;
+  return true;
+}
 
 // resolveSysadminRef(identifier):
 //   identifier: 用户名或邮箱（大小写/前后空格归一化）

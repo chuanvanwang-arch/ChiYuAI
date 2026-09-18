@@ -16,6 +16,7 @@ export const CONTRACT_IDS = Object.freeze({
   'decision-retro': 'ct-retro-decision',
   'decision-agent': 'ct-decision',
   'prospecting': 'ct-prospecting',
+  'channel-agent': 'ct-channel-mgmt',
 });
 
 // 调度器用：targetAgent → 契约键；未登记 agent 回退 null（调用方决定是否降级）
