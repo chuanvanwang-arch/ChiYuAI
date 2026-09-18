@@ -12,8 +12,12 @@
 //   ② 自动同步路径**默认不传** approvalPassed → 回写被 executor 第 3 闸拦（approval_required），
 //      engine 计入 conflicted 可观测。仅当运营在配置中心显式置 writeback_auto_approved=true
 //      （人工 HITL 决定）才放行——代码内不存在自动提权路径；
-//   ③ 范围：本次**不回写客户侧 CRM**（provider 反向写需外部平台配合，属 S4 后续）。
-//      本派发器交付「回写通道可达 + 可观测 + fail-closed」，落点为我方客户粒子。
+//   ③ 范围（Q1=B 单向白名单回写，2026-09-18 裁决钉死）：回写客户侧 CRM 仅当**同时满足**——
+//        (a) descriptor.outbound 显式声明（enabled + 字段集合）——缺声明即未开放（fail-closed）；
+//        (b) 通过 enable-writeback 评审闸的人工放行（P3 已接线：mount.js gatedCallWriteback 包裹 + reviewGate 按 writeback 查）；
+//        (c) exportGate 出口健康（三判据全真）。
+//      且目标默认为 internal（我方客户粒子）；target='crm' 必须经 §6.1 三前置 + 运营在配置中心显式开启。
+//      当前 P6 未交付 → 实际落点恒为 internal（mount 默认 target），客户侧回写默认关闭，绝不假绿。
 export function createWritebackDispatcher({ dispatch, readConfig } = {}) {
   return async function callWriteback({
     tenantId = 'system', object, externalId, particleId, row = {}, level, decisionId = null,
