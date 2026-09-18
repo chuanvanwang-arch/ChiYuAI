@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { menuFor, ADMIN_MENU, FULL_MENU } from '../../src/portal/layoutMenu.js';
+import { CONFIG_ITEMS } from '../../src/portal/configCenter.js';
 
 describe('menuFor 角色可见性', () => {
   it('公海池入口存在且销售可见（core_crm 门禁；位于线索发现之后 = 发现→入池动线）', () => {
@@ -38,29 +39,31 @@ describe('menuFor 角色可见性', () => {
   });
 });
 
-// ── 入口可达性（2026-09-17 实缺陷回归 · 需求②④）──────────────────────────
+// ── 入口可达性（2026-09-17 实缺陷回归 · 需求②④ · 2026-09-18 调整）────────────
 // 事实：channel-config.html（需求② 通道配置台）与 crm-sync-console.html（需求④ 原系统集成台）
 //   此前都是**主导航零入口**——有 routes serve、有页面契约测试全绿、也有页间互链，
 //   但用户从侧边栏根本到不了（入口死区）。与 discovery.html 同一形态。
 //   ⚠ 只断言「页面内部有什么」的契约测试，永远发现不了「没人到得了」：
 //     入口必须自身成为断言对象，否则补完入口仍会随下次重构静默脱落。
-describe('入口可达性（防「页面在但没人到得了」）', () => {
-  it('需求②：外部沟通接入 → /channel-config.html 有入口且销售可见', () => {
-    const hit = FULL_MENU.find((m) => m.href === '/channel-config.html');
-    expect(hit, 'channel-config.html 失去导航入口 → 又变孤岛').toBeTruthy();
-    expect(hit.group).toBe('协同');
-    expect(hit.requiresEntitlement).toEqual(['core_crm']);
-    expect(menuFor('sales', new Set(['core_crm'])).some((m) => m.href === '/channel-config.html')).toBe(true);
+//   2026-09-18 用户裁定：二者「不要放在左侧菜单里面」→ 移出 layoutMenu.js。但**可达性仍须守住**，
+//   否则只是把死区从「菜单盲区」换成了「cross-link/配置中心盲区」——故此处改为断言「移出菜单 + 仍能经非菜单路径到达」。
+describe('入口可达性（移出左侧菜单后仍非孤岛）', () => {
+  it('需求②：channel-config.html 已移出左侧菜单，但仍经 cross-link（通道接入台）可达', () => {
+    // 不再作为全员菜单项
+    expect(FULL_MENU.some((m) => m.href === '/channel-config.html')).toBe(false);
+    // 仍经「通道接入台」channel-adapters.html 的入口链接到达（配置中心 #55 租户级卡片落点页）
+    const adapters = fs.readFileSync(new URL('../../src/web/channel-adapters.html', import.meta.url), 'utf8');
+    expect(adapters, 'channel-config.html 失去所有到达路径 → 又变孤岛').toContain('/channel-config.html');
   });
 
-  it('需求④：原系统集成 → /crm-sync-console.html 仅 admin/sysadmin 可见（数据面 403 ADMIN only）', () => {
-    const hit = ADMIN_MENU.find((m) => m.href === '/crm-sync-console.html');
-    expect(hit, 'crm-sync-console.html 失去导航入口 → 又变孤岛').toBeTruthy();
-    expect(hit.group).toBe('系统');
-    // 不得出现在全员菜单：销售能看见入口却拿不到数据（/api/integration/providers → 403）= 误导入口
+  it('需求④：crm-sync-console.html 已移出左侧菜单，但仍经配置中心租户级卡片可达', () => {
+    // 不再作为系统菜单项、也不落在全员菜单
+    expect(ADMIN_MENU.some((m) => m.href === '/crm-sync-console.html')).toBe(false);
     expect(FULL_MENU.some((m) => m.href === '/crm-sync-console.html')).toBe(false);
-    expect(menuFor('sales').some((m) => m.href === '/crm-sync-console.html')).toBe(false);
-    expect(menuFor('admin').some((m) => m.href === '/crm-sync-console.html')).toBe(true);
+    // 现由配置中心「租户级 → 智能体与运行」#53 字段映射 + #54 信任档 卡片承载（租户级、数据按租户隔离）
+    const cc = CONFIG_ITEMS.filter((i) => i.page === '/crm-sync-console.html');
+    expect(cc.length, 'crm-sync-console.html 失去配置中心承载 → 又变孤岛').toBeGreaterThanOrEqual(2);
+    expect(cc.every((i) => i.level === 'tenant'), '同步配置须为租户级（按租户隔离）').toBe(true);
   });
 });
 
