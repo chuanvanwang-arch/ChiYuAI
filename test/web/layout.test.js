@@ -6,7 +6,7 @@ import { navHtml, userMenuHtml } from '../../src/web/layout.js';
 describe('layout.js 导航渲染', () => {
   it('navHtml(admin) 含 4 全员 + 系统分组 2 项', () => {
     const h = navHtml('admin');
-    for (const label of ['线索·商机', '客户跟踪', '销售行为看板', '我的待办', '报告', '配置中心', '智能体中心']) {
+    for (const label of ['销售管道', '客户跟踪', '销售过程看板', '我的待办', '报告', '配置中心', '智能体中心']) {
       expect(h).toContain(label);
     }
     expect(h).not.toContain('客户深度洞察');

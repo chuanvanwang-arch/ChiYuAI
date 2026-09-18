@@ -7,7 +7,7 @@ import { navHtml } from '../../src/web/layout.js';
 test('navHtml 无 badges 时行为不变（向后兼容：不渲染角标）', () => {
   const html = navHtml('sales');
   expect(html).toContain('客户跟踪');
-  expect(html).toContain('线索·商机');
+  expect(html).toContain('销售管道');
   expect(html).not.toContain('nav-badge');
 });
 
@@ -19,7 +19,7 @@ test('navHtml 有 badge 时渲染角标（按 href 精确匹配）', () => {
   const seg = html.split('客户跟踪')[1] || '';
   expect(seg.slice(0, 120)).toContain('nav-badge');
   // 未配置 badge 的项不渲染
-  const pipelineSeg = html.split('线索·商机')[1]?.split('</a>')[0] || '';
+  const pipelineSeg = html.split('销售管道')[1]?.split('</a>')[0] || '';
   expect(pipelineSeg).not.toContain('nav-badge');
 });
 

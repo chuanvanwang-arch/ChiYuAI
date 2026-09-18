@@ -9,23 +9,39 @@ describe('layoutMenu 菜单单源', () => {
   //   置于「我的待办」之上；项数与各分组归属不变，故总数仍为 9。
   // 2026-09-17 三次变更：新增「线索发现」→ /discovery.html（补可达性：该页此前**零导航入口**，
   //   全仓只有 routes.js serve，属「页面在但没人到得了」）。插入位置=「公海池」之后，
-  //   刻意不打乱 test/portal/layoutMenu.test.js 锁着的「公海池紧邻线索·商机」契约。
+  //   刻意不打乱 test/portal/layoutMenu.test.js 锁着的「公海池紧邻（当时的）线索·商机」契约。
   // 2026-09-17 四次变更：新增「外部沟通接入」→ /channel-config.html（同一形态缺陷：需求②的通道
   //   配置面此前也是零导航入口）+ ADMIN_MENU 新增「原系统集成」→ /crm-sync-console.html（需求④）。
   //   插入位置=「协同」组首位（形成 接入 → 信号 → 待办 动线），不打乱「销售自动化紧邻我的待办」契约。
-  it('FULL_MENU 恰 11 项全员（报告已移入 ADMIN_MENU，仅 admin 可见；09-14 公海池；09-16 销售自动化；09-17 线索发现 + 外部沟通接入）', () => {
+  // 2026-09-18 五次变更（用户指定顺序）：**「销售」组重排**为
+  //   线索发现 → 公海池 → 销售管道 → 客户跟踪（口语「客户 360」）→ 销售过程看板。
+  //   ⚠ 该项变更**覆盖** 2026-09-14 的「公海池紧邻线索·商机」旧契约（公海池前提为线索发现）；
+  //     项数/分组归属/href/权益门禁全部不变，仅组内次序变化。
+  // 2026-09-18 六次变更（用户裁定「两个改名」）：显示名 线索·商机→销售管道、销售行为看板→销售过程看板
+  //   （连同落点页 title/h1 同步；「客户跟踪」保留，是 2026-08-29 合并时的定名）。href/项数/分组/门禁仍不变。
+  it('FULL_MENU 恰 11 项全员（报告已移入 ADMIN_MENU，仅 admin 可见；09-14 公海池；09-16 销售自动化；09-17 线索发现 + 外部沟通接入；09-18 销售组重排 + 两项改名）', () => {
     expect(FULL_MENU.length).toBe(11);
     expect(FULL_MENU.map((m) => m.label)).toEqual([
-      '线索·商机', '公海池', '线索发现', '客户跟踪', '销售行为看板', '外部沟通接入', '销售自动化', '我的待办', '📚 基础数据门户', '财务应收', '账单',
+      '线索发现', '公海池', '销售管道', '客户跟踪', '销售过程看板', '外部沟通接入', '销售自动化', '我的待办', '📚 基础数据门户', '财务应收', '账单',
     ]);
+    // 「销售」组顺序即用户诉求（2026-09-18）——整组按序断言，防「插项不动顺序」式静默漂移
+    expect(FULL_MENU.filter((m) => m.group === '销售').map((m) => m.label))
+      .toEqual(['线索发现', '公海池', '销售管道', '客户跟踪', '销售过程看板']);
+    // 旧显示名不得残留（防「只改一处，菜单上出现两个同义入口/旧名回潮」）
+    for (const stale of ['线索·商机', '销售行为看板', '信号中心']) {
+      expect(FULL_MENU.some((m) => m.label === stale), `菜单残留旧名「${stale}」`).toBe(false);
+    }
+    expect(FULL_MENU.filter((m) => m.group === '销售').map((m) => m.href))
+      .toEqual(['/discovery.html', '/lead-pool.html', '/pipeline.html', '/named-accounts.html', '/sales-behavior-board.html']);
     // 外部沟通接入（2026-09-17 · 需求②）：通道配置台的导航入口；与线索发现/公海池同档 core_crm
     const ch = FULL_MENU.find((m) => m.label === '外部沟通接入');
     expect(ch).toMatchObject({ group: '协同', href: '/channel-config.html', requiresEntitlement: ['core_crm'] });
-    // 线索发现（2026-09-17）：与公海池同档 core_crm 门禁（同属拓客能力），且必须紧邻公海池
+    // 线索发现（2026-09-17）：core_crm 门禁（同属拓客能力），且必须紧邻公海池（发现上游 → 入池下游；
+    //   2026-09-18 重排后二者仍相邻，只是先后关系由「公海池→线索发现」翻转为「线索发现→公海池」）
     const disc = FULL_MENU.find((m) => m.label === '线索发现');
     expect(disc).toMatchObject({ group: '销售', href: '/discovery.html', requiresEntitlement: ['core_crm'] });
-    expect(FULL_MENU.findIndex((m) => m.label === '线索发现'))
-      .toBe(FULL_MENU.findIndex((m) => m.label === '公海池') + 1);
+    expect(FULL_MENU.findIndex((m) => m.label === '公海池'))
+      .toBe(FULL_MENU.findIndex((m) => m.label === '线索发现') + 1);
     // 账单挂在「洞察」分组、全员可见、无角色限制
     const bill = FULL_MENU.find((m) => m.label === '账单');
     expect(bill).toMatchObject({ group: '洞察', href: '/billing.html' });
