@@ -8,7 +8,7 @@ describe('channelReviewGate HITL', () => {
   it('存在 APPROVED 的 channel 审批实例 → 批准', async () => {
     const gate = createChannelReviewGate({
       queryParticles: async () => [
-        { id: 'ap-1', state: 'APPROVED', payload: { business_type: 'channel', business_id: 'channel-email-1' } },
+        { id: 'ap-1', payload: { business_type: 'channel', business_id: 'channel-email-1', status: 'APPROVED' } },
       ],
     });
     const a = await gate.hasApproval({ action: 'first-connect', tenantId: 't1', ctx: { id: 'channel-email-1' } });
@@ -20,7 +20,7 @@ describe('channelReviewGate HITL', () => {
   it('仅 APPROVING（未批准）→ 未批准', async () => {
     const gate = createChannelReviewGate({
       queryParticles: async () => [
-        { id: 'ap-2', state: 'APPROVING', payload: { business_type: 'channel', business_id: 'channel-email-1' } },
+        { id: 'ap-2', payload: { business_type: 'channel', business_id: 'channel-email-1', status: 'APPROVING' } },
       ],
     });
     const a = await gate.hasApproval({ action: 'first-connect', tenantId: 't1', ctx: { id: 'channel-email-1' } });
@@ -30,7 +30,7 @@ describe('channelReviewGate HITL', () => {
   it('business_id 不匹配 → 未批准', async () => {
     const gate = createChannelReviewGate({
       queryParticles: async () => [
-        { id: 'ap-3', state: 'APPROVED', payload: { business_type: 'channel', business_id: 'OTHER' } },
+        { id: 'ap-3', payload: { business_type: 'channel', business_id: 'OTHER', status: 'APPROVED' } },
       ],
     });
     const a = await gate.hasApproval({ action: 'first-connect', tenantId: 't1', ctx: { id: 'channel-email-1' } });

@@ -75,6 +75,8 @@ export function createConnectorRouter({ resolveMe, dispatch, runDiscovery, runSy
           //   → L2/L3 写路径被判「无决策」而结构性 fail-closed；2026-09-16 修复）
           return { decisionId: autonomy?.decisionIdOf?.(r) ?? null };
         },
+        // P3：enable-writeback 评审闸（注入生产路径，仅对外部 target=crm 回写生效；internal 直通，不误伤 v1）
+        syncGate: createSyncGate({ reviewGate: createChannelReviewGate() }),
       },
     });
   });

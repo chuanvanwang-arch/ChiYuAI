@@ -3,6 +3,11 @@
 //       → counts.writeback 恒 0 → L3 永远不可达。
 import { describe, it, expect, vi } from 'vitest';
 import { handleObjectChanged } from '../../src/sync/mount.js';
+import { createSyncGate } from '../../src/sync/gate.js';
+
+// P3：handleObjectChanged 的 L3 回写须先过 enable-writeback 评审闸。本测试套件聚焦 callWriteback 接线
+// 行为（非 gate 判定），故默认注入「已批准」闸，使回写放行；gate 拦/放行由 gateWiring.test.js 专测。
+const approvedGate = createSyncGate({ reviewGate: { hasApproval: async () => ({ approved: true }) } });
 
 const mappings = {
   account: {
@@ -21,6 +26,7 @@ function mkDeps(extra = {}) {
     createResolver: () => ({ upsert: async () => ({ created: true, particle_id: 'p1' }) }),
     mintDecision: async () => ({ decisionId: 'd-1' }),
     emit: vi.fn(),
+    syncGate: approvedGate, // P3：默认已批准，使 L3 回写可放行（测试聚焦 callWriteback 接线）
     ...extra,
   };
 }

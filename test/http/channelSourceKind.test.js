@@ -25,6 +25,8 @@ function makeDeps(overrides = {}) {
     reviewGate: { hasApproval: async () => ({ ok: true }) },
     verifyScope: async () => ({ ok: true, probe: 'imap_login' }),
     produceDecision: async () => ({ decisionId: 'd-1' }),
+    // 2026-09-18 租户隔离实修：租户从会话推导（忽略客户端 tenant_id）。默认模拟 tenant_admin 落在 t1。
+    resolveMe: async () => ({ ok: true, role: 'tenant_admin', tenantId: 't1', username: 'u' }),
     ...overrides,
   };
   return { deps, store };

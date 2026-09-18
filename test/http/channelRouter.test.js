@@ -25,6 +25,8 @@ function makeDeps(overrides = {}) {
     persistSecret: async ({ providerId, raw }) => { store[`secret:${providerId}`] = { raw, encrypted: true }; return { ok: true }; },
     reviewGate: null,
     verifyScope: null,
+    // 2026-09-18 租户隔离实修：租户从会话推导，忽略客户端 tenant_id。默认模拟 tenant_admin 落在 t1。
+    resolveMe: async () => ({ ok: true, role: 'tenant_admin', tenantId: 't1', username: 'u' }),
     ...overrides,
   };
   return { deps, store };
@@ -235,5 +237,132 @@ describe('channelRouter 契约（T6）', () => {
     // 描述符仍在（未物理删除），只是 enabled=false
     expect(store['t1:integration-providers'].some((d) => d.id === 'channel-email-1')).toBe(true);
     expect(store['t1:integration-providers'][0].enabled).toBe(false);
+  });
+
+  it('P2.5 POST /api/channels/:id/confirm-user-side 用户侧形态待确认→已验证（ok:false→true，保留其它形态记录）', async () => {
+    const { deps, store } = makeDeps();
+    // 既有描述符：connector 形态 pending（ok:false），另有一份已验证的 direct 形态记录，确认时不可被抹掉
+    store['t1:integration-providers'] = [{
+      id: 'channel-email-1', kind: 'generic-email', enabled: true, trust_level: 'L1',
+      source_kind: 'connector',
+      verifications: {
+        connector: { ok: false, pending: true, method: 'tool', recorded_at: '2026-09-18T00:00:00Z' },
+        direct: { ok: true, verified_at: '2026-09-17T00:00:00Z', probe: 'scope' },
+      },
+    }];
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.confirmUserSide(mkReq('/api/channels/channel-email-1/confirm-user-side', {
+      params: { id: 'channel-email-1' }, body: { sourceKind: 'connector', tool: 'read-calendar' },
+    }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.verification.ok).toBe(true);
+    expect(res.body.verification.pending).toBe(false);
+    expect(res.body.verification.tool).toBe('read-calendar');
+    expect(res.body.verification.method).toBe('tool'); // 既有探针元数据保留
+    expect(typeof res.body.verification.verified_at).toBe('string');
+    // 描述符落库：connector 翻为 ok，direct 记录未被抹掉（合并写）
+    const saved = store['t1:integration-providers'][0];
+    expect(saved.verifications.connector.ok).toBe(true);
+    expect(saved.verifications.direct.ok).toBe(true); // 其它形态记录保留
+  });
+
+  it('P2.5 confirm-user-side 缺源描述符 → 404', async () => {
+    const { deps } = makeDeps();
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.confirmUserSide(mkReq('/api/channels/nope/confirm-user-side', {
+      params: { id: 'nope' }, body: { sourceKind: 'connector' },
+    }), res);
+    expect(res.statusCode).toBe(404);
+    expect(res.body.ok).toBe(false);
+  });
+
+  it('租户隔离（2026-09-18 实修）：GET 忽略客户端 tenant_id，强制用会话租户', async () => {
+    const { deps, store } = makeDeps();
+    // t1 与 other 各有一通道；前端若误带 other 的 tenant_id，绝不能读到 other 的数据
+    store['t1:integration-providers'] = [{ id: 'ch-t1', kind: 'generic-email', enabled: true, trust_level: 'L1' }];
+    store['other:integration-providers'] = [{ id: 'ch-other', kind: 'generic-email', enabled: true, trust_level: 'L1' }];
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.get(mkReq('/api/channels', { query: { tenant_id: 'other' } }), res); // 客户端试图越权读 other
+    expect(res.statusCode).toBe(200);
+    expect(res.body.channels.map((c) => c.id)).toEqual(['ch-t1']); // 只返回会话租户 t1 的数据
+    expect(res.body.channels.some((c) => c.id === 'ch-other')).toBe(false);
+  });
+
+  it('租户隔离（2026-09-18 实修）：connect 忽略客户端 tenant_id，写入会话租户', async () => {
+    const { deps, store } = makeDeps();
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { tenant_id: 'other', id: 'ch-x', kind: 'generic-email' }, // 客户端试图写入 other
+    }), res);
+    expect(res.statusCode).toBe(200);
+    expect(store['t1:integration-providers'].some((d) => d.id === 'ch-x')).toBe(true); // 实际落到 t1
+    expect(store['other:integration-providers']).toBeUndefined(); // 未落到 other
+  });
+
+  it('未登录（resolveMe 不通过）→ 401', async () => {
+    const { deps } = makeDeps({ resolveMe: async () => ({ ok: false, status: 401, error: 'missing token' }) });
+    const r = createChannelRouter(deps);
+    for (const fn of ['get', 'connect', 'disconnect']) {
+      const res = fakeRes();
+      const req = fn === 'get'
+        ? mkReq('/api/channels', { query: {} })
+        : fn === 'connect'
+          ? mkReq('/api/channels/connect', { body: { id: 'x', kind: 'generic-email' } })
+          : mkReq('/api/channels/x/disconnect', { params: { id: 'x' } });
+      await r.handlers[fn](req, res);
+      expect(res.statusCode, `${fn} 应 401`).toBe(401);
+    }
+  });
+
+  it('sysadmin 读用 scopeTenant（通配 *），写用 scopeOf（自身租户，永不通配）', async () => {
+    const { deps, store } = makeDeps({ resolveMe: async () => ({ ok: true, role: 'sysadmin', tenantId: 'sys-1', username: 'a' }) });
+    store['*:integration-providers'] = [{ id: 'ch-sys', kind: 'generic-email', enabled: true }];
+    const r = createChannelRouter(deps);
+    const getRes = fakeRes();
+    await r.handlers.get(mkReq('/api/channels', {}), getRes);
+    expect(getRes.body.channels.map((c) => c.id)).toEqual(['ch-sys']); // 读通配 *
+    const connRes = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', { body: { id: 'ch-new', kind: 'generic-email' } }), connRes);
+    expect(connRes.statusCode).toBe(200);
+    expect(store['sys-1:integration-providers']?.some((d) => d.id === 'ch-new')).toBe(true); // 写落自身租户
+  });
+
+  it('P0-1：local-bridge 接入不落平台 vault（红线：不保存密码），credentials_on_platform=false', async () => {
+    const calls = [];
+    const { deps, store } = makeDeps({
+      persistSecret: async ({ providerId, raw, sourceKind }) => { calls.push({ providerId, sourceKind }); store[`secret:${providerId}`] = { raw, encrypted: true }; return { ok: true }; },
+      reviewGate: { hasApproval: async () => ({ ok: true }) },
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { id: 'channel-email-1', kind: 'generic-email', source_kind: 'local-bridge', credentials: { user: 'u', pass: 'p' } },
+    }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.channel.credentials_on_platform).toBe(false);
+    expect(calls.some((c) => c.providerId === 'channel-email-1')).toBe(false); // 平台 vault 未写
+    expect(store['secret:channel-email-1']).toBeUndefined(); // 凭据不在平台留存
+  });
+
+  it('P0-1：direct 接入仍按既有加密落 vault（向后兼容）', async () => {
+    const calls = [];
+    const { deps, store } = makeDeps({
+      persistSecret: async ({ providerId, sourceKind }) => { calls.push({ providerId, sourceKind }); return { ok: true }; },
+      reviewGate: { hasApproval: async () => ({ ok: true }) },
+    });
+    const r = createChannelRouter(deps);
+    const res = fakeRes();
+    await r.handlers.connect(mkReq('/api/channels/connect', {
+      body: { id: 'channel-email-2', kind: 'generic-email', source_kind: 'direct', credentials: { user: 'u', pass: 'p' } },
+    }), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.some((c) => c.providerId === 'channel-email-2' && c.sourceKind === 'direct')).toBe(true);
+    expect(res.body.channel.credentials_on_platform).toBe(true);
   });
 });
