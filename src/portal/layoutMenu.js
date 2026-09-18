@@ -1,4 +1,4 @@
-// src/portal/layoutMenu.js — 导航菜单单源（FULL_MENU 全员 11 项 + ADMIN_MENU 系统分组仅 admin）
+// src/portal/layoutMenu.js — 导航菜单单源（FULL_MENU 全员 10 项 + ADMIN_MENU 系统分组仅 admin，3 项）
 // 角色过滤：menuFor(role)；FULL_MENU/ADMIN_MENU 供 layout.js 与单测引用
 // 客户深度洞察 + 指名客户监测合并为客户跟踪（S13 合并入口，画像/洞察 TAB 并入 named-accounts.html）
 // ⚠ 「销售」组顺序 = 用户指定序列（2026-09-18 指令，覆盖 2026-09-14 的「公海池紧邻线索·商机」旧契约）：
@@ -30,13 +30,10 @@ export const FULL_MENU = [
   //   2026-09-16 决议：更名为「销售自动化」并从「销售」组移入「协同」组、置于「我的待办」之上
   //   （信号是待办的上游输入，同组相邻便于「信号 → 待办」动线）。
   //   href/页面文件名/路由/端点均不改（/signal-center.html 为稳定标识，仅显示名与分组变化）。
-  // 外部沟通接入（2026-09-17 补可达性 · 需求②）：通道配置台 channel-config.html。
-  //   与「线索发现」同一形态缺陷：routes 有 serve（routes.js 通道挂载）、
-  //   test/web/channelConfigPage.test.js 有契约、页面互链也做了（discovery-rules 面板 + 360 + 接入台），
-  //   但**主导航零入口** ⇒ 用户从侧边栏根本到不了「接通邮箱/日历/会议/微信」的配置面
-  //   （页面在、链路通、没人到得了 = 入口死区）。补此入口后：接入（本项）→ 信号（销售自动化）→ 待办 成一条动线。
-  //   权益门禁同 core_crm（与公海池/线索发现/销售自动化同档，均属 CRM 核心能力）。
-  { group: '协同', label: '外部沟通接入', href: '/channel-config.html', requiresEntitlement: ['core_crm'] },
+  // 外部沟通接入 / 通道配置台 channel-config.html（需求②）：2026-09-17 曾补此左侧菜单入口（入口死区修复），
+  //   2026-09-18 用户裁定「不要放在左侧菜单里面」→ 移出。页面仍可经 cross-link 到达：index.html「或进入通道配置台」、
+  //   channel-adapters.html / onboarding-guide.html 接入向导 / account-360.html / discovery-rules.html 面板。
+  //   租户隔离由页面 ?tenant_id= 透传（缺省 'system'），故不进配置中心租户级卡片（避免 ten_admin 直开看到 platform 通道实例）。
   { group: '协同', label: '销售自动化', href: '/signal-center.html', requiresEntitlement: ['core_crm'] },
   { group: '协同', label: '我的待办', href: '/my-todo.html' },
   // 业务主数据门户（2026-08-28 实施计划）：与配置中心（admin 独享）边界分离，业务角色可见；
@@ -51,12 +48,10 @@ export const ADMIN_MENU = [
   { group: '系统', label: '配置中心', href: '/config' },
   // 智能体中心：AI 智能体能力入口 → 受 ai_agents 权益门禁
   { group: '系统', label: '智能体中心', href: '/agent-workbench.html', requiresEntitlement: ['ai_agents'] },
-  // 原系统集成（2026-09-17 补可达性 · 需求④）：一次性抽取 / 定时增量 / MCP 回写 的控制台。
-  //   同「线索发现」「外部沟通接入」形态：routes 有 serve（/crm-sync-console.html）、
-  //   页面测试存在、配置中心有卡片，但**主导航零入口**；且该页数据面仅 ADMIN/sysadmin 可管
-  //   （/api/integration/providers → 403「接入数据源仅 ADMIN/sysadmin 可管理（§15.1）」），
-  //   故登记在 ADMIN_MENU「系统」组——放在销售侧菜单会变成「进得去、拿不到数据」的误导入口。
-  { group: '系统', label: '原系统集成', href: '/crm-sync-console.html' },
+  // 原系统集成 / CRM 同步配置 crm-sync-console.html（需求④）：2026-09-17 曾补此 ADMIN_MENU 入口（入口死区修复），
+  //   2026-09-18 先租户级归位（删除系统级连接清单区）、再裁定「不要放在左侧菜单里面」→ 移出。
+  //   页面现由配置中心「租户级 → 智能体与运行」#53/#54 卡片承载（租户级同步字段映射/信任档/同步状态），
+  //   不再需要侧边栏快捷项；数据按租户隔离（scopeTenant/scopeOf 后端强制）。
   // 销售决策监控台：治理/审计类页面，仅 admin（销售员无需此权限，2026-09-03 收敛）
   // 决策监控 = 决策自治层能力 → 受 decision_autonomy 权益门禁（配置驱动）
   { group: '洞察', label: '报告', href: '/sales-decision-monitor', requiresEntitlement: ['decision_autonomy'] },

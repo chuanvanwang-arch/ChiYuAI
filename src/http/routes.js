@@ -299,6 +299,7 @@ export function createRoutes(app, hub) {
   //   GET  /api/channels                    → 租户通道列表（integration-providers 描述符，含 enabled/trust_level）
   //   POST /api/channels/connect            → 接入向导③确认入库（凭据入 vault → verifyScope 真探测 → review-gate → 描述符 upsert）
   //   POST /api/channels/:id/disconnect     → 软停用 enabled=false（禁删铁律）
+  //   POST /api/channels/:id/confirm-user-side → P2.5 用户侧形态确认回写（待确认→已验证；connector/local-bridge）
   // 生产装配：verifyScope 走 createVerifyScope（真探测 fail-closed；P4 未交付 → probe_not_implemented 如实上报，不假绿）；
   //           review-gate 走 createChannelReviewGate（HITL：查 APPROVED 的 CRM_APPROVAL_INSTANCE，无批准不放行）。
   const channelCfg = createChannelRouter({
@@ -312,6 +313,8 @@ export function createRoutes(app, hub) {
   app.get('/api/channels', (req, res) => channelCfg.handlers.get(req, res));
   app.post('/api/channels/connect', (req, res) => channelCfg.handlers.connect(req, res));
   app.post('/api/channels/:id/disconnect', (req, res) => channelCfg.handlers.disconnect(req, res));
+  // P2.5 入口集成最后一公里：用户侧形态（connector/local-bridge）确认回写（待确认→已验证）。平台侧 direct 不经此路径。
+  app.post('/api/channels/:id/confirm-user-side', (req, res) => channelCfg.handlers.confirmUserSide(req, res));
   app.get('/channel-config.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/channel-config.html', import.meta.url))));
   // 需求② §4.5.2-B：网页全屏 Onboarding 向导（首次登录检测到 0 通道时系统主动弹出）
@@ -1070,7 +1073,8 @@ export function createRoutes(app, hub) {
   app.get('/api/auth/me', async (req, res) => {
     const r = resolveMe(req);
     if (!r.ok) return res.status(r.status).json({ error: r.error });
-    res.json({ role: r.role, display_name: r.display_name, username: r.username });
+    // 2026-09-18：补充 tenantId（前端通道配置台等租户级页面据此取会话租户，避免依赖 URL ?tenant_id 误落 platform）
+    res.json({ role: r.role, display_name: r.display_name, username: r.username, tenantId: r.tenantId || 'system' });
   });
 
   // 自助注册（公开端点）：根据公司名称自动判定租户（不存在则开通）；首注册者=租户 admin
