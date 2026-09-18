@@ -2,6 +2,9 @@
 // 凭据保险库：加密落库（pgcrypto at-rest）+ 运行时按租户解密注入 ctx.credentials。
 // 绝不进前端、不进日志、不进 memory。deps 注入使得单测零 DB。
 import { readConfig as storeRead, writeConfig as storeWrite } from '../../config/configStore.js';
+// P0-1（2026-09-18）：接入形态单一事实源——用于判定「凭据是否归平台持有」。
+//   用户侧形态（connector / local-bridge）凭据只在本机/对方平台，平台侧落库=违反「不保存密码」红线（ATTIO/ROX 同条）。
+import { credentialsOnPlatform } from '../../channels/sourceKinds.js';
 
 // 生产默认走 pgcrypto：pgp_sym_encrypt($1, $2) / pgp_sym_decrypt($1, $2)
 // ⚠ pgcrypto 返回 bytea，node-pg 解析为 Buffer；直接存 JSON 会变成字节数组对象，
@@ -88,7 +91,17 @@ async function writeEncryptedSlot({ tenantId, slot, plain, deps = {}, updatedBy 
 
 // 写侧：加密后落 config_store（禁删铁律 → upsert）。
 // A-B2：接受对象（结构化凭据）——序列化后加密，密文内即 JSON，读侧由 parseCredentialPayload 还原。
-export async function persistSecret({ tenantId = 'system', providerId, raw, deps = {} } = {}) {
+//
+// P0-1（2026-09-18）：平台红线——**不为用户侧形态（connector / local-bridge）持有凭据**。
+//   这两形态凭据只留本机 / 对方平台，平台侧落库即违反「不保存密码」（ATTIO/ROX 均这样做）。
+//   fail-closed：显式声明非平台形态 → 一律拒存并抛 ERR_CREDENTIAL_NOT_PLATFORM_HELD，绝不静默落库。
+//   缺省（未传 sourceKind）视为 legacy direct（向后兼容既有调用方）。
+export async function persistSecret({ tenantId = 'system', providerId, raw, deps = {}, sourceKind } = {}) {
+  if (sourceKind !== undefined && sourceKind !== null && !credentialsOnPlatform(sourceKind)) {
+    const e = new Error(`[ERR_CREDENTIAL_NOT_PLATFORM_HELD] 拒绝存档凭据：${sourceKind} 形态的凭据不归平台持有（红线：不保存密码）`);
+    e.code = 'ERR_CREDENTIAL_NOT_PLATFORM_HELD';
+    throw e;
+  }
   const plain = raw && typeof raw === 'object' ? JSON.stringify(raw) : raw;
   return writeEncryptedSlot({ tenantId, slot: providerId, plain, deps });
 }

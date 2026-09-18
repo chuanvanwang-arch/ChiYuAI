@@ -49,6 +49,7 @@
   <div class="row" style="margin-bottom:10px">
     <strong style="font-size:14px">已接入通道</strong>
     <span class="hint" id="count"></span>
+    <span class="hint" id="tenantBadge" style="margin-left:8px;color:var(--ac)"></span>
     <button id="reload" style="margin-left:auto">刷新</button>
     <a href="/onboarding-guide.html"><button>＋ 新增通道（走向导）</button></a>
   </div>
@@ -81,7 +82,7 @@
 
   <div class="card">
     <h2 style="font-size:16px;margin:0 0 4px">补通道 / 改凭据</h2>
-    <p class="hint">凭据仅用于后端加密落库；本页 <b>不保存、不回显</b> 任何明文。信任档默认 <b>L1 只读</b>。</p>
+    <p class="hint">本页 <b>不保存、不回显</b> 任何明文。信任档默认 <b>L1 只读</b>。凭据去向由下方「接入形态」决定。</p>
     <div class="field"><label for="f-kind">通道类型</label>
       <select id="f-kind">
         <option value="generic-email">邮箱</option>
@@ -89,13 +90,24 @@
         <option value="generic-meeting">会议（企微/飞书/钉钉）</option>
         <option value="generic-wechat">微信（企业微信）</option>
       </select></div>
+    <div class="field"><label for="f-sk">接入形态（凭据在谁那里）</label>
+      <select id="f-sk">
+        <option value="local-bridge">本机桥接（凭据仅在你本机）</option>
+        <option value="connector">官方连接器（凭据在对方/本机）</option>
+        <option value="direct">平台直连（凭据加密存于平台）</option>
+      </select></div>
+    <p class="hint" id="sk-hint"></p>
     <div class="field"><label for="f-label">标签</label><input type="text" id="f-label" placeholder="如：工作邮箱" /></div>
-    <div class="field"><label for="f-cred">凭据（JSON）</label><input type="password" id="f-cred" placeholder='{"user":"you@corp.com","pass":"授权码"}' autocomplete="off" /></div>
+    <div class="field" id="cred-field"><label for="f-cred">凭据（JSON）</label><input type="password" id="f-cred" placeholder='{"user":"you@corp.com","pass":"授权码"}' autocomplete="off" /></div>
     <p class="hint" id="cred-hint"></p>
+    <div class="field" id="cred-confirm-field" style="display:none">
+      <label for="f-cred-confirm"></label>
+      <span><input type="checkbox" id="f-cred-confirm" /> <span class="err">我确认：凭据将<b>加密上传至平台</b>（明文仅经 TLS 传输，前端不落库/不回显）。选「本机桥接/连接器」可避免此风险。</span></span>
+    </div>
     <div class="field"><label for="f-trust">信任档</label>
       <select id="f-trust"><option value="L1">L1 只读（默认）</option><option value="L2">L2 批量入库</option><option value="L3">L3 L2+回写</option></select></div>
     <div class="row"><button class="primary" id="connect">确认接入</button>
-      <span class="hint">提交后后端依次执行：凭据入保险库 → verifyScope 真探测（fail-closed）→ review-gate 人工闸 → 描述符落库。</span></div>
+      <span class="hint" id="submit-hint"></span></div>
     <p class="status" id="out" role="status" aria-live="polite"></p>
   </div>
 
@@ -103,12 +115,16 @@
     // 需求② §4.5.3「通道配置台」：日常自助面（首次体验走 onboarding-guide.html，不要求用户先找到本页）。
     //   单源：本页与向导、WorkBuddy 对话入口**共用同一后端**（/api/channels），不另建数据源。
     import { injectLayout } from '/portal/layout.js';
-    import { get } from '/portal/api.js';
+    import { get, me } from '/portal/api.js';
     injectLayout();
 
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const tenantId = () => new URLSearchParams(location.search).get('tenant_id') || 'system';
+    // 2026-09-18 租户隔离实修：租户一律取**会话**（/api/auth/me），不再依赖 URL ?tenant_id ——
+    //   旧实现缺省回退 'system'，致 ten_admin 直开看到 platform 通道实例（误导）。后端 channelRouter
+    //   现同样从会话推导（scopeTenant 读 / scopeOf 写），前后端口径一致，杜绝误落 platform 租户。
+    let SESSION_TENANT = 'system';
+    const tenantId = () => SESSION_TENANT;
 
     const KIND_TEXT = { 'generic-email': '邮箱', 'generic-calendar': '日历', 'generic-meeting': '会议', 'generic-wechat': '微信' };
 
@@ -142,7 +158,7 @@
     async function load() {
       $('err').textContent = '';
       try {
-        const r = await get('/api/channels?tenant_id=' + encodeURIComponent(tenantId()));
+        const r = await get('/api/channels');
         const list = (r && r.channels) || [];
         $('count').textContent = '共 ' + list.length + ' 条';
         $('rows').innerHTML = list.length
@@ -162,7 +178,10 @@
               <td>${esc(c.trust_level || 'L1')}</td>
               <td><span class="chip ${c.enabled ? 'on' : 'off'}">${c.enabled ? '已启用' : '已停用'}</span></td>
               <td>${vText}</td>
-              <td><button class="danger" data-id="${esc(c.id)}">断开</button></td>
+              <td>
+                ${(sk !== 'direct' && pend) ? `<button class="primary" data-confirm-id="${esc(c.id)}" data-sk="${esc(sk)}">确认验证</button> ` : ''}
+                <button class="danger" data-id="${esc(c.id)}">断开</button>
+              </td>
             </tr>`;
           }).join('')
           : '<tr><td colspan="8" class="hint">暂无已接入通道 —— 可点「新增通道（走向导）」开始。</td></tr>';
@@ -177,9 +196,26 @@
       if (!btn) return;
       const id = btn.getAttribute('data-id');
       if (!confirm('确认断开「' + id + '」？将置为停用（软停用，不物理删除）。')) return;
-      const res = await fetch('/api/channels/' + encodeURIComponent(id) + '/disconnect?tenant_id=' + encodeURIComponent(tenantId()), { method: 'POST' })
+      const res = await fetch('/api/channels/' + encodeURIComponent(id) + '/disconnect', { method: 'POST' })
         .then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
       setOut(res.ok ? 'ok' : 'err', res.ok ? ('已断开：' + id + '（enabled=false）') : ('断开失败：' + (res.error || 'unknown')));
+      await load();
+    });
+
+    // P2.5 用户侧形态确认回写（POST /api/channels/:id/confirm-user-side）：待确认 → 已验证。
+    //   仅用户侧形态（connector/local-bridge）在 pending 时显示此按钮；平台直连已实测连通，不在此确认。
+    $('rows').addEventListener('click', async (ev) => {
+      const cbtn = ev.target.closest('button[data-confirm-id]');
+      if (!cbtn) return;
+      const id = cbtn.getAttribute('data-confirm-id');
+      const sk = cbtn.getAttribute('data-sk') || undefined;
+      if (!confirm('确认「' + id + '」已完成用户侧验证（' + (sk || '用户侧形态') + '）？\n确认后将由「待确认」翻为「已验证」。')) return;
+      const res = await fetch('/api/channels/' + encodeURIComponent(id) + '/confirm-user-side', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sk ? { sourceKind: sk } : {}),
+      }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+      setOut(res.ok ? 'ok' : 'err', res.ok ? ('已确认验证：' + id) : ('确认失败：' + (res.error || 'unknown')));
       await load();
     });
 
@@ -204,6 +240,42 @@
     }
     $('f-kind').onchange = renderCredHint;
     renderCredHint();
+
+    // ── P0-1（2026-09-18）：接入形态决定凭据去向，界面必须说清并强制二次确认 ──
+    //   local-bridge / connector：凭据只在本机/对方平台，平台不持有 → 不显示凭据框、不强制确认。
+    //   direct：凭据加密上传平台 → **必须**勾选「我确认」才能提交（默认不勾）。
+    const PLATFORM_HELD = { direct: true }; // 与 sourceKinds.credentialsOnPlatform 同源口径
+    function renderSourceKind() {
+      const sk = $('f-sk').value;
+      const onPlatform = PLATFORM_HELD[sk] === true;
+      // 凭据框：仅 direct 才收集凭据；用户侧形态凭据留本机，不在此输入
+      $('cred-field').style.display = onPlatform ? '' : 'none';
+      // 强制确认：仅 direct 显示且默认不勾
+      $('cred-confirm-field').style.display = onPlatform ? '' : 'none';
+      if (onPlatform) $('f-cred-confirm').checked = false;
+      // 形态提示：明确「凭据保存在哪」
+      $('sk-hint').className = 'hint';
+      $('sk-hint').innerHTML = onPlatform
+        ? '⚠ 平台直连：凭据将加密存于平台（pgcrypto）。如可改用本机桥接/连接器，凭据将只留你本机。'
+        : (sk === 'local-bridge'
+          ? '本机桥接：凭据只在你的本机（如 himalaya CLI），<b>平台不持有</b>。本机跑通自检后点「确认验证」。'
+          : '官方连接器：凭据在对方平台/你本机，<b>平台不持有</b>。在自家应用内授权后告诉我完成确认。');
+      // 提交提示
+      $('submit-hint').textContent = onPlatform
+        ? '提交后：凭据入保险库 → verifyScope 真探测 → review-gate → 描述符落库（需勾选「我确认」）。'
+        : '提交后：配置受理 → 待你在自己那侧确认（平台不从本表单收取凭据）。';
+      // direct 未勾选确认 → 禁用提交
+      updateConnectEnabled();
+    }
+    function updateConnectEnabled() {
+      const sk = $('f-sk').value;
+      const onPlatform = PLATFORM_HELD[sk] === true;
+      const ok = !onPlatform || $('f-cred-confirm').checked;
+      $('connect').disabled = !ok;
+    }
+    $('f-sk').onchange = () => { renderSourceKind(); };
+    $('f-cred-confirm').onchange = updateConnectEnabled;
+    renderSourceKind();
     // 一旦开始改凭据，就地清掉上一轮的红字与红框（否则用户改完了错误提示还挂着 = 反向误导）
     $('f-cred').oninput = () => clearFieldError('f-cred', 'cred-hint', renderCredHint);
 
@@ -213,7 +285,14 @@
       const kind = $('f-kind').value;
       const label = $('f-label').value.trim();
       const trust = $('f-trust').value;
-      const raw = $('f-cred').value.trim();
+      const sourceKind = $('f-sk').value;
+      const onPlatform = PLATFORM_HELD[sourceKind] === true;
+      // P0-1：direct 必须勾选「我确认」才允许提交（renderSourceKind 已禁用未勾选的提交，此处双保险）
+      if (onPlatform && !$('f-cred-confirm').checked) {
+        setOut('err', '未提交：平台直连需勾选「我确认凭据将加密上传至平台」。或改用本机桥接/连接器避免此风险。');
+        return;
+      }
+      const raw = onPlatform ? $('f-cred').value.trim() : ''; // 用户侧形态不从此表单收集凭据
       let credentials = null;
       if (raw) {
         try { credentials = JSON.parse(raw); } catch {
@@ -242,29 +321,28 @@
       btn.disabled = true;
       const btnText = btn.textContent;
       btn.textContent = '提交中…';
-      setOut('busy', '提交中…（真实探测，最长数十秒；探测不通过则 fail-closed 不接入）');
+      setOut('busy', onPlatform ? '提交中…（真实探测，最长数十秒；探测不通过则 fail-closed 不接入）' : '提交中…（受理后待你本机/对方确认，平台不持有凭据）');
       let res = { ok: false, error: 'unknown' };   // 兜底：任何意外路径都要落到「可见的失败态」，不许静默
       try {
         res = await fetch('/api/channels/connect', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          // source_kind 必须**显式**声明：本表单是「平台直连」路径（凭据进我方 vault）。
-          //   若省略，接口缺省也是 direct，但一旦接口缺省将来改动，这里就会静默漂移成别的形态 ——
-          //   而页面上方那句「凭据 password 字段直传后端入保险库」就变成谎报（凭据去向与形态不符）。
-          body: JSON.stringify({ tenant_id: tenantId(), id, kind, label, credentials, trust_level: trust, source_kind: 'direct' }),
+          // source_kind 必须**显式**声明：避免接口缺省漂移成别的形态（凭据去向与形态不符＝谎报）。
+          //   用户侧形态(direct 以外)不发送凭据（凭据留本机/对方平台），后端亦不会落 vault。
+          body: JSON.stringify({ id, kind, label, credentials, trust_level: trust, source_kind: sourceKind }),
         }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
       } finally {
         btn.disabled = false;          // 无论成功失败都必须恢复可点（否则按钮变砖 = 更彻底的「没反应」）
         btn.textContent = btnText;
       }
       if (res.ok) {
-        setOut('ok', '已提交：' + id + '（信任档 ' + trust + '）。' + (res.hint || ''));
+        setOut('ok', '已提交：' + id + '（信任档 ' + trust + '，形态 ' + sourceKind + '）。' + (res.hint || ''));
         $('f-cred').value = '';   // 明文不驻留 DOM（**仅成功后清空**：失败时保留，便于用户就地改错）
       } else {
         setOut('err', '接入失败：' + (res.error || 'unknown') + guidedHint(res, kind));
         // 后端明确报缺哪个字段 ⇒ 就地标到凭据框上（不只留一条状态行让用户自己找）
         if (Array.isArray(res.missing) && res.missing.length) {
           fieldError('f-cred', 'cred-hint', `后端要求缺字段：${res.missing.join('、')} —— 本通道必填 `
-            + `${(CRED_FIELDS[kind] || []).join('、')}，例如：${JSON.stringify(sampleOf(kind))}。`);
+          + `${(CRED_FIELDS[kind] || []).join('、')}，例如：${JSON.stringify(sampleOf(kind))}。`);
         }
       }
       await load();
@@ -361,7 +439,18 @@
     };
     loadPrivacy();
 
-    load();
+    // 2026-09-18 租户隔离实修：先解析会话租户，再初载（避免首屏用缺省 'system' 渲染）
+    (async () => {
+      try {
+        const m = await me();
+        if (m && m.tenantId) {
+          SESSION_TENANT = m.tenantId;
+          const badge = $('tenantBadge');
+          if (badge) badge.textContent = '当前租户：' + m.tenantId;
+        }
+      } catch { /* 未登录由后续 API 401 跳转处理 */ }
+      await load();
+    })();
   </script>
 </body>
 </html>

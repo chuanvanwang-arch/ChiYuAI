@@ -20,8 +20,18 @@
 import { isChannelKind } from '../channels/kinds.js';
 // 接入形态单一事实源（channels/sourceKinds.js）：三形态的取值域、默认值、联合键判定只此一处
 import { isSourceKind, sourceKindOf, verifiedKindsOf, credentialsOnPlatform, DEFAULT_SOURCE_KIND, SOURCE_KINDS, SOURCE_KIND_LABELS } from '../channels/sourceKinds.js';
+// 多租户隔离（2026-09-18 实修）：此前本路由信任客户端传入的 tenant_id（缺省回退 'system'）
+//   ⇒ 前端未带 tenant_id 时所有通道操作落到 platform 租户，ten_admin 误看/误改他租户数据（假绿）。
+//   现与 configRouter（§15）同源：租户一律从会话 resolveMe 推导，客户端 tenant_id 参数被忽略。
+import { resolveMe } from './auth.js';
+import { scopeTenant, scopeOf } from './tenantScope.js';
 
-export function createChannelRouter({ readConfig, writeConfig, reviewGate, verifyScope, persistSecret, produceDecision } = {}) {
+export function createChannelRouter(
+  { readConfig, writeConfig, reviewGate, verifyScope, persistSecret, produceDecision,
+    // 租户解析（2026-09-18 实修）：默认从会话推导，忽略客户端 tenant_id 参数（防越权/误落 platform）
+    resolveMe: resolveMeFn = resolveMe, scopeTenant: scopeTenantFn = scopeTenant, scopeOf: scopeOfFn = scopeOf,
+  } = {}
+) {
   // 凭据落密默认走 credentialVault.persistSecret（若不注入）
   const saveSecret = persistSecret || (async ({ tenantId, providerId, raw }) => {
     const m = await import('../connectors/discovery/credentialVault.js');
@@ -29,7 +39,10 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
   });
 
   async function get(req, res) {
-    const tenantId = req.query.tenant_id || req.body?.tenant_id || 'system';
+    // ⚠ 租户隔离（2026-09-18）：一律从会话推导，忽略客户端 tenant_id 参数
+    const me = await resolveMeFn(req);
+    if (!me?.ok) return res.status(401).json({ ok: false, error: '需要登录' });
+    const tenantId = scopeTenantFn(me);
     try {
       const row = await readConfig('integration-providers', { tenantId });
       // 只呈现**通道**（isChannelKind）；通用数据源（generic-rest/mcp/cli）归 /api/integration/providers 面
@@ -52,7 +65,10 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
   }
 
   async function connect(req, res) {
-    const tenantId = req.body?.tenant_id || req.query.tenant_id || 'system';
+    // ⚠ 租户隔离（2026-09-18）：一律从会话推导（scopeOf 写，永不通配），忽略客户端 tenant_id 参数
+    const me = await resolveMeFn(req);
+    if (!me?.ok) return res.status(401).json({ ok: false, error: '需要登录' });
+    const tenantId = scopeOfFn(me);
     const { id, kind, credentials, trust_level = 'L1', objects = [], label } = req.body || {};
     if (!id || !isChannelKind(kind)) return res.status(400).json({ ok: false, error: 'kind_invalid' });
     // verify_only（向导步骤②）：**只探测、零副作用**——不落凭据、不铸决策、不写描述符、不过人工闸。
@@ -85,13 +101,18 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
           + '同一通道只允许一个形态生效（防双写）。如需换形态，请先断开该通道。',
       });
     }
-    // ① 凭据直进 vault（明文不落响应/审计；verify_only 不落）
+    // ① 凭据直进 vault（明文不落响应/审计；verify_only 不落）。
+    //   P0-1（2026-09-18）：仅**平台直连(direct)**形态才落 vault——该形态凭据归平台持有（pgcrypto 加密）。
+    //   用户侧形态（connector / local-bridge）凭据只在本机/对方平台，平台侧**绝不落库**（红线：不保存密码）。
     if (!verifyOnly && credentials && typeof credentials === 'object' && Object.keys(credentials).length) {
-      try {
-        await saveSecret({ tenantId, providerId: id, raw: credentials });
-      } catch (e) {
-        return res.status(500).json({ ok: false, error: `credential_store_failed: ${e?.code || e?.message || e}` });
+      if (credentialsOnPlatform(sourceKind)) {
+        try {
+          await saveSecret({ tenantId, providerId: id, raw: credentials, sourceKind });
+        } catch (e) {
+          return res.status(500).json({ ok: false, error: `credential_store_failed: ${e?.code || e?.message || e}` });
+        }
       }
+      // 用户侧形态：凭据不进我方 vault（落库由本机桥/对方连接器负责），仅记 pending 待用户侧确认（见 ②）
     }
     // ② 按**形态**分路验证（P2 §5.2：各自 fail-closed，互不冒充）
     //   为什么必须分路：connector / local-bridge 的凭据**不在我方平台**，平台侧没有可用的探针。
@@ -195,7 +216,10 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
   }
 
   async function disconnect(req, res) {
-    const tenantId = req.query.tenant_id || req.body?.tenant_id || 'system';
+    // ⚠ 租户隔离（2026-09-18）：一律从会话推导（scopeOf 写，永不通配），忽略客户端 tenant_id 参数
+    const me = await resolveMeFn(req);
+    if (!me?.ok) return res.status(401).json({ ok: false, error: '需要登录' });
+    const tenantId = scopeOfFn(me);
     try {
       const row = await readConfig('integration-providers', { tenantId }).catch(() => null);
       const list = Array.isArray(row?.value) ? row.value : [];
@@ -215,5 +239,62 @@ export function createChannelRouter({ readConfig, writeConfig, reviewGate, verif
     }
   }
 
-  return { handlers: { get, connect, disconnect } };
+  // P2.5 入口集成最后一公里：用户侧形态（connector / local-bridge）确认回写。
+  //   connector 形态：用户侧 Agent 调一次只读工具成功 → 经此端点回写 {ok:true, tool}。
+  //   local-bridge 形态：本机自检命令通过 + 用户确认 → 经此端点回写 {ok:true, probe}。
+  // 语义铁律（§5.4 判据①）：未确认前 verifications[sk] 停在 pending（ok:false），界面显示「待确认」；
+  //   此端点把它翻为 ok:true（绝不可在 connect 阶段直接写 ok:true 冒充已验证）。
+  // 平台侧形态（direct）已实测连通，不经此路径；此端点只动用户侧形态的联合键，互不覆盖。
+  async function confirmUserSide(req, res) {
+    // ⚠ 租户隔离（2026-09-18）：一律从会话推导（scopeOf 写，永不通配），忽略客户端 tenant_id 参数
+    const me = await resolveMeFn(req);
+    if (!me?.ok) return res.status(401).json({ ok: false, error: '需要登录' });
+    const tenantId = scopeOfFn(me);
+    const { id } = req.params;
+    const { sourceKind: rawSourceKind, tool, probe } = req.body || {};
+    try {
+      const row = await readConfig('integration-providers', { tenantId }).catch(() => null);
+      const list = Array.isArray(row?.value) ? row.value : [];
+      const idx = list.findIndex((x) => x.id === id);
+      if (idx < 0) return res.status(404).json({ ok: false, error: 'channel_not_found' });
+      const d = list[idx];
+      // 形态：优先 body 指定，否则取描述符当前 source_kind（联合键互不覆盖）
+      const sourceKind = isSourceKind(rawSourceKind) ? rawSourceKind : sourceKindOf(d);
+      if (!sourceKind) return res.status(400).json({ ok: false, error: 'source_kind_unknown' });
+      const existingRec = (d.verifications && typeof d.verifications === 'object' ? d.verifications[sourceKind] : null) || {};
+      const verifiedAt = new Date().toISOString();
+      const verifications = {
+        // ⚠ 必须**合并**而非整体替换：整体替换会抹掉其它形态的验证记录（P2 防双写判据失效）
+        ...(d.verifications && typeof d.verifications === 'object' ? d.verifications : {}),
+        [sourceKind]: {
+          // 保留既有探针元数据（method/recorded_at），pending→ok 不丢上下文
+          ...existingRec,
+          ok: true,
+          pending: false,
+          verified_at: verifiedAt,
+          ...(tool ? { tool } : {}),
+          ...(probe ? { probe } : {}),
+        },
+      };
+      list[idx] = { ...d, verifications };
+      // 配置写第 0 闸（与 configRouter/connect 同源）
+      const decision = typeof produceDecision === 'function'
+        ? await produceDecision('config-change', { key: 'integration-providers', action: 'confirm-user-side', id, sourceKind }).catch(() => null)
+        : null;
+      await writeConfig('integration-providers', list, {
+        tenantId, decisionId: decision?.decisionId || null, updatedBy: req?.user?.id || 'system',
+      });
+      res.json({
+        ok: true,
+        channel: { id, source_kind: sourceKind, verified: true },
+        verification: verifications[sourceKind],
+        decision: decision?.decisionId || null,
+        hint: '用户侧形态已确认（待确认→已验证）；平台侧回写通道仍受 P3 评审闸约束。',
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }
+
+  return { handlers: { get, connect, disconnect, confirmUserSide } };
 }
