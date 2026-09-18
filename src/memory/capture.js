@@ -65,6 +65,15 @@ export async function captureMemory(event) {
   if (!event || !event.type) return { ok: false, reason: 'no-event' };
   const domain = event.domain || 'event';
   if (!isCapturable(domain)) return { ok: false, reason: 'skipped-domain' };
+  // ── 边沿写入（2026-09-18，D9 整改）─────────────────────────────────────────
+  //   状态型信号在「去重刷新」（状态未变）时不再沉淀为记忆。
+  //   背景：salesDailyScan 的聚合信号（visit_shortfall / info_collect_lag）每次巡检
+  //   都重发 alert 事件，而 createAlertWithDb 命中稳定 dedup_key 时只**刷新既有行**
+  //   （refreshed=true）——状态没变却在记忆表新增一行（24h 真库实测 3156 行 = 97.7% 噪声）。
+  //   发射侧以 payload.state_refresh=true 显式标记「本次仅刷新、状态无变化」，本层据此跳过。
+  //   语义边界：**不影响 SSE** —— emit 仍照发、订阅前端照常收到实时刷新；只是不再写记忆。
+  //   判据：只有显式 === true 才跳过，缺省/undefined/false 一律照常捕获（保守，不误伤新事件）。
+  if (event.payload && event.payload.state_refresh === true) return { ok: false, reason: 'state-refresh' };
   const res = await appendMemory({
     topic: event.topic || `event:${domain}:${event.type}`,
     kind: event.kind || 'event',

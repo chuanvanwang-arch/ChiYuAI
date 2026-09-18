@@ -107,7 +107,11 @@ export async function runSalesDailyScan({ tenants: tenantsIn = null } = {}) {
         owner_id: h.owner_id || null,
         dedup_key: h.dedup_key || null,
       });
-      if (a.ok) emit('alert', h.kind, { alert_id: a.alert.alert_id, kind: h.kind, metric: h.metric, tenant_id: t.tenant_id, owner_id: h.owner_id || null });
+      //   state_refresh 透传（2026-09-18，D9 整改）：createAlertWithDb 命中稳定 dedup_key 时
+      //   只刷新既有 signal 行（refreshed=true），本 emit 仍须照发（SSE 前端实时刷新靠它），
+      //   但须**显式标记状态未变** → capture 层据此跳过记忆沉淀（边沿写入），
+      //   否则同一状态每次巡检都在 crm.memory_log 新增一行（实测 24h 3156 行 = 97.7% 噪声）。
+      if (a.ok) emit('alert', h.kind, { alert_id: a.alert.alert_id, kind: h.kind, metric: h.metric, tenant_id: t.tenant_id, owner_id: h.owner_id || null, state_refresh: !!a.refreshed });
     }
     // 达标即解除：关闭本租户不再命中的聚合信号（稳定 dedup_key 的必然配套，
     //   否则恢复达标后旧快照会永远 open 并继续向责任人展示旧数值 = 假绿）
@@ -445,6 +449,13 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
         ? (await listActiveTenants().catch(() => [{ tenant_id: 'system' }]))
         : [{ tenant_id: 'system' }];
       let red = 0, cleared = 0, scanned = 0;
+      // 责任人取值域（2026-09-17 个人隔离）：named_owner 须是**真实账号**才可作为 owner_id。
+      //   真库实测 named_owner 存在脏值（如 '赵销售' 这类姓名写法），若直接当 owner_id 落库，
+      //   该信号对任何人都不可见（list 谓词 owner_id=username 匹配不到）⇒ **比广播更差的信息丢失**。
+      //   故：能映射账号 → 落到该销售；映射不到 → 保持 NULL 按角色广播（fail-safe，宁可多看不可失联）。
+      const knownUsers = new Set(
+        (await query(`SELECT username FROM crm_users`).catch(() => ({ rows: [] }))).rows.map((r) => r.username),
+      );
       for (const t of tenants) {
         const accRes = await query(
           `SELECT id, payload FROM crm.particles WHERE type='CRM_ACCOUNT' AND tenant_id=$1`,
@@ -475,8 +486,11 @@ export async function ensureTimers({ now = new Date().toISOString() } = {}) {
             // 逾期红 → 幂等建（已有 open 不复发）
             const open = findOpenAlertByParticle(a.id, 'named_visit_overdue');
             if (!open) {
+              const ownerId = knownUsers.has(p.named_owner) ? p.named_owner : null;
               const al = createAlert({
                 kind: 'named_visit_overdue', severity: 'high', target_role: 'sales',
+                // 逾期的责任主体是「指名人」：不落 owner ⇒ 全租户销售都收到同一条（用户实测的复现形态）
+                owner_id: ownerId,
                 particle_id: a.id, payload: { account_id: a.id, named_owner: p.named_owner, overdueDays: st.overdueDays },
               });
               if (al.ok) { red++; emit('alert', 'named_visit_overdue', { alert_id: al.alert.alert_id, account_id: a.id, overdueDays: st.overdueDays }); }

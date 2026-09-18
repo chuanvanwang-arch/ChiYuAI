@@ -187,3 +187,23 @@ describe('接线守卫：产生点必须透传 owner_id 与 dedup_key', () => {
     expect(src).toMatch(/keepByKind/);
   });
 });
+
+// ── 指名客户逾期（named_visit_overdue）归属 —— 第五处 actively 产生点 ──
+// 为什么单独守卫：该告警由 timers.js 的 named-visit-scan 直接 createAlert，责任人写在
+//   payload.named_owner（而非 payload.owner_id）⇒ 若不显式透传，creator 拿不到 owner，
+//   信号对全租户销售可见（用户截图里「对象=全量」的同一形态）。
+describe('接线守卫：named_visit_overdue 必须落到指名人', () => {
+  const src = readFileSync(new URL('../../src/scheduler/timers.js', import.meta.url), 'utf8');
+
+  it('createAlert 调用显式传 owner_id', () => {
+    const i = src.indexOf("kind: 'named_visit_overdue'");
+    expect(i).toBeGreaterThan(-1);                    // 守卫自检：真的扫到了调用点
+    const call = src.slice(i, src.indexOf('});', i));
+    expect(call).toMatch(/owner_id\s*:/);
+  });
+
+  it('owner 取值为「已校验的真实账号」，而非裸 raw named_owner（防脏值致信号隐形）', () => {
+    expect(src).toMatch(/SELECT username FROM crm_users/);
+    expect(src).toMatch(/knownUsers\.has\(p\.named_owner\)/);
+  });
+});
