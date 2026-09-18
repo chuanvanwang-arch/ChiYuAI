@@ -36,9 +36,66 @@ STATE = {
 }
 
 
-def _tick(ticket):
-    """单条工单处理回调：更新计数（裁决链在主流程实现）。"""
+# --- M7：完整裁决链接线 ---
+from chiyu_group.features.text_sem import text_features
+from chiyu_group.features.geo_addr import admin_of_office, extract_district
+from chiyu_group.features.entity_graph import extract_entities, EntityGraph
+from chiyu_group.features.time_prof import time_features
+from chiyu_group.features.infer import InferBackend, hash_signature, cosine
+from chiyu_group.memory.lifecycle import ClusterLifecycle
+from chiyu_group.memory.fuse import rrf_fuse
+from chiyu_group.decision.scorers import eight_scores
+from chiyu_group.decision.redline import check_redline
+from chiyu_group.decision.adjudicate import adjudicate
+from chiyu_group.decision.audit import AuditRecord, AuditStore
+
+_backend = InferBackend(backend="none")
+_graph = EntityGraph()
+_life = ClusterLifecycle()
+_audits = AuditStore()
+
+
+def _tick(t):
+    """单条工单完整裁决链：特征→检索→红线→裁决→簇更新→审计。"""
     STATE["ingest_count"] += 1
+    tf = text_features(text=t.text, backend=_backend)
+    admin = admin_of_office(t.office_name)
+    d = extract_district(t.address)
+    ents = extract_entities(t.text)
+    _graph.add_ticket(t.order_id, ents)
+    # 候选检索：哈希向量余弦对已有簇 Top-1（后续 RRF 融合在 fuse.py 扩展）
+    best = None
+    best_score = 0.0
+    for cid, note in STATE["clusters"].items():
+        s = cosine(tf["vec"], note.get("center_vec"))
+        if s > best_score:
+            best_score, best = s, cid
+    cands = [(best, best_score)] if best is not None else []
+    redline, reason = False, ""
+    if best is not None:
+        note = STATE["clusters"][best]
+        redline, reason = check_redline(admin, note.get("admin", ""),
+                                        t.question_name, note.get("question", ""))
+    out = adjudicate(cands, bool(redline), threshold=0.5,
+                     archived_candidates=[], now=t.push_time)
+    if out["action"] == "join" and best:
+        note = STATE["clusters"][best]
+        note["size"] = note.get("size", 0) + 1
+        note["center_vec"] = (note["center_vec"] + tf["vec"]) / 2
+        note["last_seen"] = t.push_time.isoformat()
+        _life.touch(best, t.push_time)
+    elif out["action"] == "create":
+        cid = f"C{len(STATE['clusters'])+1}"
+        STATE["clusters"][cid] = {"center_vec": tf["vec"], "size": 1,
+                                  "status": "active", "entities": list(ents),
+                                  "admin": admin, "question": t.question_name,
+                                  "last_seen": t.push_time.isoformat()}
+        _life.touch(cid, t.push_time)
+    _audits.add(AuditRecord(order_id=t.order_id, action=out["action"],
+                            cluster_id=out.get("cluster_id"), scores={},
+                            fused=best_score if best else 0.0, confidence=0.5,
+                            redline_hit=bool(redline), redline_reason=reason,
+                            strategy_version="v1", ts=t.push_time))
 
 
 @app.get("/healthz")
@@ -69,9 +126,25 @@ def replay(body: dict):
             "ms_p50": 12, "ms_p95": 40, "status": "done"}
 
 
+def _public_clusters():
+    """剥离 numpy 向量等非 JSON 字段，输出看板可展示子集。"""
+    out = []
+    for note in STATE["clusters"].values():
+        out.append({
+            "id": note.get("id") or note.get("cluster_id", ""),
+            "status": note.get("status", "active"),
+            "size": note.get("size", 0),
+            "last_seen": note.get("last_seen", ""),
+            "admin": note.get("admin", ""),
+            "question": note.get("question", ""),
+            "entities": note.get("entities", []),
+        })
+    return out
+
+
 @app.get("/api/state")
 def state(detail: str = "summary"):
-    return {"clusters": list(STATE["clusters"].values())[:20],
+    return {"clusters": _public_clusters()[:20],
             "revival_events": STATE["revival_events"],
             "alarms": STATE["alarms"],
             "ingest_count": STATE["ingest_count"]}
