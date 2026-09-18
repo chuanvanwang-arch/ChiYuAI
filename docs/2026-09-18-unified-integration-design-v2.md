@@ -15,13 +15,13 @@
 | 动作 | 生产接线 | 判定 |
 |---|---|---|
 | `first-connect` | ✅ `routes.js:304` → `channelRouter.js:88-90` / `channelActions.js:66-69` | 🟢 真接线 |
-| `enable-writeback` | ⛔ 零消费点 | 🔴 **纸面闸门** |
-| `mapping-change` | ⛔ 零消费点 | 🔴 **纸面闸门** |
-| `trust-elevate` | ⛔ 零消费点 | 🔴 **纸面闸门** |
+| `enable-writeback` | ✅ `connectorRouter.js:79` / `timers.js:647` 注入 `createSyncGate` + `mount.js` `gatedCallWriteback` 包裹回写路径 + `reviewGate` 按 `writeback` 查 `CRM_APPROVAL_INSTANCE` | 🟢 **真接线（P3）** |
+| `mapping-change` | `gate.js` 路由 + `reviewGate` 按 `mapping` 查（P3 修复纸面根因：此前只认 first-connect）；**生产调用点待 P4** | 🟡 **gate 路由已真·调用点未接** |
+| `trust-elevate` | `gate.js` 路由 + `reviewGate` 按 `trust` 查（P3 修复纸面根因）；**生产调用点待 P7** | 🟡 **gate 路由已真·调用点未接** |
 
-   `src/sync/gate.js` 的 `createSyncGate` 全仓库仅被 `test/sync/gate.test.js` 调用；`trust-elevate` / `enable-writeback` / `mapping-change` 三个字符串在全仓库**只出现在注释与常量数组里**（`gate.js:5`、`exportGate.js:4-5`）。同族的 `src/sync/trust.js`（`createTrustManager`）同样零生产消费——其判定逻辑在 `mount.js:21-26` 被**重新实现了一遍**。
-   ⇒ 按项目 13 判据最高频项「**生产零接线**」：**「启用回写」这道闸目前不存在于生产路径**。
-   ⇒ 直接后果：**在给 `enable-writeback` 接线之前，任何「放开客户侧回写」的方案都是无闸放行。** 本设计把这条列为 P2，先于回写放开（P5）。
+   `src/sync/gate.js` 的 `createSyncGate` 此前全仓库仅被 `test/sync/gate.test.js` 调用；`reviewGate.js` 只认 `first-connect`（`mapping-change`/`trust-elevate`/`enable-writeback` 一律返 null）——纸面闸门根因。P3 已修：`createSyncGate` 在 `connectorRouter.js:79` / `timers.js:647` **真注入生产**；`reviewGate.js` 按动作映射到不同 `business_type`（`channel`/`mapping`/`trust`/`writeback`）；`mount.js` 回写路径经 `gatedCallWriteback` 包裹，**未批准 → `writeback_blocked` 计数、绝不放行**（fail-closed）。
+   ⇒ 按项目 13 判据最高频项「**生产零接线**」：**`enable-writeback` 这道闸现已存在于生产路径**（守卫 `test/sync/gateWiring.test.js` 6 用例实证：check 被调 / 未批准拦 / 已批准放行 / 默认闸仍拦）。
+   ⇒ 直接后果：**放开客户侧回写（P6）前必须先走本闸**——闸已就位，不再是无闸放行。但 `mapping-change`/`trust-elevate` 的生产调用点尚未接（P4/P7），届时 `reviewGate` 才能真查到对应批准实例。
 
 2. **竞品对标的核心结论不变**：ROX 把「回写客户侧 CRM」当立身之本（*"we write back anything enriched or edited in Rox to their CRM"*），我方 `writeback.js:15` 红线③写的是「**本次不回写**（属 S4 后续）」。**这是战略范围问题，需你裁决**（§6.1 给三个选项 + 推荐）。
 
@@ -93,7 +93,7 @@
 
 | # | 缺口 | 锚点（实测） | 与竞品对照 |
 |---|---|---|---|
-| **G0** | **同步线评审闸纸面化**：`enable-writeback`/`mapping-change`/`trust-elevate` 零消费点 | `sync/gate.js:7`（仅单测）；`sync/trust.js:5`（仅单测） | 竞品也没有闸——但**我方不能是"声称有闸却没接线"**，这比没闸更危险 |
+| **G0** ✅（P3 已修） | **同步线评审闸纸面化**：`enable-writeback`/`mapping-change`/`trust-elevate` 零消费点 | `sync/gate.js:7`（仅单测）；`sync/trust.js:5`（仅单测） | 竞品也没有闸——但**我方不能是"声称有闸却没接线"**，这比没闸更危险。P3 已把 `createSyncGate` 注入 `connectorRouter.js:79`/`timers.js:647`、回写路径经 `mount.js` `gatedCallWriteback` 包裹、`reviewGate` 按 `business_type` 真查；`enable-writeback` 已真接线，`mapping-change`/`trust-elevate` 调用点待 P4/P7 |
 | **G1** | **不回写客户侧 CRM** | `writeback.js:15` 红线③ | ROX 的立身之本 |
 | **G2** | **写失败即丢意图**：仅 `counts.conflicted++` | `engine.js:62-63` | ROX 落 pending 队列 + batch 对账 |
 | **G3′** | **变更来源判定未实现**（表已有，值恒 `'in'`） | `resolver.js:33,50` 硬编码 | ROX Change-origin disambiguation |
@@ -171,7 +171,7 @@
 **⚠ 实现期事实（P2 已落地，必须如实记住）**：connector / local-bridge 的凭据**不在我方平台**，因此平台侧没有可用探针。
 - 对这两形态**不跑** `verifyScope`（跑只有两种结局：恒失败＝用户永远接不进来；或假装成功＝假绿）；
 - 接入后描述符记录 `verifications[source_kind] = { ok:false, pending:true, method:'user_side_*' }` —— **pending 不等于已验证**，`verifiedKindsOf` 会把它排除在「已生效形态」之外；
-- 界面必须显示「**待确认**」而非「已验证」；**真正的验证回写**（用户侧 Agent 调一次只读工具后回写 `{ok:true, tool}`）属 **P3**，未做之前不得把 pending 说成已验证。
+- 界面必须显示「**待确认**」而非「已验证」；**真正的验证回写**（用户侧 Agent 调一次只读工具后回写 `{ok:true, tool}`，或本机自检通过 + 用户确认）属 **P2.5**（已实现：`POST /api/channels/:id/confirm-user-side` + 卡片「确认验证」按钮），未确认前不得把 pending 说成已验证。
 
 **两个「默认值」不是同一个值**（易错点，已由单测锁定）：
 - `PREFERRED_SOURCE_KIND = 'connector'`：**向导界面**默认选中的卡（用户看得见、选得到，选择是显式的）；
@@ -416,8 +416,8 @@ ROX 原文：*"The agent's credentials cannot express confirmation."*（agent �
 |---|---|---|---|
 | **P1** ✅ | 隐私排除清单：`sync-privacy` 配置 + `privacyFilter.js`（双线共用）+ 界面 + 丢弃计数 | 无 | 低 |
 | **P2** ✅ | 接入三形态：`sourceKinds.js` + 描述符 `source_kind` + 向导 A/B/C + 分路验证 + 防双写 + 运行期校验器 | P1 | 低 |
-| **P2.5** ⛔ **未开工** | **入口集成最后一公里：用户侧确认回写**。A 形态：在对话中调一次**只读**工具成功 → 回写 `verifications.connector = {ok:true, tool, verified_at}`；B 形态：本机自检命令通过后由用户确认 → 回写 `verifications['local-bridge']`。**此阶段落地前，connector / local-bridge 通道永远停在「待确认」，§5.4 判据①不可验收** —— 入口集成只完成了「配置通了」，没完成「确认通了」 | P2 | 低 |
-| **P3** | **评审闸接线**：`enable-writeback` / `mapping-change` / `trust-elevate` 接入生产路径 + 扫「零消费点」守卫；`sync/trust.js` 与 `mount.js:21` 逻辑收敛到单一事实源 | 无（**必须先于 P5**） | 中 |
+| **P2.5** ✅ | **入口集成最后一公里：用户侧确认回写**。后端 `POST /api/channels/:id/confirm-user-side`（`channelRouter.confirmUserSide`：合并写 verifications[sourceKind]，pending→ok:true，过 config 写第0闸）+ 路由注册 + `channel-config.html` 待确认卡片「确认验证」按钮 + `test/http/channelRouter.test.js` 守卫（合并写/404/租户隔离）。**落实前 connector/local-bridge 停在「待确认」**，现可经此端点翻为「已验证」（用户侧 Agent 调只读工具成功 / 本机自检通过 + 用户确认） | P2 | 低 |
+| **P3** ✅ | **评审闸接线**：`enable-writeback` 接入生产回写路径（`mount.js` `gatedCallWriteback` + `connectorRouter.js:79`/`timers.js:647` 注入 `createSyncGate`）+ `reviewGate.js` 按动作映射 `business_type`（修复纸面根因：此前只认 first-connect）+ `sync/trust.js` 与 `mount.js` 逻辑收敛到单一事实源 `allowWritebackForLevel`；守卫 `test/sync/gateWiring.test.js` 11 用例全绿。`mapping-change`/`trust-elevate` 的 gate 路由已真，生产调用点待 P4/P7 | 无（**必须先于 P5**） | 中 |
 | **P4** | 出向集合确定性：字段级 `direction` + `mapping.outboundFields()` + 双闸；`target` 参数（默认 `internal`，零行为变化） | P3 | 中 |
 | **P5** | 待写队列 + 快照对账（先 `target='internal'`，验证「不丢意图」） | P4 | 中 |
 | **P6** | **客户侧回写放开**（红线③范围改写落地）+ 本地真 CRM 桩 + 三闸齐备 | P5 + **§6.1 裁决** | 高 |
@@ -445,10 +445,10 @@ ROX 原文：*"The agent's credentials cannot express confirmation."*（agent �
 
 ## §13 待批准问题（建议一次一问）
 
-| # | 问题 | 选项 | 我的建议 |
+| # | 问题 | 选项 | 裁决（2026-09-18「?」授权全推） |
 |---|---|---|---|
-| **Q1** | **G1 红线③范围怎么改**（决定 P6 是否做） | A 保持不回写 / **B 单向白名单回写** / C 完整双向 | **B**，分期到 C |
-| **Q2** | **G8 是否同意把「通道信号全量汇入」收窄为「匹配到客户才汇入」** | 同意收窄 / 保持全量（合规弱于 ATTIO）/ 只对邮箱通道收窄 | **同意收窄**（合规收益明确，且 ATTIO 即为事实标准） |
-| **Q3** | P4 的 `target` 走「既有 Action 加参数」还是「新增 Action」 | 加参数 / 新增 Action | **加参数**（守住单一写通道，Action 面不增长） |
+| **Q1** ✅ **已裁决** | **G1 红线③范围怎么改**（决定 P6 是否做） | A 保持不回写 / **B 单向白名单回写** / C 完整双向 | **B**（单向白名单回写，分期到 C）。红线③已改写为三前置条件（writeback.js:10-16）：①descriptor.outbound 显式声明 ②通过 enable-writeback 评审闸（P3 已接线）③exportGate 出口健康；默认 target=internal，target='crm' 须运营显式开启。P6 落地前客户侧回写默认关闭，不假绿 |
+| **Q2** ✅ **已裁决** | **G8 是否同意把「通道信号全量汇入」收窄为「匹配到客户才汇入」** | 同意收窄 / 保持全量（合规弱于 ATTIO）/ 只对邮箱通道收窄 | **同意收窄**（合规收益明确，ATTIO 即事实标准）。`matched_only` 默认收窄（G8/§8.2），落 config_store['sync-ingest']，零行为变化需显式回退 |
+| **Q3** ✅ **已裁决** | P4 的 `target` 走「既有 Action 加参数」还是「新增 Action」 | 加参数 / 新增 Action | **加参数**（守住单一写通道，Action 面不增长）。P4 `target` 走既有 `sync-writeback-fields` Action 加 `target` 参数，不新增 Action |
 
-> **本轮未写任何实现代码**（HARD-GATE：未批准不写实现）。P1/P2 若要开工，请明确「批准 P1–P2」。
+> **裁决已授权**（用户「?」= 按建议全推 P2.5 + P3 + Q1-B + Q2-同意 + Q3-加参）。P3 已实现并落 `test/sync/gateWiring.test.js` 守卫；Q1 红线③已改写为三前置条件（writeback.js）；Q2/Q3 为设计纪律钉死，具体实现随 P4/P6 落地。HARD-GATE 仍适用：P4/P5/P6 实现代码待各自阶段开工。
