@@ -20,6 +20,12 @@
     "buddy:ui-e2e": "node scripts/buddy-ui-e2e.mjs",
     "probe:kmd": "node scripts/kmd-closure-probe.mjs",
     "probe:kmd:self": "node scripts/kmd-closure-probe.mjs --self-test",
+    "probe:channel-ui": "node scripts/verify-channel-config-feedback.mjs",
+    "probe:discovery-ui": "node scripts/verify-discovery-page-render.mjs",
+    "probe:sync-ui": "node scripts/verify-crm-sync-console-render.mjs",
+    "probe:sync-ui:self": "node scripts/verify-crm-sync-console-render.mjs --selftest",
+    "probe:discovery-rules-ui": "node scripts/verify-discovery-rules-config-render.mjs",
+    "probe:discovery-rules-ui:self": "node scripts/verify-discovery-rules-config-render.mjs --selftest",
     "probe:kmd:e2e": "node scripts/kmd-closure-probe.mjs --e2e --db=test",
     "triage:calibration": "node scripts/calibration-triage.mjs"
   },

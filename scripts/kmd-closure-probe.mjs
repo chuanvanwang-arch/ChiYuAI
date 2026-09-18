@@ -964,6 +964,19 @@ async function selfTest() {
     cases.push({ probe: 'D14', case: c.label, expect: `判为 ${c.want}`, got: `判为 ${st}`, ok: st === c.want });
   }
 
+  // D15 判据自证：「消费面可调用」不等于「可召回」—— 必须能区分五种形态，
+  //   尤其"库中有实体却召不回"与"仅名称归位可用"不得被报成绿（2026-09-18 实况即前者恒绿）
+  for (const c of [
+    { error: null, missingL1: true, hit: false, semantic: false, want: 'FAIL', label: 'L1 被装配层判 missing（维度错/超时被 catch 吞）→ 不得报绿' },
+    { error: null, missingL1: false, hit: false, semantic: true, want: 'FAIL', label: '实体确实存在却召不回 → FAIL' },
+    { error: null, missingL1: false, hit: true, semantic: false, want: 'WARN', label: '仅名称归位可用（查询侧向量与列不同维）→ WARN 暴露语义召回静默丢失' },
+    { error: null, missingL1: false, hit: true, semantic: true, want: 'PASS', label: '语义召回可用且命中实体 → PASS' },
+    { error: 'boom', missingL1: false, hit: true, semantic: true, want: 'ERROR', label: '消费面抛错 → ERROR（不得因"有行"报绿）' },
+  ]) {
+    const got = d15Classify(c);
+    cases.push({ probe: 'D15', case: c.label, expect: c.want, got: got.status, ok: got.status === c.want });
+  }
+
   for (const c of cases) console.log(`  ${c.ok ? '🟢' : '🔴'} ${c.probe} ${c.case}\n     期望: ${c.expect}\n     实测: ${c.got}`);
   const bad = cases.filter((c) => !c.ok).length;
   console.log(`\n自检结论: ${cases.length - bad}/${cases.length} 通过${bad ? ` — ${bad} 条探针判据有缺陷，需修探针` : '（探针具备鉴别力）'}`);
@@ -1030,9 +1043,113 @@ async function probeD14() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// D15 — L1 消费面端到端可达（「数据健康 ≠ 可被检索」）
+//
+// 背景（2026-09-18 实证）：D1 判「向量真伪」、D3 判「池子构成/大小」，**全部只看存储面**。
+//   当日实况：D1 已 🟢（真向量 100%）、池 995 行，而 L1 召回**恒抛**
+//   `different vector dimensions 1024 and 384`（查询侧 hashVector(384) 对 vector(1024) 列，
+//   assembler.js 写侧改了、读侧没改的半改形态）；该异常被 assembleContext 的
+//   `catch { missing.L1 = true }` 吞掉 ⇒ 端到端一条实体都召不回，而全部探针恒绿。
+//   ⇒ 必须有一条探针**调用真实消费函数**（import assembleContext），否则
+//     「存了真向量但无人能查」这一形态在探针体系里不可测。
+//
+// 判据：装配不抛错 + 能召回库中**真实存在**的实体名（不看「函数被调用/返回 200」这类过程指标）。
+// 同源性：探针独立进程不走 server.js bootstrap ⇒ 显式调用同一个 ensureEmbeddingProvider()；
+//   若探针各写一份 provider 判据，它看到的世界 ≠ 运行时（判据分叉），结论对运行时无效。
+// ════════════════════════════════════════════════════════════════════════════
+
+// D15 状态分类（纯函数：探针与自检共用 —— 判据必须可被反例证伪）
+//   call-error          消费面调用抛错                                → ERROR
+//   layer-missing       装配层判定 L1 失效（异常/超时被 catch 吞掉） → FAIL
+//   entity-unreachable  实体确实存在却召不回                          → FAIL
+//   name-only           仅名称归位可用（查询侧向量与列不同维）        → WARN（语义召回静默丢失）
+//   semantic            语义召回可用且命中实体                        → PASS
+function d15Classify({ error = null, missingL1 = false, hit = false, semantic = false } = {}) {
+  if (error) return { status: 'ERROR', kind: 'call-error' };
+  if (missingL1) return { status: 'FAIL', kind: 'layer-missing' };
+  if (!hit) return { status: 'FAIL', kind: 'entity-unreachable' };
+  return semantic ? { status: 'PASS', kind: 'semantic' } : { status: 'WARN', kind: 'name-only' };
+}
+
+async function probeD15() {
+  // 取一条**名称不含空白**的实体：装配层归位按空白分词后做整名精确匹配，含空白名称会被拆开
+  //   （既有分词语义，非缺陷）⇒ 探针须选可判定样本，否则测到的是分词而非链路
+  const pick = await sql('D15a', `
+    SELECT p.type, p.payload->>'name' AS name
+      FROM crm.particles p
+     WHERE p.type IN ('CRM_ACCOUNT','CRM_DEAL','CRM_CONTACT')
+       AND coalesce(p.payload->>'name','') <> ''
+       AND p.payload->>'name' !~ '\\s'
+     ORDER BY (p.embedding IS NOT NULL) DESC, p.updated_at DESC
+     LIMIT 1`);
+  const criterion = '以库中真实实体名做一次真实装配（assembleContext）：装配不抛错 + L1 命中该实体 ⇒ PASS；'
+    + '仅名称归位可用（查询侧向量与存储列不同维）⇒ WARN；missing.L1 或召不回已存在实体 ⇒ FAIL';
+  if (isErr(pick) || !pick.length) {
+    return report({
+      id: 'D15', name: 'L1 消费面可达', edge: '④ 上下文注入', status: 'WARN', metrics: {},
+      criterion,
+      verdict: '库内无 CRM_ACCOUNT/CRM_DEAL/CRM_CONTACT 名称（无可判定样本）→ 消费面无法验证',
+      fix: '灌入至少一条带 name 的实体粒子后重跑本探针',
+    });
+  }
+  const name = String(pick[0].name);
+  const pool = await sql('D15b', `SELECT count(*) AS n FROM crm.particles WHERE embedding IS NOT NULL`);
+  const metrics = {
+    probe_entity: name,
+    l1_pool: isErr(pool) ? -1 : num(pool[0]?.n),
+    provider: '(未解析)',
+    query_side_dim: null,
+    expect_dim: null,
+    l1_rows: 0,
+    hit: false,
+    missing_L1: false,
+  };
+  let error = null;
+  let semantic = false;
+  try {
+    const { ensureEmbeddingProvider } = await import('../src/llm/embeddingBootstrap.js');
+    metrics.provider = (await ensureEmbeddingProvider()) ?? '(未启用)';
+    const { embedText, STORED_EMBED_DIM } = await import('../src/ontology/embedding.js');
+    metrics.expect_dim = STORED_EMBED_DIM;
+    // 查询侧自证：探针亲自拿一次查询向量，才能区分「召不回」是链路断还是查询向量与列不同维
+    const ev = await embedText(name).catch((e) => ({ provider: 'error', error: String(e?.message || e) }));
+    metrics.query_side_dim = Array.isArray(ev?.vector) ? ev.vector.length : null;
+    semantic = ev?.provider === 'model' && metrics.query_side_dim === STORED_EMBED_DIM;
+    const { assembleContext } = await import('../src/context/assembler.js');
+    const r = await assembleContext({ actor: 'presales', intent: { scenario: 'OPP_QUALIFY' }, query: name });
+    metrics.missing_L1 = !!r?.missing?.L1;
+    metrics.l1_rows = (r?.layers?.L1 || []).length;
+    metrics.hit = (r?.layers?.L1 || []).some((x) => x.title === name);
+  } catch (e) {
+    error = String(e?.message || e).slice(0, 200);
+    metrics.error = error;
+  }
+
+  const got = d15Classify({ error, missingL1: metrics.missing_L1, hit: metrics.hit, semantic });
+  const VERDICT = {
+    'call-error': `消费面调用异常：${error}`,
+    'layer-missing': `装配层判定 L1 失效（missing.L1=true）→ 已存在实体「${name}」端到端召不回（异常被 catch 吞掉即此形态）`,
+    'entity-unreachable': `库中存在实体「${name}」但 L1 未召回（返回 ${metrics.l1_rows} 行）→ 消费面断裂`,
+    'name-only': `名称归位可用，但**语义召回不可用**（查询侧 provider=${metrics.provider} dim=${metrics.query_side_dim} ≠ 存储 ${metrics.expect_dim}）→ 向量存了却无人能查`,
+    semantic: `L1 端到端可达：以「${name}」查询命中（L1 ${metrics.l1_rows} 行，语义召回可用）`,
+  };
+  report({
+    id: 'D15',
+    name: 'L1 消费面可达',
+    edge: '④ 上下文注入',
+    status: got.status,
+    metrics,
+    criterion,
+    verdict: VERDICT[got.kind],
+    fix: '查询侧向量须与存储列同源同维（src/ontology/embedding.js:STORED_EMBED_DIM + assembler.js:l1QueryVector）；'
+      + '名称精确归位是兜底，**不得**以 embedding IS NOT NULL 为门',
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // main
 // ════════════════════════════════════════════════════════════════════════════
-const PROBES = { D0: probeD0, D1: probeD1, D2: probeD2, D3: probeD3, D4: probeD4, D5: probeD5, D6: probeD6, D7: probeD7, D8: probeD8, D9: probeD9, D10: probeD10, D11: probeD11, D12: probeD12, D13: probeD13, D14: probeD14, E2E: probeE2E };
+const PROBES = { D0: probeD0, D1: probeD1, D2: probeD2, D3: probeD3, D4: probeD4, D5: probeD5, D6: probeD6, D7: probeD7, D8: probeD8, D9: probeD9, D10: probeD10, D11: probeD11, D12: probeD12, D13: probeD13, D14: probeD14, D15: probeD15, E2E: probeE2E };
 
 (async () => {
   console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
