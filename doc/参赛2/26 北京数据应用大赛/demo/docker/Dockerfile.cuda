@@ -1,0 +1,12 @@
+# Dockerfile.cuda —— 非信创二（A100）
+FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
+WORKDIR /app
+COPY requirements-common.txt requirements-cuda.txt ./
+RUN pip install --no-cache-dir -r requirements-common.txt -r requirements-cuda.txt
+COPY src/ ./src/
+COPY data/ ./data/
+COPY models/ ./models/
+RUN pip install -e /app
+EXPOSE 8080
+ENV INFER_BACKEND=cuda WITH_MODEL=1
+CMD ["uvicorn", "chiyu_group.serving.api:app", "--host", "0.0.0.0", "--port", "8080"]

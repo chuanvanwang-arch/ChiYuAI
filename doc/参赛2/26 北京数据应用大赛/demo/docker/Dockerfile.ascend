@@ -1,0 +1,12 @@
+# Dockerfile.ascend —— 信创二（昇腾 910B）
+FROM ascendai/ascend910-cann:latest
+WORKDIR /app
+COPY requirements-common.txt requirements-ascend.txt ./
+RUN pip install --no-cache-dir -r requirements-common.txt -r requirements-ascend.txt
+COPY src/ ./src/
+COPY data/ ./data/
+COPY models/ ./models/
+RUN pip install -e /app
+EXPOSE 8080
+ENV INFER_BACKEND=ascend WITH_MODEL=1
+CMD ["uvicorn", "chiyu_group.serving.api:app", "--host", "0.0.0.0", "--port", "8080"]

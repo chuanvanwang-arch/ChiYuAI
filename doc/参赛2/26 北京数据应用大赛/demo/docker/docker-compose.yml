@@ -1,0 +1,23 @@
+services:
+  base:
+    build: {context: .., dockerfile: docker/Dockerfile.base}
+    ports: ["8080:8080"]
+    environment: [INFER_BACKEND=auto, WITH_MODEL=1]
+    volumes: [./models:/app/models]
+  cuda:
+    build: {context: .., dockerfile: docker/Dockerfile.cuda}
+    ports: ["8080:8080"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment: [INFER_BACKEND=cuda, WITH_MODEL=1]
+    volumes: [./models:/app/models]
+  ascend:
+    build: {context: .., dockerfile: docker/Dockerfile.ascend}
+    ports: ["8080:8080"]
+    environment: [INFER_BACKEND=ascend, WITH_MODEL=1]
+    volumes: [./models:/app/models]

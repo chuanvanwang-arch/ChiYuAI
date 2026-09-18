@@ -1,0 +1,12 @@
+# Dockerfile.base —— 非信创一 / 信创一（无 GPU）
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements-common.txt requirements-cpu.txt ./
+RUN pip install --no-cache-dir -r requirements-common.txt -r requirements-cpu.txt
+COPY src/ ./src/
+COPY data/ ./data/
+COPY models/ ./models/          # bge-large-zh-v1.5 ONNX 内嵌
+RUN pip install -e /app
+EXPOSE 8080
+ENV INFER_BACKEND=auto WITH_MODEL=1
+CMD ["uvicorn", "chiyu_group.serving.api:app", "--host", "0.0.0.0", "--port", "8080"]
