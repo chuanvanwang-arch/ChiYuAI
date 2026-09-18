@@ -32,6 +32,18 @@ vi.mock('../../src/db.js', () => ({
   },
 }));
 
+// D7（2026-09-18）：retro 收盘自动升格依赖 memoryLog/promote —— 本测试隔离要求「不触真实 PG」，
+//   故 mock 之（append 成功 / promote 成功 / list 空）。dryRun 契约用例不受影响（不触发升格）。
+vi.mock('../../src/memory/memoryLog.js', () => ({
+  appendMemory: async ({ topic, kind, payload, layer, actor, explicit, tenantId }) =>
+    ({ ok: true, row: { id: 'mem-' + String(Math.random()), topic, kind, payload, layer, actor, tenant_id: tenantId } }),
+}));
+vi.mock('../../src/memory/promote.js', () => ({
+  promoteMemoryToTenant: async (pool, { memoryId, tenantId, by, decisionId, title }) =>
+    ({ ok: true, row: { id: 'tp-' + String(memoryId), tenant_id: tenantId } }),
+  listTenantPrecedents: async (pool, tenantId) => [],
+}));
+
 import { summarizeDailyOps, buildVerdict } from '../../src/decision/dailyOps.js';
 import { runDecisionRetro } from '../../src/decision/retro.js';
 

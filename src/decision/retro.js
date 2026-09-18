@@ -14,6 +14,7 @@ import { getLlmJson } from '../llm/client.js';
 import { readConfig } from '../config/configStore.js';
 import { summarizeDailyOps } from './dailyOps.js';
 import { savePatches } from '../calibration/store.js';
+import { promoteLessonsFromRetro } from './retroPromote.js';
 
 // R3 复盘配置：单一 config_store 键，禁硬编码（R1/R5 阈值全部可配，出厂兜底在 RETRO_CONFIG_DEFAULTS）。
 //   原 retro.js 读 'decision-retro' 但从未落库 → 配置恒走兜底（死代码）；现统一为 RETRO_CONFIG_KEY，
@@ -464,6 +465,22 @@ export async function runDecisionRetro({ windowHours = 24, now = new Date().toIS
       [now, windowStartEff, now, rows.length, JSON.stringify(analyzed), JSON.stringify(draftPatches), JSON.stringify(summary), llmAvailable, JSON.stringify(rectification)]
     );
     report.report_id = r.rows[0]?.report_id || null;
+
+    // D7 M→K 升格（2026-09-18，用户已批准「复盘收盘自动升格」）：把可信教训升格为租户先例。
+    //   仅真实复盘（非 dryRun）；失败不阻断主流程；计数入 report 供哨兵与审计可见。
+    //   ⚠ 传 query（db.js 顶层 query）而非 db 的 pool：promote.js 只调 pool.query(sql,params)，
+    //     形状一致；且顶层 import db 的 pool 会破坏 rectification/retro-realenv 的 db.js mock
+    //     （vitest 对动态 import 的导出做存在性断言，mock 缺 pool 即抛错，.catch 接不住）。
+    const promoteRes = await promoteLessonsFromRetro({
+      analyzed,
+      pool: query,
+      nowISO: now,
+      by: 'system',
+    });
+    report.precedent_promoted = promoteRes.promoted;
+    report.precedent_skipped = promoteRes.skipped;
+    report.precedent_failed = promoteRes.failed;
+
     // SSE：calibration 域（前端自动建议卡可订阅）；trace 域（可观测）
     emit('calibration', 'retro-suggestions', {
       report_id: report.report_id,
