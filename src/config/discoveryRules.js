@@ -25,7 +25,7 @@ export const DEFAULT_DISCOVERY_RULES = Object.freeze({
     { id: 'clearbit',     kind: 'firmographics',     scope: 'paid',             costTier: 3, enabled: false },
     { id: 'linkedin',     kind: 'social',            scope: 'paid',             costTier: 3, enabled: false },
     { id: 'qixin',        kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: false },
-    { id: 'anysite',      kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: false },
+    { id: 'anysite',      kind: 'firmographics',     scope: 'paid',             costTier: 2, enabled: true },
     { id: 'xinbang',      kind: 'social',            scope: 'paid',             costTier: 2, enabled: false },
   ],
   signals: {

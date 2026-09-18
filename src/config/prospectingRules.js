@@ -17,7 +17,9 @@ export const DEFAULT_PROSPECTING_RULES = Object.freeze({
   sources: {
     qixin:   { enabled: false, weight: 0.6 },
     xinbang: { enabled: false, weight: 0.2 },
-    anysite: { enabled: false, weight: 0.2 },
+    // 2026-09-18 收口：anysite 授权 key 已配置（.env ANY_SITE_KEY），默认开启以产出 L2 候选池；
+    // 其余付费源仍默认关（无凭据 → fail-closed，绝不冒烟空数据）。
+    anysite: { enabled: true, weight: 0.2 },
     tender:  { enabled: false, weight: 0.8 },   // 2026-09-15：标讯主动搜索源（design docs/2026-09-15-tender-active-search-design.md）
   },
   candidate_limit: 50,

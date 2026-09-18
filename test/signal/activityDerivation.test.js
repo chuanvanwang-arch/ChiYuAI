@@ -178,3 +178,75 @@ describe('fail-closed 与幂等', () => {
     expect(d.bucketKey(NOW, 'week')).toMatch(/^2026-W\d{2}$/);
   });
 });
+
+// ── [补充] 2026-09-17 个人隔离延伸：派生信号的责任人须**穿透到父实体** ──
+// 症结：`activityDerivation` 锚定 CRM_CONTACT（联系人自身无 owner_id），原实现 `entity.payload.owner_id`
+//   ⇒ owner_id 恒 NULL ⇒ 经 store.list ownerScope 谓词广播给同租户全体销售（用户实测「很多信息是相同的」）。
+//   真库取证：12 条 contact_change 全无主，其中 8 条可经 payload.account_id → 父账户 owner_id 解析。
+describe('[补充] 责任人穿透：联系人自身无主时经父账户解析', () => {
+  const contact = (id, payload, updated = daysAgo(3)) =>
+    ({ id, type: 'CRM_CONTACT', tenant_id: 't1', updated_at: updated, payload });
+
+  // 替身需支持父查询（形如 WHERE tenant_id=$1 AND id::text = ANY($2::text[])），与生产 SQL 参数位一致
+  const ctxWithAccounts = (contacts, accounts) => {
+    const ctx = makeCtx({ entities: [...contacts, ...accounts] });
+    const baseQ = ctx.q;
+    ctx.q = async (sql, params) => {
+      if (/ANY\(\$2::text\[\]\)/i.test(sql)) {
+        ctx.queries.push({ sql, params });            // 采样：父查询必须计数，否则 N+1 断言失去鉴别力
+        const ids = (params?.[1] || []).map(String);
+        return { rows: accounts.filter((a) => ids.includes(String(a.id))).map((a) => ({ id: String(a.id), payload: a.payload })) };
+      }
+      return baseQ(sql, params);
+    };
+    return ctx;
+  };
+
+  const ACCT_A = { id: 'acc-a', type: 'CRM_ACCOUNT', tenant_id: 't1', updated_at: daysAgo(1), payload: { owner_id: 'alice' } };
+  const ACCT_B = { id: 'acc-b', type: 'CRM_ACCOUNT', tenant_id: 't1', updated_at: daysAgo(1), payload: { owner_id: 'bob' } };
+
+  it('【鉴别用例】联系人无自身 owner、父账户有主 → 落父账户责任人（非 NULL 广播）', async () => {
+    const ctx = ctxWithAccounts([contact('c1', { account_id: 'acc-a' })], [ACCT_A]);
+    const r = await derive(ctx).deriveOnce({ tenantId: 't1', now: NOW });
+    expect(r.signals).toBe(1);                       // 守卫自检：确实派生出来了
+    expect(ctx.created[0].owner_id).toBe('alice');
+  });
+
+  it('不同销售员的联系人各自归属本责任人（这是隔离的实质）', async () => {
+    const ctx = ctxWithAccounts(
+      [contact('c1', { account_id: 'acc-a' }), contact('c2', { account_id: 'acc-b' })],
+      [ACCT_A, ACCT_B],
+    );
+    await derive(ctx).deriveOnce({ tenantId: 't1', now: NOW });
+    const byId = Object.fromEntries(ctx.created.map((c) => [c.particle_id, c.owner_id]));
+    expect(byId.c1).toBe('alice');
+    expect(byId.c2).toBe('bob');
+  });
+
+  it('自身 owner 优先于父（不被父覆盖）', async () => {
+    const ctx = ctxWithAccounts([contact('c1', { account_id: 'acc-b', owner_id: 'carol' })], [ACCT_B]);
+    await derive(ctx).deriveOnce({ tenantId: 't1', now: NOW });
+    expect(ctx.created[0].owner_id).toBe('carol');
+  });
+
+  it('fail-closed：父不存在 / 父无主 → null（不猜测责任人，回退按角色广播）', async () => {
+    const ctx = ctxWithAccounts(
+      [contact('c1', { account_id: 'acc-ghost' })],
+      [{ id: 'acc-x', type: 'CRM_ACCOUNT', tenant_id: 't1', updated_at: daysAgo(1), payload: {} }],
+    );
+    await derive(ctx).deriveOnce({ tenantId: 't1', now: NOW });
+    expect(ctx.created[0].owner_id).toBe(null);
+  });
+
+  it('同租户同一父账户只查一次（批量解析，非逐实体 N+1 查询）', async () => {
+    const ctx = ctxWithAccounts(
+      [contact('c1', { account_id: 'acc-a' }), contact('c2', { account_id: 'acc-a' }), contact('c3', { account_id: 'acc-a' })],
+      [ACCT_A],
+    );
+    await derive(ctx).deriveOnce({ tenantId: 't1', now: NOW });
+    const parentQs = ctx.queries.filter((q) => /ANY\(\$2::text\[\]\)/i.test(q.sql));
+    expect(parentQs).toHaveLength(1);
+    expect(parentQs[0].params[1]).toEqual(['acc-a']);
+    expect(ctx.created.every((c) => c.owner_id === 'alice')).toBe(true);
+  });
+});

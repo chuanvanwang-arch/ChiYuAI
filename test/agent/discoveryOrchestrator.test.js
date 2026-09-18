@@ -93,10 +93,10 @@ describe('runDiscovery（自主发现编排）', () => {
 
 describe('内置适配器启动接线（死接线回归护栏）', () => {
   beforeEach(() => _resetRegistry());
-  it('registerBuiltinAdapters 后 4 个 system 源按 costTier 升序可解析', () => {
+  it('registerBuiltinAdapters 后 已启用源按 costTier 升序可解析（含 anysite，2026-09-18 收口开启）', () => {
     registerBuiltinAdapters();
     const ids = resolveAdapters(DEFAULT_DISCOVERY_RULES).map((a) => a.id);
-    expect(ids).toEqual(['web-research', 'tender', 'email-verify', 'gaode']);
+    expect(ids).toEqual(['web-research', 'tender', 'email-verify', 'gaode', 'anysite']);
   });
 });
 
