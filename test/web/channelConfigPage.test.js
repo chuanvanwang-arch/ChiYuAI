@@ -85,4 +85,81 @@ describe('channel-config.html 配置台', () => {
     const seg = src.slice(src.indexOf('if (credentials) {'), src.indexOf('if (miss.length)'));
     expect(seg).toContain('CRED_FIELDS[kind]');
   });
+
+  // ── 提交反馈可辨识（2026-09-18 用户实缺陷回归：「点了就没有反应了」）──────
+  // 事实：原实现把成功/失败/校验错误一律写进 `<p class="hint" id="out">`——灰字、与周围静态
+  //   说明同色同字号，且实机落在视口底边（y=719 / 视口高 720）⇒ 用户点了「确认接入」看到的唯一
+  //   变化是一行与说明文字无法区分的灰字；重复点击文本一字不变 ⇒ 读作「点了没反应」。
+  // 判据：**反馈必须可辨识，且指向一个不同的下一步动作**（与项目「假失败」同族）。
+  //   ⚠ 上面的静态契约测试当时全绿——绿在「页面里有 /api/channels/connect 这个串」，
+  //     死在「用户点了看不见任何东西」。故本组断言**只锚状态语义与就地改错点**，
+  //     真实渲染结果由运行期探针锁定：`node scripts/verify-channel-config-feedback.mjs`。
+  it('反馈区可辨识：role=status + err/ok/busy 三态着色（不再与灰字说明同形）', () => {
+    expect(src).toMatch(/id="out"[^>]*role="status"[^>]*aria-live="polite"/);
+    expect(src).toContain("el.className = 'status show ' + state");
+    expect(src).toMatch(/\.status\.err[^}]*--err/);
+    expect(src).toMatch(/\.status\.err[^}]*--err-soft/);   // 底走令牌，不自带 rgba 色值
+    expect(src).toContain('white-space: pre-wrap');          // guidedHint 的多行「↳ 下一步」不被压成一行
+    expect(src).not.toMatch(/id="out"[^>]*class="hint"/);    // 不再沿用「静态说明」的样式
+  });
+
+  it('校验失败就地改错：出错字段标红 + 聚焦（不把用户留在一行灰字前）', () => {
+    expect(src).toContain('function fieldError(');
+    expect(src).toContain("fieldError('f-cred', 'cred-hint'");   // 错误落在用户视线所在的凭据框原位
+    expect(src).toContain("inp.className = 'bad'");
+    expect(src).toContain('if (inp.focus) inp.focus()');
+    expect(src).toContain('input.bad { border-color: var(--err); }');
+    // 用户一动手就清掉上一轮红字，否则改完了错误提示还挂着＝反向误导
+    expect(src).toContain("$('f-cred').oninput = () => clearFieldError(");
+    // 非法 JSON 必须给出「本通道必填键 + 可照抄示例」，而不是一句不可执行的「须为合法 JSON」
+    expect(src).toMatch(/凭据须为合法 JSON[\s\S]{0,200}sampleOf\(kind\)/);
+  });
+
+  it('提交中即刻反馈 + 按钮禁用（点下去必有可见变化，且不叠加请求）', () => {
+    expect(src).toContain("if (btn.disabled) return;");
+    expect(src).toContain('btn.disabled = true;');
+    expect(src).toContain("btn.textContent = '提交中…'");
+    expect(src).toContain('btn.disabled = false;');           // 无论成败都恢复可点（否则按钮变砖）
+    expect(src).toContain("setOut('busy'");
+    expect(src).toContain('button[disabled]');                // 禁用态必须有可见样式
+  });
+
+  it('反馈探针在（运行期真跑 onclick；静态绿不等于用户看得见）', () => {
+    const probe = readFileSync(new URL('../../scripts/verify-channel-config-feedback.mjs', import.meta.url), 'utf8');
+    expect(probe).toContain("src/web/channel-config.html");
+    expect(probe).toContain('role="status"');
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+    const hit = Object.entries(pkg.scripts).find(([, v]) => v.includes('verify-channel-config-feedback.mjs'));
+    expect(hit, '探针未接 npm script ⇒ 下轮重构会静默脱落').toBeTruthy();
+  });
+});
+
+// P1 隐私排除清单面板（设计 2026-09-18-unified-integration-design-v2.md §8.1 / §11 P1）
+describe('channel-config.html 隐私排除清单面板', () => {
+  it('配置读写走唯一数据源 /api/config/sync-privacy（读写各一次，不旁路 config_store）', () => {
+    expect(src).toContain("fetch('/api/config/sync-privacy')");
+    expect(src).toContain("fetch('/api/config/sync-privacy', {");
+    expect(src).toContain("method: 'PUT'");
+  });
+
+  it('三类规则输入齐备（域名/地址/关键词）', () => {
+    for (const id of ['p-domains', 'p-addrs', 'p-keys']) expect(src).toContain(`id="${id}"`);
+  });
+
+  it('**判据是丢弃计数，不是规则条数**：页面必须渲染真实拦下数（否则「配了但没生效」无从察觉）', () => {
+    expect(src).toContain('privacy_dropped');
+    expect(src).toContain('renderRecent');
+    expect(src).toContain('最近一轮同步实际拦下');
+    // 计数不可用必须说出来（否则「拦下 0 条」与「不知道」在界面上长得一样）
+    expect(src).toContain('rec.available === false');
+  });
+
+  it('保存成功文案把用户导向「生效证据」而非「配置成功」（防把配置存在当能力存在）', () => {
+    expect(src).toContain('生效证据看下方「实际拦下」计数');
+  });
+
+  it('只读权限：非管理员不得看到可点的保存按钮（can_write=false → disabled）', () => {
+    expect(src).toContain('res.can_write === false');
+    expect(src).toContain("$('p-save').disabled = true");
+  });
 });

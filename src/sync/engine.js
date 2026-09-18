@@ -1,9 +1,13 @@
 // src/sync/engine.js — 同步内核（runOnce）
 // 设计输入：docs/2026-09-15-final-design-coexistence-and-proactive.md §T01 + §T04（L3 回写分支）
+//          + docs/2026-09-18-unified-integration-design-v2.md §8.1（P1 隐私排除清单，双线共用）
 // 职责：read（provider）→ map（mapping）→ upsert（resolver 幂等）→ 计数（created/updated/skipped）
 //       L3 额外：writeback（callWriteback 注入的回写函数 → 白名单字段 → 字段级 CAS）
+//       P1 额外：privacy（注入的隐私过滤器 → 落库**之前**排除）
 // 幂等前提：resolver.upsert 按 external_id 对齐，二次同步不新建粒子
-export function createSyncEngine({ provider, mapping, resolver, cursor, trust = { level: () => 'L1' }, callWriteback } = {}) {
+import { signalsFromSyncRow } from '../channels/privacyFilter.js';
+
+export function createSyncEngine({ provider, mapping, resolver, cursor, trust = { level: () => 'L1' }, callWriteback, privacy = null } = {}) {
   async function runOnce({ object, tenantId = 'system', decisionId = null } = {}) {
     if (!provider) return { ok: false, error: 'provider_missing' };
     const auth = await provider.verifyAuth().catch(() => ({ ok: false }));
@@ -25,7 +29,7 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
     }
     if (inc?.ok === false) {
       const errMsg = String(inc.error || 'read_failed');
-      const zeroCounts = { read: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
+      const zeroCounts = { read: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, privacy_dropped: 0 };
       // 只读路径同样落 failed：L1 也不是「可以静默失败」的理由
       await cursor.set({
         tenantId, provider: provider.kind || 'mock', object,
@@ -35,12 +39,26 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
       return { ok: false, error: errMsg, ...zeroCounts };
     }
     const read = (inc.rows || []).length;
-    const counts = { read, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
+    const counts = { read, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, privacy_dropped: 0 };
     if (!allowWrite) {
       await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null, decisionId });
       return { ok: true, ...counts, readOnly: true };
     }
+    // P1 隐私排除（§8.1）：判定放在 read → map → upsert **之前**，使被排除的行根本不进入落库链路
+    //   （不是「落库后再隐藏」——后者在审计时可用 SQL 直接取回，不构成任何隐私承诺）。
+    //   只在写路径生效：L1 不落库，无隐私风险，也不因此改变 L1 的既有计数语义（零回归）。
+    //   isEmpty 短路：未配置规则时不产生任何逐行开销与行为差异。
+    const pf = privacy && typeof privacy.evaluate === 'function' ? privacy : null;
+    const byReason = {};
     for (const row of inc.rows || []) {
+      if (pf && !pf.isEmpty) {
+        const d = pf.evaluate(signalsFromSyncRow(row));
+        if (d.drop) {
+          counts.privacy_dropped++;
+          byReason[d.reason] = (byReason[d.reason] || 0) + 1;
+          continue; // 丢弃但**必计数**（丢弃计数可见；「被规则拦下」与「读不到数据」必须可区分）
+        }
+      }
       const m = mapping.apply(object, row);
       if (!m.ok) { counts.skipped++; continue; } // 映射失败（未知对象/字段）计入 skipped
       // 外部 id 优先取映射声明的 identity.external_id_field（§9.1；如纷享 _id），回退通用名（零回归）
@@ -62,6 +80,12 @@ export function createSyncEngine({ provider, mapping, resolver, cursor, trust = 
         if (w?.ok) counts.writeback++;
         else counts.conflicted++; // 回写失败（CAS 拒绝/外部已改）计入 conflicted，不静默
       }
+    }
+    // P1 落痕：① 按原因的丢弃分组（界面/报告可解释「为什么少了」）；② 配置形状异常时显式记账
+    //   （config_ok=false 却不留痕 = 用户以为规则生效、实际一条都没生效的假绿）。
+    if (pf) {
+      if (Object.keys(byReason).length) counts.privacy_dropped_by_reason = byReason;
+      if (pf.config_ok === false) counts.privacy_config_ok = false;
     }
     await cursor.set({ tenantId, provider: provider.kind || 'mock', object, counts, status: 'ok', error: null, cursor: inc.cursor, decisionId });
     return { ok: true, ...counts, readOnly: false };

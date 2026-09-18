@@ -14,8 +14,29 @@ import { createEntityResolver } from './resolver.js';
 import { createCursorStore } from './cursor.js';
 // A-B1 单一事实源：描述符的解释权归 providerDescriptor.js（本文件与 enrich 侧共用同一判据）
 import { normalizeProviderDescriptors, inboundObjects } from '../connectors/discovery/providerDescriptor.js';
+// P1 隐私排除清单（§8.1）：纯函数模块，双线共用同一判定实现
+import { createPrivacyFilter, signalsFromSyncRow, PRIVACY_CONFIG_KEY } from '../channels/privacyFilter.js';
 
 export const SYNC_TRUST_ORDER = ['L1', 'L2', 'L3'];
+
+/**
+ * P1 隐私过滤器装配（per-tenant 读一次）。
+ * 为什么在**装配层**读而不是两个消费点各自读：同一轮里两处若读到不同版本的配置，就会出现
+ *   「通道线拦下了、同步线却落了库」——同一份隐私承诺给出两个答案，且两边各自看都是对的。
+ * @returns {Promise<ReturnType<typeof createPrivacyFilter>>} 永不抛、永不返回 null（fail-closed）
+ */
+export async function loadPrivacyFilter({ tenantId = 'system', readConfig } = {}) {
+  try {
+    const row = await (readConfig || (async () => null))(PRIVACY_CONFIG_KEY, { tenantId });
+    return createPrivacyFilter(row?.value);
+  } catch {
+    // 读不到配置 → 空规则 + config_ok=false（由消费点在游标/trace 留痕）。
+    //   ⚠ 不得放大为「全部丢弃」：一次读取抖动会表现为「数据凭空消失」，比不放行更难排查，且不可解释。
+    //   ⚠ 也不能与「未配置」混为一谈：未配置是合法状态（config_ok=true），读取失败才是异常（必须留痕）。
+    const empty = createPrivacyFilter(null);
+    return { ...empty, config_ok: false, load_failed: true };
+  }
+}
 
 // —— 有效信任档：min(descriptor, global)。取更严者，descriptor 不可单方面越权（计划 §1 判断 2）——
 export function effectiveTrustLevel(descriptorLevel, globalLevel) {
@@ -79,6 +100,8 @@ export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, r
     }
     const trustRow = await readConfig('sync-trust', { tenantId });
     const globalLevel = trustRow?.value?.default_level || 'L1';
+    // P1：本租户一轮同步共用一个隐私过滤器实例（通道线与同步线同一份规则）
+    const privacy = await loadPrivacyFilter({ tenantId, readConfig });
     const creds = resolveCredentials
       ? await resolveCredentials({ tenantId, providerIds: descriptors.map((d) => d.id) }).catch(() => ({}))
       : {};
@@ -96,7 +119,7 @@ export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, r
       //   包装失败不阻断目标装配（留痕后回落原 provider）。
       if (typeof channelIngest === 'function') {
         try {
-          provider = channelIngest({ provider, kind: d.kind, tenantId, trustLevel, emit }) || provider;
+          provider = channelIngest({ provider, kind: d.kind, tenantId, trustLevel, emit, privacy }) || provider;
         } catch (e) {
           if (typeof emit === 'function') {
             emit('trace', 'channel-ingest-wrap-failed', { tenant_id: tenantId, provider: d.id, error: String(e?.message || e) });
@@ -110,6 +133,7 @@ export async function loadTenantSyncTargets({ tenantId = 'system', readConfig, r
         objects: inbound,
         trustLevel,
         descriptorLevel: d.trust_level || null,
+        privacy, // P1：随目标下传，由 runTenantSyncOnce 注入内核（与汇入钩子同源同实例）
       });
     }
     return out;
@@ -124,15 +148,16 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
     createEngine, pool, mappings = {}, createResolver, createCursor,
     mintDecision, emit, recordFailure, callWriteback, decisionScene = 'integration-sync',
   } = deps;
-  const buildEngine = createEngine || (({ provider, trust }) => createSyncEngine({
+  const buildEngine = createEngine || (({ provider, trust, privacy }) => createSyncEngine({
     provider,
     mapping: createMappingResolver({ mappings }),
     resolver: (createResolver || ((p) => createEntityResolver({ pool: p })))(pool),
     cursor: (createCursor || ((p) => createCursorStore(p)))(pool),
     trust,
     callWriteback,
+    privacy, // P1 隐私排除（§8.1）：不注入即零行为变化（既有调用方/测试不受影响）
   }));
-  const out = { runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0 };
+  const out = { runs: 0, errors: 0, created: 0, updated: 0, skipped: 0, conflicted: 0, writeback: 0, privacy_dropped: 0 };
   for (const t of targets) {
     // 防御性再过滤：targets 亦可能来自调用方直接构造（非 loadTenantSyncTargets）→ 共用同一方向判据
     const inbound = inboundObjects(t);
@@ -154,18 +179,22 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
           decisionId = d?.decisionId || null;
           if (!decisionId) throw new Error(`decision_required: ${t.trustLevel} 写路径无决策不落库`);
         }
-        const engine = buildEngine({ tenantId, target: t, object: obj, provider: t.provider, trust });
+        const engine = buildEngine({ tenantId, target: t, object: obj, provider: t.provider, trust, privacy: t.privacy || deps.privacy || null });
         const r = await engine.runOnce({ object: obj.name, tenantId, decisionId });
         out.created += r?.created || 0;
         out.updated += r?.updated || 0;
         out.skipped += r?.skipped || 0;
         out.conflicted += r?.conflicted || 0;
         out.writeback += r?.writeback || 0;
+        out.privacy_dropped += r?.privacy_dropped || 0;
         if (emit) {
           emit('trace', 'sync-run-done', {
             tenant_id: tenantId, provider: t.id, object: obj.name, trust_level: t.trustLevel,
             read: r?.read || 0, created: r?.created || 0, updated: r?.updated || 0,
             skipped: r?.skipped || 0, decision_id: decisionId,
+            // 隐私排除可见：否则「同步条数变少」会被读成同步故障
+            privacy_dropped: r?.privacy_dropped || 0,
+            ...(r?.privacy_dropped_by_reason ? { privacy_dropped_by_reason: r.privacy_dropped_by_reason } : {}),
           });
         }
       } catch (err) {
@@ -187,7 +216,7 @@ export async function runTenantSyncOnce({ tenantId = 'system', targets = [], dep
 export async function handleObjectChanged({
   tenantId = 'system', provider, object, row = {}, deps = {},
 } = {}) {
-  const { mappings = {}, readConfig, createResolver, pool, mintDecision, emit, callWriteback } = deps;
+  const { mappings = {}, readConfig, createResolver, pool, mintDecision, emit, callWriteback, privacy } = deps;
   const def = mappings[object];
   if (!def?.particle_type) return { ok: false, error: 'object_not_mapped' }; // fail-closed：不越权建粒子
   const extId = row.id || row.external_id || (def.identity?.external_id_field ? row[def.identity.external_id_field] : null);
@@ -195,6 +224,16 @@ export async function handleObjectChanged({
   const trustRow = await (readConfig || (async () => null))('sync-trust', { tenantId }).catch(() => null);
   const level = trustRow?.value?.default_level || 'L1';
   if (level === 'L1') return { ok: true, readOnly: true, externalId: extId }; // 只读观察期：事件不写库
+  // P1 隐私排除（§8.1）：webhook 是与定时器并列的**第二个入口**——只在定时器路径过滤，等于
+  //   「同一封被排除的邮件从 webhook 进来照样落库」。故本路径独立判定，且判定在铸决策之前（省一枚无谓决策）。
+  const pf = privacy || await loadPrivacyFilter({ tenantId, readConfig });
+  if (pf && !pf.isEmpty) {
+    const d = pf.evaluate(signalsFromSyncRow(row));
+    if (d.drop) {
+      if (emit) emit('trace', 'sync-event-privacy-dropped', { tenant_id: tenantId, provider, object, reason: d.reason });
+      return { ok: true, privacy_dropped: true, reason: d.reason, externalId: extId };
+    }
+  }
   // 第 0 闸 fail-closed：写路径（L2/L3）铸不出决策 → 不落库。
   // ⚠ 缺 mintDecision 注入视同"铸不出"（漏注入不得静默放开写权限）——与 runTenantSyncOnce 同源红线，两处口径须一致。
   let decisionId = null;

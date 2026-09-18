@@ -15,6 +15,8 @@ import { ingestChannelEvent } from './channelGraphIngest.js';
 import { query, queryWrite } from '../db.js';
 // 通道 kind 单一事实源（见 channels/kinds.js；本文件不再自建集合）
 import { CHANNEL_KINDS } from './kinds.js';
+// P1 隐私排除清单（§8.1）：与同步线共用同一判定实现
+import { signalsFromChannelEvent } from './privacyFilter.js';
 
 export { CHANNEL_KINDS };
 
@@ -84,13 +86,16 @@ export function createChannelIngestDeps(deps = {}) {
 }
 
 // —— 包装 provider：单一读入 → 逐行归一化 → 汇入（仅通道 kind 生效）——
-export function wrapProviderForIngest({ provider, kind, tenantId = 'system', trustLevel, deps, emit } = {}) {
+export function wrapProviderForIngest({ provider, kind, tenantId = 'system', trustLevel, deps, emit, privacy = null } = {}) {
   if (!provider || !CHANNEL_KINDS.has(kind)) return provider; // 非通道 kind：原样返回（零行为变化）
   const orig = provider.readIncremental;
   if (typeof orig !== 'function') return provider;
   const trace = typeof emit === 'function' ? emit : () => {};
   const ingestDeps = (deps && typeof deps.findAccountByDomain === 'function') ? deps : createChannelIngestDeps({ emit, tenantId });
   const level = trustLevel || 'L1';
+  // P1 隐私排除（§8.1）：判定在**归一化之后、汇入之前**——被排除的行不进 enrichment，
+  //   而不是「进了 enrichment 再隐藏」（后者只是查询层看不见，数据仍在库里）。
+  const pf = privacy && typeof privacy.evaluate === 'function' ? privacy : null;
 
   return {
     ...provider,
@@ -100,10 +105,20 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
       const rows = Array.isArray(inc?.rows) ? inc.rows : [];
       let ingested = 0;
       let failed = 0;
+      let dropped = 0;
+      const byReason = {};
       const keys = new Set(); // 本轮实际落到的 enrichment 键（落点可观测：不静默）
       for (const row of rows) {
         try {
           const ev = normalizeChannelRow(row);
+          if (pf && !pf.isEmpty) {
+            const d = pf.evaluate(signalsFromChannelEvent(ev));
+            if (d.drop) {
+              dropped++;
+              byReason[d.reason] = (byReason[d.reason] || 0) + 1;
+              continue; // 丢弃必计数（§10 判据：丢弃计数可见，「被规则拦下」≠「读不到数据」）
+            }
+          }
           const r = await ingestChannelEvent(ev, {
             ...ingestDeps,
             trustLevel: async () => level,
@@ -121,11 +136,13 @@ export function wrapProviderForIngest({ provider, kind, tenantId = 'system', tru
           });
         }
       }
-      // 不静默：本轮「读入 N 行 / 汇入 M 条 / 失败 K 条 / 落到哪些键」上墙——
+      // 不静默：本轮「读入 N 行 / 汇入 M 条 / 失败 K 条 / 隐私排除 P 条 / 落到哪些键」上墙——
       // 「零汇入」与「没接线」可区分，且落点键可核对（防「写进了错的键」这类静默错配）。
       if (rows.length) {
         trace('trace', 'channel-ingest-done', {
           tenant_id: tenantId, kind, read: rows.length, ingested, failed, enrichment_keys: [...keys],
+          ...(dropped ? { privacy_dropped: dropped, privacy_dropped_by_reason: byReason } : {}),
+          ...(pf && pf.config_ok === false ? { privacy_config_ok: false } : {}),
         });
       }
       return inc;

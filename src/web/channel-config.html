@@ -25,6 +25,19 @@
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .hint { color: var(--mut); font-size: 13px; }
     .err { color: var(--err); font-size: 13px; }
+    /* 提交反馈区（2026-09-18 实机缺陷修复）：原实现把成功/失败/校验错误一律写成 .hint 灰字，
+       与周围静态说明**同色同字号**、且落在视口底边 ⇒ 用户读作「点了没反应」。
+       现按 busy/ok/err 三态着色（err 走 --err + --err-soft 令牌，不自带 rgba 色值）；
+       white-space: pre-wrap 让 guidedHint 的多行「下一步」不被压成一行。 */
+    .status { display: none; font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+      margin: 10px 0 0; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg2); }
+    .status.show { display: block; }
+    .status.busy { color: var(--mut); }
+    .status.ok { color: var(--ok); border-color: var(--ok); }
+    .status.err { color: var(--err); border-color: var(--err); background: var(--err-soft); }
+    .hint.err { color: var(--err); }
+    input.bad { border-color: var(--err); }
+    button[disabled] { opacity: .6; cursor: default; }
   </style>
 </head>
 <body>
@@ -45,6 +58,27 @@
   </table>
   <p class="err" id="err"></p>
 
+  <!-- P1 隐私排除清单（G7 · 设计 2026-09-18-unified-integration-design-v2.md §8.1）
+       与竞品对齐项（ROX Restricted Domains / ATTIO blocklist / Lightfield Do-not-track）。
+       位置刻意放在「通道」之后：它约束的是**这些通道读进来什么**，不是独立功能。 -->
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 4px">隐私排除清单</h2>
+    <p class="hint">写在这里的域名 / 地址 / 关键词，<b>在读入时就不会落库</b>（不是落库后再隐藏——后者用数据库仍能取回）。
+      被排除的行<b>只留计数、不留内容</b>。对<b>同步线（客户侧 CRM 对象）与通道线（邮件/日历/会议/微信）同时生效</b>，两线共用同一份规则。</p>
+    <div class="field"><label for="p-domains">排除域名（每行一个）</label>
+      <textarea id="p-domains" rows="2" placeholder="competitor.com&#10;支持子域：a.corp.com 会被 corp.com 命中"></textarea></div>
+    <div class="field"><label for="p-addrs">排除地址（每行一个）</label>
+      <textarea id="p-addrs" rows="2" placeholder="ceo@（任意域名下的 ceo）&#10;hr@corp.com（仅该地址）"></textarea></div>
+    <div class="field"><label for="p-keys">排除关键词（每行一个，匹配主题/摘要）</label>
+      <textarea id="p-keys" rows="2" placeholder="验证码&#10;Receipt"></textarea></div>
+    <div class="row"><button class="primary" id="p-save">保存隐私规则</button>
+      <span class="hint">写经决策第 0 闸；租户级配置需管理员权限。</span></div>
+    <p class="status" id="p-out" role="status" aria-live="polite"></p>
+    <!-- 丢弃计数：判据是「拦下了几条」，不是「配了几条规则」。
+         只显示配置项存在，无法区分「生效了」与「配了但一条都没生效」（纸面能力）。 -->
+    <div id="p-recent" class="hint"></div>
+  </div>
+
   <div class="card">
     <h2 style="font-size:16px;margin:0 0 4px">补通道 / 改凭据</h2>
     <p class="hint">凭据仅用于后端加密落库；本页 <b>不保存、不回显</b> 任何明文。信任档默认 <b>L1 只读</b>。</p>
@@ -62,7 +96,7 @@
       <select id="f-trust"><option value="L1">L1 只读（默认）</option><option value="L2">L2 批量入库</option><option value="L3">L3 L2+回写</option></select></div>
     <div class="row"><button class="primary" id="connect">确认接入</button>
       <span class="hint">提交后后端依次执行：凭据入保险库 → verifyScope 真探测（fail-closed）→ review-gate 人工闸 → 描述符落库。</span></div>
-    <p class="hint" id="out"></p>
+    <p class="status" id="out" role="status" aria-live="polite"></p>
   </div>
 
   <script type="module">
@@ -77,6 +111,33 @@
     const tenantId = () => new URLSearchParams(location.search).get('tenant_id') || 'system';
 
     const KIND_TEXT = { 'generic-email': '邮箱', 'generic-calendar': '日历', 'generic-meeting': '会议', 'generic-wechat': '微信' };
+
+    // ── 提交反馈出口（2026-09-18 实机缺陷修复 · 「点了没反应」）──────────────────
+    // 事实（Playwright 实机取证）：原实现把成功/失败/校验错误**一律**写入 `<p class="hint" id="out">`
+    //   （灰字、与周围静态说明同色同字号），且该行位于按钮下方、实机坐标 y=719 / 视口高 720
+    //   ⇒ 点击后唯一可见变化是一行「与说明文字无法区分的灰字」；重复点击文本一字不变 ⇒ 读作「没反应」。
+    // 判据（与项目「假失败」同族）：**反馈必须可辨识，且指向一个不同的下一步动作**。
+    //   → 三态着色（busy/ok/err）+ 图标 + role=status/aria-live，出现即滚入视野；
+    //     校验类错误**就地**标红出错的那个输入框并聚焦，不把用户留在一行灰字前干瞪眼。
+    function setOut(state, text) {
+      const el = $('out');
+      el.className = 'status show ' + state;
+      el.textContent = ({ busy: '⏳ ', ok: '✅ ', err: '⛔ ' }[state] || '') + text;
+      if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    }
+    // 字段级错误：写进该字段**原位**的提示行（用户视线所在处），并标红 + 聚焦出错的输入框
+    function fieldError(inputId, hintId, msg) {
+      const inp = $(inputId);
+      $(hintId).className = 'hint err';
+      $(hintId).textContent = '⛔ ' + msg;
+      inp.className = 'bad';
+      if (inp.focus) inp.focus();
+    }
+    function clearFieldError(inputId, hintId, restore) {
+      $(inputId).className = '';
+      $(hintId).className = 'hint';
+      if (typeof restore === 'function') restore();
+    }
 
     async function load() {
       $('err').textContent = '';
@@ -107,7 +168,7 @@
       if (!confirm('确认断开「' + id + '」？将置为停用（软停用，不物理删除）。')) return;
       const res = await fetch('/api/channels/' + encodeURIComponent(id) + '/disconnect?tenant_id=' + encodeURIComponent(tenantId()), { method: 'POST' })
         .then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
-      $('out').textContent = res.ok ? ('已断开：' + id + '（enabled=false）') : ('断开失败：' + (res.error || 'unknown'));
+      setOut(res.ok ? 'ok' : 'err', res.ok ? ('已断开：' + id + '（enabled=false）') : ('断开失败：' + (res.error || 'unknown')));
       await load();
     });
 
@@ -120,39 +181,78 @@
       'generic-wechat': ['corp_id', 'secret'],
     };
     // 随通道类型提示必填字段（用户不必猜 JSON 该填什么键）
+    function sampleOf(kind) {
+      return Object.fromEntries((CRED_FIELDS[kind] || []).map((k) => [k, '…']));
+    }
     function renderCredHint() {
       const f = CRED_FIELDS[$('f-kind').value] || [];
-      const sample = Object.fromEntries(f.map((k) => [k, '…']));
+      $('cred-hint').className = 'hint';   // 换通道类型 ⇒ 上一类型的错误提示作废，不得残留
       $('cred-hint').textContent = f.length
-        ? `本通道必填字段：${f.join('、')}　示例：${JSON.stringify(sample)}`
+        ? `本通道必填字段：${f.join('、')}　示例：${JSON.stringify(sampleOf($('f-kind').value))}`
         : '';
     }
     $('f-kind').onchange = renderCredHint;
     renderCredHint();
+    // 一旦开始改凭据，就地清掉上一轮的红字与红框（否则用户改完了错误提示还挂着 = 反向误导）
+    $('f-cred').oninput = () => clearFieldError('f-cred', 'cred-hint', renderCredHint);
 
     $('connect').onclick = async () => {
+      const btn = $('connect');
+      if (btn.disabled) return;   // 提交中重复点击不叠加请求（也让「点了没反应」这一观感不再可能出现）
       const kind = $('f-kind').value;
       const label = $('f-label').value.trim();
       const trust = $('f-trust').value;
       const raw = $('f-cred').value.trim();
       let credentials = null;
-      if (raw) { try { credentials = JSON.parse(raw); } catch { $('out').textContent = '凭据须为合法 JSON'; return; } }
+      if (raw) {
+        try { credentials = JSON.parse(raw); } catch {
+          // 实测最高频误用：把「密码」直接填进 JSON 框（用户截图即此形态）。
+          //   只说「须为合法 JSON」= 用户不知道自己该填什么（不可执行的失败提示）；
+          //   故就地给出本通道的键与**可照抄的示例**，并指回向导（人类入口）。
+          fieldError('f-cred', 'cred-hint',
+            `凭据须为合法 JSON —— 本通道必填 ${(CRED_FIELDS[kind] || []).join('、')}，`
+            + `例如：${JSON.stringify(sampleOf(kind))}（值换成真实凭据）；不确定就点上方「新增通道（走向导）」，系统会一步步问。`);
+          setOut('err', '未提交：凭据不是合法 JSON（上方凭据框已标红，请按示例修正后重试）。');
+          return;
+        }
+      }
       // 本地预检（与后端同判据，见上方跨层守卫）：缺字段必然被后端拒，就地说明省一次往返。
       //   仅在**填了凭据**时校验——留空表示沿用库里已有凭据，不得拦。
       if (credentials) {
         const miss = (CRED_FIELDS[kind] || []).filter((k) => String(credentials[k] ?? '').trim() === '');
-        if (miss.length) { $('out').textContent = '缺必填字段：' + miss.join('、') + '（后端也会拒，补齐后再提交）'; return; }
+        if (miss.length) {
+          fieldError('f-cred', 'cred-hint', `缺少必填字段：${miss.join('、')} —— 本通道要求 ${(CRED_FIELDS[kind] || []).join('、')}，`
+            + `例如：${JSON.stringify(sampleOf(kind))}。`);
+          setOut('err', `未提交：凭据缺少必填字段（${miss.join('、')}）。补齐后再提交，后端同样会拒。`);
+          return;
+        }
       }
       const id = 'channel-' + kind.replace('generic-', '') + '-' + tenantId();
-      $('out').textContent = '提交中…';
-      const res = await fetch('/api/channels/connect', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: tenantId(), id, kind, label, credentials, trust_level: trust }),
-      }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
-      $('out').textContent = res.ok
-        ? ('已提交：' + id + '（信任档 ' + trust + '）。' + (res.hint || ''))
-        : ('接入失败：' + (res.error || 'unknown') + guidedHint(res, kind));
-      $('f-cred').value = '';   // 明文不驻留 DOM
+      btn.disabled = true;
+      const btnText = btn.textContent;
+      btn.textContent = '提交中…';
+      setOut('busy', '提交中…（真实探测，最长数十秒；探测不通过则 fail-closed 不接入）');
+      let res = { ok: false, error: 'unknown' };   // 兜底：任何意外路径都要落到「可见的失败态」，不许静默
+      try {
+        res = await fetch('/api/channels/connect', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: tenantId(), id, kind, label, credentials, trust_level: trust }),
+        }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+      } finally {
+        btn.disabled = false;          // 无论成功失败都必须恢复可点（否则按钮变砖 = 更彻底的「没反应」）
+        btn.textContent = btnText;
+      }
+      if (res.ok) {
+        setOut('ok', '已提交：' + id + '（信任档 ' + trust + '）。' + (res.hint || ''));
+        $('f-cred').value = '';   // 明文不驻留 DOM（**仅成功后清空**：失败时保留，便于用户就地改错）
+      } else {
+        setOut('err', '接入失败：' + (res.error || 'unknown') + guidedHint(res, kind));
+        // 后端明确报缺哪个字段 ⇒ 就地标到凭据框上（不只留一条状态行让用户自己找）
+        if (Array.isArray(res.missing) && res.missing.length) {
+          fieldError('f-cred', 'cred-hint', `后端要求缺字段：${res.missing.join('、')} —— 本通道必填 `
+            + `${(CRED_FIELDS[kind] || []).join('、')}，例如：${JSON.stringify(sampleOf(kind))}。`);
+        }
+      }
       await load();
     };
 
@@ -171,6 +271,82 @@
       }
       return h;
     }
+    // ── P1 隐私排除清单（§8.1）：配置读写 + **真实丢弃计数**展示 ─────────────────────
+    //   判据是「拦下了几条」，不是「配了几条规则」：只显示配置项存在，无法区分
+    //   「规则生效了」与「规则配了但一条都没生效」（后者是纸面能力，同类问题在本项目已出现过多次）。
+    const toLines = (v) => String(v || '').split('\n').map((s) => s.trim()).filter(Boolean);
+    const toText = (arr) => (Array.isArray(arr) ? arr.join('\n') : '');
+
+    function renderRecent(rec) {
+      const el = $('p-recent');
+      if (!rec) { el.className = 'hint'; el.textContent = ''; return; }
+      if (rec.available === false) {
+        // 计数取不到必须说出来：否则「0 条被拦」与「不知道」在界面上长得一模一样
+        el.className = 'hint err';
+        el.textContent = '⚠ 丢弃计数暂不可用（' + (rec.reason || 'unknown') + '）：规则已保存，但暂时无法确认是否真的拦下了行。';
+        return;
+      }
+      if (!rec.items || !rec.items.length) {
+        el.className = 'hint';
+        el.textContent = '最近一轮同步：没有被隐私规则拦下的行（也可能是规则尚未命中任何数据）。';
+        return;
+      }
+      el.className = 'hint';
+      el.innerHTML = '最近一轮同步实际拦下：<br>' + rec.items.map((x) => {
+        const why = x.by_reason
+          ? '（' + Object.entries(x.by_reason).map(([k, n]) => esc(k) + ' ' + n).join('，') + '）'
+          : '';
+        const bad = x.config_ok === false ? ' ⚠ 该次运行规则配置形状异常，等同未生效' : '';
+        return '· <b>' + esc(x.provider) + '/' + esc(x.object) + '</b>：拦下 ' + esc(x.privacy_dropped) + ' 条' + why + bad;
+      }).join('<br>');
+    }
+
+    async function loadPrivacy() {
+      try {
+        const res = await fetch('/api/config/sync-privacy').then((r) => r.json()).catch((e) => ({ error: String(e) }));
+        if (res.error) { setOut('err', '隐私规则读取失败：' + res.error); return; }
+        $('p-domains').value = toText(res.exclude_domains);
+        $('p-addrs').value = toText(res.exclude_addresses);
+        $('p-keys').value = toText(res.exclude_keywords);
+        renderRecent(res.recent);
+        if (res.config_ok === false && Array.isArray(res.invalid_items) && res.invalid_items.length) {
+          setOut('err', '⚠ 已存规则有 ' + res.invalid_items.length + ' 项形状非法（已忽略）：'
+            + res.invalid_items.join('、') + ' —— 请修正后重新保存。');
+        }
+        if (res.can_write === false) {
+          $('p-save').disabled = true;
+          setOut('err', '只读：修改隐私规则需租户管理员权限（ten_admin / ADMIN）。');
+        } else {
+          $('p-save').disabled = false; // 重新读取时按当前权限刷新（不把上一次的只读态粘住）
+        }
+      } catch (e) { setOut('err', '隐私规则读取异常：' + String(e)); }
+    }
+
+    $('p-save').onclick = async () => {
+      const btn = $('p-save');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      setOut('busy', '保存隐私规则中…');
+      try {
+        const res = await fetch('/api/config/sync-privacy', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            exclude_domains: toLines($('p-domains').value),
+            exclude_addresses: toLines($('p-addrs').value),
+            exclude_keywords: toLines($('p-keys').value),
+          }),
+        }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+        if (res.error) { setOut('err', '保存失败：' + res.error + (res.issues && res.issues.length ? '（' + res.issues.join('；') + '）' : '')); return; }
+        const n = (res.exclude_domains || []).length + (res.exclude_addresses || []).length + (res.exclude_keywords || []).length;
+        setOut('ok', '已保存 ' + n + ' 条隐私规则（decision ' + (res.decision || '—') + '）。下一轮同步起生效；'
+          + '生效证据看下方「实际拦下」计数，而不是本页的规则条数。');
+        await loadPrivacy();
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    loadPrivacy();
+
     load();
   </script>
 </body>
