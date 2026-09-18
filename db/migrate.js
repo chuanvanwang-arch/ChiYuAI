@@ -53,6 +53,7 @@ export const INCREMENTAL_SQL = [
   'migration-internal-signal-derivation-config.sql', // 2026-09-16 内部客户异动派生：internal-signal-derivation 平台模板（新键整键播种）
   'migration-signal-personal-scope.sql',  // 2026-09-17 行为巡检信号按人隔离：关闭存量 1522 条无主租户级聚合广播行（visit_shortfall/info_collect_lag），交改造后的按 owner 分组巡检接管（零 DELETE；幂等）
   'migration-signal-contact-owner.sql',   // 2026-09-17 派生信号责任人「父实体穿透」回填：CRM_CONTACT 自身无 owner，须经 payload.account_id 取父账户责任人，否则 owner_id 恒 NULL ⇒ 广播给全体销售（零 DELETE；幂等）
+  'migration-2026-09-18-particles-embedding-1024.sql', // 2026-09-18 D0 基线漂移自愈：particles.embedding 384→1024 的**幂等**迁移（以列类型为闸，重复执行不清空向量）。此前该改造只存在于一个「HITL 手工执行一次」的独立 SQL ⇒ 漏跑者永久停在 vector(384)、与 schema.sql 声明基线不一致且无人报警（本机 D1 的 69 条 hash 伪向量即由此而来）。取代 db/migration-2026-09-14-particles-embedding-1024.sql（后者已改为空操作壳）
 ];
 const incrementalSqls = INCREMENTAL_SQL.map(f =>
   f.endsWith('.js') ? null : readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')

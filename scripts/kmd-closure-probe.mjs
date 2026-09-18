@@ -54,8 +54,12 @@ if (RUN_E2E && DB_MODE !== 'test') {
 }
 
 // PG 仅监听 IPv6 回环（项目铁律）：硬编码 127.0.0.1 会 ECONNREFUSED → 用 localhost
+// 2026-09-18：host/port 改为可被 env 覆盖（缺省值不变）—— 使同一探针可在**容器内**跑：
+//   docker exec -w /app -e PGHOST=crm-pg -e PGPORT=5432 crm-app node scripts/kmd-closure-probe.mjs
+//   此前 host 被硬编码为 'localhost'，在容器内必然 ECONNREFUSED（PG 不在同容器），
+//   故「生产能力活性」只能靠外部脚本另写一份 —— 判据分叉的风险源。
 const DB = {
-  host: 'localhost',
+  host: process.env.PGHOST || 'localhost',
   port: Number(process.env.PGPORT || 5433),
   user: process.env.PGUSER || 'agent2b',
   password: process.env.PGPASSWORD || 'agent2b',
@@ -146,7 +150,33 @@ async function probeD0() {
 //     (b) 分量值恒 ≥ 0（(h[i] % 251)/251 非负）→ 真模型必有负分量
 //   两者同时满足 → 判定为 hash 伪向量。
 // ════════════════════════════════════════════════════════════════════════════
+// D1 状态分类（纯函数：探针与自检共用 —— 判据必须可被反例证伪，故不得内联在探针里）
+// 三态区分，语义互不覆盖：
+//   empty-layer   0 行知识（知识层尚未产出）→ WARN
+//   zero-vector   有知识但向量全 NULL（回填待执行 / 写入能力失效）→ FAIL
+//   hash-dominated 向量在但以 hash 伪向量为主（语义检索等于随机）→ FAIL
+//   real          真模型向量占多数 → PASS
+function d1Classify({ totalRows = 0, embedded = 0, hashCount = 0 } = {}) {
+  const rows = num(totalRows);
+  const emb = num(embedded);
+  const hash = num(hashCount);
+  if (rows === 0) return { status: 'WARN', kind: 'empty-layer', realPct: 0 };
+  if (emb === 0) return { status: 'FAIL', kind: 'zero-vector', realPct: 0 };
+  const realPct = pct(emb - hash, emb);
+  return realPct >= 50
+    ? { status: 'PASS', kind: 'real', realPct }
+    : { status: 'FAIL', kind: 'hash-dominated', realPct };
+}
+
 async function probeD1() {
+  // 2026-09-18 修正：「知识层空」与「有知识但零向量」是两种完全不同的状态，原实现把
+  //   后者也报成前者 —— 本机执行 384→1024 幂等迁移后向量被按设计清空（待回填），
+  //   探针却称"无 CRM_KNOWLEDGE 行，知识层空"，而 D3 同时报 knowledge=69。
+  //   判据错配会直接误导处置方向（去查"为什么没知识"而非"去跑回填"）。
+  //   ⇒ 总行数与已嵌行数必须分开取。
+  const tot = await sql('D1a', `SELECT count(*) AS n FROM crm.particles WHERE type='CRM_KNOWLEDGE'`);
+  if (isErr(tot)) return report({ id: 'D1', name: '知识向量真伪', edge: 'K 构建', status: 'ERROR', metrics: {}, verdict: `查询失败: ${tot.__error}` });
+  const totalRows = num(tot[0]?.n);
   const r = await sql('D1', `
     SELECT count(*) AS total,
            count(*) FILTER (WHERE s.minv < 0)                          AS has_negative,
@@ -167,29 +197,48 @@ async function probeD1() {
   if (isErr(r)) return report({ id: 'D1', name: '知识向量真伪', edge: 'K 构建', status: 'ERROR', metrics: {}, verdict: `查询失败: ${r.__error}` });
 
   const m = r[0] || {};
-  const total = num(m.total);
+  const total = num(m.total);                 // 有向量的行
   const hash = num(m.hash_signature);
-  const realPct = pct(total - hash, total);
+  const cls = d1Classify({ totalRows, embedded: total, hashCount: hash });
+  const realPct = cls.realPct;
+  const embeddedPct = pct(total, totalRows);
   const metrics = {
-    knowledge_rows: total,
+    knowledge_rows: totalRows,               // 知识总行数
+    embedded_rows: total,                    // 已写入向量的行数
+    embedded_pct: embeddedPct,
     hash_signature: hash,
     has_negative: num(m.has_negative),
     max_nonzero: num(m.max_nonzero),
     avg_nonzero: num(m.avg_nonzero),
-    real_vector_pct: realPct,
+    real_vector_pct: realPct,                // 占**已嵌行**的真向量占比
+    state: cls.kind,                         // empty-layer | zero-vector | hash-dominated | real
   };
+  const CRIT = 'hash 指纹 = 分量全非负 且 非零维≤32；已嵌行中真向量占比 ≥50% 才 PASS';
+
+  if (cls.kind === 'empty-layer') {
+    return report({
+      id: 'D1', name: '知识向量真伪', edge: 'K 构建', status: cls.status, metrics, criterion: CRIT,
+      verdict: '知识层空（crm.particles type=CRM_KNOWLEDGE 0 行）',
+      fix: 'K 构建链路尚未产出知识',
+    });
+  }
+  if (cls.kind === 'zero-vector') {
+    return report({
+      id: 'D1', name: '知识向量真伪', edge: 'K 构建', status: cls.status, metrics, criterion: CRIT,
+      verdict: `${totalRows} 行知识**零向量**（embedding 全为 NULL）→ 语义检索不可用；与「知识层空」不同，须执行回填`,
+      fix: 'EMBEDDING_PROVIDER=model node scripts/backfill-knowledge-embeddings.mjs --force-hash（先确认列已为 vector(1024)）',
+    });
+  }
   report({
     id: 'D1',
     name: '知识向量真伪',
     edge: 'K 构建',
-    status: total === 0 ? 'WARN' : realPct >= 50 ? 'PASS' : 'FAIL',
+    status: cls.status,
     metrics,
-    criterion: 'hash 指纹 = 分量全非负 且 非零维≤32；真向量占比 ≥50% 才 PASS',
-    verdict: total === 0
-      ? '无 CRM_KNOWLEDGE 行，知识层空'
-      : realPct >= 50
-        ? `真模型向量占 ${realPct}%`
-        : `真模型向量占 ${realPct}%（${hash}/${total} 条为 hash 伪向量）→ 语义检索等于随机`,
+    criterion: CRIT,
+    verdict: cls.kind === 'real'
+      ? `真模型向量占 ${realPct}%（已嵌 ${total}/${totalRows} 行）`
+      : `真模型向量占 ${realPct}%（${hash}/${total} 条为 hash 伪向量）→ 语义检索等于随机`,
     fix: 'P1-1 接入真 embedding；D1 绿之前禁止声称"语义检索已落地"',
   });
 }
@@ -823,6 +872,26 @@ async function selfTest() {
     ok: num(h.has_negative) > 0 && num(h.hash_signature) === 0,
   });
   await client.query(`DROP TABLE ${tmp}`);
+
+  // D1 三态鉴别自证（2026-09-18 新增）：
+  // 实证背景 —— 本机执行 384→1024 幂等迁移后，69 行知识向量被按设计清空（待回填），
+  //   探针把该状态报成「知识层空」，而 D3 同时报 knowledge=69 ⇒ 判据错配会误导处置方向。
+  // 四态必须互不覆盖：0 行 / 有行但零向量 / 全 hash 伪向量 / 真向量为主。
+  for (const c of [
+    { totalRows: 0, embedded: 0, hash: 0, wantStatus: 'WARN', wantKind: 'empty-layer', label: '0 行知识 → 知识层空' },
+    { totalRows: 69, embedded: 0, hash: 0, wantStatus: 'FAIL', wantKind: 'zero-vector', label: '69 行知识全零向量（迁移后待回填）→ 不得报"知识层空"' },
+    { totalRows: 69, embedded: 69, hash: 69, wantStatus: 'FAIL', wantKind: 'hash-dominated', label: '69 行全 hash 伪向量 → 语义检索等于随机' },
+    { totalRows: 69, embedded: 69, hash: 10, wantStatus: 'PASS', wantKind: 'real', label: '真向量占 85% → PASS' },
+  ]) {
+    const got = d1Classify({ totalRows: c.totalRows, embedded: c.embedded, hashCount: c.hash });
+    cases.push({
+      probe: 'D1',
+      case: c.label,
+      expect: `${c.wantStatus}/${c.wantKind}`,
+      got: `${got.status}/${got.kind}`,
+      ok: got.status === c.wantStatus && got.kind === c.wantKind,
+    });
+  }
 
   // D4 反例：seed-script 不得被计入 real_auto
   const d4 = await client.query(`
