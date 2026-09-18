@@ -71,6 +71,8 @@ import { createLlmConfigRouter } from './llmConfigRouter.js';
 import { createSevenDimRouter } from './sevenDimRouter.js';
 // S05 T5：财务应收配置后台化（config_store['finance-receivables'] + sysadmin 闸 + 决策第0闸）
 import { createFinanceReceivablesConfigRouter } from './financeReceivablesConfigRouter.js';
+// P1 隐私排除清单（config_store['sync-privacy']；ten_admin 闸 + 决策第0闸；附带丢弃计数可观测）
+import { createPrivacyConfigRouter } from './privacyConfigRouter.js';
 // S13：指名客户目标指标配置后台化（config_store['named-account-targets'] + sysadmin 闸 + 决策第0闸）
 import { createNamedAccountTargetsRouter } from './namedAccountTargetsRouter.js';
 // 指名客户分配写通道（决策第0闸 + 审计边 named_assignment + 软停用；Task4 已完成）
@@ -214,6 +216,9 @@ export function createRoutes(app, hub) {
   app.use(createSevenDimRouter());
   // S05 T5：财务应收配置后台化（config_store['finance-receivables'] + sysadmin 闸 + 决策第0闸）
   app.use(createFinanceReceivablesConfigRouter());
+  // P1 隐私排除清单：租户级读/写 + 最近丢弃计数（读回 crm.sync_cursor.last_counts）。
+  //   pool 注入使 GET 能给出**真实丢弃计数**——只回配置项的话，「配了但没生效」在界面上无从分辨。
+  app.use(createPrivacyConfigRouter({ pool }));
   // 平台级计费域（多租户 Token/账号计费 + 缴费 + 对账 + 导出；档位/权益来自 config_store['billing-plans']）
   app.use(createBillingRouter());
   // T13：线索发现只读候选池端点（GET /api/discovery/candidates；租户隔离，零写零删；评分重校准走 HITL）
@@ -759,7 +764,7 @@ export function createRoutes(app, hub) {
       res.status(500).json({ error: e.message });
     }
   });
-  // L1 销售个人行为看板页（复用 /api/board/named-accounts?owner=me）
+  // L1 销售过程看板页（2026-09-18 由「销售个人行为看板」改名，页面 title/h1 同步；复用 /api/board/named-accounts?owner=me）
   app.get('/sales-behavior-board.html', (req, res) =>
     res.sendFile(fileURLToPath(new URL('../web/sales-behavior-board.html', import.meta.url))));
   // 决策质量校准（2026-08-28 校准闭环；metrics/patches/replay + approve/reject/rollback，全部 sysadmin + 第0闸）

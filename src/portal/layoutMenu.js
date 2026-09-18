@@ -1,20 +1,31 @@
-// src/portal/layoutMenu.js — 导航菜单单源（FULL_MENU 全员 9 项 + ADMIN_MENU 系统分组仅 admin）
+// src/portal/layoutMenu.js — 导航菜单单源（FULL_MENU 全员 11 项 + ADMIN_MENU 系统分组仅 admin）
 // 角色过滤：menuFor(role)；FULL_MENU/ADMIN_MENU 供 layout.js 与单测引用
 // 客户深度洞察 + 指名客户监测合并为客户跟踪（S13 合并入口，画像/洞察 TAB 并入 named-accounts.html）
+// ⚠ 「销售」组顺序 = 用户指定序列（2026-09-18 指令，覆盖 2026-09-14 的「公海池紧邻线索·商机」旧契约）：
+//   线索发现 → 公海池 → 销售管道 → 客户跟踪（用户口语「客户 360」）→ 销售过程看板。
+//   动线：找线索（发现）→ 入池/认领（公海池）→ 推进（管道）→ 客户经营（360）→ 行为复盘（看板）。
+//   顺序即契约：test/portal/layoutMenu.test.js 逐步锁定，勿在中间插项而不动断言。
+// ⚠ 显示名同步（2026-09-18 用户裁定「两个改名」）：菜单「线索·商机」→「销售管道」、
+//   「销售行为看板」→「销售过程看板」，且**落点页自身 title/h1 同期对齐**（避免「点进去名字不一样」）；
+//   菜单名 ↔ 页面标题的跨层一致性由 test/portal/layoutMenu.test.js 的「菜单名 = 落点页名」守卫锁定。
+//   未改：「客户跟踪」（2026-08-29 深度洞察 + 指名客户监测合并时的定名，用户口头称「客户 360」）。
 export const FULL_MENU = [
-  { group: '销售', label: '线索·商机', href: '/pipeline.html' },
-  // 公海池（2026-09-14）：公海 S0 待领取线索明细 + 认领闭环；紧邻线索·商机，销售角色可见。
-  // 权益门禁 core_crm：与 crm-lead-pick 动作权益一致（无 core_crm 仅能看不能领，故整体隐藏入口避免误导）。
-  { group: '销售', label: '公海池', href: '/lead-pool.html', requiresEntitlement: ['core_crm'] },
   // 线索发现工作台（2026-09-17 补可达性）：页面早已存在（routes.js:570 有 serve，test/web/discoveryPage.test.js 有契约），
   //   但**全仓零导航入口**——菜单/配置中心/其他页面均无链接指向它（仅本文件外无引用）=「页面在、但没人到得了」。
-  //   与「公海池」构成线索链路的上游→下游：发现（外部找线索 + 按邮箱/公司名/域名定点补全画像）→ 公海池（S0 入池/认领）。
+  //   2026-09-18 起置于「销售」组首位 = 线索链路的**最上游**：发现（外部找线索 + 按邮箱/公司名/域名定点补全画像）
+  //   → 公海池（S0 入池/认领）。
   //   权益门禁与公海池同档 core_crm（同属拓客能力；无权益时整体隐藏入口，避免「能看不能用」的误导）。
-  //   ⚠ 位置刻意排在「公海池」**之后**：test/portal/layoutMenu.test.js 锁着「公海池紧邻线索·商机」契约（2026-09-14 用户诉求）。
   { group: '销售', label: '线索发现', href: '/discovery.html', requiresEntitlement: ['core_crm'] },
-  // 客户跟踪：客户 360 洞察入口 → 受 customer_360 权益门禁（配置驱动，免费档不展示）
+  // 公海池（2026-09-14）：公海 S0 待领取线索明细 + 认领闭环；销售角色可见。
+  //   2026-09-18 起紧邻「线索发现」（发现→入池动线），不再紧邻线索·商机。
+  // 权益门禁 core_crm：与 crm-lead-pick 动作权益一致（无 core_crm 仅能看不能领，故整体隐藏入口避免误导）。
+  { group: '销售', label: '公海池', href: '/lead-pool.html', requiresEntitlement: ['core_crm'] },
+  // 销售管道（2026-09-18 由「线索·商机」改名；页面 title 早已是「CRM 销售管道」，改名即让菜单与落点页同名）：商机推进主视图
+  { group: '销售', label: '销售管道', href: '/pipeline.html' },
+  // 客户 360（菜单名沿用「客户跟踪」，2026-08-29 深度洞察 + 指名客户监测合并决议）：受 customer_360 权益门禁（配置驱动，免费档不展示）
   { group: '销售', label: '客户跟踪', href: '/named-accounts.html', requiresEntitlement: ['customer_360'] },
-  { group: '销售', label: '销售行为看板', href: '/sales-behavior-board.html' },
+  // 销售过程看板（2026-09-18 由「销售行为看板」改名；页面 title/h1 同步由「销售个人行为看板」改为本名）：S13 三层行为体系的过程面
+  { group: '销售', label: '销售过程看板', href: '/sales-behavior-board.html' },
   // 销售自动化（2026-09-16 主动运行时 S1，原名「信号中心」）：统一信号收口（crm.signal 明细/确认/否决）。
   //   2026-09-16 决议：更名为「销售自动化」并从「销售」组移入「协同」组、置于「我的待办」之上
   //   （信号是待办的上游输入，同组相邻便于「信号 → 待办」动线）。
