@@ -18,6 +18,7 @@
 //   node scripts/kmd-closure-probe.mjs --self-test       # 探针自检（验证不会恒绿）
 //   node scripts/kmd-closure-probe.mjs --e2e --db=test   # 端到端哨兵（需测试库，会写一条哨兵知识）
 //   node scripts/kmd-closure-probe.mjs --probe D1,D4     # 只跑指定探针
+//   node scripts/kmd-closure-probe.mjs --no-external     # 跳过 D14 外部依赖活性探针（离线/CI）
 //
 // 退出码：存在 FAIL 或 ERROR → 1（便于 CI 拦截）；否则 0。
 
@@ -45,6 +46,7 @@ const RUN_E2E = flag('e2e');
 const SELF_TEST = flag('self-test');
 const JSON_OUT = arg('json', null);
 const ONLY = arg('probe', null) ? String(arg('probe')).split(',').map((s) => s.trim().toUpperCase()) : null;
+const NO_EXTERNAL = flag('no-external');      // 跳过 D14（外部依赖活性探针；无外网/离线 CI 场景）
 
 if (RUN_E2E && DB_MODE !== 'test') {
   console.error('[kmd-probe] 拒绝执行：--e2e 会写库，必须显式 --db=test（禁止对生产库写探针数据）');
@@ -94,6 +96,46 @@ async function sql(label, text, params = []) {
 const isErr = (r) => r && typeof r === 'object' && '__error' in r && !Array.isArray(r);
 const num = (v) => (v == null ? 0 : Number(v));
 const pct = (a, b) => (num(b) ? +((num(a) * 100) / num(b)).toFixed(2) : 0);
+
+// ════════════════════════════════════════════════════════════════════════════
+// D0 — 环境基线漂移（与「闭环健康度」正交的独立维度）
+// 背景（2026-09-18 元问题）：D1/D11 等在**开发库**恒红，根因是该库「迁移/种子执行不完整」
+//   （列 384 vs 1024、规则 1 vs 4 条），与闭环是否接线无关。两类维度混在同一张红绿表里
+//   互相污染语义 → 长期训练出「告警疲劳」（每晚必红 3 条，真红反而被淹没）。
+// 判据：与**声明基线**（schema.sql 列类型 / 种子声明的规则数 / llm_config 默认条目）比对；
+//   漂移 → WARN，**永不 FAIL**（基线差异不是闭环故障）。
+// ════════════════════════════════════════════════════════════════════════════
+async function probeD0() {
+  const col = await sql('D0a', `
+    SELECT format_type(a.atttypid, a.atttypmod) AS t
+    FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='crm' AND c.relname='particles' AND a.attname='embedding'`);
+  const rules = await sql('D0b', `SELECT count(*) AS n FROM crm.outcome_event_map`);
+  const llm = await sql('D0c', `SELECT count(*) AS n FROM crm.llm_config WHERE is_default AND NOT coalesce(is_deleted,false)`);
+  const colT = isErr(col) ? '?' : (col[0]?.t || '?');
+  const ruleN = isErr(rules) ? -1 : num(rules[0]?.n);
+  const llmN = isErr(llm) ? -1 : num(llm[0]?.n);
+  const embProvider = process.env.EMBEDDING_PROVIDER || '(未设置)';
+
+  const drift = [];
+  if (colT !== 'vector(1024)') drift.push(`particles.embedding=${colT}（基线 vector(1024)）`);
+  if (ruleN >= 0 && ruleN < 4) drift.push(`outcome_event_map=${ruleN} 条（基线 ≥4）`);
+  if (llmN === 0) drift.push('llm_config 无默认条目');
+
+  report({
+    id: 'D0',
+    name: '环境基线漂移',
+    edge: '-',
+    status: drift.length ? 'WARN' : 'PASS',
+    metrics: { particles_embedding_col: colT, outcome_rules: ruleN, llm_default_cfg: llmN, embedding_provider: embProvider, drift_items: drift.length },
+    criterion: '与声明基线（schema.sql 列类型 / 种子规则数 / llm_config 默认条目）比对；漂移仅 WARN，永不 FAIL（基线差异 ≠ 闭环故障）',
+    verdict: drift.length
+      ? `环境基线漂移 ${drift.length} 项：${drift.join('；')} → D1/D4 类红可能源于此，非闭环缺陷`
+      : '环境基线与声明一致',
+    fix: '跑 `node db/migrate.js` 对齐迁移/种子；particles.embedding 列迁移见 db/migration-2026-09-14-particles-embedding-1024.sql（须由发布流程显式执行）',
+  });
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // D1 — 知识向量真伪（核心反假绿探针）
@@ -253,28 +295,44 @@ async function probeD4() {
   const evM = isErr(ev) ? {} : (ev[0] || {});
   const mappedEmitted = num(evM.mapped_emitted);
 
+  // 链路就绪（静态判据）：订阅器真的被 server 启动路径调用 —— 与 D2/D3 同范式，
+  //   防「规则齐备但订阅器未接线」的二次假绿。
+  const serverSrc = (() => {
+    try { return fs.readFileSync(new URL('../src/http/server.js', import.meta.url), 'utf8'); } catch { return ''; }
+  })();
+  const subRegistered = /registerOutcomeIngester/.test(serverSrc);
+  const rulesEnabled = num(rm.enabled);
+  const linkReady = subRegistered && rulesEnabled > 0;
+
   report({
     id: 'D4',
     name: 'outcome 真实性',
     edge: '⑤ 结果→D',
-    status: auto > 0 ? 'PASS' : 'FAIL',
+    // 双指标正交拆分（2026-09-18）：原判据 `auto>0 ? PASS : FAIL` 把**两个正交维度**混为一谈 ——
+    //   「链路是否接通」与「业务动作是否发生过」。链路就绪但业务未发生时误判为断链（假红）。
+    //   现拆分：FAIL 只保留给**链路真断**（订阅器未接线 / 无启用规则）；
+    //   链路就绪而回流量 0 → WARN（陈述事实，不冒充缺陷）。真实回流量始终独立暴露。
+    status: !linkReady ? 'FAIL' : auto > 0 ? 'PASS' : 'WARN',
     metrics: {
+      link_ready: linkReady,
+      ingester_registered: subRegistered,
       outcome_total: total,
       real_auto: auto,
       manual: num(m.manual),
       seed_script: seed,
       other: num(m.other),
       event_rules: num(rm.n),
-      event_rules_enabled: num(rm.enabled),
+      event_rules_enabled: rulesEnabled,
       mapped_events_emitted_7d: mappedEmitted,
       event_emission_ok: mappedEmitted > 0,
     },
-    criterion: "source LIKE 'event:%' 视为真自动回写（种子 seed-script 单独计数，不得混入）；映射事件须确经 decision 域 emit",
-    verdict: (auto > 0
-      ? `真自动回写 ${auto} 条，另有种子 ${seed} / 人工 ${num(m.manual)} 条`
-      : `真自动回写 0 条（总计 ${total} 条，其中种子 ${seed} 条）→ 业务结果从未回流`)
-      + `；映射事件近7天发射 ${mappedEmitted} 条${mappedEmitted > 0 ? '（OK）' : '（缺失：规则齐但事件未 emit→二次假绿风险）'}`,
-    fix: "P0-2 注册 registerOutcomeIngester；P0-3 补 emit('decision','outcome-set')；映射事件须 emit 到 decision 域",
+    criterion: "① 链路：订阅器 registerOutcomeIngester 须被 server 调用 且 启用规则 >0（否则 FAIL）；② 业务：source LIKE 'event:%' 为真实回流量（种子 seed-script 单独计数，不得混入）",
+    verdict: !linkReady
+      ? `链路断：${subRegistered ? '' : '订阅器未接线；'}${rulesEnabled > 0 ? '' : '无启用规则；'}→ 结果永不回流`
+      : auto > 0
+        ? `链路就绪；真自动回写 ${auto} 条（另有种子 ${seed} / 人工 ${num(m.manual)} 条）；映射事件近7天发射 ${mappedEmitted} 条`
+        : `链路就绪（订阅器已接线 + 启用规则 ${rulesEnabled} 条），但真实回流量 0 → 业务动作（合同签署/商机归档/报价创建）尚未发生，非链路缺陷`,
+    fix: "链路类：注册 registerOutcomeIngester / 补 emit('decision','outcome-set')。业务类：产生一次真实业务动作（或演练等价动作）以验证端到端回流",
   });
 }
 
@@ -419,6 +477,10 @@ async function probeD8() {
 // ════════════════════════════════════════════════════════════════════════════
 // D9 — 当前噪声源排行（谁在污染记忆表）
 // ════════════════════════════════════════════════════════════════════════════
+// 噪声绝对量门（2026-09-18 双门判据）：占比高必须**同时**量级高才是风暴。
+// 依据：实测 1494 行 ≈ 15 租户 × 50 owner × 2 条/日，属业务预期量级非风暴。
+const NOISE_ROWS_GATE = 5000;
+
 async function probeD9() {
   const r = await sql('D9', `
     SELECT COALESCE(event_type,'(null)') AS event_type, count(*) AS n
@@ -429,15 +491,20 @@ async function probeD9() {
   const total24 = r.reduce((s, x) => s + num(x.n), 0);
   const top = r[0] || {};
   const topPct = pct(top.n, total24);
+  // 双门判据（2026-09-18 修正）：原「占比>80% 即 FAIL」缺绝对量门 —— 正常业务量级
+  //   （按 owner 逐人巡检的状态型信号）同样占比 65%+，被判噪声风暴属判据错配（假红）。
+  //   真风暴 = 高占比 **且** 高绝对量；高占比但量级正常 → WARN（可优化提示，非故障）。
+  const isStorm = topPct > 80 && total24 > NOISE_ROWS_GATE;
   report({
     id: 'D9',
     name: '噪声源排行(24h)',
     edge: 'M 构建',
-    status: topPct > 80 ? 'FAIL' : topPct > 50 ? 'WARN' : 'PASS',
-    metrics: { rows_24h: total24, top: top.event_type, top_n: num(top.n), top_pct: topPct, breakdown: Object.fromEntries(r.map((x) => [x.event_type, num(x.n)])) },
-    criterion: '单一事件类型占比 >80% FAIL（视为噪声风暴）',
-    verdict: `24h 内 ${total24} 行，最大来源 ${top.event_type} ${num(top.n)} 行（${topPct}%）`,
-    fix: '针对 top 噪声源收紧 capture 白名单',
+    status: isStorm ? 'FAIL' : topPct > 50 ? 'WARN' : 'PASS',
+    metrics: { rows_24h: total24, noise_rows_gate: NOISE_ROWS_GATE, top: top.event_type, top_n: num(top.n), top_pct: topPct, breakdown: Object.fromEntries(r.map((x) => [x.event_type, num(x.n)])) },
+    criterion: `单一事件类型占比 >80% **且** 24h 总量 >${NOISE_ROWS_GATE} 才 FAIL（双门防正常量级误报）；占比 >50% 降级 WARN`,
+    verdict: `24h 内 ${total24} 行（量门 ${NOISE_ROWS_GATE}），最大来源 ${top.event_type} ${num(top.n)} 行（${topPct}%）`
+      + (isStorm ? ' → 高占比且高量级，判噪声风暴' : topPct > 50 ? ' → 高占比但量级正常，非风暴（可优化）' : ''),
+    fix: '1) 状态型信号（带 dedup_key）按边沿写入记忆，避免每日重复；2) 针对 top 噪声源收紧 capture 白名单',
   });
 }
 
@@ -476,13 +543,21 @@ async function probeD11() {
     SELECT count(*)                                          AS total,
            count(*) FILTER (WHERE payload ? 'content')       AS has_content,
            count(*) FILTER (WHERE payload->>'kind' = ANY($1::text[])) AS kind_in_four,
-           count(*) FILTER (WHERE payload ? 'content' AND payload->>'kind' = ANY($1::text[])) AS both_ok
+           count(*) FILTER (WHERE payload ? 'content' AND payload->>'kind' = ANY($1::text[])) AS both_ok,
+           count(*) FILTER (WHERE payload ? 'content' OR payload->>'kind' = ANY($1::text[])) AS contract_scope,
+           count(*) FILTER (WHERE payload->>'kind' = 'vocabulary' AND payload ? 'content') AS vocab_with_content
     FROM crm.particles WHERE type='CRM_KNOWLEDGE'`, [KINDS]);
   if (isErr(r)) return report({ id: 'D11', name: '知识投影契约', edge: 'K 构建', status: 'ERROR', metrics: {}, verdict: `查询失败: ${r.__error}` });
   const m = r[0] || {};
   const total = num(m.total);
   const ok = num(m.both_ok);
-  const p = pct(ok, total);
+  // 分母修正（2026-09-18）：原分母取全部 CRM_KNOWLEDGE，把 43 条 `vocabulary` 本体登记物
+  //   （payload 仅 kind/layer/term/type，设计上**不含** content）计入分母，使比率上限被
+  //   结构性压至 16/69=23.19% ⇒ 判显 WARN 属**分母污染**（判据错配），非知识内容缺失。
+  //   契约相关行 = 有 content **或** kind 属四大类。
+  const scope = num(m.contract_scope);
+  const vocabLeak = num(m.vocab_with_content);
+  const p = pct(ok, scope);
 
   const kinds = await sql('D11b', `
     SELECT COALESCE(payload->>'kind','(null)') AS kind, count(*) AS n
@@ -493,15 +568,19 @@ async function probeD11() {
     id: 'D11',
     name: '知识投影契约',
     edge: 'K 构建',
-    status: total === 0 ? 'WARN' : p >= 50 ? 'PASS' : p > 0 ? 'WARN' : 'FAIL',
-    metrics: { knowledge_total: total, has_content: num(m.has_content), kind_in_four: num(m.kind_in_four), both_ok: ok, match_pct: p, kind_dist: kindDist },
-    criterion: '同时满足「有 content 字段」且「kind 在四大类内」的比例 ≥50% 才 PASS',
-    verdict: total === 0
-      ? '无知识行'
-      : p >= 50
-        ? `${p}% 知识符合 LK 投影契约（${ok}/${total}）`
-        : `仅 ${p}% 知识能被 LK 正确投影（${ok}/${total}）→ 修好消费端也只会拿到空壳`,
-    fix: '修 P0-1 前必须先统一知识写入契约（content 字段 + 四大类 kind）',
+    // 反向断言先行（防「改分母造绿」）：vocabulary 本体登记物**不得**携带 content，
+    //   一旦出现即说明本体层与业务知识层发生混写 → 直接 FAIL（不得只改分母）。
+    status: vocabLeak > 0 ? 'FAIL' : scope === 0 ? 'WARN' : p >= 50 ? 'PASS' : p > 0 ? 'WARN' : 'FAIL',
+    metrics: { knowledge_total: total, contract_scope: scope, has_content: num(m.has_content), kind_in_four: num(m.kind_in_four), both_ok: ok, match_pct: p, vocab_with_content: vocabLeak, kind_dist: kindDist },
+    criterion: '分母=契约相关行（有 content 或 kind∈四大类）；同时满足两者比例 ≥50% PASS。反向断言：vocabulary 带 content >0 即报警',
+    verdict: vocabLeak > 0
+      ? `⛔ 反向断言触发：${vocabLeak} 条 vocabulary 本体登记物混入 content → 本体层与知识层混写`
+      : scope === 0
+        ? '无契约相关行'
+        : p >= 50
+          ? `${p}% 契约相关知识符合 LK 投影契约（${ok}/${scope}，全量 ${total} 条含 ${total - scope} 条本体登记物）`
+          : `仅 ${p}% 契约相关知识能被 LK 正确投影（${ok}/${scope}）→ 修好消费端也只会拿到空壳`,
+    fix: '统一知识写入契约（content 字段 + 四大类 kind）；本体登记物（vocabulary/transition）不得携带 content',
   });
 }
 
@@ -759,15 +838,132 @@ async function selfTest() {
     ok: num(d.seed) === 0 || num(d.real_auto) !== num(d.seed) || num(d.real_auto) === 0,
   });
 
+  // ── 2026-09-18 新增判据的自证（成对：每个放宽都必须配一个收紧）────────────────
+
+  // D11 反向断言自证：vocabulary 本体登记物**携带 content** 时必须被检出（防「改分母造绿」）
+  const t11 = 'probe_selftest_d11_' + Date.now();
+  await client.query(`CREATE TEMP TABLE ${t11}(payload jsonb)`);
+  await client.query(`INSERT INTO ${t11} VALUES
+    ('{"kind":"vocabulary","term":"x"}'::jsonb),
+    ('{"kind":"icp","content":"y"}'::jsonb),
+    ('{"kind":"vocabulary","content":"LEAK"}'::jsonb)`);
+  const d11 = await client.query(`
+    SELECT count(*) FILTER (WHERE payload ? 'content' OR payload->>'kind' = ANY($1::text[])) AS contract_scope,
+           count(*) FILTER (WHERE payload ? 'content' AND payload->>'kind' = ANY($1::text[])) AS both_ok,
+           count(*) FILTER (WHERE payload->>'kind'='vocabulary' AND payload ? 'content')       AS vocab_with_content
+    FROM ${t11}`, [['icp', 'competitors', 'objections', 'buyer_language']]);
+  const b11 = d11.rows[0] || {};
+  cases.push({
+    probe: 'D11',
+    case: 'vocabulary 混入 content（本体层↔知识层混写）',
+    expect: 'vocab_with_content=1 且非零分母(2)/合格(1) 计算正确',
+    got: `vocab_with_content=${num(b11.vocab_with_content)}, contract_scope=${num(b11.contract_scope)}, both_ok=${num(b11.both_ok)}`,
+    ok: num(b11.vocab_with_content) === 1 && num(b11.contract_scope) === 2 && num(b11.both_ok) === 1,
+  });
+  await client.query(`DROP TABLE ${t11}`);
+
+  // D9 双门自证：占比与绝对量必须**同时**越界才判风暴（防正常量级误报）
+  for (const c of [
+    { rows: 3164, p: 65.46, storm: false, label: '高占比(65%)低量级(3164) → 非风暴' },
+    { rows: 9000, p: 92.0, storm: true, label: '高占比(92%)高量级(9000) → 风暴' },
+    { rows: 200, p: 30.0, storm: false, label: '低占比(30%) → 非风暴' },
+  ]) {
+    const isStorm = c.p > 80 && c.rows > NOISE_ROWS_GATE;
+    cases.push({ probe: 'D9', case: c.label, expect: `风暴=${c.storm}`, got: `风暴=${isStorm}`, ok: isStorm === c.storm });
+  }
+
+  // D4 正交自证：链路断=FAIL / 链路通但无业务量=WARN / 有回流量=PASS
+  for (const c of [
+    { sub: false, rules: 1, auto: 0, want: 'FAIL', label: '订阅器未接线 → 链路断' },
+    { sub: true, rules: 0, auto: 0, want: 'FAIL', label: '无启用规则 → 链路断' },
+    { sub: true, rules: 1, auto: 0, want: 'WARN', label: '链路就绪但业务未发生' },
+    { sub: true, rules: 1, auto: 3, want: 'PASS', label: '链路就绪且有回流' },
+  ]) {
+    const linkReady = Boolean(c.sub) && c.rules > 0;
+    const st = !linkReady ? 'FAIL' : c.auto > 0 ? 'PASS' : 'WARN';
+    cases.push({ probe: 'D4', case: c.label, expect: c.want, got: st, ok: st === c.want });
+  }
+
+  // D14 判据自证：凭据类 401/402/403 → FAIL；瞬态 429/5xx → WARN
+  for (const c of [
+    { http: 402, want: 'FAIL', label: '账户欠费 402' },
+    { http: 401, want: 'FAIL', label: '鉴权失败 401' },
+    { http: 429, want: 'WARN', label: '限流 429（瞬态）' },
+    { http: 503, want: 'WARN', label: '服务不可用 503（瞬态）' },
+  ]) {
+    const st = AUTH_FAIL_STATUS.has(c.http) ? 'FAIL' : 'WARN';
+    cases.push({ probe: 'D14', case: c.label, expect: `判为 ${c.want}`, got: `判为 ${st}`, ok: st === c.want });
+  }
+
   for (const c of cases) console.log(`  ${c.ok ? '🟢' : '🔴'} ${c.probe} ${c.case}\n     期望: ${c.expect}\n     实测: ${c.got}`);
   const bad = cases.filter((c) => !c.ok).length;
   console.log(`\n自检结论: ${cases.length - bad}/${cases.length} 通过${bad ? ` — ${bad} 条探针判据有缺陷，需修探针` : '（探针具备鉴别力）'}`);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// D14 — 外部依赖凭据活性（embedding / SMTP）
+// 背景（2026-09-18 实证）：原 13 条探针**全部为内部数据面**探针，无一条检查外部依赖，
+//   导致 SiliconFlow 账户欠费（HTTP 402）使 embedding 写入全面静默降级（写 NULL）
+//   而无人知晓 —— 存量向量仍绿、"写入能力"已死，属探针体系的**结构性盲区**。
+// 判据：embedding 须**实测可调用**；凭据/余额类失败（401/402/403）→ FAIL（持久性故障）；
+//   瞬态（429/5xx/网络）→ WARN；SMTP 三要素须齐备。
+// 只读：不写业务表；成功时仅 1 次约 10 token 的外部调用 + 一条计量记录。
+// ════════════════════════════════════════════════════════════════════════════
+const AUTH_FAIL_STATUS = new Set([401, 402, 403]);
+
+async function probeD14() {
+  const metrics = { embedding: 'skip', embedding_detail: '', smtp_configured: false };
+  const reasons = [];
+  let status = 'PASS';
+
+  // 1) embedding —— K 构建链路的真实供给能力
+  try {
+    const { embed } = await import('../src/llm/embeddingClient.js');
+    const v = await embed('kmd-probe-credential-liveness');
+    if (Array.isArray(v) && v.length) {
+      metrics.embedding = `ok(dim=${v.length})`;
+    } else {
+      metrics.embedding = 'empty-vector';
+      status = 'FAIL';
+      reasons.push('embedding 返回空向量');
+    }
+  } catch (e) {
+    const st = e?.httpStatus ?? null;
+    metrics.embedding = st ? `http-${st}` : 'error';
+    metrics.embedding_detail = String(e?.message || e).slice(0, 200);
+    if (st && AUTH_FAIL_STATUS.has(st)) {
+      status = 'FAIL';
+      reasons.push(`embedding 凭据失效（HTTP ${st}）：新知识粒子向量将全部静默降级为 NULL`);
+    } else {
+      status = 'WARN';
+      reasons.push(`embedding 调用异常（${metrics.embedding}），疑瞬态`);
+    }
+  }
+
+  // 2) SMTP —— 邮件/激活通道供给（脚本自身未加载 .env，此处显式加载；dotenv 不覆盖已有 env）
+  try { const dotenv = await import('dotenv'); dotenv.config({ path: path.join(ROOT, '.env') }); } catch { /* 无 dotenv 不阻断 */ }
+  metrics.smtp_configured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  if (!metrics.smtp_configured) {
+    if (status === 'PASS') status = 'WARN';
+    reasons.push('SMTP 三要素未齐备（邮件通道不可用）');
+  }
+
+  report({
+    id: 'D14',
+    name: '外部依赖活性',
+    edge: 'K 构建',
+    status,
+    metrics,
+    criterion: 'embedding 须实测可调用：凭据/余额类失败（401/402/403）→ FAIL；瞬态（429/5xx/网络）→ WARN。SMTP 三要素须齐备',
+    verdict: reasons.length ? reasons.join('；') : `embedding 可用（${metrics.embedding}）且 SMTP 已配置`,
+    fix: 'embedding 凭据类失效属付费资源/密钥问题（非代码缺陷）：充值或更换 provider 后重跑本探针；拒因已由 embeddingClient 回传服务端原话',
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // main
 // ════════════════════════════════════════════════════════════════════════════
-const PROBES = { D1: probeD1, D2: probeD2, D3: probeD3, D4: probeD4, D5: probeD5, D6: probeD6, D7: probeD7, D8: probeD8, D9: probeD9, D10: probeD10, D11: probeD11, D12: probeD12, D13: probeD13, E2E: probeE2E };
+const PROBES = { D0: probeD0, D1: probeD1, D2: probeD2, D3: probeD3, D4: probeD4, D5: probeD5, D6: probeD6, D7: probeD7, D8: probeD8, D9: probeD9, D10: probeD10, D11: probeD11, D12: probeD12, D13: probeD13, D14: probeD14, E2E: probeE2E };
 
 (async () => {
   console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
@@ -784,6 +980,7 @@ const PROBES = { D1: probeD1, D2: probeD2, D3: probeD3, D4: probeD4, D5: probeD5
 
   for (const [id, fn] of Object.entries(PROBES)) {
     if ((id === 'E2E' || id === 'D12') && !RUN_E2E) { report({ id, name: id === 'D12' ? '结果自动回流' : '端到端哨兵(K→prompt)', edge: id === 'D12' ? '⑤ 结果→D' : '① K→D', status: 'SKIP', metrics: {}, verdict: '需 --e2e --db=test 才执行（避免写生产库）' }); continue; }
+    if (id === 'D14' && NO_EXTERNAL) { report({ id, name: '外部依赖活性', edge: 'K 构建', status: 'SKIP', metrics: {}, verdict: '--no-external 跳过（离线/CI 场景）' }); continue; }
     if (ONLY && !ONLY.includes(id)) continue;
     try { await fn(); } catch (e) { report({ id, name: id, edge: '-', status: 'ERROR', metrics: {}, verdict: `探针异常: ${String(e.message || e)}` }); }
   }
