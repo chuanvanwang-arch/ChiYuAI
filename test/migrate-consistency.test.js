@@ -24,6 +24,25 @@ describe('migrate.js INCREMENTAL_SQL 环境一致性', () => {
     }
   });
 
+  // ── 2026-09-18 新增：INCREMENTAL_SQL **之外**的字符串式 .sql 引用 ──────────────
+  // 背景（生产 P0 事故）：migrate.js 还有一类引用不走清单——种子块直接用字符串读数
+  //   （for (const f of ['seed-*.sql']) readFileSync(new URL(`./${f}`, ...))）。
+  //   这类引用是 **import 图之外的第二类隐性依赖**：
+  //     · verify-release-source.mjs 的 ①② 只穷尽 import/require，扫不到；
+  //     · 本文件上一条只遍历 INCREMENTAL_SQL，也扫不到；
+  //   ⇒ 若该 .sql 漏 git add（工作树有、HEAD 无 = 半提交），发布源缺文件，
+  //     容器启动 node db/migrate.js 抛 ENOENT → crm-app 崩溃循环。
+  //   本锁把判据内联到测试侧，重复检测成本≈0，且能拦住「重命名/误删」。
+  //   自证：临时往数组加一个不存在的名字，本用例必须转红（已实测）。
+  it('migrate.js 内所有字符串引用的 .sql 均存在于 db/（含 INCREMENTAL_SQL 之外的种子引用）', () => {
+    const src = readFileSync(fileURLToPath(new URL('../db/migrate.js', import.meta.url)), 'utf8');
+    const refs = [...new Set([...src.matchAll(/['"]([A-Za-z0-9._-]+\.sql)['"]/g)].map((m) => m[1]))];
+    expect(refs.length, '守卫自检：应至少扫到若干 .sql 字符串引用').toBeGreaterThan(10);
+    for (const f of refs) {
+      expect(existsSync(dbDir + f), `migrate.js 引用的 ${f} 应存在于 db/（缺失 ⇒ 发布后容器 ENOENT 崩溃）`).toBe(true);
+    }
+  });
+
   // ── 2026-09-16 新增：crm.signal 血缘三列的「两路径一致性 + 顺序性」锁 ──────────────
   // 背景（本缺陷的根因）：crm.signal 有两条建库路径——
   //   ① db/schema.sql 尾部（新库直建，已含血缘三列）

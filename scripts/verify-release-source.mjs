@@ -17,6 +17,11 @@
 //   ③ 绝对 file:// 引用：硬编码本机绝对路径（2026-09-16 新增）
 //      双重危害：换机/CI 必红（不可移植）+ 测试加载的是「本机工作树」而非被测树 → 假绿。
 //      实坑：全仓 18 处，14 处在 test/（test/sync 8 + test/signal 5 + test/alerts 1）。
+//   ④ migrate 系列 JS 里以**字符串**引用的 .sql 是否都在 db/（2026-09-18 新增 P0 实锤）
+//      这类引用不在 import 图内（readFileSync(new URL('./x.sql'))），①② 扫不到；
+//      若该 .sql 未 git add（工作树有 / HEAD 无 = 「半提交」），发布源即缺文件 →
+//      容器启动 node db/migrate.js 抛 ENOENT → crm-app 崩溃循环、生产 000。
+//      实坑：migration-signal-contact-owner.sql（首次发布即崩，靠容器日志才定位）。
 //
 // 扫描范围（2026-09-16 起含 test/）：加 test/ 后实测 HEAD 树告警 1 → 12 处，
 //   暴露了 7 个长期红的测试（*_TENANT 常量的消费方未随 2388361 重构同步）。
@@ -166,6 +171,33 @@ for (const file of files) {
   }
 }
 
+// ───────────────────────── ④ SQL 字符串引用缺失（migrate 系列）─────────────────────────
+// 背景（2026-09-18 生产事故，P0）：db/migrate.js 以**字符串**引用 .sql ——
+//   readFileSync(new URL('./x.sql', import.meta.url))。这类引用**不在 import 图内**，
+//   ①/② 两条判据扫不到；若该 .sql 忘了 git add（工作树有、HEAD 无 = 「半提交」），
+//   发布包（= HEAD 的干净 worktree 导出）就缺文件 → 容器启动 node db/migrate.js 抛
+//   ENOENT → crm-app 崩溃循环、生产 000。实测：migration-signal-contact-owner.sql 即此形态。
+// 判据：migrate 系列 JS 内出现的每个 '<name>.sql' 字面量，必须在 db/ 下真实存在。
+//   注：本检查在**发布源**上执行，而发布源是 HEAD 的检出 ⇒ 「磁盘存在」即等价于「已提交」。
+const sqlRefs = [];
+{
+  const migRe = /(^|\/)db\/migrate(-config)?\.js$/;
+  const seenSql = new Set();
+  for (const file of files) {
+    if (!migRe.test(rel(file))) continue;
+    const src = read(file);
+    const re = /['"]([A-Za-z0-9._-]+\.sql)['"]/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const name = m[1];
+      const key = `${rel(file)}|${name}`;
+      if (seenSql.has(key)) continue;
+      seenSql.add(key);
+      if (!existsSync(path.join(ROOT, 'db', name))) sqlRefs.push({ from: rel(file), name });
+    }
+  }
+}
+
 // ───────────────────────── 分级：是否在 app 启动链路上 ─────────────────────────
 // 只有启动链路的不自洽才会让生产容器崩溃循环（实测三次崩溃均来自 src/ 与 db/migrate.js）；
 // scripts/ 下的独立脚本、db/seed/ 下的种子脚本坏引用属既有技术债，不阻断发布，
@@ -203,8 +235,10 @@ printBlock(`❌ ③ 绝对 file:// 引用 ${cAbs.length} 处【阻断·启动链
   (d) => `   ${d.from}\n       -> ${d.target}\n       ⚠ 硬编码绝对路径，生产环境不存在该路径`);
 printBlock(`⚠️  ③ 绝对 file:// 引用 ${wAbs.length} 处【告警·不可移植】`, wAbs,
   (d) => `   ${d.from}  ->  ${d.target}${d.selfRef ? '  ⚠指向本仓工作树' : ''}`);
+printBlock(`❌ ④ migrate 引用的 .sql 缺失 ${sqlRefs.length} 处【阻断·启动链路 ENOENT 崩溃】`, sqlRefs,
+  (d) => `   ${d.from}  ->  db/${d.name}   ⚠ 文件不存在 ⇒ 发布包缺失，容器启动即崩（半提交特征）`);
 
-if (cMissing.length === 0 && cMis.length === 0 && cAbs.length === 0) {
+if (cMissing.length === 0 && cMis.length === 0 && cAbs.length === 0 && sqlRefs.length === 0) {
   const warnN = wMissing.length + wMis.length + wAbs.length;
   console.log(warnN === 0
     ? '✅ 发布源自洽：依赖完整、导出符号匹配、无绝对路径引用'

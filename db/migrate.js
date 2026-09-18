@@ -206,9 +206,16 @@ async function main() {
   // 语义=初始化（文件内 WHERE NOT EXISTS 幂等）。仅在缺失时播种「合同签署 → 赢单(won)」一条保守规则；
   //   扩到回款/流单/审批驳回须走人工评审（策略见 db/seed-outcome-event-map.sql 头注）。
   try {
-    const outcomeRulesSql = readFileSync(new URL('./seed-outcome-event-map.sql', import.meta.url), 'utf8');
-    const orRes = await pool.query(outcomeRulesSql);
-    console.log(`[migrate] outcome 事件映射规则已确保（幂等，本次新增 ${orRes.rowCount ?? 0} 条）`);
+    // 2026-09-18 修正：原先只读旧种子（1 条 contract_sign），而 09-14 扩展版（4 条：
+    //   contract_sign / deal-advance / quote-create / deal-archive）未纳入 migrate ⇒
+    //   本机开发库长期停留 1 条、生产 4 条 —— 典型「种子基线漂移」，使 D4 判据在两侧不一致。
+    //   两文件均自含 WHERE NOT EXISTS 幂等，重复执行零副作用；生产已 4 条则自动跳过。
+    let orNew = 0;
+    for (const f of ['seed-outcome-event-map.sql', 'seed-outcome-event-map-2026-09-14.sql']) {
+      const orRes = await pool.query(readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'));
+      orNew += orRes.rowCount ?? 0;
+    }
+    console.log(`[migrate] outcome 事件映射规则已确保（幂等，本次新增 ${orNew} 条）`);
   } catch (e) {
     console.error('[migrate] outcome_event_map 播种失败:', e.message);
     throw e;
