@@ -35,20 +35,20 @@ describe('crm-sync-console 页面契约', () => {
     expect(page).toContain('injectLayout()');
   });
 
-  it('三个只读数据源齐备：同步状态 / 连接清单 / 工厂字典', () => {
-    expect(page).toContain('/api/monitor/sync');
-    expect(page).toContain('/api/integration/providers');
-    expect(page).toContain('/api/sync/factories');
-  });
-
-  it('⛔ 假绿防线：必须做「kind 是否可构造」校验（否则「配置了但没数据」无法当场归因）', () => {
-    expect(page).toMatch(/factories/);
-    expect(page).toContain('静默跳过');
-    expect(page).toContain('可构造');
+  it('租户级精简：只保留同步状态（T07 实测）+ 两个配置键，不再承载系统级连接清单', () => {
+    // 2026-09-18 用户指令：本页「更像是原系统集成配置」→ 删除无用描述后归入配置中心租户级。
+    //   ✂ 移除系统级连接清单区（/api/integration/providers 对 ten_admin 403 = 系统级性质，非租户级配置面），
+    //     其职责由「外部数据接入」#47/#48 与通道接入台 /channel-adapters.html 承担。
+    expect(page).toContain('/api/monitor/sync');          // 租户级状态（按 me.tenantId 隔离）
+    expect(page).not.toContain('/api/integration/providers'); // 系统级连接清单已移除
+    expect(page).not.toContain('/api/sync/factories');        // 工厂字典已移除（可构造性校验不再属于本页）
+    expect(page).not.toContain('静默跳过');
+    expect(page).not.toContain('可构造');
   });
 
   it('信任档暴露 L1/L2/L3 且明示「绝不自动提权」', () => {
-    expect(page).toMatch(/TRUST_LEVELS = \['L1', 'L2', 'L3'\]/);
+    // 组件化重构后 TRUST_LEVELS 为对象数组（{level, desc}），不再断言旧字面量格式
+    expect(page).toMatch(/TRUST_LEVELS = \[\s*\{ level: 'L1'/);
     expect(page).toContain('绝不自动提权');
   });
 
@@ -57,8 +57,16 @@ describe('crm-sync-console 页面契约', () => {
     expect(page).toMatch(/尚未跑过/);
   });
 
-  it('不造第二个描述符编辑面——指向既有的外部数据接入 TAB（单源）', () => {
-    expect(page).toContain('/discovery-rules.html#integration-sources');
+  it('指向既有连接编辑面（外部数据接入），本页只承载租户级映射与信任档配置', () => {
+    // 页面只保留「外部数据接入」文字提示（连接编辑面单源），不再包含具体 URL（避免两处维护）
+    expect(page).toContain('外部数据接入');
+  });
+
+  it('页面明示「数据按租户隔离」（读 scopeTenant / 写 scopeOf 永不通配，管理员仅见平台模板）', () => {
+    // 2026-09-18 用户补充指令「按照租户隔离」：把隔离保证显式落到页面，避免仅后端生效、前台无证据。
+    expect(page).toContain('数据按租户隔离');
+    expect(page).toContain('scopeTenant');
+    expect(page).toContain('scopeOf');
   });
 
   it('映射编辑器保留 fields 结构且 direction 可选 in/out', () => {

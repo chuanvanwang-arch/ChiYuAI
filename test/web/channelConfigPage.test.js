@@ -23,8 +23,8 @@ const upstream = readFileSync(new URL('../../src/web/discovery-rules.html', impo
 const routesSrc = readFileSync(new URL('../../src/http/routes.js', import.meta.url), 'utf8');
 
 describe('channel-config.html 配置台', () => {
-  it('列表唯一数据源＝GET /api/channels', () => {
-    expect(src).toContain('/api/channels?tenant_id=');
+  it('列表唯一数据源＝GET /api/channels（后端按会话租户隔离，前端不再带 tenant_id 参数）', () => {
+    expect(src).toContain("get('/api/channels')");
     expect(src).not.toContain('/api/integration/providers'); // 不越界到通用数据源面
   });
 
@@ -40,8 +40,8 @@ describe('channel-config.html 配置台', () => {
     expect(src).toContain('L1 只读（默认）');
   });
 
-  it('断开＝POST /api/channels/:id/disconnect（软停用·禁物理删除）', () => {
-    expect(src).toContain('/disconnect?tenant_id=');
+  it('断开＝POST /api/channels/:id/disconnect（软停用·禁物理删除；后端按会话租户隔离）', () => {
+    expect(src).toContain("/api/channels/' + encodeURIComponent(id) + '/disconnect'");
     expect(src).toContain('软停用');
     expect(src).toContain('禁物理删除');
   });
@@ -50,18 +50,18 @@ describe('channel-config.html 配置台', () => {
     expect(src).toContain('/api/channels/connect');
   });
 
-  // ── 入口可达性（2026-09-17 实缺陷回归）────────────────────────────────
+  // ── 入口可达性（2026-09-17 实缺陷回归 · 2026-09-18 调整）────────────────
   // 事实：本页有 routes serve + 上面全部契约测试全绿 + 与 discovery-rules / 360 / 接入台互链，
-  //   但**主导航零入口**（layoutMenu 无 /channel-config.html）⇒ 用户从侧边栏根本到不了接入面。
-  //   与 discovery.html 同一形态（「页面在、链路通、没人到得了」；判据⑤同族：绿在测试、死在使用）。
-  //   ⚠ 只断言「页面内部有什么」的契约测试，永远发现不了「没人到得了」——入口必须自身成为断言对象，
-  //   否则补完入口后仍会随下次重构静默脱落。
-  it('入口可达性：主导航有入口（防孤岛回归）+ 链到首次接入向导 + 上游页互链', async () => {
+  //   但 2026-09-17 曾**主导航零入口**（layoutMenu 无 /channel-config.html）⇒ 用户从侧边栏到不了接入面。
+  //   2026-09-18 用户裁定「不要放在左侧菜单里面」→ 主动移出 FULL_MENU。但可达性仍须守住：
+  //   经 cross-link（通道接入台 channel-adapters.html / 接入向导 onboarding-guide.html 等）到达，否则变真孤岛。
+  //   ⚠ 只断言「页面内部有什么」的契约测试，永远发现不了「没人到得了」——故此处改为断言
+  //   「不在菜单 + 仍能经非菜单路径（上游互链 / 向导 / routes serve）到达」。
+  it('入口可达性：已移出左侧菜单，但仍经 cross-link + routes serve 可达（非孤岛）', async () => {
     const { FULL_MENU } = await import('../../src/portal/layoutMenu.js');
-    const hit = FULL_MENU.find((m) => m.href === '/channel-config.html');
-    expect(hit, 'channel-config.html 失去导航入口 → 又变孤岛').toBeTruthy();
-    expect(hit.group).toBe('协同');
-    expect(hit.requiresEntitlement).toEqual(['core_crm']);
+    // 不再作为全员菜单项（用户裁定移出左侧菜单）
+    expect(FULL_MENU.some((m) => m.href === '/channel-config.html')).toBe(false);
+    // 仍经 cross-link 到达：接入向导 + 上游页（通道接入台 channel-adapters.html）互链
     expect(src).toContain('/onboarding-guide.html');
     expect(upstream).toContain('/channel-config.html');
   });

@@ -52,6 +52,53 @@ describe('discovery.html 前台线索发现工作台（只读面）', () => {
     expect(existsSync(pageFile)).toBe(true);
   });
 
+  // ── 「看不懂」回归闸（2026-09-18 用户实报，附截图）─────────────────────────
+  // 事实：本页当时契约测试全绿，但用户输入「北京海底捞」后整页无一处可理解：
+  //   · 候选池空态只写「暂无已评分候选」（不解释为什么空 / 数据从哪来 / 去哪触发）；
+  //   · 两张表未套 .table ⇒ 空表时 5 个表头挤成一行文字，被读成一句乱话；
+  //   · 定向拓客读**顶层** data.items，而后端信封是 {ok,data:{items,error}} ⇒ 恒空、draft_id 恒 '-'；
+  //   · 后端 error（provider_not_enabled_or_unknown）被吞成「预期 fail-open」。
+  // 行为断言见 scripts/verify-discovery-page-render.mjs（真跑 onclick + fetch 桩，24 断言 + 6 变异自证）；
+  // 此处只做**防整段删除**的静态锚点。
+  it('空态必须自解释（含触发入口），且表格套 .table 类', () => {
+    expect(html).toContain('候选池暂无');            // 空态文案存在
+    expect(html).toContain('icp_fit_score');         // 字段名收进 th[title]（hover 可见），不占常驻文案
+    expect(html).toContain('href="/buddy"');         // 给出可点触发入口
+    expect(html).toContain('id="candidate-table" class="table"');
+    expect(html).toContain('<table id="dpTable" class="table">');
+    expect(html).toContain('empty-cell');            // 左对齐空态样式类
+  });
+
+  // ── 文案预算闸（2026-09-18 用户二次反馈）──────────────────────────────────
+  // 事实：用户报「显示了一堆说明，完全看不懂，这个页面需要干净点，无用信息删除」。
+  //   上一轮为治「看不懂」补的自解释文案总量 ≈360 字（m5 全回退变异体实测 530 字），
+  //   属**把机制原理当用户信息常驻显示**；且 triggerBar 里三条说明绑定的 div 全仓零 JS 消费
+  //   （grep 仅命中自身声明），只能写死假值 —— 写死的数据源名会与配置中心真实配置相互撒谎。
+  //   本闸把「干净」变成可回归判据：行为断言见 scripts/verify-discovery-page-render.mjs【⓪】+ 5 变异自证。
+  it('文案预算：常驻可见文案 ≤160 字，且不得回流零消费说明性死元素', () => {
+    const text = html
+      .replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*?<\/script>/g, '')
+      .replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    expect(text.length, `常驻可见文案 ${text.length} 字（预算 160）`).toBeLessThanOrEqual(160);
+    expect(html).not.toContain('id="icp-summary"');
+    expect(html).not.toContain('id="data-source-badges"');
+    expect(html).not.toContain('id="last-run-at"');
+    expect(/<section id="triggerBar"[\s\S]*?<\/section>/.exec(html)[0]).not.toContain('class="sub"');
+    expect(html, '常驻文案不解释内部容错机制').not.toMatch(/fail-open/);
+    // 表头不得暴露内部字段名（用户圈出的 why_narrative）；字段名改由 th[title] 承载
+    const heads = [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1].trim()).filter(Boolean);
+    expect(heads.some((t) => /[a-z]_[a-z]/i.test(t)), `表头：${heads.join('/')}`).toBe(false);
+    expect(html).toContain('title="payload.discovery.why_narrative"');
+  });
+
+  it('action 响应必须按信封取数（data.data），且不得吞后端 error / 使用空值 provider', () => {
+    expect(html, '读顶层 data.items 会让本页恒空（后端信封见 executor.js:233 + routes.js:3718）')
+      .toContain('data.data || data');
+    expect(html).toContain('payload.error');
+    expect(/<option value="">/.test(html), '空串 provider 恒返回 provider_not_enabled_or_unknown')
+      .toBe(false);
+  });
+
   it('引入 portal 令牌（受控页既有范式）', () => {
     expect(html).toContain('/portal/tokens.css');
     expect(html).toContain('/portal/common.css');

@@ -7,132 +7,114 @@
 <link rel="stylesheet" href="/portal/tokens.css" data-page-node-id="uwTp0W8CCAlDNoJsu51s5i">
 <link rel="stylesheet" href="/portal/common.css" data-page-node-id="m3d12dAY6lWV2mBvyRn0dC">
 <style>
-  /* 只用 tokens.css 令牌，禁写死色值（主题随令牌） */
-  body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+  /* 页面私有类（规范 docs/specs/2026-09-05-ui-authoring-rules.md R3）：
+     设计系统保留类 tabs/tab/panel/table/btn/select/input/textarea/button/toast/badge/chip/card
+     一律不在页内重声明，直接引用 common.css 单源定义；此处只放本页私有布局类。
+     crm-* 组件 shadow 内控件宽度为 100%，实际尺寸由宿主决定。 */
+  body { font-family: var(--font); margin: 0; background: var(--bg); color: var(--ink); }
   .wrap { padding: 18px 20px; max-width: 1180px; margin: 0 auto; }
-  .note { background: var(--warn); color: #fff; padding: 12px 14px; border-radius: 6px; font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
-  .note b { color: #fff; }
-  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
-  .tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--mut); padding: 8px 14px; cursor: pointer; font-size: 13px; }
-  .tabs button.active { color: var(--ink); border-bottom-color: var(--ac); }
-  .panel { display: none; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
-  .panel.active { display: block; }
-  .sect-title { font-weight: 600; margin-bottom: 10px; }
+  /* 分区显隐：.panel 的观感来自 common.css，显隐语义由本页私有类承载（不重声明保留类） */
+  .dr-panel { display: none; }
+  .dr-panel.on { display: block; }
   .hint { color: var(--mut); font-size: 12px; line-height: 1.6; margin: 6px 0 10px; }
   .field { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
-  .field label { width: 300px; font-size: 13px; color: var(--mut); }
-  .field input, .field textarea { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); }
-  .field textarea { width: 100%; min-height: 72px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
-  table.cfg { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.cfg th, table.cfg td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
-  tr.disabled { opacity: .45; }
+  .field.top { align-items: flex-start; }
+  .field > label { width: 300px; flex: none; font-size: 13px; color: var(--mut); }
+  .field crm-input, .field crm-select, .field crm-textarea { flex: 1; min-width: 0; }
   .muted { color: var(--mut); font-size: 12px; }
+  /* 表格单元内的 crm-input 撑满单元格（宽度归宿主决定；组件 shadow 内为 100%） */
+  #pb-table crm-input { width: 100%; }
+  tr.disabled { opacity: .45; }
   #status { font-size: 12px; color: var(--mut); }
   .toolbar { display: flex; gap: 10px; align-items: center; }
-  .crm-btn { background: var(--ac); color: #fff; border: 0; border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
-  .crm-btn:hover { opacity: .9; }
-  /* 实例编辑弹层（深色主题一致性；遮罩用 color-mix 由令牌派生，不写死色值） */
-  dialog#inst-dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--panel-bd); border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow); max-width: 560px; }
-  dialog#inst-dialog::backdrop { background: color-mix(in srgb, var(--bg) 72%, transparent); }
-  dialog#inst-dialog h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
-  dialog#inst-dialog .field textarea { min-height: 64px; }
+  .json-preview { background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    max-height: 240px; overflow: auto; color: var(--ink); }
+  /* 编辑 / 授权弹层（遮罩用 color-mix 由令牌派生，不写死色值） */
+  dialog#inst-dialog, dialog#auth-dialog { background: var(--panel); color: var(--ink);
+    border: 1px solid var(--panel-bd); border-radius: var(--radius-lg); padding: 18px 20px;
+    box-shadow: var(--shadow); max-width: 560px; width: 100%; }
+  dialog#inst-dialog::backdrop, dialog#auth-dialog::backdrop { background: color-mix(in srgb, var(--bg) 72%, transparent); }
+  dialog#inst-dialog h3, dialog#auth-dialog h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
 </style>
 <script type="module" src="/portal/components.js"></script>
 </head>
 <body data-page-node-id="8jNj82kS4Em0EWGTkGDvVe">
 <header class="page-head" data-page-node-id="A8eyHzP6GUECPYzCxbI3GC"><div class="ph-main" data-page-node-id="CREMNTkK2tg2nKTIDSyv7F"><h1 class="page-title" data-page-node-id="LxtxsF5CVMZy0G7kz6id55">线索发现 · 拓客规则</h1></div></header>
+<p class="page-sub">设定「线索从哪来、什么线索值得要」：目标客户画像、数据来源、信号权重、去重规则与自动策略。</p>
 <div class="wrap" data-page-node-id="uscST8lQcoj9QrRyLriyiX">
-  <div class="note" data-page-node-id="vQM7qai2ICQhWCZ8c4EsQq">
-    本页回答两个问题：<b data-page-node-id="ylX37UIfYMP4GLWmsQ4n9v">线索从哪来</b>、<b data-page-node-id="R5MvdScFdn3H1foRNIi2lQ">什么线索值得要</b>。
-    你可以在这里设定目标客户画像（行业 / 规模 / 地区）、选择数据来源、调整信号关注度、配置去重规则——全部在后台调整，无需改代码。
-    任一付费数据源默认关闭，需显式授权并填写密钥后才会启用；所有保存都会生成审批凭证（写操作经系统审批闸门）。
-  </div>
 
-  <div class="panel" style="background:var(--panel)" data-page-node-id="40E93WVUWsXi6v5pOlGOlv">
-    <div class="sect-title" data-page-node-id="rhUVJxf7yx50B9TG6OXEBY">主动拓客（对话驱动）</div>
-    <div class="hint" data-page-node-id="nfqZXzDFLjF0rWFDyJDXty">
-      除了被动接收融资 / 招聘 / 中标等外部信号，你还可以在 MCP 对话里<b data-page-node-id="h0yVqEppLBT9d0Na493D0f">主动拓客</b>：
-      对销售助手说「找 50 人以上、年营收 1 亿以上的医疗企业」，助手会按下方「目标客户画像」与「信号权重」批量搜索候选企业，
-      你圈选确认后一键进入公海池（S0）。所用规则与上方配置一致；付费数据源同样默认关闭，需授权后才参与搜索。
-      <span style="opacity:.55" data-page-node-id="LyWcuBI7HfpoFmQmxPcMC9">（对应模块设计：docs/2026-09-14-prospecting-module-design.md，前端入口为后续迭代）</span>
-    </div>
-  </div>
+  <crm-tabs data-page-node-id="bRGy0GJQQ9zhHkJgPSZYcZ">
+    <crm-tab active data-tab="icp" data-page-node-id="FN9EBnluiMAM3YwQb7ijWB">目标客户画像</crm-tab>
+    <crm-tab data-tab="providers" data-page-node-id="3lY61UwnuRzP4jawPWKbwL">数据来源</crm-tab>
+    <crm-tab data-tab="signals" data-page-node-id="KuFVJ6DQRZ17o6cJrWmihj">关注信号</crm-tab>
+    <crm-tab data-tab="duplicate" data-page-node-id="Ga7BxBOZtmmi04ljpfTy3C">去重规则</crm-tab>
+    <crm-tab data-tab="playbooks" data-page-node-id="Mn0Ne3k5QR8GGGTozcEB7z">自动策略</crm-tab>
+    <crm-tab data-tab="integration-sources" data-page-node-id="iEWDFsbFnYhPaoJeB5hYDd">外部数据接入</crm-tab>
+  </crm-tabs>
 
-  <div class="tabs" data-page-node-id="bRGy0GJQQ9zhHkJgPSZYcZ">
-    <button data-tab="icp" class="active" data-page-node-id="FN9EBnluiMAM3YwQb7ijWB">目标客户画像</button>
-    <button data-tab="providers" data-page-node-id="3lY61UwnuRzP4jawPWKbwL">数据来源</button>
-    <button data-tab="signals" data-page-node-id="KuFVJ6DQRZ17o6cJrWmihj">关注信号</button>
-    <button data-tab="duplicate" data-page-node-id="Ga7BxBOZtmmi04ljpfTy3C">去重规则</button>
-    <button data-tab="playbooks" data-page-node-id="Mn0Ne3k5QR8GGGTozcEB7z">自动策略</button>
-    <button data-tab="integration-sources" data-page-node-id="iEWDFsbFnYhPaoJeB5hYDd">外部数据接入</button>
-  </div>
-
-  <section class="panel active" id="panel-icp" data-page-node-id="Nt469E3V7FJDZSNtjTnvvD">
+  <section class="panel dr-panel on" id="panel-icp" data-page-node-id="Nt469E3V7FJDZSNtjTnvvD">
     <div class="sect-title" data-page-node-id="pnZ6nVm1f8bbyYRlb0anng">目标客户画像（ICP）</div>
-    <div class="hint" data-page-node-id="foz7NMwn1AXyjBySgJ57bd">定义「什么样的企业是你的目标客户」。线索发现与主动拓客（对话内）都会按这组条件筛选候选。</div>
-    <div class="field" data-page-node-id="jUfFLAVoWmyAOUhZjZQ8ki"><label data-page-node-id="LrfEhJPUI2esmHAj43Mfc3">目标行业（多个用逗号分隔，不填则不限制）</label><input id="icp-industries" data-page-node-id="UnHAftxyr6JwZPK2KC7D24" /></div>
-    <div class="field" data-page-node-id="0dqtazMCnWrVP9OZZQcEHW"><label data-page-node-id="qJmPXEKGNM1w6rl3xMRIZw">最小员工规模（人）</label><input type="number" id="icp-headcount" min="0" step="1" data-page-node-id="eMx3J4M6pxpYMumhlQU5qd" /></div>
-    <div class="field" data-page-node-id="7butgBKjDq3nIAbh5eUm09"><label data-page-node-id="i0kYBg6lrlj8K4ystuJm5d">地理范围（多个用逗号分隔）</label><input id="icp-geo" data-page-node-id="adqGLpGUxsGpdc25kQHcRJ" /></div>
-    <div class="field" data-page-node-id="sw21GNnqJwYhW8Sxox32Pm"><label data-page-node-id="EHtSrdajIGHlMjqnycXxEy">画像置信度门槛（0–1，低于此不入池）</label><input type="number" id="icp-confidence" min="0" max="1" step="0.05" data-page-node-id="v2uRUHqSqWE7aSZZQJyWIM" /></div>
+    <div class="hint" data-page-node-id="foz7NMwn1AXyjBySgJ57bd">定义「什么样的企业是你的目标客户」——线索发现与主动拓客都按这组条件筛选候选。
+      在 AI 对话里直接说「找 50 人以上、年营收 1 亿以上的医疗企业」，助手即按本组条件批量搜索，圈选确认后进入公海池。</div>
+    <div class="field" data-page-node-id="jUfFLAVoWmyAOUhZjZQ8ki"><label data-page-node-id="LrfEhJPUI2esmHAj43Mfc3">目标行业（多个用逗号分隔，不填则不限制）</label><crm-input id="icp-industries" data-page-node-id="UnHAftxyr6JwZPK2KC7D24"></crm-input></div>
+    <div class="field" data-page-node-id="0dqtazMCnWrVP9OZZQcEHW"><label data-page-node-id="qJmPXEKGNM1w6rl3xMRIZw">最小员工规模（人）</label><crm-input type="number" id="icp-headcount" min="0" step="1" data-page-node-id="eMx3J4M6pxpYMumhlQU5qd"></crm-input></div>
+    <div class="field" data-page-node-id="7butgBKjDq3nIAbh5eUm09"><label data-page-node-id="i0kYBg6lrlj8K4ystuJm5d">地理范围（多个用逗号分隔）</label><crm-input id="icp-geo" data-page-node-id="adqGLpGUxsGpdc25kQHcRJ"></crm-input></div>
+    <div class="field" data-page-node-id="sw21GNnqJwYhW8Sxox32Pm"><label data-page-node-id="EHtSrdajIGHlMjqnycXxEy">画像置信度门槛（0–1，低于此不入池）</label><crm-input type="number" id="icp-confidence" min="0" max="1" step="0.05" data-page-node-id="v2uRUHqSqWE7aSZZQJyWIM"></crm-input></div>
   </section>
 
-  <section class="panel" id="panel-providers" data-page-node-id="EpnvHuPKFOrNNXFU7zEPYE">
+  <section class="panel dr-panel" id="panel-providers" data-page-node-id="EpnvHuPKFOrNNXFU7zEPYE">
     <div class="sect-title" data-page-node-id="acBBwPDcfcN1uGvK5nQpS0">数据来源</div>
-    <div class="hint" data-page-node-id="F2OXAie2GNmazwvBCEQAs1">从哪些渠道获取线索。系统级数据源（邮箱验证 / 网页检索 / 标讯 / 地理画像）出厂即可用；<b data-page-node-id="t6M6iJ46BUAtkgno46ry3r">付费数据源</b>默认关闭，需在「外部数据接入」页授权后启用。</div>
-    <table class="cfg" data-page-node-id="IXcIl8crIZoK85jOXMGiFe">
+    <div class="hint" data-page-node-id="F2OXAie2GNmazwvBCEQAs1">系统级数据源（邮箱验证 / 网页检索 / 标讯 / 地理画像）出厂即可用；<b data-page-node-id="t6M6iJ46BUAtkgno46ry3r">付费源</b>默认关闭，需在「外部数据接入」授权后启用。</div>
+    <table class="table" data-page-node-id="IXcIl8crIZoK85jOXMGiFe">
       <thead data-page-node-id="JMc7EieUihtrhRqT2XyzgB"><tr data-page-node-id="azOTtmBIi7LihwHbvK45Tq"><th data-page-node-id="Q9WPWiKnj1lGPH1sQHCCGp">数据源</th><th data-page-node-id="2c5IFRKbiwNC9MT5l93TOg">类型</th><th data-page-node-id="iCFMjFUskIcDdRSfcDyvJr">适用范围</th><th data-page-node-id="EhIpfyQD81aQEW7tem3nCa">成本档</th><th data-page-node-id="TlJ619lVS0Ins5K1ZiG2fG">启用</th></tr></thead>
       <tbody id="providers-body" data-page-node-id="NGKF35svIYO4b922s5Fcav"></tbody>
     </table>
   </section>
 
-  <section class="panel" id="panel-signals" data-page-node-id="5KqxVWpLcHSgE25YMA8jFA">
+  <section class="panel dr-panel" id="panel-signals" data-page-node-id="5KqxVWpLcHSgE25YMA8jFA">
     <div class="sect-title" data-page-node-id="b03ys4kzcbx3D0ZzJJo1ot">关注信号与权重（0–1）</div>
-    <div class="hint" data-page-node-id="hlq5qg6OpraoElUDg1awPB">哪些企业动态更能说明「对方正处在有购买需求的窗口期」。权重越高，命中该信号的企业排序越靠前。</div>
-    <p class="hint">「招聘 / 新战略」类外部情报本平台暂无可信数据源（已标注 <b>无内部数据源</b>，不计入筛选）；
-      内部可观测的客户异动（联系人台账变动、关系冷却）以 <b>内部推断</b> 标注，权重低于实测情报。</p>
+    <div class="hint" data-page-node-id="hlq5qg6OpraoElUDg1awPB">哪些企业动态更能说明「对方正处在有购买需求的窗口期」；权重越高，命中该信号的企业排序越靠前。
+      无内部数据源者标注 <b>无内部数据源</b>（不计入筛选）；客户异动类信号以 <b>内部推断</b> 标注，权重低于实测情报。</div>
     <div id="signals-body" data-page-node-id="2EJafjUTIBsY8NqTgmqMBV"></div>
   </section>
 
-  <section class="panel" id="panel-duplicate" data-page-node-id="6fHOzP1wReDda04dWg3MbB">
+  <section class="panel dr-panel" id="panel-duplicate" data-page-node-id="6fHOzP1wReDda04dWg3MbB">
     <div class="sect-title" data-page-node-id="DkWhDva3IYINaFmfBvOimP">去重规则（按顺序逐组比对）</div>
     <div class="hint" data-page-node-id="6lRLDcgEbqkGdO7w3N4SsO">避免同一家企业重复入池。比对按顺序执行：先按第 1 组条件，都命中即视为重复；否则尝试第 2 组，以此类推。同一组内多个字段需<b data-page-node-id="H9GY9zLbK7aC7G1gNERGgO">全部命中</b>才算重复。</div>
-    <div class="field" data-page-node-id="0mCWxB7FK3oqHfnHe2ULYc"><label data-page-node-id="RvginNh8SUqgICBOl8Pxam">企业（CRM_ACCOUNT，JSON 二维数组）</label><textarea id="dup-account" spellcheck="false"></textarea></div>
-    <div class="field" data-page-node-id="VYsLqUk5qPwlBDDeh4LfjM"><label data-page-node-id="ESH6Vd8oOeGD9psOtn1eYL">联系人（CRM_CONTACT，JSON 二维数组）</label><textarea id="dup-contact" spellcheck="false"></textarea></div>
+    <div class="field top" data-page-node-id="0mCWxB7FK3oqHfnHe2ULYc"><label data-page-node-id="RvginNh8SUqgICBOl8Pxam">企业（CRM_ACCOUNT，JSON 二维数组）</label><crm-textarea id="dup-account" rows="4"></crm-textarea></div>
+    <div class="field top" data-page-node-id="VYsLqUk5qPwlBDDeh4LfjM"><label data-page-node-id="ESH6Vd8oOeGD9psOtn1eYL">联系人（CRM_CONTACT，JSON 二维数组）</label><crm-textarea id="dup-contact" rows="4"></crm-textarea></div>
     <div class="muted" data-page-node-id="vlHi7gAEIkdOM93Cx5m7Yh">例：<code data-page-node-id="mUfWWqntbDzAzTAdef7Eb8">[["external_id"],["domain"],["name"]]</code> —— 先按外部 ID 比，再按域名，最后按名称。</div>
   </section>
 
-  <section class="panel" id="panel-playbooks" data-page-node-id="FY1fM22xCZkjAFEPJG07Hu">
+  <section class="panel dr-panel" id="panel-playbooks" data-page-node-id="FY1fM22xCZkjAFEPJG07Hu">
     <div class="sect-title" data-page-node-id="HU1j8il85iNUTF8Wyq2SEx">自动处理策略（Playbooks）</div>
-    <div class="hint" data-page-node-id="gLc8zBxGiPuSsR33HeQxdX">为特定客户群编写「命中后如何处理」的策略：自动收窄数据来源、挂接智能体处理。<b data-page-node-id="DocPeo7VqCspT88Um3HAs8">出厂不预置</b>（显示 <code data-page-node-id="KRmZ631yOlJuMtD1HhGsyQ">[]</code> 属正常，非故障）；行业模板在租户开户时按行业播种（<code data-page-node-id="snSliKUlp11ZTGTe9xrusM">db/seed/discovery-rules-templates.js</code>）。
-      每行一项策略；<code data-page-node-id="XogtOHPNC4Qhra7tOt9eHu">名称</code>必填（空将被拒绝保存）；<code data-page-node-id="JjTpWaKDKA7FrJZNlo4WLh">命中信号</code>填信号类型，多个用 <code data-page-node-id="4jPelrifyyXhZJelG4C095">&amp;&amp;</code> 同时命中（如 <code data-page-node-id="gUc0ATrppgjTkROr0dy3Lf">tender_match&amp;&amp;funding_round</code>，留空或以 <code data-page-node-id="1sXzM0mNydtldJoKDP83Sw">default</code> 命名作兜底）；<code data-page-node-id="D7vjmFq82QpZiyydHyP9mw">数据源/AI研究/动作</code>为数组，单元格内逗号分隔（如 <code data-page-node-id="h0KDd70hWC0GvyA8ATzgQM">tender,gaode</code>）。</div>
+    <div class="hint" data-page-node-id="gLc8zBxGiPuSsR33HeQxdX">为特定客户群编写「命中后如何处理」的策略：自动收窄数据来源、挂接智能体处理。<b data-page-node-id="DocPeo7VqCspT88Um3HAs8">出厂不预置</b>（显示 <code data-page-node-id="KRmZ631yOlJuMtD1HhGsyQ">[]</code> 属正常，非故障）。每行一项策略，<code data-page-node-id="XogtOHPNC4Qhra7tOt9eHu">名称</code>必填。</div>
     <div class="toolbar" style="margin-bottom:8px" data-page-node-id="QiczzyKEyWtqEOpQtPWQZR">
-      <button class="crm-btn" id="pb-add" type="button" data-page-node-id="Fko7c53SDDDwSxLsJwJYG3">＋ 新建策略</button>
+      <crm-button class="btn primary" id="pb-add" type="button" data-page-node-id="Fko7c53SDDDwSxLsJwJYG3">＋ 新建策略</crm-button>
     </div>
-    <table class="cfg" id="pb-table" data-page-node-id="xH7RT96REqZEMypGdkCQU2">
-      <thead data-page-node-id="haSIXXRq0FEO4de6MrMGQz"><tr data-page-node-id="avlOVn3pNCphnzQw1SgShg"><th data-page-node-id="GPcHaAZZbO3qv8FrUzLlYw">名称(必填)</th><th data-page-node-id="RJHWQFjPLEu294GGPx89Ff">命中信号(&amp;&amp;)</th><th data-page-node-id="sy79pU7taTGudI9Jtsw3X5">数据源</th><th data-page-node-id="we5McSrkQDVBxgrRMqzTyH">AI 研究</th><th data-page-node-id="2ZgPlXIhB3H4YHqvEOiCQN">执行动作</th><th data-page-node-id="3vzekXsti14Ehz1w9L3CGj">删除</th></tr></thead>
+    <table class="table" id="pb-table" data-page-node-id="xH7RT96REqZEMypGdkCQU2">
+      <thead data-page-node-id="haSIXXRq0FEO4de6MrMGQz"><tr data-page-node-id="avlOVn3pNCphnzQw1SgShg"><th data-page-node-id="GPcHaAZZbO3qv8FrUzLlYw">名称(必填)</th><th data-page-node-id="RJHWQFjPLEu294GGPx89Ff">命中信号(&amp;&amp;为与)</th><th data-page-node-id="sy79pU7taTGudI9Jtsw3X5">数据源(逗号分隔)</th><th data-page-node-id="we5McSrkQDVBxgrRMqzTyH">AI 研究(逗号分隔)</th><th data-page-node-id="2ZgPlXIhB3H4YHqvEOiCQN">执行动作(逗号分隔)</th><th data-page-node-id="3vzekXsti14Ehz1w9L3CGj">删除</th></tr></thead>
       <tbody id="pb-body" data-page-node-id="3UU9DpqAAZjAquruBTQbMb"></tbody>
     </table>
-    <datalist id="pb-signal-list" data-page-node-id="i7qzkPnjGmCmUZvqY7uHnR"></datalist>
-    <datalist id="pb-adapter-list" data-page-node-id="skVMG7maQTzeMJEhorr7Cf"></datalist>
-    <datalist id="pb-name-list" data-page-node-id="kN5Kp5Y4YoRSuCng2M4Qfe"><option value="default" data-page-node-id="dtO5sLA6vthRwtuYjThD0S"></datalist>
     <details style="margin-top:10px" data-page-node-id="cHIxTL0R30Jqxuu7eIUBvk"><summary data-page-node-id="rBr3uH3ffnf9FzppkpumVS">查看 JSON（只读预览）</summary>
       <pre id="pb-preview" class="json-preview" data-page-node-id="pqlWRj9v06PQlo7KuDZ3yI">[]</pre>
     </details>
   </section>
 
-  <section class="panel" id="panel-integration-sources" data-page-node-id="6Qld7ZxjhwDHp3o34YjNuz">
+  <section class="panel dr-panel" id="panel-integration-sources" data-page-node-id="6Qld7ZxjhwDHp3o34YjNuz">
     <div class="sect-title" data-page-node-id="3Mt3wqwFPuzf76C1qr82Ge">外部数据接入</div>
     <div class="hint" data-page-node-id="y7SKOQ3dAoJKxQG2DLMJFT">在此授权付费数据源（启信慧眼 / 新榜）并登记租户自有系统（REST / MCP / CLI）。密钥经加密落库，不以明文显示或写入日志。</div>
-    <table class="cfg" data-page-node-id="1uFJ3yFuqYaDHWYswFVfZI">
+    <table class="table" data-page-node-id="1uFJ3yFuqYaDHWYswFVfZI">
       <thead data-page-node-id="id3M7TdW5mvnpdCjmSYRzi"><tr data-page-node-id="GaSJodEwf0KpoExcHOJoZf"><th data-page-node-id="44USi8lVpgQOcDAzFFw3JM">数据源</th><th data-page-node-id="kbouG9NQTLa27d33V5uDZ5">类型</th><th data-page-node-id="8NzBpZUhwKCk1O2wgUgKKk">适用范围</th><th data-page-node-id="ZFWqVERl8ezZHNJJUxBgVj">授权状态</th><th data-page-node-id="zml9Gfu2K7mtrrdoNzZhhK">操作</th></tr></thead>
       <tbody id="intsrc-body" data-page-node-id="oaC8y7o2HnsURgQu6Hk3At"></tbody>
     </table>
     <div class="sect-title" style="margin-top:14px" data-page-node-id="JnHq87YpgmYQG1hKk9mgHl">租户自有系统实例</div>
     <div class="toolbar" style="margin-bottom:8px" data-page-node-id="YPoBuZ8Emi4oTmLwKMFVUo">
-      <button class="crm-btn" id="inst-add" data-page-node-id="1rM72d9xzzog29xsXsuNM6">＋ 新增实例</button>
+      <crm-button class="btn primary" id="inst-add" data-page-node-id="1rM72d9xzzog29xsXsuNM6">＋ 新增实例</crm-button>
       <span class="muted" data-page-node-id="yxv2HH32zzMEdmFBfY5Pqj">启停用软开关控制；<b data-page-node-id="4j2WxcgEEsUBwOA0LYI1hA">不物理删除</b>（系统禁止删除数据）</span>
     </div>
-    <table class="cfg" data-page-node-id="raiMJhnF54oQZmk1ecLcfy">
+    <table class="table" data-page-node-id="raiMJhnF54oQZmk1ecLcfy">
       <thead data-page-node-id="tJ5LFoWr8kjE99ucR4A7gZ"><tr data-page-node-id="8dMFsabImVn7BT3UNX9bkB"><th data-page-node-id="oKxzfw9njUMLBqGBUbrxH2">ID</th><th data-page-node-id="mjpFKYGOFHFXks3el7GTJr">类型</th><th data-page-node-id="6cBGB2TmSQD2NpQdiW1duV">端点 / 命令</th><th data-page-node-id="mGnHRY3HNGAGJ00j2NS7pj">字段映射</th><th data-page-node-id="wXYbW6bYWq13wtBAJcNsPs">状态</th><th data-page-node-id="L63DRQQvKyuARxPGTu3FBw">操作</th></tr></thead>
       <tbody id="inst-body" data-page-node-id="sa8u1mmj0b9okwsd7o10oP"></tbody>
     </table>
@@ -142,33 +124,47 @@
     <div class="hint" style="margin-top:10px" data-page-node-id="Kt3sWq9nCh2Vd8xLm4RbPe">📮 <b>邮箱 / 日历 / 会议（企微·飞书·钉钉）/ 微信</b>四类通道不在本表（kind 域不同，由 <code>/api/channels</code> 管理）：
       请用<a href="/channel-config.html">通道配置台</a>；首次接入点此走<a href="/onboarding-guide.html">系统向导</a>（系统主动问，无需自己找配置）。</div>
   </section>
+
   <!-- 实例编辑对话框（弹层） -->
   <dialog id="inst-dialog" data-page-node-id="rBWphQjYHgZ1jSR3LSDBGA">
     <!-- 注意：不可用 method="dialog" —— 那会让点击「保存」在 click 默认动作阶段直接关闭弹层，
          校验失败（ID 必填 / 字段映射非法 JSON / 重名 409）时用户已填内容全部丢失。 -->
-    <form id="inst-form" class="wrap" style="padding:0;max-width:520px" data-page-node-id="tGomCM1HUeoqHp3iQQKd3E">
+    <form id="inst-form" data-page-node-id="tGomCM1HUeoqHp3iQQKd3E">
       <h3 id="inst-dialog-title" data-page-node-id="dfwA5YsHGCjgYtRhGXCOJM">新增实例</h3>
-      <div class="field" data-page-node-id="xATPwjOgFtoO7ezmvNmInR"><label data-page-node-id="1ujDZhDptiyEKq5FiAWzcg">实例 ID（唯一）</label><input id="f-id" data-page-node-id="cB5mnhV4dFt3Nux86yaDNt" /></div>
+      <div class="field" data-page-node-id="xATPwjOgFtoO7ezmvNmInR"><label data-page-node-id="1ujDZhDptiyEKq5FiAWzcg">实例 ID（唯一）</label><crm-input id="f-id" data-page-node-id="cB5mnhV4dFt3Nux86yaDNt"></crm-input></div>
       <div class="field" data-page-node-id="g59n1k7BZFirmHB8H2lZFd"><label data-page-node-id="EUmwaWpybHHm9zg4jKfYsv">类型</label>
-        <select id="f-kind" data-page-node-id="C3ZvfBVeXbYD6YpT9KB2lL">
+        <crm-select id="f-kind" data-page-node-id="C3ZvfBVeXbYD6YpT9KB2lL">
           <option value="generic-rest" data-page-node-id="I1jSgjaZi2QrbLvKAVMpRp">generic-rest（REST API）</option>
           <option value="generic-mcp" data-page-node-id="fNAb8iz2nrG6EX5FG5cfhm">generic-mcp（MCP）</option>
           <option value="generic-cli" data-page-node-id="vMqcd77mbU6IAW0z8Xvd6B">generic-cli（CLI）</option>
-        </select>
+        </crm-select>
       </div>
-      <div class="field" data-page-node-id="pGgIT5YH5SrTkim1vHsGZm"><label data-page-node-id="LpcNdpAP2oGYj3OlIdP60v">端点 / 命令</label><input id="f-endpoint" placeholder="REST: https://…  MCP: mcp-server  CLI: 命令" data-page-node-id="N9zqD40NW0oVrzTYSSLxsx" /></div>
-      <div class="field" data-page-node-id="UBoecf1MyFQ0zRMbPHuxpE"><label data-page-node-id="yJSdbCTneNVKOhcJX0JzBu">字段映射（JSON 对象）</label><textarea id="f-fieldmap" spellcheck="false" placeholder='{"registered_address":"address","legal_person":"legal"}'></textarea></div>
-      <div class="field" data-page-node-id="iXmSfBFYcUxD1FxCTRDIWl"><label data-page-node-id="zYWMpcXrcWGRiD4soFGv7t">启用</label><input type="checkbox" id="f-enabled" checked data-page-node-id="i8T3ljjfNJyZTPtolm4OBQ" /></div>
+      <div class="field" data-page-node-id="pGgIT5YH5SrTkim1vHsGZm"><label data-page-node-id="LpcNdpAP2oGYj3OlIdP60v">端点 / 命令</label><crm-input id="f-endpoint" placeholder="REST: https://…  MCP: mcp-server  CLI: 命令" data-page-node-id="N9zqD40NW0oVrzTYSSLxsx"></crm-input></div>
+      <div class="field top" data-page-node-id="UBoecf1MyFQ0zRMbPHuxpE"><label data-page-node-id="yJSdbCTneNVKOhcJX0JzBu">字段映射（JSON 对象）</label><crm-textarea id="f-fieldmap" rows="5" placeholder='{"registered_address":"address","legal_person":"legal"}'></crm-textarea></div>
+      <div class="field" data-page-node-id="iXmSfBFYcUxD1FxCTRDIWl"><label data-page-node-id="zYWMpcXrcWGRiD4soFGv7t">启用</label><crm-checkbox id="f-enabled" checked data-page-node-id="i8T3ljjfNJyZTPtolm4OBQ"></crm-checkbox></div>
       <div class="toolbar" style="justify-content:flex-end" data-page-node-id="8kYhug0DYtL4N1uUnMYq2t">
-        <button type="button" class="crm-btn" id="f-cancel" data-page-node-id="ruNNDhgzuFnEFunUoiHYFM">取消</button>
-        <button type="submit" class="crm-btn" id="f-save" data-page-node-id="rtiEEvg4JlTZZNa9VMtv9C">保存</button>
+        <crm-button type="button" class="btn" id="f-cancel" data-page-node-id="ruNNDhgzuFnEFunUoiHYFM">取消</crm-button>
+        <crm-button type="submit" class="btn primary" id="f-save" data-page-node-id="rtiEEvg4JlTZZNa9VMtv9C">保存</crm-button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 付费源授权弹层（替代裸 window.prompt：原生弹窗不受全站主题控制、不可校验、不可访问） -->
+  <dialog id="auth-dialog">
+    <form id="auth-form">
+      <h3 id="auth-dialog-title">授权数据源</h3>
+      <div class="field"><label>API Key</label><crm-input id="f-auth-key" type="password" autocomplete="off"></crm-input></div>
+      <div class="muted">密钥经加密落库，明文不留存、不回传、不写日志。</div>
+      <div class="toolbar" style="justify-content:flex-end">
+        <crm-button type="button" class="btn" id="f-auth-cancel">取消</crm-button>
+        <crm-button type="submit" class="btn primary" id="f-auth-save">授权并保存</crm-button>
       </div>
     </form>
   </dialog>
 
   <div class="toolbar" data-page-node-id="JOksFAN8tPmIILyy1k7EtP">
-    <crm-button id="saveBtn" data-page-node-id="mlS7yDR29OH1jfnX8NJvJw">保存变更</crm-button>
-    <crm-button class="sec" id="reloadBtn" data-page-node-id="D3NAFLDwwSSlCXCBMwnsiK">重新加载</crm-button>
+    <crm-button class="btn primary" id="saveBtn" data-page-node-id="mlS7yDR29OH1jfnX8NJvJw">保存变更</crm-button>
+    <crm-button class="btn" id="reloadBtn" data-page-node-id="D3NAFLDwwSSlCXCBMwnsiK">重新加载</crm-button>
     <span id="status" data-page-node-id="9FwsitPDs4EpjhzYG5xBYE">就绪</span>
     <span class="muted" id="readonlyHint" data-page-node-id="9TYOjVS8a4RvxtyXUk2JXO"></span>
   </div>
@@ -216,7 +212,22 @@ const SIGNAL_LABELS = {
   contact_ledger_change: '客户联系人台账变动（内部推断）', relation_cooling: '客户关系冷却（内部推断）',
 };
 
-// ─── 自动策略（Playbooks）可视化表格编辑器（2026-09-15 方案③）───
+// ─── 基础设施 ───
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let current = null;
+function setStatus(s) { $('status').textContent = s; }
+
+// ─── Tab 切换：crm-tab[data-tab] ↔ section#panel-<key> ───
+// crm-tab 的可视按钮在组件 shadow 内，light DOM 查询须用 crm-tab 本身（原 `.tabs button` 恒空 = 点了没反应）。
+// 选中态走 `active` 属性（CrmTab observedAttributes 会把它转到 shadow 内按钮的 .active）。
+const tabEls = [...document.querySelectorAll('crm-tab[data-tab]')];
+tabEls.forEach((t) => t.addEventListener('click', () => {
+  tabEls.forEach((x) => x.toggleAttribute('active', x === t));
+  document.querySelectorAll('.dr-panel').forEach((p) => p.classList.toggle('on', p.id === 'panel-' + t.dataset.tab));
+}));
+
+// ─── 自动策略（Playbooks）可视化表格编辑器 ───
 // 模型驱动：pbRows 是唯一真源；fill() 填充并渲染，collect() 读模型输出数组。
 // 数组字段（data/ai/action）在表格单元格内以逗号分隔编辑，collect 时转回数组。
 let pbRows = [];
@@ -231,19 +242,21 @@ const normalizePb = (p) => ({
 function toPbObj(p) {
   return { name: p.name, match: p.match || '', data: p.data || [], ai: p.ai || [], action: p.action || [] };
 }
+// 候选项说明走 placeholder（datalist 与 crm-* 不可组合：shadow 内 input 无法关联 light DOM 的
+// <datalist>，2026-09-18 真实 Chromium 实证 `setAttribute('list', id)` 后 list 仍为 null）。
 function renderPlaybooks() {
-  const body = document.getElementById('pb-body');
+  const body = $('pb-body');
   if (!body) return;
   body.innerHTML = (pbRows || []).map((r, i) => `
     <tr class="pb-row" data-i="${i}">
-      <td><input class="pb-name" data-i="${i}" value="${esc(r.name)}" list="pb-name-list" placeholder="tender-first / default"></td>
-      <td><input class="pb-match" data-i="${i}" value="${esc(r.match)}" list="pb-signal-list" placeholder="tender_match&&funding_round"></td>
-      <td><input class="pb-data" data-i="${i}" value="${esc((r.data || []).join(','))}" list="pb-adapter-list" placeholder="tender,gaode"></td>
-      <td><input class="pb-ai" data-i="${i}" value="${esc((r.ai || []).join(','))}" placeholder="claygentResearch:lite"></td>
-      <td><input class="pb-action" data-i="${i}" value="${esc((r.action || []).join(','))}" placeholder="method-followup-engine"></td>
-      <td><button type="button" class="crm-btn pb-del" data-i="${i}">删除</button></td>
+      <td><crm-input class="pb-name" data-i="${i}" value="${esc(r.name)}" placeholder="tender-first / default"></crm-input></td>
+      <td><crm-input class="pb-match" data-i="${i}" value="${esc(r.match)}" placeholder="tender_match&amp;&amp;funding_round"></crm-input></td>
+      <td><crm-input class="pb-data" data-i="${i}" value="${esc((r.data || []).join(','))}" placeholder="tender,gaode"></crm-input></td>
+      <td><crm-input class="pb-ai" data-i="${i}" value="${esc((r.ai || []).join(','))}" placeholder="claygentResearch:lite"></crm-input></td>
+      <td><crm-input class="pb-action" data-i="${i}" value="${esc((r.action || []).join(','))}" placeholder="method-followup-engine"></crm-input></td>
+      <td><crm-button type="button" class="btn danger pb-del" data-i="${i}">删除</crm-button></td>
     </tr>`).join('');
-  body.querySelectorAll('input[data-i]').forEach((el) => {
+  body.querySelectorAll('crm-input[data-i]').forEach((el) => {
     el.addEventListener('input', () => {
       const i = Number(el.dataset.i);
       if (el.classList.contains('pb-name')) pbRows[i].name = el.value.trim();
@@ -260,76 +273,75 @@ function renderPlaybooks() {
   updatePbPreview();
 }
 function updatePbPreview() {
-  const pre = document.getElementById('pb-preview');
+  const pre = $('pb-preview');
   if (pre) pre.textContent = JSON.stringify(pbRows.map(toPbObj), null, 2);
 }
 function addPlaybook() {
   pbRows.push({ name: '', match: '', data: [], ai: [], action: [] });
   renderPlaybooks();
 }
-function seedPbDatalists() {
-  const sig = document.getElementById('pb-signal-list');
-  if (sig) sig.innerHTML = Object.keys(SIGNAL_LABELS).map((k) => `<option value="${k}">`).join('');
-  const adp = document.getElementById('pb-adapter-list');
-  if (adp) adp.innerHTML = (DEFAULTS.providers || []).map((p) => `<option value="${p.id}">`).join('');
-}
-
-let current = null;
-function setStatus(s) { document.getElementById('status').textContent = s; }
-
-document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
-  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
-  document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + b.dataset.tab));
-}));
 
 function renderProviders(list) {
-  document.getElementById('providers-body').innerHTML = (list || []).map((p) => `
-    <tr class="${p.scope === 'paid' ? 'disabled' : ''}">
-      <td>${p.id}${p.scope === 'paid' ? ' <span class="muted">（付费，需授权）</span>' : ''}</td>
-      <td>${p.kind || ''}</td><td>${p.scope || ''}</td><td>${p.costTier ?? ''}</td>
-      <td><input type="checkbox" data-provider="${p.id}" ${p.enabled ? 'checked' : ''} ${p.scope === 'paid' ? 'disabled' : ''}></td>
-    </tr>`).join('');
+  // 付费源（scope='paid'）的 enabled 是「显式授权」的落库形态（src/config/discoveryRules.js:6、
+  // test/config/providerEnabled.test.js ③④：config_store 以 {id, enabled:true} 覆盖即授权）。
+  //   因此本页对付费源**只读呈现真实值**（勾选态 = 配置真值），启停归「外部数据接入」授权面。
+  //   原实现无论真值如何一律渲染「未勾选 + disabled」⇒ 界面与配置相互撒谎
+  //   （2026-09-18 现网 config_store 实测 qixin/anysite/xinbang 已授权为 true）。
+  $('providers-body').innerHTML = (list || []).map((p) => {
+    const paid = p.scope === 'paid';
+    const tail = paid ? (p.enabled ? ' <span class="muted">（付费，已授权）</span>' : ' <span class="muted">（付费，待授权）</span>') : '';
+    return `
+    <tr class="${paid && !p.enabled ? 'disabled' : ''}">
+      <td>${esc(p.id)}${tail}</td>
+      <td>${esc(p.kind || '')}</td><td>${esc(p.scope || '')}</td><td>${p.costTier ?? ''}</td>
+      <td><crm-checkbox data-provider="${esc(p.id)}" ${p.enabled ? 'checked' : ''} ${paid ? 'disabled' : ''}></crm-checkbox></td>
+    </tr>`;
+  }).join('');
 }
 function renderSignals(sig) {
-  document.getElementById('signals-body').innerHTML = Object.keys(sig || {}).map((k) => `
-    <div class="field"><label>${SIGNAL_LABELS[k] || k} <span class="muted">(${k})</span></label>
-      <input type="range" data-signal="${k}" min="0" max="1" step="0.05" value="${sig[k]?.weight ?? 0}">
-      <span class="muted" id="sigval-${k}">${sig[k]?.weight ?? 0}</span></div>`).join('');
-  document.querySelectorAll('input[data-signal]').forEach((el) => el.addEventListener('input', () => {
-    document.getElementById('sigval-' + el.dataset.signal).textContent = el.value;
+  $('signals-body').innerHTML = Object.keys(sig || {}).map((k) => `
+    <div class="field"><label>${esc(SIGNAL_LABELS[k] || k)} <span class="muted">(${esc(k)})</span></label>
+      <crm-input type="range" data-signal="${esc(k)}" min="0" max="1" step="0.05" value="${sig[k]?.weight ?? 0}"></crm-input>
+      <span class="muted" id="sigval-${esc(k)}">${sig[k]?.weight ?? 0}</span></div>`).join('');
+  document.querySelectorAll('crm-input[data-signal]').forEach((el) => el.addEventListener('input', () => {
+    $('sigval-' + el.dataset.signal).textContent = el.value;
   }));
 }
 function fill(v) {
   const icp = v.icp || {};
-  document.getElementById('icp-industries').value = (icp.industries || []).join(', ');
-  document.getElementById('icp-headcount').value = icp.min_headcount ?? '';
-  document.getElementById('icp-geo').value = (icp.geo || []).join(', ');
-  document.getElementById('icp-confidence').value = icp.min_confidence ?? '';
+  $('icp-industries').value = (icp.industries || []).join(', ');
+  $('icp-headcount').value = icp.min_headcount ?? '';
+  $('icp-geo').value = (icp.geo || []).join(', ');
+  $('icp-confidence').value = icp.min_confidence ?? '';
   renderProviders(v.providers || []);
   renderSignals(v.signals || {});
   const dc = v.duplicate_criteria || {};
-  document.getElementById('dup-account').value = JSON.stringify(dc.CRM_ACCOUNT || []);
-  document.getElementById('dup-contact').value = JSON.stringify(dc.CRM_CONTACT || []);
+  $('dup-account').value = JSON.stringify(dc.CRM_ACCOUNT || []);
+  $('dup-contact').value = JSON.stringify(dc.CRM_CONTACT || []);
   pbRows = (v.playbooks || []).map(normalizePb); renderPlaybooks();
 }
 function collect() {
   const signals = {};
-  document.querySelectorAll('input[data-signal]').forEach((el) => { signals[el.dataset.signal] = { weight: Number(el.value) }; });
+  document.querySelectorAll('crm-input[data-signal]').forEach((el) => { signals[el.dataset.signal] = { weight: Number(el.value) }; });
   const providers = (current?.providers || DEFAULTS.providers).map((p) => {
-    const box = document.querySelector(`input[data-provider="${p.id}"]`);
-    return { ...p, enabled: p.scope === 'paid' ? false : !!box?.checked };
+    // ⚠ 付费源（scope='paid'）的 enabled 是「显式授权」的落库形态，本页只读呈现 ⇒ 保存必须**原值保真**。
+    //   原实现写死 `enabled: p.scope === 'paid' ? false : ...` ⇒ 保存任意一次（哪怕只改 ICP 行业）
+    //   都会静默撤销全部付费源授权（现网实测 qixin/anysite/xinbang 已授权为 true，会被一键关掉）。
+    if (p.scope === 'paid') return { ...p, enabled: p.enabled === true };
+    const box = document.querySelector(`crm-checkbox[data-provider="${p.id}"]`);
+    return { ...p, enabled: !!box?.checked };
   });
   return {
     icp: {
-      industries: document.getElementById('icp-industries').value.split(',').map((s) => s.trim()).filter(Boolean),
-      min_headcount: Number(document.getElementById('icp-headcount').value) || 0,
-      geo: document.getElementById('icp-geo').value.split(',').map((s) => s.trim()).filter(Boolean),
-      min_confidence: Number(document.getElementById('icp-confidence').value) || 0,
+      industries: $('icp-industries').value.split(',').map((s) => s.trim()).filter(Boolean),
+      min_headcount: Number($('icp-headcount').value) || 0,
+      geo: $('icp-geo').value.split(',').map((s) => s.trim()).filter(Boolean),
+      min_confidence: Number($('icp-confidence').value) || 0,
     },
     providers, signals,
     duplicate_criteria: {
-      CRM_ACCOUNT: JSON.parse(document.getElementById('dup-account').value || '[]'),
-      CRM_CONTACT: JSON.parse(document.getElementById('dup-contact').value || '[]'),
+      CRM_ACCOUNT: JSON.parse($('dup-account').value || '[]'),
+      CRM_CONTACT: JSON.parse($('dup-contact').value || '[]'),
     },
     playbooks: pbRows.filter((p) => p.name).map(toPbObj),
   };
@@ -352,13 +364,24 @@ const INTEGRATION_CATALOG = DEFAULTS.providers
     scope: p.scope,
     desc: (PROVIDER_META[p.id] || {}).desc || '',
   }));
-async function authorizeSource(pid) {
-  const key = prompt('请输入 ' + pid + ' 的 API Key（将加密落库，明文不留存）');
-  if (!key) return;
+
+// ─── 付费源授权（弹层，替代裸 window.prompt）───
+let authProviderId = null;
+function openAuthDialog(pid) {
+  authProviderId = pid;
+  $('auth-dialog-title').textContent = '授权 ' + pid;
+  $('f-auth-key').value = '';
+  $('auth-dialog').showModal();
+}
+function closeAuthDialog() { $('auth-dialog').close(); }
+async function submitAuthDialog() {
+  const key = $('f-auth-key').value.trim();
+  if (!key) { setStatus('API Key 必填'); return; }
   try {
     setStatus('授权中…');
-    await post('/api/integration/secret', { tenantId: 'system', providerId: pid, raw: key });
-    setStatus('已授权 ' + pid + '（凭据加密落库）');
+    await post('/api/integration/secret', { tenantId: 'system', providerId: authProviderId, raw: key });
+    setStatus('已授权 ' + authProviderId + '（凭据加密落库）');
+    closeAuthDialog();
     loadIntegrationSources();
   } catch (e) { setStatus('授权失败：' + (e.message || e)); }
 }
@@ -367,15 +390,15 @@ let instList = [];
 let instErr = null; // 实例列表错误单独承载：load() 与 loadIntegrationSources() 是两条并行异步链，
                     // 若都写 #status 会互相覆盖（失败原因被"未配置"提示吃掉，用户看不到为什么是空表）
 async function loadIntegrationSources() {
-  const body = document.getElementById('intsrc-body');
+  const body = $('intsrc-body');
   body.innerHTML = INTEGRATION_CATALOG.map((p) => `
     <tr>
-      <td>${p.name} <span class="muted">(${p.id})</span></td>
-      <td>${p.kind}</td><td>${p.scope}</td>
+      <td>${esc(p.name)} <span class="muted">(${esc(p.id)})</span></td>
+      <td>${esc(p.kind)}</td><td>${esc(p.scope)}</td>
       <td><span class="muted">经授权接入，明文不回传</span></td>
-      <td><button class="crm-btn" data-auth="${p.id}">填 Key 授权</button></td>
+      <td><crm-button class="btn primary" data-auth="${esc(p.id)}">填 Key 授权</crm-button></td>
     </tr>`).join('');
-  body.querySelectorAll('button[data-auth]').forEach((b) => b.addEventListener('click', () => authorizeSource(b.dataset.auth)));
+  body.querySelectorAll('crm-button[data-auth]').forEach((b) => b.addEventListener('click', () => openAuthDialog(b.dataset.auth)));
   // 租户自有实例列表
   try {
     const r = await get('/api/integration/providers');
@@ -388,7 +411,7 @@ async function loadIntegrationSources() {
   renderInstList();
 }
 function renderInstList() {
-  const tb = document.getElementById('inst-body');
+  const tb = $('inst-body');
   const placeholder = instErr
     ? `<span style="color:var(--err)">${esc(instErr)}</span>`
     : '（暂无自有系统实例——点击「新增实例」登记）';
@@ -400,34 +423,36 @@ function renderInstList() {
       <td class="muted">${s.field_map ? esc(JSON.stringify(s.field_map)) : '—'}</td>
       <td>${s.enabled === false ? '停用' : '启用'}</td>
       <td>
-        <button class="crm-btn" data-edit="${i}">编辑</button>
-        <button class="crm-btn" data-toggle="${i}">${s.enabled === false ? '启用' : '停用'}</button>
+        <crm-button class="btn" data-edit="${i}">编辑</crm-button>
+        <crm-button class="btn" data-toggle="${i}">${s.enabled === false ? '启用' : '停用'}</crm-button>
       </td>
     </tr>`).join('')
     : `<tr><td colspan="6" class="muted">${placeholder}</td></tr>`;
-  tb.querySelectorAll('button[data-edit]').forEach((b) => b.addEventListener('click', () => openInstDialog(instList[Number(b.dataset.edit)])));
-  tb.querySelectorAll('button[data-toggle]').forEach((b) => b.addEventListener('click', () => toggleInst(instList[Number(b.dataset.toggle)])));
+  tb.querySelectorAll('crm-button[data-edit]').forEach((b) => b.addEventListener('click', () => openInstDialog(instList[Number(b.dataset.edit)])));
+  tb.querySelectorAll('crm-button[data-toggle]').forEach((b) => b.addEventListener('click', () => toggleInst(instList[Number(b.dataset.toggle)])));
 }
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let editingId = null;
 function openInstDialog(inst) {
   editingId = inst ? inst.id : null;
-  document.getElementById('inst-dialog-title').textContent = inst ? `编辑实例 ${inst.id}` : '新增实例';
-  document.getElementById('f-id').value = inst ? inst.id : '';
-  document.getElementById('f-id').disabled = !!inst; // 编辑不可改 id（重命名=重建；禁删铁律下保持稳定标识）
-  document.getElementById('f-kind').value = inst ? inst.kind : 'generic-rest';
-  document.getElementById('f-endpoint').value = inst ? (inst.endpoint || inst.command || '') : '';
-  document.getElementById('f-fieldmap').value = inst?.field_map ? JSON.stringify(inst.field_map, null, 2) : '';
-  document.getElementById('f-enabled').checked = inst ? inst.enabled !== false : true;
-  document.getElementById('inst-dialog').showModal();
+  $('inst-dialog-title').textContent = inst ? `编辑实例 ${inst.id}` : '新增实例';
+  $('f-id').value = inst ? inst.id : '';
+  // 编辑不可改 id（重命名=重建；禁删铁律下保持稳定标识）。
+  // ⚠ crm-input 的 disabled 走 observedAttributes：只有**属性**变更才落到 shadow 内控件，
+  //   直接写 JS 属性 `.disabled = true` 不生效 —— 必须用 toggleAttribute。
+  $('f-id').toggleAttribute('disabled', !!inst);
+  $('f-kind').value = inst ? inst.kind : 'generic-rest';
+  $('f-endpoint').value = inst ? (inst.endpoint || inst.command || '') : '';
+  $('f-fieldmap').value = inst?.field_map ? JSON.stringify(inst.field_map, null, 2) : '';
+  $('f-enabled').checked = inst ? inst.enabled !== false : true;
+  $('inst-dialog').showModal();
 }
-function closeInstDialog() { document.getElementById('inst-dialog').close(); }
+function closeInstDialog() { $('inst-dialog').close(); }
 async function saveInstDialog() {
-  const id = document.getElementById('f-id').value.trim();
-  const kind = document.getElementById('f-kind').value;
-  const endpoint = document.getElementById('f-endpoint').value.trim();
-  const fmRaw = document.getElementById('f-fieldmap').value.trim();
-  const enabled = document.getElementById('f-enabled').checked;
+  const id = $('f-id').value.trim();
+  const kind = $('f-kind').value;
+  const endpoint = $('f-endpoint').value.trim();
+  const fmRaw = $('f-fieldmap').value.trim();
+  const enabled = $('f-enabled').checked;
   if (!id) { setStatus('实例 ID 必填'); return; }
   let field_map;
   try { field_map = fmRaw ? JSON.parse(fmRaw) : {}; } catch { setStatus('字段映射不是合法 JSON'); return; }
@@ -457,13 +482,15 @@ document.getElementById('f-cancel').addEventListener('click', closeInstDialog);
 // 保存统一走 form submit（含 Enter 键）：一律 preventDefault，仅在真正保存成功后才 closeInstDialog()。
 // 校验失败时保持弹层打开，用户输入不丢失（详见 form 上方注释）。
 document.getElementById('inst-form').addEventListener('submit', (e) => { e.preventDefault(); saveInstDialog(); });
+document.getElementById('f-auth-cancel').addEventListener('click', closeAuthDialog);
+document.getElementById('auth-form').addEventListener('submit', (e) => { e.preventDefault(); submitAuthDialog(); });
 
 async function load() {
   setStatus('加载中…');
   try {
     const data = await get('/api/config/discovery-rules');
     current = (data && data.value) ? data.value : {};
-    document.getElementById('readonlyHint').textContent = '';
+    $('readonlyHint').textContent = '';
     fill({ ...DEFAULTS, ...current });
     setStatus('已加载最新配置');
   } catch (e) {
@@ -471,12 +498,12 @@ async function load() {
     fill(DEFAULTS);
     if (e && e.status === 404) {
       // 未配置 → 404（configRouter.js:98）：亮出厂默认（只读态）。这是**正常态**，不是故障。
-      document.getElementById('readonlyHint').textContent = '（当前展示出厂默认值，尚未保存到系统）';
+      $('readonlyHint').textContent = '（当前展示出厂默认值，尚未保存到系统）';
       setStatus('尚未配置——当前显示系统出厂默认；首次「保存变更」后即按本租户生效');
     } else {
       // 真实加载失败（网络 / 403 权限 / 500）：必须与「未配置」区分——
       // 旧文案把两者写成「未配置或加载失败」，故障会被误当成默认态（假绿）。
-      document.getElementById('readonlyHint').textContent = '（加载失败，下方为系统出厂默认，仅供参考）';
+      $('readonlyHint').textContent = '（加载失败，下方为系统出厂默认，仅供参考）';
       setStatus('加载失败（HTTP ' + (e?.status || '?') + '）：' + (e?.message || e));
     }
   }
@@ -495,7 +522,6 @@ async function save() {
 document.getElementById('saveBtn').addEventListener('click', save);
 document.getElementById('reloadBtn').addEventListener('click', load);
 document.getElementById('pb-add').addEventListener('click', addPlaybook);
-seedPbDatalists();
 load();
 loadIntegrationSources();
 </script>

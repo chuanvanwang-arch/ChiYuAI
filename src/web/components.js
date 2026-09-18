@@ -195,9 +195,13 @@ if (IS_BROWSER) {
       // change 事件 composed:false，手动以 composed:true 转发出 host，外部监听可收到
       i.addEventListener('change', () => this.dispatchEvent(new Event('change', { bubbles: true, composed: true })));
       i.addEventListener('change', () => this._syncForm());
-      // 点击宿主或投影文字（非内部 input）时同步切换，恢复 <label> 包裹 input 的“点文字切换”行为
+      // 点击宿主或投影文字（非内部 input）时同步切换，恢复 <label> 包裹 input 的“点文字切换”行为。
+      // ⚠ 判据必须用 composedPath 而非 e.target：shadow 事件离开 shadow root 时 target 被重定向为宿主，
+      //   宿主侧监听器读到的 e.target **恒等于宿主自身**，`e.target !== i` 恒真 ⇒
+      //   真实鼠标点内部 input（复选框方块）会「原生切换 + JS 再切回」= 净零，复选框勾不上（2026-09-18 真实 Chromium 实证）。
+      //   composedPath() 保留原始派发路径，能正确区分「点的是内部 input」与「点的是宿主/文字」。
       this.addEventListener('click', (e) => {
-        if (e.target !== i) {
+        if (!e.composedPath().includes(i)) {
           i.checked = !i.checked;
           i.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
         }

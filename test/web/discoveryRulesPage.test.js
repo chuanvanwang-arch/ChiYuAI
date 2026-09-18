@@ -68,9 +68,11 @@ describe('discovery-rules.html 后台配置页', () => {
   });
 
   it('⑨ 防回归：保存按钮不得落在 method="dialog" 表单内（否则校验失败即丢输入）', () => {
+    // 2026-09-18 随 R4（控件必须 crm-*）同步：断言由裸 <button> 改为 <crm-button>——
+    // 契约意图（提交型保存 + 按钮型取消 + 统一走 form submit）不变，强度不降（同时锁死组件形态）。
     expect(html).not.toMatch(/<form[^>]*method="dialog"/);
-    expect(html).toMatch(/<button type="submit"[^>]*id="f-save"/);
-    expect(html).toMatch(/<button type="button"[^>]*id="f-cancel"/);
+    expect(html).toMatch(/<crm-button type="submit"[^>]*id="f-save"/);
+    expect(html).toMatch(/<crm-button type="button"[^>]*id="f-cancel"/);
     expect(html).toContain("getElementById('inst-form').addEventListener('submit'");
     expect(html).toMatch(/preventDefault\(\)/);
   });

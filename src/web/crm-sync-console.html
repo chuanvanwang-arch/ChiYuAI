@@ -1,259 +1,254 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM 同步控制台</title>
-  <link rel="stylesheet" href="/portal/tokens.css" />
-  <link rel="stylesheet" href="/portal/common.css" />
-  <script type="module" src="/portal/components.js"></script>
-  <style>
-    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 24px; background: var(--bg); color: var(--ink); }
-    .note { background: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0 16px; }
-    .tabs { display: flex; gap: 8px; margin: 12px 0; }
-    .tabs button { padding: 6px 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; cursor: pointer; }
-    .tabs button.on { background: var(--ac); color: #fff; border-color: var(--ac); }
-    .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: var(--panel); }
-    .card h3 { margin: 0 0 6px; font-size: 14px; }
-    .hint { color: var(--mut); font-size: 12px; margin: 4px 0; }
-    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px; margin: 6px 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-    th { color: var(--mut); font-weight: 500; }
-    input, select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; }
-    input.wide { width: 320px; }
-    input.narrow { width: 120px; }
-    button.mini { padding: 2px 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; cursor: pointer; font-size: 12px; }
-    .toolbar { margin: 14px 0; }
-    button.save { padding: 6px 14px; border: none; border-radius: 6px; background: var(--ac); color: #fff; cursor: pointer; }
-    .summary { color: var(--mut); font-size: 13px; margin-left: 10px; }
-    .err { color: var(--err); font-size: 13px; margin-left: 10px; }
-    .bad { color: var(--err); }
-    .good { color: var(--ok, #15803d); }
-    .warnc { color: var(--warn-ink, #a16207); }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM 同步配置</title>
+<link rel="stylesheet" href="/portal/tokens.css">
+<link rel="stylesheet" href="/portal/common.css">
+<script type="module" src="/portal/components.js"></script>
+<style>
+  /* 页面私有类（规范 docs/specs/2026-09-05-ui-authoring-rules.md R3）：
+     设计系统保留类 card/panel/table/tabs/badge/chip/btn/toast/select/input/textarea/button
+     一律不在页内重声明，一律直接引用 common.css 单源定义；此处只放本页私有布局类。
+     .sync-w-* 作用于 crm-* 宿主（组件 shadow 内控件宽 100%，长度由宿主决定）。 */
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px; margin: 6px 0; }
+  .row > label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mut); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0 0; }
+  .hint { color: var(--mut); font-size: 12px; margin: 4px 0; }
+  .summary { color: var(--mut); font-size: 13px; }
+  .tenant-iso { margin: 8px 0 0; padding-left: 10px; border-left: 3px solid var(--ac); }
+  .err { color: var(--err); font-size: 13px; }
+  .bad { color: var(--err); }
+  .good { color: var(--ok); }
+  .warnc { color: var(--warn); }
+  .sync-map { margin-bottom: 12px; }
+  .sync-w-narrow { width: 120px; }
+  .sync-w-mid { width: 180px; }
+  .sync-w-grid { width: 240px; }
+  /* 统一 toast（规范 §5：禁裸 alert）；ID 选择器避免重声明保留类 .toast */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 999;
+    padding: 10px 18px; border-radius: 8px; font-size: 13px; color: #fff; background: var(--panel);
+    border: 1px solid var(--line); border-left: 3px solid var(--ac); box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none; transition: opacity .22s; }
+  #toast.show { opacity: 1; }
+</style>
 </head>
 <body>
-  <header class="page-head"><div class="ph-main"><h1 class="page-title">CRM 同步控制台</h1></div></header>
-  <div class="note">⚠️ 与客户既有 CRM 的<b>单向同步</b>（读入 + 受控回写）。本页承担三件事：
-    <b>① 连接可构造性校验</b>（kind 不在工厂字典 → <code>mount</code> 会静默跳过，现象是「配置了但没数据」）；
-    <b>② 字段映射</b>（<code>sync-mappings</code>，声明式白名单，写入键 <code>sync-mappings</code>）；
-    <b>③ 信任档</b>（<code>sync-trust</code>，L1 只读 / L2 受控写 / L3 回写）。
-    连接与凭据的<b>编辑</b>在「外部数据接入」TAB（配置中心 #47/#48），此处只读呈现，不造第二个编辑面。
-    <br>⛔ <b>真实连通才算数</b>：凭据缺失时 <code>verifyAuth</code> 返 <code>credentials_missing</code> 属<b>预期行为</b>；
-    未接通不得叙述为「已同步」。</div>
+<header class="page-head"><div class="ph-main"><h1 class="page-title">CRM 同步配置</h1></div></header>
+<p class="page-sub" title="配置键：sync-mappings / sync-trust">租户级配置：管理 CRM 对象的字段映射与数据可信度档位；连接与凭据的编辑在「外部数据接入」。</p>
+<p class="hint tenant-iso" title="读按 scopeTenant(me)、写按 scopeOf(me)，均按会话租户收窄，永不通配"><span class="badge">数据按租户隔离</span> 每个租户只能看到并修改自己的同步配置；管理员只看到平台默认模板，不会读到其他租户的数据。</p>
 
-  <section id="conns"></section>
-  <section id="status"></section>
+<section id="status" class="sect"></section>
 
-  <div class="tabs">
-    <button data-tab="mappings" class="on">字段映射（sync-mappings）</button>
-    <button data-tab="trust">信任档（sync-trust）</button>
-  </div>
-  <div id="app">加载中…</div>
-  <div class="toolbar">
-    <button class="save" id="save">保存当前页</button>
-    <span class="summary" id="summary"></span>
-    <span class="err" id="err"></span>
-  </div>
+<crm-tabs id="tabs">
+  <crm-tab active data-tab="mappings" title="配置键：sync-mappings">字段映射</crm-tab>
+  <crm-tab data-tab="trust" title="配置键：sync-trust">信任档</crm-tab>
+</crm-tabs>
+<div id="app">加载中…</div>
 
-  <script type="module">
-    import { injectLayout } from '/portal/layout.js';
-    import { get, put } from '/portal/api.js';
-    injectLayout();
+<div class="toolbar">
+  <crm-button id="save" class="btn-primary">保存当前页</crm-button>
+  <span class="summary" id="summary"></span>
+  <span class="err" id="err"></span>
+</div>
+<div id="toast"></div>
 
-    const KEYS = { mappings: 'sync-mappings', trust: 'sync-trust' };
-    const DIRECTIONS = ['in', 'out'];
-    const TRUST_LEVELS = ['L1', 'L2', 'L3'];
-    const TRUST_DESC = {
-      L1: '只读：fetch + extract，不写任何目标系统（默认，最严）',
-      L2: '受控写：批量入库（每批携带 decision_id，过决策第 0 闸）',
-      L3: '回写：写回客户 CRM（需业务批准，绝不自动提权）',
-    };
+<script type="module">
+  import { injectLayout } from '/portal/layout.js';
+  import { get, put } from '/portal/api.js';
+  injectLayout();
 
-    const app = document.getElementById('app');
-    let tab = 'mappings';
-    let current = null;
-    let factories = [];
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $ = (id) => document.getElementById(id);
+  const app = $('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const toast = (text) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2400); };
 
-    // ── 连接清单 + kind 可构造性（把「配置了但没数据」的根因当场暴露）──
-    async function loadConns() {
-      const box = document.getElementById('conns');
-      try {
-        const [f, d] = await Promise.all([
-          get('/api/sync/factories').catch(() => ({ factories: [] })),
-          get('/api/integration/providers').catch((e) => ({ __err: e.message })),
-        ]);
-        factories = f.factories || [];
-        const head = `<div class="card"><h3>可构造的 provider kind（工厂字典 · 单一事实源）</h3>
-          <p class="hint"><code>generic-rest</code> 是唯一实现，其余为纯数据预设。kind 落在此集合外 → <code>mount</code> 静默跳过。</p>
-          <div class="row">${factories.length ? factories.map((k) => `<code>${esc(k)}</code>`).join(' · ') : '<span class="bad">读取失败或字典为空</span>'}</div>
-          <p class="hint">连接描述符的编辑入口：<a href="/discovery-rules.html#integration-sources">外部数据接入</a>（配置中心 #47 / #48，需 ADMIN/sysadmin）。</p>
-          <button class="mini" id="fcheck">校验已声明连接的 kind 是否可构造</button>
-          <div id="fcheck-out"></div></div>`;
+  // 后端状态值是英文标识符（ok/failed/…），不得直出给用户；未在表内的值原样兜底（防新增状态被吞成空白）。
+  const STATUS_LABEL = { ok: '成功', failed: '失败', degraded: '降级', pending: '待运行', running: '运行中', skipped: '已跳过' };
+  const statusText = (s) => STATUS_LABEL[s] || s || '—';
 
-        if (d.__err) {
-          box.innerHTML = head + `<div class="card"><p class="err">连接清单读取失败：${esc(d.__err)}（该端点需 ADMIN/sysadmin 权限）</p></div>`;
-          return;
-        }
-        const list = d.instances || [];
-        box.innerHTML = head + (list.length
-          ? `<div class="card"><h3>已声明连接（${list.length}）</h3><table><thead><tr><th>id</th><th>kind</th><th>启用</th><th>方向</th><th>信任档</th><th>对象</th><th>kind 可构造</th></tr></thead><tbody>${
-            list.map((it) => {
-              const okKind = factories.includes(it.kind);
-              return `<tr><td>${esc(it.id)}</td><td>${esc(it.kind)}</td>
-                <td>${it.enabled === false ? '<span class="warnc">停用</span>' : '<span class="good">启用</span>'}</td>
-                <td>${esc(it.direction || 'in')}</td><td>${esc(it.trust_level || 'L1')}</td>
-                <td>${esc((it.objects || []).map((o) => (typeof o === 'string' ? o : o?.name)).filter(Boolean).join(', ') || '—')}</td>
-                <td>${okKind ? '<span class="good">是</span>' : '<span class="bad">否 → 同步会静默跳过</span>'}</td></tr>`;
-            }).join('')}</tbody></table></div>`
-          : '<div class="card"><p class="hint">尚未声明任何连接（config_store[\'integration-providers\'] 为空或未播种）。</p></div>');
-        document.getElementById('fcheck')?.addEventListener('click', () => {
-          const bad = list.filter((it) => !factories.includes(it.kind));
-          document.getElementById('fcheck-out').innerHTML = bad.length
-            ? `<p class="bad">✗ ${bad.length} 条连接的 kind 不可构造：${bad.map((b) => esc(b.kind)).join(', ')} —— 这些连接会被 mount 静默跳过（同步零数据）。</p>`
-            : '<p class="good">✓ 全部已声明连接的 kind 均在工厂字典内，可构造。</p>';
-        });
-      } catch (e) {
-        box.innerHTML = `<div class="card"><p class="err">连接清单加载失败：${esc(e.message)}</p></div>`;
-      }
-    }
+  const KEYS = { mappings: 'sync-mappings', trust: 'sync-trust' };
+  const DIRECTIONS = ['in', 'out'];
+  // 档位兜底与展示顺序：仅在 config_store['sync-trust'] 未播种 levels 时使用。
+  // 正常一律渲染配置真值（label / allow_read / allow_upsert / allow_writeback），
+  // 不得把档位说明写死 —— 写死会与配置中心真实内容相互撒谎（原实现硬编码「默认 L1 只读」，实际 default_level=L3）。
+  const TRUST_LEVELS = [
+    { level: 'L1', label: '只读', allow_read: true, allow_upsert: false, allow_writeback: false },
+    { level: 'L2', label: '批量入库', allow_read: true, allow_upsert: true, allow_writeback: false },
+    { level: 'L3', label: '启用回写', allow_read: true, allow_upsert: true, allow_writeback: true },
+  ];
 
-    // ── 同步状态（T07 指标实测，非推断）──
-    async function loadStatus() {
-      const box = document.getElementById('status');
-      try {
-        const m = await get('/api/monitor/sync');
-        const rows = (m.rows || []);
-        box.innerHTML = `<div class="card"><h3>同步状态（T07 实测）</h3>
-          <div class="row">
-            <span>成功率 <b>${(Number(m.success_rate || 0) * 100).toFixed(0)}%</b></span>
-            <span>平均滞后 <b>${m.lag ? Math.round(Number(m.lag) / 60000) : 0} 分钟</b></span>
-            <span>冲突 <b>${m.conflict ?? 0}</b></span>
-            <span>降级/失败 <b class="${m.degraded ? 'bad' : 'good'}">${m.degraded ?? 0}</b></span>
-          </div>
-          ${rows.length ? `<table><thead><tr><th>provider</th><th>对象</th><th>状态</th><th>读入</th><th>新建</th><th>更新</th><th>跳过</th><th>冲突</th><th>最近运行</th></tr></thead><tbody>${
-            rows.map((r) => `<tr><td>${esc(r.provider)}</td><td>${esc(r.object)}</td>
-              <td class="${r.status === 'ok' ? 'good' : (r.status === 'failed' ? 'bad' : 'warnc')}">${esc(r.status)}</td>
-              <td>${r.read}</td><td>${r.created}</td><td>${r.updated}</td><td>${r.skipped}</td><td>${r.conflicted}</td>
-              <td>${r.lag_ms != null ? Math.round(r.lag_ms / 60000) + ' 分钟前' : '—'}</td></tr>`).join('')}</tbody></table>`
-            : '<p class="hint">暂无同步游标记录（<code>crm.sync_cursor</code> 为空）——「未接入」与「接入但无增量」的区别在于<b>是否已有游标行</b>，此处为空表示<b>尚未跑过</b>。</p>'}
-        </div>`;
-      } catch (e) {
-        box.innerHTML = `<div class="card"><p class="err">同步状态读取失败：${esc(e.message)}</p></div>`;
-      }
-    }
+  // 映射的 identity 是**对象**（消费方 mapping.js:24 / mount.js:222 读 `identity.external_id_field`）；
+  // 直接当字符串渲染会得到 "[object Object]"，保存后写回字符串 ⇒ external_id 解析静默退化。
+  const idFieldOf = (m) => {
+    const id = m?.identity;
+    if (id && typeof id === 'object') return id.external_id_field || '';
+    return typeof id === 'string' ? id : '';
+  };
 
-    // ── TAB1：sync-mappings ──
-    function fieldRow(f) {
-      return `<tr class="f-row"><td><input class="f-ext" value="${esc(f?.external || '')}" placeholder="external" /></td>
-        <td><input class="f-par" value="${esc(f?.particle || '')}" placeholder="particle" /></td>
-        <td><button class="mini f-del">删除</button></td></tr>`;
-    }
-    function mappingHtml(m, i) {
-      return `<div class="card map" data-idx="${i}">
+  let tab = 'mappings';
+  let current = null;
+
+  // ── 同步状态（T07 指标实测，非推断）──
+  async function loadStatus() {
+    const box = $('status');
+    try {
+      const m = await get('/api/monitor/sync');
+      const rows = (m.rows || []);
+      box.innerHTML = `<div class="card"><div class="sect-title">同步状态（T07 实测）</div>
         <div class="row">
-          <label>object <input class="m-obj narrow" value="${esc(m.object || '')}" /></label>
-          <label>particle_type <input class="m-pt narrow" value="${esc(m.particle_type || '')}" /></label>
-          <label>identity <input class="m-id narrow" value="${esc(m.identity || '')}" /></label>
-          <label>direction <select class="m-dir">${DIRECTIONS.map((d) => `<option value="${d}" ${m.direction === d ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
-          <button class="mini m-del">删除此映射</button>
+          <span>成功率 <b>${(Number(m.success_rate || 0) * 100).toFixed(0)}%</b></span>
+          <span>平均滞后 <b>${m.lag ? Math.round(Number(m.lag) / 60000) : 0} 分钟</b></span>
+          <span>冲突 <b>${m.conflict ?? 0}</b></span>
+          <span>降级/失败 <b class="${m.degraded ? 'bad' : 'good'}">${m.degraded ?? 0}</b></span>
         </div>
-        <table><thead><tr><th>external</th><th>particle</th><th></th></tr></thead><tbody>${(m.fields || []).map(fieldRow).join('')}</tbody></table>
-        <button class="mini m-addf">+ 加字段</button>
+        ${rows.length ? `<table class="table"><thead><tr><th>通道</th><th>对象</th><th>状态</th><th>读入</th><th>新建</th><th>更新</th><th>跳过</th><th>冲突</th><th>最近运行</th></tr></thead><tbody>${
+          rows.map((r) => `<tr><td>${esc(r.provider)}</td><td>${esc(r.object)}</td>
+            <td class="${r.status === 'ok' ? 'good' : (r.status === 'failed' ? 'bad' : 'warnc')}">${esc(statusText(r.status))}</td>
+            <td>${r.read}</td><td>${r.created}</td><td>${r.updated}</td><td>${r.skipped}</td><td>${r.conflicted}</td>
+            <td>${r.lag_ms != null ? Math.round(r.lag_ms / 60000) + ' 分钟前' : '—'}</td></tr>`).join('')}</tbody></table>`
+          : `<p class="hint" title="判据表：crm.sync_cursor（无本租户行即视为未跑过）">暂无同步记录 —— <b>尚未跑过</b>。此处为空有两种可能：从未接入，或接入后一直没产生增量；只要跑过一次，这里就会按对象列出读入 / 新建 / 更新 / 跳过数。</p>`}
       </div>`;
+    } catch (e) {
+      box.innerHTML = `<div class="card"><p class="err">同步状态读取失败：${esc(e.message)}</p></div>`;
     }
-    function mappingsHtml(cfg) {
-      const ms = Array.isArray(cfg.mappings) ? cfg.mappings : [];
-      return `<p class="hint">声明式白名单：只有 <code>direction:'in'</code> 的映射进入读入表；缺映射的对象被 mapping 层<b>拒绝</b>（fail-closed，不越权写）。</p>
-        ${ms.map(mappingHtml).join('')}
-        <button class="mini" id="add-map">+ 加映射</button>`;
-    }
+  }
 
-    // ── TAB2：sync-trust ──
-    function trustHtml(cfg) {
-      const cur = cfg.default_level || 'L1';
-      return `<div class="card"><h3>全局信任档</h3>
-        <p class="hint">与连接描述符的 <code>trust_level</code> 取 <b>min</b>（两处取更严者）。默认 <b>L1 只读</b>；提升必须显式操作，<b>绝不自动提权</b>。</p>
-        <div class="row">${TRUST_LEVELS.map((l) => `<label><input type="radio" name="tl" value="${l}" ${cur === l ? 'checked' : ''}/> ${l} — ${esc(TRUST_DESC[l])}</label>`).join('</div><div class="row">')}</div>
-      </div>`;
-    }
+  // ── TAB1：sync-mappings ──
+  function fieldRow(f) {
+    return `<tr class="f-row">
+      <td><crm-input class="f-ext sync-w-grid" placeholder="外部字段名" value="${esc(f?.external || '')}"></crm-input></td>
+      <td><crm-input class="f-par sync-w-grid" placeholder="粒子属性名" value="${esc(f?.particle || '')}"></crm-input></td>
+      <td><crm-button class="btn danger f-del">删除</crm-button></td></tr>`;
+  }
+  function mappingHtml(m, i) {
+    return `<div class="panel sync-map map" data-idx="${i}">
+      <div class="row">
+        <label title="字段名：object">外部对象 <crm-input class="m-obj sync-w-narrow" value="${esc(m.object || '')}"></crm-input></label>
+        <label title="字段名：particle_type">粒子类型 <crm-input class="m-pt sync-w-mid" value="${esc(m.particle_type || '')}"></crm-input></label>
+        <label title="字段名：identity.external_id_field">主键字段 <crm-input class="m-id sync-w-narrow" value="${esc(idFieldOf(m))}" placeholder="如 id"></crm-input></label>
+        <label title="字段名：direction">方向 <crm-select class="m-dir sync-w-narrow">${DIRECTIONS.map((d) => `<option value="${d}" ${m.direction === d ? 'selected' : ''}>${d === 'in' ? '读入（外部 → 本系统）' : '写出（本系统 → 外部）'}</option>`).join('')}</crm-select></label>
+        <crm-button class="btn danger m-del">删除此映射</crm-button>
+      </div>
+      <table class="table"><thead><tr><th>外部字段</th><th>粒子属性</th><th></th></tr></thead><tbody>${(m.fields || []).map(fieldRow).join('')}</tbody></table>
+      <crm-button class="btn m-addf">+ 加字段</crm-button>
+    </div>`;
+  }
+  function mappingsHtml(cfg) {
+    const ms = Array.isArray(cfg.mappings) ? cfg.mappings : [];
+    return `<p class="hint" title="白名单语义：仅 direction:'in' 的映射进入读入表；缺映射的对象被 mapping 层拒绝（fail-closed，不越权写）">未在此声明的对象不会被同步 —— 只有<b>方向为「读入」且在此列出</b>的对象才会写入本系统；未列出的对象直接跳过，不会越权写入。</p>
+      ${ms.map(mappingHtml).join('')}
+      <crm-button class="btn ghost" id="add-map">+ 加映射</crm-button>`;
+  }
 
-    async function load() {
-      app.textContent = '加载中…';
-      document.getElementById('err').textContent = '';
-      try {
-        const d = await get(`/api/config/${KEYS[tab]}`);
-        current = d.value || {};
-        app.innerHTML = tab === 'mappings' ? mappingsHtml(current) : trustHtml(current);
-        document.getElementById('summary').textContent = `键 ${KEYS[tab]}`;
-        if (tab === 'mappings') bindMappingEvents();
-      } catch (e) {
-        current = null;
-        app.innerHTML = `<p class="err">读取失败：${esc(e.message)}（配置键可能尚未播种）</p>`;
-      }
-    }
+  // ── TAB2：sync-trust ──
+  function trustHtml(cfg) {
+    const fallback = Object.fromEntries(TRUST_LEVELS.map((t) => [t.level, t]));
+    const cfgLevels = (cfg.levels && typeof cfg.levels === 'object' && Object.keys(cfg.levels).length) ? cfg.levels : null;
+    const levels = cfgLevels || fallback;
+    const keys = Object.keys(levels).sort();
+    const cur = levels[cfg.default_level] ? cfg.default_level : keys[0];
+    const yn = (v, danger) => `<td class="${v ? (danger ? 'bad' : 'good') : 'warnc'}">${v ? '允许' : '禁止'}</td>`;
+    return `<div class="card"><div class="sect-title">全局信任档</div>
+      <p class="hint" title="生效档位 = min(全局档位, 连接描述符 trust_level)">实际生效的档位取两处中<b>更严</b>的一个；提升档位必须手动操作，系统<b>绝不自动提权</b>。</p>
+      <div class="row"><label>全局档位
+        <crm-select id="trust-level" class="sync-w-grid" value="${esc(cur)}">${keys.map((k) => `<option value="${esc(k)}">${esc(k)} — ${esc(levels[k]?.label || '')}</option>`).join('')}</crm-select>
+      </label></div>
+      <table class="table"><thead><tr><th>档位</th><th>名称</th><th>读入</th><th>批量入库</th><th>回写客户 CRM</th></tr></thead>
+        <tbody>${keys.map((k) => {
+          const v = levels[k] || {};
+          return `<tr><td><b>${esc(k)}</b></td><td>${esc(v.label || '—')}</td>${yn(v.allow_read)}${yn(v.allow_upsert)}${yn(v.allow_writeback, true)}</tr>`;
+        }).join('')}</tbody></table>
+    </div>`;
+  }
 
-    function bindMappingEvents() {
-      app.addEventListener('click', (e) => {
-        const del = e.target.closest('.m-del');
-        const delf = e.target.closest('.f-del');
-        const addf = e.target.closest('.m-addf');
-        if (del) del.closest('.map').remove();
-        else if (delf) delf.closest('.f-row').remove();
-        else if (addf) {
-          const tb = addf.closest('.map').querySelector('tbody');
-          tb.insertAdjacentHTML('beforeend', fieldRow({}));
-        }
-      });
-      document.getElementById('add-map')?.addEventListener('click', () => {
-        app.insertAdjacentHTML('afterbegin', mappingHtml({ direction: 'in', fields: [] }, -1));
-      });
+  async function load() {
+    app.textContent = '加载中…';
+    $('err').textContent = '';
+    try {
+      const d = await get(`/api/config/${KEYS[tab]}`);
+      current = d.value || {};
+      app.innerHTML = tab === 'mappings' ? mappingsHtml(current) : trustHtml(current);
+      const s = $('summary');
+      s.textContent = tab === 'mappings' ? '当前编辑：字段映射' : '当前编辑：信任档';
+      s.title = `配置键 ${KEYS[tab]}`;
+    } catch (e) {
+      current = null;
+      app.innerHTML = `<p class="err">读取失败：${esc(e.message)}（配置键可能尚未播种）</p>`;
     }
+  }
 
-    function collect() {
-      if (tab === 'trust') {
-        const base = { ...(current || {}) };
-        const v = document.querySelector('input[name="tl"]:checked')?.value;
-        if (v) base.default_level = v;
-        return base;
-      }
+  // 事件委托只绑一次（原实现每次 load 重复绑定 ⇒ 同一击被处理多次）；
+  // crm-* 组件点击事件 composed:true 冒泡到宿主，宿主 class 在 light DOM 上，可正常 closest 命中
+  app.addEventListener('click', (e) => {
+    const del = e.target.closest('.m-del');
+    const delf = e.target.closest('.f-del');
+    const addf = e.target.closest('.m-addf');
+    if (del) del.closest('.map').remove();
+    else if (delf) delf.closest('.f-row').remove();
+    else if (addf) {
+      const tb = addf.closest('.map').querySelector('tbody');
+      tb.insertAdjacentHTML('beforeend', fieldRow({}));
+    }
+  });
+  app.addEventListener('click', (e) => {
+    if (!e.target.closest('#add-map')) return;
+    app.insertAdjacentHTML('afterbegin', mappingHtml({ direction: 'in', fields: [] }, -1));
+  });
+
+  function collect() {
+    if (tab === 'trust') {
       const base = { ...(current || {}) };
-      base.mappings = [...app.querySelectorAll('.map')].map((el) => ({
+      const v = $('trust-level')?.value;
+      if (v) base.default_level = v;
+      return base;
+    }
+    const base = { ...(current || {}) };
+    const src = Array.isArray(current?.mappings) ? current.mappings : [];
+    base.mappings = [...app.querySelectorAll('.map')].map((el) => {
+      const prev = src[Number(el.dataset.idx)];
+      const idf = (el.querySelector('.m-id')?.value || '').trim();
+      // identity 必须写回**对象**形状（后端契约 identity.external_id_field）：
+      // 保留原对象上的其他键，仅覆盖主键字段；留空 ⇒ {}（等价于未声明，消费方回退 row.id）。
+      const prevId = prev?.identity && typeof prev.identity === 'object' ? prev.identity : {};
+      return {
         object: el.querySelector('.m-obj')?.value || '',
         particle_type: el.querySelector('.m-pt')?.value || '',
-        identity: el.querySelector('.m-id')?.value || '',
+        identity: idf ? { ...prevId, external_id_field: idf } : {},
         direction: el.querySelector('.m-dir')?.value || 'in',
         fields: [...el.querySelectorAll('.f-row')].map((r) => ({
           external: r.querySelector('.f-ext')?.value || '',
           particle: r.querySelector('.f-par')?.value || '',
         })).filter((f) => f.external || f.particle),
-      })).filter((m) => m.object || m.particle_type);
-      if (!base.version) base.version = 1;
-      return base;
+      };
+    }).filter((m) => m.object || m.particle_type);
+    if (!base.version) base.version = 1;
+    return base;
+  }
+
+  $('save').addEventListener('click', async () => {
+    if (!current) { toast('尚未读到服务端配置，无法保存'); return; }
+    try {
+      await put(`/api/config/${KEYS[tab]}`, { value: collect() });
+      toast(`已保存 ${KEYS[tab]}（写经决策第 0 闸）`);
+      await load();
+    } catch (e) {
+      $('err').textContent = `保存失败：${e.message}`;
     }
+  });
 
-    document.getElementById('save').addEventListener('click', async () => {
-      if (!current) { alert('尚未读到服务端配置，无法保存'); return; }
-      try {
-        await put(`/api/config/${KEYS[tab]}`, { value: collect() });
-        alert(`已保存 ${KEYS[tab]}（写经决策第 0 闸）`);
-        await load();
-      } catch (e) {
-        document.getElementById('err').textContent = `保存失败：${e.message}`;
-      }
-    });
-
-    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
-      tab = b.dataset.tab;
-      document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
-      load();
-    }));
-
-    loadConns();
-    loadStatus();
+  $('tabs').addEventListener('click', (e) => {
+    const t = e.target.closest('crm-tab');
+    if (!t) return;
+    tab = t.dataset.tab;
+    // crm-tab 只响应 active 属性（observedAttributes 不含 class），故用 toggleAttribute
+    $('tabs').querySelectorAll('crm-tab').forEach((x) => x.toggleAttribute('active', x === t));
     load();
-  </script>
+  });
+
+  loadStatus();
+  load();
+</script>
 </body>
 </html>

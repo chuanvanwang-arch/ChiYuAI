@@ -10,53 +10,78 @@
   <title>线索发现工作台</title>
   <link rel="stylesheet" href="/portal/tokens.css" data-page-node-id="Fq8rpk1JIcB9U48SKkTWnC" />
   <link rel="stylesheet" href="/portal/common.css" data-page-node-id="jclxxjhKYHbf51Iim5OCyq" />
+  <style>
+    /* 2026-09-18 版式修复：本页此前使用 .pg-card / .pg-title / .toolbar / .sub 四个类，实测**全站 CSS
+       均无定义**（common.css 里是 .card/.panel/.sect-title/.page-sub；.toolbar 是全站页面级约定、须页内声明）。
+       ⇒ 卡片无边框、控件零间距、文字无色阶，即用户截图里「挤成一坨」的成因。
+       现按**同域页面范式**对齐：discovery-rules.html（.wrap + .panel + .sect-title + 页内 .toolbar/.hint）。 */
+    .wrap { padding: 18px 20px; max-width: 1180px; margin: 0 auto; }
+    .panel { margin-bottom: 14px; }   /* 复用 common.css .panel 的卡片外观，仅补卡片间距 */
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .toolbar input, .toolbar select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; background: var(--panel); color: var(--ink); }
+    .hint { color: var(--mut); font-size: 12px; margin: 8px 0 0; }
+    /* 表头不折行；空态左对齐（common.css 的 .empty 是居中单行，不承载「为什么空 + 去哪触发」） */
+    #candidate-table th, #dpTable th { white-space: nowrap; }
+    td.empty-cell { color: var(--mut); font-size: 13px; line-height: 1.75; padding: 14px 10px; text-align: left; }
+    td.empty-cell b { color: var(--ink); }
+    td.empty-cell code { font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+  </style>
 </head>
 <body data-page-node-id="CHdII98U8Q2r6R92PSK6AT">
 <div id="app" data-page-node-id="GZduzOozuzYBDageiGn1I6">
   <header class="page-head" data-page-node-id="ncqtQgvUqtIl8OSynJqGWx">
     <div class="ph-main" data-page-node-id="JnIPrm4CDWqxVeWTPhwgcU"><h1 class="page-title" data-page-node-id="5vk2CQkkHGizvtBYdcEUkt">线索发现工作台</h1></div>
   </header>
-  <!-- ① 触发条 triggerBar：当前租户 dataset（ICP 摘要 + 数据源徽标 + 上次运行时间） -->
-  <section id="triggerBar" class="pg-card" data-page-node-id="UBZ9MrhMUDjmhX5e974X1k">
-    <div id="icp-summary" data-page-node-id="EiDGmTGnHkOaoCENvAbdbt"></div>
-    <div id="data-source-badges" data-page-node-id="PVRsuu7QSWCzHKi70WNoTB"></div>
-    <div id="last-run-at" data-page-node-id="TNRUkh6tgIYMiloXRgqA6c"></div>
-    <!-- 运行发现：经 MCP 胶囊注入 prompt（discovery-run）触发，写走两阶段 + 第0闸，本页不裸调写端点 -->
-    <button id="run-discovery-btn" type="button" data-page-node-id="fXvkXUDGWyYLo0O4Tij3Vu">运行发现</button>
+  <!-- ① 触发条 triggerBar：本页不产数、不裸调写端点，故只放入口（运行发现 / 配置规则） -->
+  <div class="wrap" data-page-node-id="wrpDISC0b8yBj86Tc2u847">
+  <section id="triggerBar" class="panel" data-page-node-id="UBZ9MrhMUDjmhX5e974X1k">
+    <!-- 2026-09-18 精简（用户二次反馈「一堆说明看不懂」）：删去 icp-summary / data-source-badges /
+         last-run-at 三个**全仓零 JS 消费**的说明性 div（grep 仅命中自身声明）。它们没有取数方，
+         只能写死假值 —— 属「未接线参数」死区，且写死的数据源名会与配置中心的真实配置相互撒谎。
+         保留运行发现入口（写类动作，本页不裸调写端点；链路见 buddy-crm-portal.html CAPS
+         + agent-workbench.html:329 监听 inject-prompt）与配置入口，两者即自解释。 -->
+    <div class="toolbar">
+      <a id="run-discovery-btn" class="btn primary" href="/buddy" data-page-node-id="fXvkXUDGWyYLo0O4Tij3Vu">去对话运行发现 →</a>
+      <a class="btn" href="/discovery-rules.html">发现规则</a>
+    </div>
   </section>
   <!-- ①b 定向拓客输入（需求① 补齐：输入邮箱/公司名 → 只读 prospecting-lookup 预览候选；确认入池走 MCP 两阶段） -->
-  <section id="directProbe" class="pg-card">
-    <h3 class="pg-title">定向拓客（输入邮箱 / 公司名 / 域名）</h3>
+  <section id="directProbe" class="panel">
+    <div class="sect-title">定向拓客</div>
     <div class="toolbar">
-      <input id="dpName" placeholder="公司名（如：某某科技）" style="min-width:200px">
+      <input id="dpName" placeholder="公司名" style="min-width:180px">
       <input id="dpDomain" placeholder="域名（如 acme.com）" style="min-width:160px">
       <input id="dpEmail" placeholder="邮箱（如 cto@acme.com）" style="min-width:180px">
       <select id="dpProvider">
-        <option value="">（默认：系统内置）</option>
-        <option value="gaode">高德·地理画像（系统）</option>
+        <!-- 2026-09-18：原首项 value="" —— 后端 lookupRouter.js:20 以 allowIds:[provider] **精确匹配**
+             适配器 id，空串不可能命中（实测恒返回 provider_not_enabled_or_unknown）⇒ 默认项 100% 失败
+             且错误被前端吞成「未命中画像字段」。空 value 语义后端不存在，已移除。 -->
+        <option value="gaode">高德·地理画像</option>
         <option value="qixin">启信慧眼（付费）</option>
         <option value="anysite">Anysite（付费）</option>
       </select>
-      <button id="dpSearch" class="btn-primary" type="button">搜索候选</button>
+      <button id="dpSearch" class="btn primary" type="button">补全画像</button>
     </div>
-    <div class="sub">只读画像富集：输入公司名/域名/邮箱 → 返回已知实体的画像字段（行业/注册地址/法人/融资/招聘/招投标）；不写 CRM 粒子。画像用于补全客户主数据：如需落库 → MCP 对话中执行「data-particle-create（CRM_ACCOUNT，两阶段 + 决策第 0 闸）」；批量拓客入池请切「主动拓客」Tab。付费源未配置凭据时返回空为预期 fail-open。</div>
-    <div id="dpStatus" class="sub"></div>
-    <div id="dpResult" class="pg-card" hidden>
-      <table id="dpTable">
+    <div class="hint">只读补全已知实体的画像，不入候选池。批量按 ICP 找候选 → <a href="/lead-pool.html">公海池</a></div>
+    <div id="dpStatus" class="hint"></div>
+    <div id="dpResult" hidden>
+      <table id="dpTable" class="table">
         <thead><tr><th>字段</th><th>值</th><th>置信度</th><th>来源</th></tr></thead>
         <tbody id="dpTbody"></tbody>
       </table>
     </div>
   </section>
   <!-- ② 候选线索池表 candidatePool：只读 -->
-  <section id="candidatePool" class="pg-card" data-page-node-id="zOdsQEL9vM8eNryFsNLKl0">
-    <table id="candidate-table" data-page-node-id="EytBBmO8UqafCmhiuqgJtX">
+  <section id="candidatePool" class="panel" data-page-node-id="zOdsQEL9vM8eNryFsNLKl0">
+    <div class="sect-title">候选线索池</div>
+    <table id="candidate-table" class="table" data-page-node-id="EytBBmO8UqafCmhiuqgJtX">
       <thead data-page-node-id="AANb2d604WugenX1LZDmjV"><tr data-page-node-id="aNT1Ujdcz9olj3MAvyehEo">
-        <th data-page-node-id="BTI28XaRtIAd9RhJqT67Zc">公司</th><th data-page-node-id="VsYj2N2JCw1oJBD0sWchx7">ICP 适配分</th><th data-page-node-id="QRjsHbDMUCgWUscy5YDp85">信号</th><th data-page-node-id="iBMWhseyw7iA7V5FXJcgpR">why_narrative</th><th data-page-node-id="T5hNl2lfsAoTQ0wuOHr351">来源</th>
+        <th data-page-node-id="BTI28XaRtIAd9RhJqT67Zc">公司</th><th title="payload.discovery.icp_fit_score" data-page-node-id="VsYj2N2JCw1oJBD0sWchx7">ICP 适配分</th><th data-page-node-id="QRjsHbDMUCgWUscy5YDp85">信号</th><th title="payload.discovery.why_narrative" data-page-node-id="iBMWhseyw7iA7V5FXJcgpR">推荐理由</th><th data-page-node-id="T5hNl2lfsAoTQ0wuOHr351">来源</th>
       </tr></thead>
       <tbody id="candidate-tbody" data-page-node-id="HStLPoBdLoo3vhlVmsOMjr"></tbody>
     </table>
   </section>
+  </div><!-- /.wrap -->
   <!-- ③ 详情抽屉 glassBoxDrawer（C2）：rule_ref + j_score + trace 时间线 + 编排轨迹 + 账户持久记忆追加记录 -->
   <aside id="glassBoxDrawer" class="drawer" hidden data-page-node-id="NhurmdBObrkfXwv7GH1ytA">
     <div id="gbox-rule-ref" data-page-node-id="84MV7ZCmqWg63oCTv7vHsE"></div>
@@ -73,10 +98,23 @@
   // 只读端点：GET /api/discovery/candidates（候选池）；detail 经 /api/particles/:id/schema（既有只读）
   // 触发：<buddy-capsule> 注入 prompt（discovery-run）→ 写经 MCP 两阶段 + 第0闸，本页不裸调
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-  function render(items) {
+  function render(items, errMsg) {
     const tbody = document.getElementById('candidate-tbody');
     if (!tbody) return;
-    if (!items.length) { tbody.innerHTML = '<tr><td colspan="5">暂无已评分候选</td></tr>'; return; }
+    // 2026-09-18 修（用户报「看不懂」）：原空态只写「暂无已评分候选」——
+    //   ① 不区分「鉴权失败」与「真的 0 条」（catch 里也 render([])，把 403 伪装成空数据）；
+    //   ② 不解释数据从哪来、为什么空、下一步做什么 ⇒ 用户输入「北京海底捞」后看到空表，无从理解。
+    if (errMsg) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-cell">候选池读取失败：<b>${esc(errMsg)}</b>（未登录或会话过期时请重新登录）</td></tr>`;
+      return;
+    }
+    if (!items.length) {
+      // 2026-09-18 精简：原为 4 行 bullet 机制说明（用户二次反馈「一堆说明看不懂」）。
+      // 判据守恒（见 scripts/verify-discovery-page-render.mjs）：① 空数据与读取失败文案可区分；
+      // ② 一句话说明数据从哪来；③ 给出可点入口。机制原理（写入者/字段名/两链路关系）不进常驻文案。
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-cell">候选池暂无已评分客户 —— 候选由 AI 对话运行「线索发现」产出。<a href="/buddy">去运行 →</a></td></tr>`;
+      return;
+    }
     // 渲染进既有表体（列：公司 / ICP 适配分 / 信号 / why_narrative / 来源），保留表头语义
     tbody.innerHTML = items.map((it) => `
       <tr data-account-id="${esc(it.account_id)}">
@@ -92,8 +130,8 @@
       const data = await get('/api/discovery/candidates');
       render(data?.items || []);
     } catch (e) {
-      // 未登录/未配置 → 空态，不阻断页面
-      render([]);
+      // 未登录/会话过期 → 显式区分于「真的 0 条」（原实现两者都 render([])，用户无法分辨）
+      render([], e?.message || '网络错误或会话已过期');
     }
   }
   load();
@@ -102,6 +140,10 @@
   //      与后端适配器契约一致——qixin/anysite 的 search() 只接受 ICP 批量条件，
   //      不接受 name/domain/email 定点；定点必须 kind:'enrich'，否则恒空=假绿）——
   const $ = (id) => document.getElementById(id);
+  // 后端「适配器解析失败」的已知错误码 → 人话（lookupRouter.js:30 目前唯一错误码）
+  const PROVIDER_ERR_TEXT = {
+    provider_not_enabled_or_unknown: '该数据源未启用或未注册，本次<b>没有真正发起取数</b>；启用请到 <a href="/discovery-rules.html">发现规则</a>。',
+  };
   function escRow(s) { return esc(s); }
   async function dpSearch() {
     const provider = $('dpProvider')?.value || '';
@@ -121,8 +163,23 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) { alert('画像补全失败：' + (data.error || data.gate || res.status)); return; }
+    // 2026-09-18 修（**响应形状错配**，本页恒空的真正根因）：
+    //   后端信封为 { ok, data:{ provider,kind,count,items,draft_id,error }, action, confirm }
+    //   （executor.js:233 `{ok:true,data,...}` + routes.js:3718 `res.json({ok:true,...r})`）。
+    //   原实现读顶层 `data.items` ⇒ 恒 undefined ⇒ **即使数据源真返回了字段也永远渲染不出来**，
+    //   `draft_id` 也恒显示 '-'（实机抓包已证：响应含 draft_id，页面仍显示 draft_id=-）。
+    //   同库正确范式见 lead-pool.html:263 `(data.data || data)`。
+    const payload = data.data || data;
+    if (payload.error) {
+      $('dpResult').hidden = false;
+      $('dpTbody').innerHTML = `<tr><td colspan="4" class="empty-cell">
+        画像补全<b>未执行</b>（${esc(String(payload.error))}）——
+        ${PROVIDER_ERR_TEXT[payload.error] || '该数据源未启用或未注册，请改选其它数据源。'}</td></tr>`;
+      $('dpStatus').textContent = '未取数。请改选数据源后重试。';
+      return;
+    }
     // 只读画像渲染（enrich 返回 fieldHit 平铺：{field,value,confidence,provider}）
-    const items = data.items || [];
+    const items = payload.items || [];
     const tbody = $('dpTbody');
     tbody.innerHTML = items.length
       ? items.map((it) => `
@@ -132,10 +189,13 @@
           <td>${it.confidence == null ? '—' : Number(it.confidence).toFixed(2)}</td>
           <td>${escRow(it.provider || '—')}</td>
         </tr>`).join('')
-      : '<tr><td colspan="4">未命中画像字段（付费源未配置凭据时为预期 fail-open）</td></tr>';
+      : `<tr><td colspan="4" class="empty-cell">
+          <b>${esc(String(payload.provider || ''))}</b> 源已调用但未返回任何字段（count=0）。可能：① 该源未配凭据
+          （高德需 <code>GAODE_KEY</code>，付费源去 <a href="/discovery-rules.html">发现规则</a> 配）；
+          ② 该实体在数据源无覆盖，换个公司名/域名再试。</td></tr>`;
     $('dpResult').hidden = false;
-    $('dpResult').dataset.draft = data.draft_id || '';
-    $('dpStatus').textContent = `画像字段 ${items.length} 项（draft_id=${data.draft_id || '-'}）。画像暂存仅供预览，不落入公海候选（防止把画像字段误当线索入池）；如需落客户主数据，请在 MCP 对话中走 data-particle-create 两阶段。`;
+    $('dpResult').dataset.draft = payload.draft_id || '';
+    $('dpStatus').textContent = `画像字段 ${items.length} 项（draft_id=${payload.draft_id || '-'}）。仅供预览，不入候选池；落客户主数据请走对话中的 data-particle-create 两阶段。`;
   }
   $('dpSearch') && $('dpSearch').addEventListener('click', dpSearch);
 </script>

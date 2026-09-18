@@ -16,7 +16,7 @@ describe('buddy 线索发现胶囊（T19）', () => {
     const cap = CAPS.find((c) => c.name === TARGET);
     expect(cap, TARGET).toBeTruthy();
     expect(cap.en).toBe('Lead Discovery');
-    expect(cap.expert).toBe('AI 原生销售管理助手');
+    expect(cap.expert).toBe('企业AI销售决策专家');
     expect(Array.isArray(cap.prompts) && cap.prompts.length > 0).toBe(true);
     expect(Array.isArray(cap.inspirations) && cap.inspirations.length > 0).toBe(true);
     expect(cap.systemPrompt).toContain('discovery-run');   // MCP 工具名落在 prompt，不落 skills
