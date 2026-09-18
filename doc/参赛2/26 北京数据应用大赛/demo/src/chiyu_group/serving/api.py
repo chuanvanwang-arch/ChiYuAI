@@ -9,7 +9,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from chiyu_group.ingest.loader import load_sample, read_csv_rows
+from chiyu_group.ingest.loader import load_sample, load_uploaded, read_csv_rows, UPLOAD_PATH
 from chiyu_group.ingest.mapper import raw_to_ticket
 from chiyu_group.evaluate.replay import StreamReplay
 from chiyu_group.evaluate.metrics import macro_f1, cross_day_accuracy, min_sensitivity
@@ -84,13 +84,15 @@ def _tick(t):
         note["center_vec"] = (note["center_vec"] + tf["vec"]) / 2
         note["last_seen"] = t.push_time.isoformat()
         _life.touch(best, t.push_time)
-    elif out["action"] == "create":
+    elif out["action"] == "create" or (out["action"] == "manual" and not redline):
+        # create，或候选低于阈值(below_threshold)的新诉求 → 新建簇（不得静默丢弃）
         cid = f"C{len(STATE['clusters'])+1}"
         STATE["clusters"][cid] = {"center_vec": tf["vec"], "size": 1,
                                   "status": "active", "entities": list(ents),
                                   "admin": admin, "question": t.question_name,
                                   "last_seen": t.push_time.isoformat()}
         _life.touch(cid, t.push_time)
+    # 其余 manual（红线命中）→ 仅入审计，强制人工处理
     _audits.add(AuditRecord(order_id=t.order_id, action=out["action"],
                             cluster_id=out.get("cluster_id"), scores={},
                             fused=best_score if best else 0.0, confidence=0.5,
@@ -117,7 +119,7 @@ def replay(body: dict):
     if dataset == "sample":
         tickets = load_sample()
     elif dataset == "uploaded":
-        tickets = [raw_to_ticket(r) for r in read_csv_rows(Path("data/uploaded/uploaded.csv"))]
+        tickets = load_uploaded()
     else:
         tickets = load_sample()
     r = StreamReplay(on_tick=_tick)
@@ -179,8 +181,8 @@ async def upload(file: UploadFile = File(...)):
     content = await file.read()
     raw = content.decode("utf-8-sig").strip()
     rows = list(csv.DictReader(io.StringIO(raw)))
-    Path("data/uploaded").mkdir(parents=True, exist_ok=True)
-    Path("data/uploaded/uploaded.csv").write_text(raw, encoding="utf-8")
+    UPLOAD_PATH.parent.mkdir(parents=True, exist_ok=True)
+    UPLOAD_PATH.write_text(raw, encoding="utf-8")
     return {"rows": len(rows), "valid": len(rows), "invalid": [], "dataset": "uploaded"}
 
 

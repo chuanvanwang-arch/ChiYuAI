@@ -4,7 +4,13 @@ from pathlib import Path
 from typing import List
 from chiyu_group.ingest.mapper import Ticket, raw_to_ticket
 
-SAMPLE_PATH = Path(__file__).resolve().parent.parent.parent.parent / "data" / "sample" / "sample.csv"
+_SAMPLE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "sample"
+_REAL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "real"
+_UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "uploaded"
+
+SAMPLE_PATH = _SAMPLE_DIR / "sample.csv"
+REAL_PATH = _REAL_DIR / "real.csv"
+UPLOAD_PATH = _UPLOAD_DIR / "uploaded.csv"
 
 
 def read_csv_rows(path: Path) -> List[dict]:
@@ -17,4 +23,20 @@ def read_csv_rows(path: Path) -> List[dict]:
 
 def load_sample() -> List[Ticket]:
     rows = read_csv_rows(SAMPLE_PATH)
+    return [raw_to_ticket(r) for r in rows]
+
+
+def load_real() -> List[Ticket]:
+    """真实挂载数据（评测现场由主办方提供，含事件ID/是否群诉标注）。"""
+    if not REAL_PATH.exists():
+        return []
+    rows = read_csv_rows(REAL_PATH)
+    return [raw_to_ticket(r) for r in rows]
+
+
+def load_uploaded() -> List[Ticket]:
+    """上传通道数据（经由 /api/upload 写入）。"""
+    if not UPLOAD_PATH.exists():
+        return []
+    rows = read_csv_rows(UPLOAD_PATH)
     return [raw_to_ticket(r) for r in rows]
