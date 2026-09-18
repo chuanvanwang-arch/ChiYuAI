@@ -1,0 +1,8 @@
+# requirements-common.txt （锁定主版本）
+numpy==1.26.4
+pandas==2.2.2
+PyYAML==6.0.1
+pydantic==2.7.4
+fastapi==0.111.0
+uvicorn==0.30.1
+python-multipart==0.0.9

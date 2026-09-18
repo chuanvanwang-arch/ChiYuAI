@@ -1,0 +1,1 @@
+# requirements-cpu.txt —— CPU 通道（无 GPU）\nonnxruntime>=1.17\n

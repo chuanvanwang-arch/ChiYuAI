@@ -1,0 +1,3 @@
+# requirements-cuda.txt —— NVIDIA A100（cuda 变体）
+torch>=2.2
+transformers>=4.40
