@@ -9,6 +9,21 @@
 //   「销售行为看板」→「销售过程看板」，且**落点页自身 title/h1 同期对齐**（避免「点进去名字不一样」）；
 //   菜单名 ↔ 页面标题的跨层一致性由 test/portal/layoutMenu.test.js 的「菜单名 = 落点页名」守卫锁定。
 //   未改：「客户跟踪」（2026-08-29 深度洞察 + 指名客户监测合并时的定名，用户口头称「客户 360」）。
+
+// ── 渠道门户角色（单一事实源 · 2026-09-18 死区修复）──────────────────────────
+// 背景（真实缺陷）：此前菜单 roles=['ten_admin','channel_manager']，而落点页 channel-admin.html
+//   用 canEditTenantConfig(role) 守卫——该函数白名单**不含 channel_manager**。结果：
+//   渠道经理在侧边栏看得到入口、点进去被整页拒绝 = **入口死区**（与 09-17 channel-config 同族，
+//   只是形态从「菜单盲区」变成「菜单放行但页面拒绝」）。
+// 修复口径：拆成两个面，**两处都从本文件取，杜绝再次各写各的**——
+//   ① MENU_ROLES  = 侧边栏业务面（渠道经理日常工作台）。不含 admin/sysadmin：
+//      治理角色走配置中心 #57，不在侧边栏重复占入口（2026-09-18 契约，测试锁定 admin 为 DENIED）。
+//   ② ACCESS_ROLES = 落点页可访问面 = 业务面 ∪ 治理面{admin, sysadmin}。
+//      必须含治理角色：配置中心 #57 的深链 page 就是 '/channel-admin.html#overview'，
+//      admin 点治理卡片进去若被页面守卫拒绝，就又是一个死区。
+export const CHANNEL_PORTAL_MENU_ROLES = ['ten_admin', 'channel_manager'];
+export const CHANNEL_PORTAL_ACCESS_ROLES = ['ten_admin', 'channel_manager', 'admin', 'sysadmin'];
+
 export const FULL_MENU = [
   // 线索发现工作台（2026-09-17 补可达性）：页面早已存在（routes.js:570 有 serve，test/web/discoveryPage.test.js 有契约），
   //   但**全仓零导航入口**——菜单/配置中心/其他页面均无链接指向它（仅本文件外无引用）=「页面在、但没人到得了」。
@@ -48,9 +63,10 @@ export const FULL_MENU = [
   //      （ten_admin / channel_manager）的日常业务工作台，不能只藏在配置中心（否则渠道经理两个地方都到不了）。
   //   ★职责分离：菜单「渠道门户」= 前台业务面（经销商准入/共享视图/撞单仲裁，ten_admin/channel_manager）；
   //      配置中心「系统级 → 平台与访问」#57 经销商门户开关 = 后台治理面（平台总闸 kill-switch，仅 ADMIN 翻转）。
-  //   ★角色限定 ten_admin + channel_manager（dealer_user 走独立租户，不进本厂商菜单）。
   //   ★落点页 src/web/channel-admin.html title/h1=「渠道门户」，与菜单名跨层一致（守卫同文件锁定）。
-  { group: '渠道', label: '渠道门户', href: '/channel-admin.html', roles: ['ten_admin', 'channel_manager'] },
+  //   ★roles 取 CHANNEL_PORTAL_MENU_ROLES（单一事实源）；落点页守卫须取 CHANNEL_PORTAL_ACCESS_ROLES，
+  //     二者不可混用——混用即复现「菜单放行、页面拒绝」的入口死区（2026-09-18 实缺陷）。
+  { group: '渠道', label: '渠道门户', href: '/channel-admin.html', roles: CHANNEL_PORTAL_MENU_ROLES },
 ];
 export const ADMIN_MENU = [
   { group: '系统', label: '配置中心', href: '/config' },

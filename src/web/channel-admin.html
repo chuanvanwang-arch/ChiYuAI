@@ -53,8 +53,18 @@
 <div id="toast"></div>
 
 <script type="module">
+  import { injectLayout } from '/portal/layout.js';
   import { get, post, put, me } from '/portal/api.js';
-  import { canEditTenantConfig } from '/portal/api.js';
+  // 角色判据取单一事实源（CHANNEL_PORTAL_ACCESS_ROLES = 业务面 ∪ 治理面）：
+  //   ⚠ 不可用 canEditTenantConfig(role) 代替——其白名单不含 channel_manager，
+  //     会导致「菜单放行 channel_manager、页面整页拒绝」的入口死区（2026-09-18 实缺陷）。
+  import { CHANNEL_PORTAL_ACCESS_ROLES } from '/portal/layoutMenu.js';
+  const canUseChannelPortal = (role) => CHANNEL_PORTAL_ACCESS_ROLES.includes(role);
+
+  // 统一门户壳（顶栏 + 侧边栏导航）：须在页面自身 DOM 操作前同步注入。
+  //   2026-09-18 补：此前本页**未接壳**（test/web/nav-path.test.js 全量断言为红），
+  //   后果是进去后没有侧边栏——用户「菜单没有看到」的一半原因在此（另一半是角色不在菜单 roles 内）。
+  injectLayout();
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -75,7 +85,7 @@
   });
 
   async function loadView(view) {
-    if (!me_ || !canEditTenantConfig(me_.role)) return;
+    if (!me_ || !canUseChannelPortal(me_.role)) return;
     if (view === 'overview') return renderOverview();
     if (view === 'onboard') return renderOnboard();
     if (view === 'dealers') return renderDealers();
@@ -118,7 +128,6 @@
         } catch (e) { if (err) err.textContent = '翻转失败：' + e.message; }
       });
     }
-  }
   }
 
   // ── 经销商准入 ──
@@ -226,8 +235,8 @@
   (async () => {
     try { me_ = await me(); } catch { me_ = null; }
     if (!me_?.ok) { $('guard').innerHTML = `<div class="card ch-deny"><p class="err">未登录或会话失效，请重新登录。</p></div>`; return; }
-    if (!canEditTenantConfig(me_.role)) {
-      $('guard').innerHTML = `<div class="card ch-deny"><p class="warnc">当前角色（${esc(me_.role)}）无渠道门户权限。本面板仅对厂商 ten_admin / channel_manager 开放。</p></div>`;
+    if (!canUseChannelPortal(me_.role)) {
+      $('guard').innerHTML = `<div class="card ch-deny"><p class="warnc">当前角色（${esc(me_.role)}）无渠道门户权限。本面板仅对厂商 ten_admin / channel_manager 及平台治理角色开放。</p></div>`;
       return;
     }
     // 探测渠道门户是否已启用（闸通过才能读经销商列表）
