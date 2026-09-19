@@ -22,10 +22,15 @@ describe('layoutMenu 菜单单源', () => {
   // 2026-09-18 七次变更（用户裁定「不要放在左侧菜单里面」）：将「外部沟通接入」（→ channel-config.html）从 FULL_MENU「协同」组、
   //   及「原系统集成」（→ crm-sync-console.html）从 ADMIN_MENU「系统」组 双双移出左侧菜单。二者仍可达
   //   （channel-config 经 cross-link；crm-sync-console 经配置中心租户级 #53/#54 卡片），故非孤岛。项数：FULL_MENU 11→10、ADMIN_MENU 4→3。
-  it('FULL_MENU 恰 10 项全员（报告已移入 ADMIN_MENU；09-14 公海池；09-16 销售自动化；09-17 线索发现；09-18 销售组重排 + 两项改名 + 移出外部沟通接入）', () => {
-    expect(FULL_MENU.length).toBe(10);
+  // 2026-09-18 八次变更（经销商联邦 T8 归位 → 修正）：新增「渠道」组 →「渠道门户」（/channel-admin.html）。
+  //   角色限定 CHANNEL_PORTAL_MENU_ROLES = ['ten_admin','channel_manager']（单一事实源，见 src/portal/layoutMenu.js）；
+  //   ⚠ 项数/分组/顺序三处契约必须同步改——本文件与 test/portal/layoutMenu.test.js 是**两份独立契约**，
+  //     只改其一会让「入口存在」与「恰 N 项」互相打架（2026-09-18 实缺陷：上一轮只同步了 portal 那份，此处留红）。
+  it('FULL_MENU 恰 11 项全员（… + 09-18 渠道门户入「渠道」组）', () => {
+    expect(FULL_MENU.length).toBe(11);
     expect(FULL_MENU.map((m) => m.label)).toEqual([
       '线索发现', '公海池', '销售管道', '客户跟踪', '销售过程看板', '销售自动化', '我的待办', '📚 基础数据门户', '财务应收', '账单',
+      '渠道门户',
     ]);
     // 「销售」组顺序即用户诉求（2026-09-18）——整组按序断言，防「插项不动顺序」式静默漂移
     expect(FULL_MENU.filter((m) => m.group === '销售').map((m) => m.label))
@@ -63,9 +68,9 @@ describe('layoutMenu 菜单单源', () => {
     expect(labels.indexOf('销售自动化')).toBeGreaterThan(labels.indexOf('销售行为看板'));
   });
   // 分组顺序 = 各分组首次出现的次序（layout.js navHtml 按此渲染），本次变更不得打乱既有分组次序
-  it('分组次序保持：销售 → 协同 → 基础数据 → 财务 → 洞察', () => {
+  it('分组次序保持：销售 → 协同 → 基础数据 → 财务 → 洞察 → 渠道', () => {
     expect([...new Set(FULL_MENU.map((m) => m.group))])
-      .toEqual(['销售', '协同', '基础数据', '财务', '洞察']);
+      .toEqual(['销售', '协同', '基础数据', '财务', '洞察', '渠道']);
   });
   it('ADMIN_MENU 恰 3 项系统（配置中心 / 智能体中心 / 报告；原系统集成已于 2026-09-18 移出左侧菜单）', () => {
     expect(ADMIN_MENU.map((m) => m.label)).toEqual(['配置中心', '智能体中心', '报告']);
